@@ -615,28 +615,7 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 		response.Success(c, gin.H{"found": false})
 		return
 	}
-	cacheWritePrice := pricing.CacheCreationPricePerToken
-	var cacheWrite1hPrice *float64
-	if pricing.SupportsCacheBreakdown {
-		if pricing.CacheCreation5mPrice > 0 {
-			cacheWritePrice = pricing.CacheCreation5mPrice
-		}
-		cacheWrite1hPrice = &pricing.CacheCreation1hPrice
-	}
-
-	response.Success(c, gin.H{
-		"found":                        true,
-		"input_price":                  pricing.InputPricePerToken,
-		"currency":                     pricingCurrencyOrUSD(pricing.Currency),
-		"pricing_source":               pricing.PricingSource,
-		"output_price":                 pricing.OutputPricePerToken,
-		"cache_write_price":            cacheWritePrice,
-		"cache_write_1h_price":         cacheWrite1hPrice,
-		"cache_read_price":             pricing.CacheReadPricePerToken,
-		"reasoning_effort_multipliers": pricing.ReasoningEffortMultipliers,
-		"image_input_price":            pricing.ImageInputPricePerToken,
-		"image_output_price":           pricing.ImageOutputPricePerToken,
-	})
+	response.Success(c, pricing.DefaultPricingSnapshot())
 }
 
 // platformLiteLLMProvider maps a channel platform name to the corresponding

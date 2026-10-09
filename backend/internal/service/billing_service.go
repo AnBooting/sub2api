@@ -1412,7 +1412,7 @@ func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time)
 // GetModelPricingWithChannel 获取模型定价，渠道配置的价格覆盖默认值。
 // 与其他 token 字段一致，渠道留空的图片输入/输出价沿用目录价，见 applyChannelImagePriceOverrides。
 func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
-	if channelPricing == nil {
+	if !hasChannelTokenOverrides(channelPricing) {
 		return s.GetModelPricing(model)
 	}
 	pricing, err := s.getUSDModelPricingAt(model, time.Now())

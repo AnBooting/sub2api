@@ -373,10 +373,22 @@
             <div>
               <div class="mb-1 flex items-center justify-between">
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelMapping', 'Model Mapping') }}</label>
-                <button type="button" @click="addMappingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
-                  + {{ t('common.add', 'Add') }}
-                </button>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    @click="autoMapModels(sIdx)"
+                    :disabled="modelActionPending || submitting || section.group_ids.length === 0"
+                    :title="t('admin.channels.form.autoMappingHint')"
+                    class="text-xs text-primary-600 hover:text-primary-700 disabled:opacity-50"
+                  >
+                    {{ autoMappingPlatform === section.platform ? t('admin.channels.form.autoMappingLoading') : t('admin.channels.form.autoMapping') }}
+                  </button>
+                  <button type="button" @click="addMappingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
+                    + {{ t('common.add', 'Add') }}
+                  </button>
+                </div>
               </div>
+              <p class="mb-2 text-xs text-gray-400">{{ t('admin.channels.form.autoMappingHint') }}</p>
               <div
                 v-if="Object.keys(section.model_mapping).length === 0"
                 class="rounded border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
@@ -423,19 +435,27 @@
                 <label class="input-label text-xs mb-0">{{ t('admin.channels.form.modelPricing', 'Model Pricing') }}</label>
                 <div class="flex items-center gap-2">
                   <button
-                    v-if="supportsPricingModelSync(section.platform)"
                     type="button"
                     @click="syncLatestModels(sIdx)"
-                    :disabled="!!syncingPlatform"
+                    :disabled="modelActionPending || submitting || section.group_ids.length === 0"
                     class="text-xs text-gray-500 hover:text-primary-600 disabled:opacity-50"
                   >
                     {{ syncingPlatform === section.platform ? t('admin.channels.form.syncingModels') : t('admin.channels.form.syncLatestModels') }}
+                  </button>
+                  <button
+                    type="button"
+                    @click="autoPriceModels(sIdx)"
+                    :disabled="modelActionPending || submitting"
+                    class="text-xs text-primary-600 hover:text-primary-700 disabled:opacity-50"
+                  >
+                    {{ pricingPlatform === section.platform ? t('admin.channels.form.autoPricingLoading') : t('admin.channels.form.autoPricing') }}
                   </button>
                   <button type="button" @click="addPricingEntry(sIdx)" class="text-xs text-primary-600 hover:text-primary-700">
                     + {{ t('common.add', 'Add') }}
                   </button>
                 </div>
               </div>
+              <p class="mb-2 text-xs text-gray-400">{{ t('admin.channels.form.syncPricingHint') }}</p>
               <div
                 v-if="section.model_pricing.length === 0"
                 class="rounded border border-dashed border-gray-300 p-2 text-center text-xs text-gray-400 dark:border-dark-500"
@@ -600,7 +620,7 @@
           <button
             type="submit"
             form="channel-form"
-            :disabled="submitting"
+            :disabled="submitting || modelActionPending"
             class="btn btn-primary"
           >
             {{ submitting
@@ -633,6 +653,8 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
+import { supplementIdentityMappings } from '@/utils/channelModelMapping'
+import { emptyModelPricing, fillPricingSnapshots, hasManualPricing, pricingModelNames, uncoveredPricingModels } from '@/utils/channelPricingSnapshot'
 import { adminAPI } from '@/api/admin'
 import type { Channel, ChannelModelPricing, CreateChannelRequest, UpdateChannelRequest, AccountStatsPricingRule } from '@/api/admin/channels'
 import type { PricingFormEntry } from '@/components/admin/channel/types'
@@ -640,7 +662,7 @@ import { apiIntervalsToForm, apiTimePricingToForm, createDefaultTimePricingForm,
 import type { AdminGroup, GroupPlatform } from '@/types'
 import type { Column } from '@/components/common/types'
 import { platformTextClass, platformBadgeLightClass, platformLabel as catalogPlatformLabel } from '@/utils/platformColors'
-import { listPlatformIds, supportsPricingModelSync } from '@/constants/platformCatalog'
+import { listPlatformIds } from '@/constants/platformCatalog'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import DataTable from '@/components/common/DataTable.vue'
@@ -879,47 +901,100 @@ function addPricingEntry(sectionIdx: number) {
 }
 
 const syncingPlatform = ref<string | null>(null)
+const pricingPlatform = ref<string | null>(null)
+const modelActionPending = computed(() => !!syncingPlatform.value || !!pricingPlatform.value || !!autoMappingPlatform.value)
+
+function sectionModelState(section: PlatformSection) {
+  return JSON.stringify({
+    groups: [...new Set(section.group_ids)].sort((a, b) => a - b),
+    mapping: section.model_mapping,
+    pricing: section.model_pricing,
+    source: form.billing_model_source
+  })
+}
+
+function modelResultIsCurrent(section: PlatformSection, state: string) {
+  if (!showDialog.value || !form.platforms.includes(section) || !section.enabled) return false
+  if (sectionModelState(section) !== state) {
+    appStore.showError(t('admin.channels.form.modelActionChanged'))
+    return false
+  }
+  return true
+}
 
 async function syncLatestModels(sectionIdx: number) {
   const section = form.platforms[sectionIdx]
-  if (!section || syncingPlatform.value || !supportsPricingModelSync(section.platform)) return
+  if (!section || modelActionPending.value || submitting.value || section.group_ids.length === 0) return
   const platform = section.platform
+  const state = sectionModelState(section)
   syncingPlatform.value = platform
   try {
-    const result = await adminAPI.channels.syncPricingModels(platform)
-    // Collect all model names already present in this platform's pricing entries
-    const existingModels = new Set<string>()
-    for (const entry of section.model_pricing) {
-      for (const m of entry.models) existingModels.add(m)
+    const result = await adminAPI.groups.syncUpstreamModels([...new Set(section.group_ids)], platform)
+    if (!modelResultIsCurrent(section, state)) return
+    if (result.failed_accounts > 0) {
+      appStore.showError(t('admin.channels.form.syncModelsPartial', { count: result.failed_accounts }))
     }
-    const newModels = result.models.filter(m => !existingModels.has(m))
+    const names = pricingModelNames(result.models, section.model_mapping, form.billing_model_source)
+    const newModels = uncoveredPricingModels(section.model_pricing, names)
     if (newModels.length === 0) {
-      appStore.showSuccess(t('admin.channels.form.syncModelsAlreadyUpToDate'))
+      appStore.showSuccess(t(result.models.length === 0
+        ? 'admin.channels.form.syncModelsEmpty'
+        : 'admin.channels.form.syncModelsAlreadyUpToDate'))
       return
     }
-    // Add new models as a single new pricing entry (user fills in prices)
-    section.model_pricing.push({
-      models: newModels,
-      billing_mode: 'token',
-      input_price: null,
-      output_price: null,
-      cache_write_price: null,
-      cache_write_1h_price: null,
-      cache_read_price: null,
-      fast_multiplier: null,
-      flex_multiplier: null,
-      reasoning_effort_multipliers: null,
-      image_input_price: null,
-      image_output_price: null,
-      per_request_price: null,
-      intervals: [],
-      time_pricing: createDefaultTimePricingForm()
-    })
+    section.model_pricing.push(...newModels.map(emptyModelPricing))
     appStore.showSuccess(t('admin.channels.form.syncModelsSuccess', { count: newModels.length }))
   } catch (error) {
-    appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.syncModelsError')))
+    if (showDialog.value && form.platforms.includes(section)) {
+      appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.syncModelsError')))
+    }
   } finally {
     syncingPlatform.value = null
+  }
+}
+
+async function autoPriceModels(sectionIdx: number) {
+  const section = form.platforms[sectionIdx]
+  if (!section || modelActionPending.value || submitting.value) return
+  const state = sectionModelState(section)
+  const mapped = pricingModelNames(Object.keys(section.model_mapping), section.model_mapping, form.billing_model_source)
+  const entries = [...section.model_pricing, ...uncoveredPricingModels(section.model_pricing, mapped).map(emptyModelPricing)]
+  const models = [...new Set(entries.filter(entry => !hasManualPricing(entry)).flatMap(entry => entry.models))]
+    .filter(model => model.trim() && !model.includes('*'))
+  if (models.length === 0) {
+    appStore.showSuccess(t('admin.channels.form.autoPricingNoModels'))
+    return
+  }
+  pricingPlatform.value = section.platform
+  try {
+    // Bound concurrency so a large upstream catalog cannot flood the server.
+    const snapshots = new Map<string, Awaited<ReturnType<typeof adminAPI.channels.getModelDefaultPricing>>>()
+    let next = 0
+    await Promise.all(Array.from({ length: Math.min(4, models.length) }, async () => {
+      while (next < models.length) {
+        const model = models[next++]
+        try {
+          snapshots.set(model, await adminAPI.channels.getModelDefaultPricing(model))
+        } catch {
+          snapshots.set(model, { found: false })
+        }
+      }
+    }))
+    if (!modelResultIsCurrent(section, state)) return
+    const result = fillPricingSnapshots(entries, snapshots)
+    // Newly inferred mapping-only rules with unavailable prices stay out of the
+    // saved form. Existing unpriced rules remain available for manual editing.
+    const originalModels = new Set(section.model_pricing.flatMap(entry => entry.models))
+    section.model_pricing = result.pricing.filter(entry => entry.models.length === 0 || hasManualPricing(entry) ||
+      entry.models.some(model => originalModels.has(model)))
+    if (result.filled > 0) appStore.showSuccess(t('admin.channels.form.autoPricingSuccess', { count: result.filled }))
+    if (result.missing.length > 0) appStore.showError(t('admin.channels.form.autoPricingMissing', { models: result.missing.join(', ') }))
+  } catch (error) {
+    if (showDialog.value && form.platforms.includes(section)) {
+      appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.autoPricingError')))
+    }
+  } finally {
+    pricingPlatform.value = null
   }
 }
 
@@ -932,6 +1007,41 @@ function removePricingEntry(sectionIdx: number, idx: number) {
 }
 
 // ── Model Mapping helpers ──
+const autoMappingPlatform = ref<string | null>(null)
+
+async function autoMapModels(sectionIdx: number) {
+  const section = form.platforms[sectionIdx]
+  if (!section || modelActionPending.value || submitting.value || section.group_ids.length === 0) return
+  const groupIDs = [...new Set(section.group_ids)].sort((a, b) => a - b)
+  autoMappingPlatform.value = section.platform
+  try {
+    const candidates = (await Promise.all(groupIDs.map(id =>
+      adminAPI.groups.getModelMappingCandidates(id, section.platform)
+    ))).flat()
+    // A closed/reopened dialog or changed groups must not receive a late result.
+    if (!showDialog.value || !form.platforms.includes(section) || !section.enabled) return
+    if (JSON.stringify([...new Set(section.group_ids)].sort((a, b) => a - b)) !== JSON.stringify(groupIDs)) {
+      appStore.showError(t('admin.channels.form.autoMappingGroupsChanged'))
+      return
+    }
+    const result = supplementIdentityMappings(section.model_mapping, candidates)
+    if (result.added === 0) {
+      appStore.showSuccess(t(candidates.length === 0
+        ? 'admin.channels.form.autoMappingEmpty'
+        : 'admin.channels.form.autoMappingUpToDate'))
+      return
+    }
+    section.model_mapping = result.mapping
+    appStore.showSuccess(t('admin.channels.form.autoMappingSuccess', { count: result.added }))
+  } catch (error) {
+    if (showDialog.value && form.platforms.includes(section)) {
+      appStore.showError(extractApiErrorMessage(error, t('admin.channels.form.autoMappingError')))
+    }
+  } finally {
+    autoMappingPlatform.value = null
+  }
+}
+
 function addMappingEntry(sectionIdx: number) {
   const mapping = form.platforms[sectionIdx].model_mapping
   let key = ''
@@ -1484,7 +1594,7 @@ function closeDialog() {
 }
 
 async function handleSubmit() {
-  if (submitting.value) return
+  if (submitting.value || modelActionPending.value) return
   if (!form.name.trim()) {
     appStore.showError(t('admin.channels.nameRequired', 'Please enter a channel name'))
     return

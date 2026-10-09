@@ -436,7 +436,8 @@ async function onModelsUpdate(newModels: string[]) {
   // 查询第一个新增模型的默认价格
   try {
     const result = await channelsAPI.getModelDefaultPricing(addedModels[0])
-    if (result.found) {
+    if (result.found && result.snapshot_ready !== false &&
+        (result.currency !== 'CNY' || (result.cache_write_price != null && result.cache_read_price != null))) {
       emit('update', {
         ...props.entry,
         models: newModels,

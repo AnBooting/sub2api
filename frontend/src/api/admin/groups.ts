@@ -103,9 +103,16 @@ export async function getById(id: number): Promise<AdminGroup> {
 }
 
 /**
- * Get candidate models for the group model allowlist.
- * id=0 returns platform default models for create flow.
+ * Get concrete model names configured on enabled upstreams in an existing group.
  */
+export async function getModelMappingCandidates(id: number, platform: GroupPlatform): Promise<string[]> {
+  const { data } = await apiClient.get<{ models: string[] }>(
+    `/admin/groups/${id}/model-mapping-candidates`, { params: { platform } }
+  )
+  return data.models || []
+}
+
+/** Get allowlist candidates; id=0 includes platform defaults for group creation. */
 export async function getModelAllowlistCandidates(
   id: number,
   platform?: GroupPlatform
@@ -470,6 +477,11 @@ export async function getCapacitySummary(): Promise<
   return data
 }
 
+export async function syncUpstreamModels(group_ids: number[], platform: string): Promise<{ models: string[], failed_accounts: number, total_accounts: number }> {
+  const { data } = await apiClient.post('/admin/groups/models/sync-upstream', { group_ids, platform })
+  return data
+}
+
 export const groupsAPI = {
   list,
   getAll,
@@ -478,6 +490,8 @@ export const groupsAPI = {
   getLiveCapability,
   getById,
   getModelAllowlistCandidates,
+  getModelMappingCandidates,
+  syncUpstreamModels,
   create,
   duplicate,
   update,

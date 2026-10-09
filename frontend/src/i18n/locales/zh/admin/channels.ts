@@ -181,6 +181,14 @@ export default {
         tierLabel: '层级',
         resolution: '分辨率',
         modelMapping: '模型映射',
+        autoMapping: '一键映射',
+        autoMappingLoading: '读取模型中…',
+        autoMappingHint: '从关联分组的已启用上游账号补充同名映射，保留现有规则。保存渠道后生效。',
+        autoMappingSuccess: '已补充 {count} 条映射，请保存渠道',
+        autoMappingEmpty: '关联分组的已启用上游账号尚未配置具体模型',
+        autoMappingUpToDate: '上游模型已被现有映射覆盖',
+        autoMappingGroupsChanged: '关联分组已变更，请重新点击一键映射',
+        autoMappingError: '读取上游模型失败',
         modelMappingHint: '将请求中的模型名映射为实际模型名。在账号级别映射之前执行。',
         noMappingRules: '暂无映射规则，点击"添加"创建',
         mappingSource: '源模型',
@@ -230,7 +238,17 @@ export default {
         syncingModels: '同步中...',
         syncModelsSuccess: '已同步 {count} 个新模型',
         syncModelsAlreadyUpToDate: '模型列表已是最新',
-        syncModelsError: '同步模型失败'
+        syncModelsError: '同步模型失败',
+        syncModelsEmpty: '所选分组中没有可用的上游模型',
+        syncModelsPartial: '{count} 个上游未能读取模型列表，已同步其余上游',
+        syncPricingHint: '同步所选分组的上游支持模型并去重。自动定价只填未设置的当前基础单价，保存后可手动修改，不会自动覆盖；阶梯和时段价格请自行检查配置。',
+        modelActionChanged: '分组、映射或定价已变更，请重新操作',
+        autoPricing: '自动定价',
+        autoPricingLoading: '定价中...',
+        autoPricingSuccess: '已为 {count} 个模型填入当前价格，请检查后保存',
+        autoPricingMissing: '以下模型缺少完整价格，请手动定价：{models}',
+        autoPricingNoModels: '没有待定价模型，请先映射或同步模型；已有手动定价会保留',
+        autoPricingError: '自动定价失败'
       }
     },
 

@@ -230,6 +230,12 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖
 func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing, models ...string) {
+	// A model-only rule is an allowlist/display entry, not a currency override.
+	// Preserve native CNY pricing and unavailable pricing instead of coercing an
+	// empty USD form entry into USD rates or a zero-valued manual card.
+	if !hasChannelTokenOverrides(chPricing) {
+		return
+	}
 	model := ""
 	if len(models) > 0 {
 		model = models[0]
@@ -267,6 +273,14 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 
 	// 区间未命中时回退到上面已经应用渠道覆盖的基础价。
 	resolved.Intervals = filterValidIntervals(chPricing.Intervals)
+}
+
+func hasChannelTokenOverrides(p *ChannelModelPricing) bool {
+	return p != nil && (p.InputPrice != nil || p.OutputPrice != nil ||
+		p.CacheWritePrice != nil || p.CacheWrite1hPrice != nil || p.CacheReadPrice != nil ||
+		p.ImageInputPrice != nil || p.ImageOutputPrice != nil || p.FastMultiplier != nil ||
+		p.FlexMultiplier != nil || len(p.ReasoningEffortMultipliers) > 0 ||
+		len(filterValidIntervals(p.Intervals)) > 0 || p.TimePricing != nil)
 }
 
 // applyChannelImagePriceOverrides 应用渠道图片输入/输出价，规则与其他 token 字段一致：

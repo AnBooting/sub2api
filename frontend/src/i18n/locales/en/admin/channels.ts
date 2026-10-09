@@ -181,6 +181,14 @@ export default {
         tierLabel: 'Tier',
         resolution: 'Resolution',
         modelMapping: 'Model Mapping',
+        autoMapping: 'Auto Map',
+        autoMappingLoading: 'Loading models…',
+        autoMappingHint: 'Add identity mappings from enabled upstream accounts in linked groups, keeping existing rules. Save the channel to apply.',
+        autoMappingSuccess: 'Added {count} mappings. Save the channel to apply.',
+        autoMappingEmpty: 'Enabled upstream accounts in linked groups have no concrete models configured.',
+        autoMappingUpToDate: 'Existing mappings already cover the upstream models.',
+        autoMappingGroupsChanged: 'Linked groups changed. Click Auto Map again.',
+        autoMappingError: 'Failed to load upstream models.',
         modelMappingHint: 'Map request model names to actual model names. Runs before account-level mapping.',
         noMappingRules: 'No mapping rules. Click "Add" to create one.',
         mappingSource: 'Source model',
@@ -230,7 +238,17 @@ export default {
          syncingModels: 'Syncing...',
          syncModelsSuccess: 'Synced {count} new model(s)',
          syncModelsAlreadyUpToDate: 'Models already up to date',
-         syncModelsError: 'Failed to sync models'
+         syncModelsError: 'Failed to sync models',
+         syncModelsEmpty: 'No supported upstream models in the selected groups',
+         syncModelsPartial: 'Could not read model lists from {count} upstream accounts; synced the remaining accounts',
+         syncPricingHint: 'Sync supported upstream models across selected groups and deduplicate. Auto pricing fills only unset current base rates. Saved prices can be edited manually and are never overwritten automatically; review context-tier and time pricing separately.',
+         modelActionChanged: 'Groups, mappings or pricing changed. Please try again',
+         autoPricing: 'Auto Pricing',
+         autoPricingLoading: 'Filling prices...',
+         autoPricingSuccess: 'Filled current prices for {count} model(s). Review and save',
+         autoPricingMissing: 'Complete pricing is unavailable for these models; set prices manually: {models}',
+         autoPricingNoModels: 'No models to price. Map or sync models first; existing manual prices are preserved',
+         autoPricingError: 'Failed to fill model prices'
        }
      },
 

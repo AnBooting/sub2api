@@ -26,6 +26,7 @@ type GroupHandler struct {
 	dashboardService     *service.DashboardService
 	groupCapacityService *service.GroupCapacityService
 	cfg                  *config.Config
+	upstreamModelFetcher upstreamModelFetcher
 }
 
 // GetLiveCapability 返回当前服务端是否具备生成 Live attestation 的运行环境。
@@ -102,6 +103,12 @@ func NewGroupHandlerWithConfig(adminService service.AdminService, dashboardServi
 		groupCapacityService: groupCapacityService,
 		cfg:                  cfg,
 	}
+}
+
+func NewGroupHandlerWithUpstreamModels(adminService service.AdminService, dashboardService *service.DashboardService, groupCapacityService *service.GroupCapacityService, cfg *config.Config, accountTestService *service.AccountTestService) *GroupHandler {
+	h := NewGroupHandlerWithConfig(adminService, dashboardService, groupCapacityService, cfg)
+	h.upstreamModelFetcher = accountTestService
+	return h
 }
 
 func (h *GroupHandler) isSimpleMode() bool {
@@ -627,6 +634,21 @@ func (h *GroupHandler) GetGroupModelAllowlistCandidates(c *gin.Context) {
 		return
 	}
 
+	response.Success(c, gin.H{"models": models})
+}
+
+// GetGroupModelMappingCandidates only lists models configured on upstream accounts.
+func (h *GroupHandler) GetGroupModelMappingCandidates(c *gin.Context) {
+	groupID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || groupID <= 0 {
+		response.BadRequest(c, "Invalid group ID")
+		return
+	}
+	models, err := h.adminService.GetGroupModelMappingCandidates(c.Request.Context(), groupID, c.Query("platform"))
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
 	response.Success(c, gin.H{"models": models})
 }
 
