@@ -44679,6 +44679,8 @@ type UsageLogMutation struct {
 	video_duration_seconds       *int
 	addvideo_duration_seconds    *int
 	cache_ttl_overridden         *bool
+	pricing_snapshot             *jsontext.Value
+	appendpricing_snapshot       jsontext.Value
 	created_at                   *time.Time
 	clearedFields                map[string]struct{}
 	user                         *int64
@@ -47161,6 +47163,71 @@ func (m *UsageLogMutation) ResetCacheTTLOverridden() {
 	m.cache_ttl_overridden = nil
 }
 
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (m *UsageLogMutation) SetPricingSnapshot(j jsontext.Value) {
+	m.pricing_snapshot = &j
+	m.appendpricing_snapshot = nil
+}
+
+// PricingSnapshot returns the value of the "pricing_snapshot" field in the mutation.
+func (m *UsageLogMutation) PricingSnapshot() (r jsontext.Value, exists bool) {
+	v := m.pricing_snapshot
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPricingSnapshot returns the old "pricing_snapshot" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldPricingSnapshot(ctx context.Context) (v jsontext.Value, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPricingSnapshot is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPricingSnapshot requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPricingSnapshot: %w", err)
+	}
+	return oldValue.PricingSnapshot, nil
+}
+
+// AppendPricingSnapshot adds j to the "pricing_snapshot" field.
+func (m *UsageLogMutation) AppendPricingSnapshot(j jsontext.Value) {
+	m.appendpricing_snapshot = append(m.appendpricing_snapshot, j...)
+}
+
+// AppendedPricingSnapshot returns the list of values that were appended to the "pricing_snapshot" field in this mutation.
+func (m *UsageLogMutation) AppendedPricingSnapshot() (jsontext.Value, bool) {
+	if len(m.appendpricing_snapshot) == 0 {
+		return nil, false
+	}
+	return m.appendpricing_snapshot, true
+}
+
+// ClearPricingSnapshot clears the value of the "pricing_snapshot" field.
+func (m *UsageLogMutation) ClearPricingSnapshot() {
+	m.pricing_snapshot = nil
+	m.appendpricing_snapshot = nil
+	m.clearedFields[usagelog.FieldPricingSnapshot] = struct{}{}
+}
+
+// PricingSnapshotCleared returns if the "pricing_snapshot" field was cleared in this mutation.
+func (m *UsageLogMutation) PricingSnapshotCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldPricingSnapshot]
+	return ok
+}
+
+// ResetPricingSnapshot resets all changes to the "pricing_snapshot" field.
+func (m *UsageLogMutation) ResetPricingSnapshot() {
+	m.pricing_snapshot = nil
+	m.appendpricing_snapshot = nil
+	delete(m.clearedFields, usagelog.FieldPricingSnapshot)
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (m *UsageLogMutation) SetCreatedAt(t time.Time) {
 	m.created_at = &t
@@ -47366,7 +47433,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 47)
+	fields := make([]string, 0, 48)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47505,6 +47572,9 @@ func (m *UsageLogMutation) Fields() []string {
 	if m.cache_ttl_overridden != nil {
 		fields = append(fields, usagelog.FieldCacheTTLOverridden)
 	}
+	if m.pricing_snapshot != nil {
+		fields = append(fields, usagelog.FieldPricingSnapshot)
+	}
 	if m.created_at != nil {
 		fields = append(fields, usagelog.FieldCreatedAt)
 	}
@@ -47608,6 +47678,8 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.VideoDurationSeconds()
 	case usagelog.FieldCacheTTLOverridden:
 		return m.CacheTTLOverridden()
+	case usagelog.FieldPricingSnapshot:
+		return m.PricingSnapshot()
 	case usagelog.FieldCreatedAt:
 		return m.CreatedAt()
 	}
@@ -47711,6 +47783,8 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldVideoDurationSeconds(ctx)
 	case usagelog.FieldCacheTTLOverridden:
 		return m.OldCacheTTLOverridden(ctx)
+	case usagelog.FieldPricingSnapshot:
+		return m.OldPricingSnapshot(ctx)
 	case usagelog.FieldCreatedAt:
 		return m.OldCreatedAt(ctx)
 	}
@@ -48043,6 +48117,13 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetCacheTTLOverridden(v)
+		return nil
+	case usagelog.FieldPricingSnapshot:
+		v, ok := value.(jsontext.Value)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPricingSnapshot(v)
 		return nil
 	case usagelog.FieldCreatedAt:
 		v, ok := value.(time.Time)
@@ -48402,6 +48483,9 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldVideoDurationSeconds) {
 		fields = append(fields, usagelog.FieldVideoDurationSeconds)
 	}
+	if m.FieldCleared(usagelog.FieldPricingSnapshot) {
+		fields = append(fields, usagelog.FieldPricingSnapshot)
+	}
 	return fields
 }
 
@@ -48481,6 +48565,9 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldVideoDurationSeconds:
 		m.ClearVideoDurationSeconds()
+		return nil
+	case usagelog.FieldPricingSnapshot:
+		m.ClearPricingSnapshot()
 		return nil
 	}
 	return fmt.Errorf("unknown UsageLog nullable field %s", name)
@@ -48627,6 +48714,9 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldCacheTTLOverridden:
 		m.ResetCacheTTLOverridden()
+		return nil
+	case usagelog.FieldPricingSnapshot:
+		m.ResetPricingSnapshot()
 		return nil
 	case usagelog.FieldCreatedAt:
 		m.ResetCreatedAt()

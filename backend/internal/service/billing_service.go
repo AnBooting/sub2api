@@ -96,6 +96,10 @@ type BillingCache interface {
 
 // ModelPricing 模型价格配置（per-token价格，与LiteLLM格式一致）
 type ModelPricing struct {
+	Currency        string
+	PricingSource   string
+	NativeCard      *NativeCNYCard
+	NativePricingAt time.Time
 	// UltrafastMultiplier is model-owned and independent of operator Fast pricing.
 	UltrafastMultiplier                float64
 	InputPricePerToken                 float64            // 每token输入价格 (USD)
@@ -199,6 +203,10 @@ type UsageTokens struct {
 
 // CostBreakdown 费用明细
 type CostBreakdown struct {
+	PricingError              error
+	PricingCurrency           string
+	PricingSource             string
+	PricingSnapshot           *ModelPricing
 	InputCost                 float64 // 文本输入费用（不含图片输入，图片输入单独记入 ImageInputCost）
 	ImageInputCost            float64 // 图片输入 token 费用（如 gpt-image-2 图片编辑）
 	OutputCost                float64
@@ -1329,6 +1337,13 @@ func (s *BillingService) GetModelPricing(model string) (*ModelPricing, error) {
 // 驱动 DeepSeek pro→Flash 切换判定（切换点前 Pro 价、之后 Flash 价），使
 // 展示/估算路径可与历史补账同刻复算，测试也能用固定时点钉住断言。
 func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*ModelPricing, error) {
+	if s.pricingService.RequiresNativeCNY(model) {
+		return s.pricingService.nativePricingAt(model, pricingAt)
+	}
+	return s.getUSDModelPricingAt(model, pricingAt)
+}
+
+func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time) (*ModelPricing, error) {
 	// 标准化模型名称（转小写）
 	model = strings.ToLower(model)
 
@@ -1351,6 +1366,8 @@ func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*
 			price1h := litellmPricing.CacheCreationInputTokenCostAbove1hr
 			enableBreakdown := price1h > 0 && price1h > price5m
 			return s.applyModelSpecificPricingPolicyEx(model, &ModelPricing{
+				Currency:                           "USD",
+				PricingSource:                      "catalog",
 				InputPricePerToken:                 litellmPricing.InputCostPerToken,
 				InputPricePerTokenPriority:         litellmPricing.InputCostPerTokenPriority,
 				OutputPricePerToken:                litellmPricing.OutputCostPerToken,
@@ -1383,7 +1400,10 @@ func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*
 		if _, seen := s.fallbackWarnSeen.LoadOrStore(model, struct{}{}); !seen {
 			log.Printf("[Billing] Using fallback pricing for model: %s", model)
 		}
-		return s.applyModelSpecificPricingPolicyEx(model, fallback, true, pricingAt), nil
+		cloned := *fallback
+		cloned.Currency = "USD"
+		cloned.PricingSource = "fallback"
+		return s.applyModelSpecificPricingPolicyEx(model, &cloned, true, pricingAt), nil
 	}
 
 	return nil, fmt.Errorf("%w for model: %s", ErrModelPricingUnavailable, model)
@@ -1392,7 +1412,14 @@ func (s *BillingService) getModelPricingAt(model string, pricingAt time.Time) (*
 // GetModelPricingWithChannel 获取模型定价，渠道配置的价格覆盖默认值。
 // 与其他 token 字段一致，渠道留空的图片输入/输出价沿用目录价，见 applyChannelImagePriceOverrides。
 func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
-	pricing, err := s.GetModelPricing(model)
+	if channelPricing == nil {
+		return s.GetModelPricing(model)
+	}
+	pricing, err := s.getUSDModelPricingAt(model, time.Now())
+	if channelPricing.Currency == "CNY" {
+		pricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+		err = nil
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -1423,6 +1450,12 @@ func channelTierOverridePrice(baseStandard, baseTier, channelStandard float64) f
 func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *ChannelModelPricing) {
 	if pricing == nil || channelPricing == nil {
 		return
+	}
+	pricing.NativeCard = nil
+	pricing.PricingSource = "manual"
+	pricing.Currency = channelPricing.Currency
+	if pricing.Currency == "" {
+		pricing.Currency = "USD"
 	}
 	if channelPricing.InputPrice != nil {
 		priority := channelTierOverridePrice(pricing.InputPricePerToken, pricing.InputPricePerTokenPriority, *channelPricing.InputPrice)
@@ -1488,6 +1521,10 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 			applyLongContextBilling = *input.LongContextBillingEnabled
 		}
 		pricing, err := s.GetModelPricing(input.Model)
+		if err != nil {
+			return nil, err
+		}
+		pricing, err = resolveNativeTokenPricing(pricing, input.Tokens, input.PricingAt)
 		if err != nil {
 			return nil, err
 		}
@@ -1560,6 +1597,11 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	}
 
 	// 默认价卡（Source=LiteLLM）应用 DeepSeek 官方价强制覆盖（幂等，GetModelPricing
+	var nativeErr error
+	pricing, nativeErr = resolveNativeTokenPricing(pricing, input.Tokens, pricingAt)
+	if nativeErr != nil {
+		return nil, nativeErr
+	}
 	// 内部已强制过）；分组/渠道自定义定价保留运营者配置，不强制覆盖官方价。
 	pricing = s.applyModelSpecificPricingPolicyEx(input.Model, pricing, resolved.Source == PricingSourceLiteLLM, pricingAt)
 
@@ -1567,7 +1609,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 06:00–10:00 UTC，仅工作日；北京时间周末全天低谷）按 2× 低谷价计费。
 	// 仅作用于默认价卡（Source=LiteLLM，无分组/渠道自定义定价）——分组/渠道
 	// 自定义定价保持运营者语义，不叠加。先克隆再乘，避免污染共享 fallbackPrices 指针。
-	if resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
+	if pricing.Currency != "CNY" && resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
 		if mult := deepseekPeakMultiplierAt(pricingAt); mult > 1 {
 			cloned := *pricing
 			cloned.InputPricePerToken *= mult
@@ -1640,7 +1682,11 @@ func (s *BillingService) computeTokenBreakdown(
 		cacheCreationMultiplier = longCtxInputMultiplier
 	}
 
-	bd := &CostBreakdown{}
+	currency := pricing.Currency
+	if currency == "" {
+		currency = "USD"
+	}
+	bd := &CostBreakdown{PricingCurrency: currency, PricingSource: pricing.PricingSource, PricingSnapshot: pricing}
 	// 分离图片输入 token 与文本输入 token（多模态 embedding、图片编辑等图文不同价场景）。
 	// InputCost 仅计文本输入，图片输入费用单独记入 ImageInputCost，便于对账；总额不变。
 	// ImageInputTokens 为 0 时（绝大多数 chat/vision 流量）走原始单价路径，行为不变。
@@ -1773,10 +1819,16 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 
 	totalCost := unitPrice * units
 	actualCost := totalCost * input.RateMultiplier
+	currency := "USD"
+	if resolved.channelPricing != nil && resolved.channelPricing.Currency == "CNY" {
+		currency = "CNY"
+	}
 
 	return &CostBreakdown{
-		TotalCost:  totalCost,
-		ActualCost: actualCost,
+		TotalCost:       totalCost,
+		ActualCost:      actualCost,
+		PricingCurrency: currency,
+		PricingSource:   "manual",
 	}, nil
 }
 
@@ -1822,6 +1874,10 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 		return nil, err
 	}
 
+	pricing, err = resolveNativeTokenPricing(pricing, tokens, time.Time{})
+	if err != nil {
+		return nil, err
+	}
 	return s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, longContextBillingEnabled), nil
 }
 
@@ -1843,6 +1899,9 @@ func (s *BillingService) applyModelSpecificPricingPolicy(model string, pricing *
 // calculateTokenCost 对分组/渠道自定义定价（Source 非 LiteLLM）传 false：
 // 强制覆盖会把运营者配置的售价盖回官方价，违反自定义定价语义。
 func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing *ModelPricing, forceDeepSeekRates bool, pricingAt time.Time) *ModelPricing {
+	if pricing != nil && pricing.Currency == "CNY" {
+		return pricing
+	}
 	if pricing == nil {
 		return nil
 	}

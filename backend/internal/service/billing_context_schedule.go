@@ -102,6 +102,27 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 	if resolved.Mode != "" && resolved.Mode != BillingModeToken {
 		return nil, nil
 	}
+	if resolved.BasePricing != nil && resolved.BasePricing.NativeCard != nil {
+		card := resolved.BasePricing.NativeCard
+		bounds := make([]int, 0, len(card.Tiers))
+		for _, tier := range card.Tiers {
+			bounds = append(bounds, tier.Tier.Size)
+		}
+		if card.Schedule != nil {
+			for _, window := range card.Schedule.Windows {
+				for _, tier := range window.Tiers {
+					bounds = append(bounds, tier.Tier.Size)
+				}
+			}
+		}
+		sort.Ints(bounds)
+		out := &ContextPricingSchedule{Basis: ContextPricingBasisWholeRequest}
+		for _, seg := range buildContextSegments(bounds) {
+			rates := card.ratesAt(seg.min+1, timezone.Now())
+			out.Tiers = append(out.Tiers, ContextPricingTier{MinTokens: seg.min, MaxTokens: seg.max, Input: nativePerToken(rates.Input), Output: nativePerToken(rates.Output), CacheRead: nativePerToken(rates.CacheRead), CacheWrite: nativePerToken(rates.CacheWrite)})
+		}
+		return out, nil
+	}
 
 	req := TokenCostRequest{
 		Ctx:            ctx,

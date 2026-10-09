@@ -180,6 +180,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatBillingAmount } from '@/utils/billingCredits'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
@@ -273,7 +274,7 @@ const providerLabels = computed<Record<UserAuthProvider, string>>(() => ({
 }))
 
 function formatCurrency(value: number): string {
-  return `$${value.toFixed(2)}`
+  return formatBillingAmount(value)
 }
 
 function normalizeProvider(value: string): UserAuthProvider | null {

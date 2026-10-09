@@ -4,6 +4,7 @@ package ent
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"time"
@@ -623,6 +624,12 @@ func (_c *UsageLogCreate) SetNillableCacheTTLOverridden(v *bool) *UsageLogCreate
 	return _c
 }
 
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (_c *UsageLogCreate) SetPricingSnapshot(v jsontext.Value) *UsageLogCreate {
+	_c.mutation.SetPricingSnapshot(v)
+	return _c
+}
+
 // SetCreatedAt sets the "created_at" field.
 func (_c *UsageLogCreate) SetCreatedAt(v time.Time) *UsageLogCreate {
 	_c.mutation.SetCreatedAt(v)
@@ -1130,6 +1137,10 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
 		_node.CacheTTLOverridden = value
+	}
+	if value, ok := _c.mutation.PricingSnapshot(); ok {
+		_spec.SetField(usagelog.FieldPricingSnapshot, field.TypeJSON, value)
+		_node.PricingSnapshot = value
 	}
 	if value, ok := _c.mutation.CreatedAt(); ok {
 		_spec.SetField(usagelog.FieldCreatedAt, field.TypeTime, value)
@@ -2079,6 +2090,24 @@ func (u *UsageLogUpsert) SetCacheTTLOverridden(v bool) *UsageLogUpsert {
 // UpdateCacheTTLOverridden sets the "cache_ttl_overridden" field to the value that was provided on create.
 func (u *UsageLogUpsert) UpdateCacheTTLOverridden() *UsageLogUpsert {
 	u.SetExcluded(usagelog.FieldCacheTTLOverridden)
+	return u
+}
+
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (u *UsageLogUpsert) SetPricingSnapshot(v jsontext.Value) *UsageLogUpsert {
+	u.Set(usagelog.FieldPricingSnapshot, v)
+	return u
+}
+
+// UpdatePricingSnapshot sets the "pricing_snapshot" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdatePricingSnapshot() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldPricingSnapshot)
+	return u
+}
+
+// ClearPricingSnapshot clears the value of the "pricing_snapshot" field.
+func (u *UsageLogUpsert) ClearPricingSnapshot() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldPricingSnapshot)
 	return u
 }
 
@@ -3069,6 +3098,27 @@ func (u *UsageLogUpsertOne) SetCacheTTLOverridden(v bool) *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) UpdateCacheTTLOverridden() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheTTLOverridden()
+	})
+}
+
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (u *UsageLogUpsertOne) SetPricingSnapshot(v jsontext.Value) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetPricingSnapshot(v)
+	})
+}
+
+// UpdatePricingSnapshot sets the "pricing_snapshot" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdatePricingSnapshot() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdatePricingSnapshot()
+	})
+}
+
+// ClearPricingSnapshot clears the value of the "pricing_snapshot" field.
+func (u *UsageLogUpsertOne) ClearPricingSnapshot() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearPricingSnapshot()
 	})
 }
 
@@ -4225,6 +4275,27 @@ func (u *UsageLogUpsertBulk) SetCacheTTLOverridden(v bool) *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) UpdateCacheTTLOverridden() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.UpdateCacheTTLOverridden()
+	})
+}
+
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (u *UsageLogUpsertBulk) SetPricingSnapshot(v jsontext.Value) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetPricingSnapshot(v)
+	})
+}
+
+// UpdatePricingSnapshot sets the "pricing_snapshot" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdatePricingSnapshot() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdatePricingSnapshot()
+	})
+}
+
+// ClearPricingSnapshot clears the value of the "pricing_snapshot" field.
+func (u *UsageLogUpsertBulk) ClearPricingSnapshot() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearPricingSnapshot()
 	})
 }
 

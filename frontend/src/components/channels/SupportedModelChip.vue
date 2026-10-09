@@ -66,45 +66,45 @@
             </div>
 
             <template v-if="model.pricing.billing_mode === BILLING_MODE_TOKEN">
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 :label="t(prefixKey('inputPrice'))"
                 :value="model.pricing.input_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 :label="t(prefixKey('outputPrice'))"
                 :value="model.pricing.output_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 :label="t(prefixKey('cacheWrite5mPrice'))"
                 :value="model.pricing.cache_write_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 v-if="model.pricing.cache_write_1h_price != null"
                 :label="t(prefixKey('cacheWrite1hPrice'))"
                 :value="model.pricing.cache_write_1h_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 :label="t(prefixKey('cacheReadPrice'))"
                 :value="model.pricing.cache_read_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 v-if="model.pricing.image_input_price != null && model.pricing.image_input_price > 0"
                 :label="t(prefixKey('imageInputPrice'))"
                 :value="model.pricing.image_input_price"
                 :unit="t(prefixKey('unitPerMillion'))"
                 :scale="perMillionScale"
               />
-              <PricingRow
+              <PricingRow :currency="model.pricing.currency"
                 v-if="model.pricing.image_output_price != null && model.pricing.image_output_price > 0"
                 :label="t(prefixKey('imageOutputPrice'))"
                 :value="model.pricing.image_output_price"
@@ -113,7 +113,7 @@
               />
             </template>
 
-            <PricingRow
+            <PricingRow :currency="model.pricing.currency"
               v-if="
                 model.pricing.billing_mode === BILLING_MODE_PER_REQUEST &&
                 model.pricing.per_request_price != null
@@ -124,7 +124,7 @@
               :scale="1"
             />
 
-            <PricingRow
+            <PricingRow :currency="model.pricing.currency"
               v-if="
                 model.pricing.billing_mode === BILLING_MODE_IMAGE &&
                 model.pricing.image_output_price != null
@@ -135,7 +135,7 @@
               :scale="1"
             />
 
-            <PricingRow
+            <PricingRow :currency="model.pricing.currency"
               v-if="model.pricing.billing_mode === BILLING_MODE_VIDEO && model.pricing.per_request_price != null"
               :label="t(prefixKey('videoPrice'))"
               :value="model.pricing.per_request_price"

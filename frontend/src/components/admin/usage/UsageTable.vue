@@ -208,7 +208,7 @@
         <template #cell-cost="{ row }">
           <div class="text-sm">
             <div class="flex items-center gap-1.5">
-              <span class="font-medium text-green-600 dark:text-green-400">${{ row.actual_cost?.toFixed(6) || '0.000000' }}</span>
+              <span :title="row.pricing_snapshot ? `${row.pricing_snapshot.currency} · ${row.pricing_snapshot.source}` : undefined" class="font-medium text-green-600 dark:text-green-400">{{ formatBillingAmount(row.actual_cost?.toFixed(6) || '0.000000') }}</span>
               <span
                 v-if="row.long_context_billing_applied"
                 data-testid="long-context-billing-marker"
@@ -413,19 +413,19 @@
             <div class="text-xs font-semibold text-gray-300 mb-1">{{ t('usage.costDetails') }}</div>
             <div v-if="tooltipData && tooltipData.input_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.inputCost') }}</span>
-              <span class="font-medium text-white">${{ tooltipData.input_cost.toFixed(8) }}</span>
+              <span class="font-medium text-white">{{ formatBillingAmount(tooltipData.input_cost.toFixed(8)) }}</span>
             </div>
             <div v-if="tooltipData && hasImageInputCost(tooltipData)" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('usage.imageInputCost') }}</span>
-              <span class="font-medium text-fuchsia-300">${{ tooltipData.image_input_cost.toFixed(8) }}</span>
+              <span class="font-medium text-fuchsia-300">{{ formatBillingAmount(tooltipData.image_input_cost.toFixed(8)) }}</span>
             </div>
             <div v-if="tooltipData && tooltipData.output_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.outputCost') }}</span>
-              <span class="font-medium text-white">${{ tooltipData.output_cost.toFixed(8) }}</span>
+              <span class="font-medium text-white">{{ formatBillingAmount(tooltipData.output_cost.toFixed(8)) }}</span>
             </div>
             <div v-if="tooltipData && hasImageOutputCost(tooltipData)" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('usage.imageOutputCost') }}</span>
-              <span class="font-medium text-pink-300">${{ tooltipData.image_output_cost.toFixed(8) }}</span>
+              <span class="font-medium text-pink-300">{{ formatBillingAmount(tooltipData.image_output_cost.toFixed(8)) }}</span>
             </div>
             <!-- Token billing: show unit prices per 1M tokens -->
             <template v-if="tooltipData && !isImageUsage(tooltipData) && (!tooltipData.billing_mode || tooltipData.billing_mode === BILLING_MODE_TOKEN)">
@@ -473,24 +473,24 @@
               </div>
               <div class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.imageUnitPrice') }}</span>
-                <span class="font-medium text-sky-300">${{ imageUnitPrice(tooltipData).toFixed(8) }}</span>
+                <span class="font-medium text-sky-300">{{ formatBillingAmount(imageUnitPrice(tooltipData).toFixed(8)) }}</span>
               </div>
               <div class="flex items-center justify-between gap-4">
                 <span class="text-gray-400">{{ t('usage.imageTotalPrice') }}</span>
-                <span class="font-medium text-white">${{ tooltipData.total_cost?.toFixed(8) || '0.00000000' }}</span>
+                <span class="font-medium text-white">{{ formatBillingAmount(tooltipData.total_cost?.toFixed(8) || '0.00000000') }}</span>
               </div>
             </template>
             <div v-else class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('usage.unitPrice') }}</span>
-              <span class="font-medium text-sky-300">${{ tooltipData?.total_cost?.toFixed(8) || '0.00000000' }}</span>
+              <span class="font-medium text-sky-300">{{ formatBillingAmount(tooltipData?.total_cost?.toFixed(8) || '0.00000000') }}</span>
             </div>
             <div v-if="tooltipData && tooltipData.cache_creation_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.cacheCreationCost') }}</span>
-              <span class="font-medium text-white">${{ tooltipData.cache_creation_cost.toFixed(8) }}</span>
+              <span class="font-medium text-white">{{ formatBillingAmount(tooltipData.cache_creation_cost.toFixed(8)) }}</span>
             </div>
             <div v-if="tooltipData && tooltipData.cache_read_cost > 0" class="flex items-center justify-between gap-4">
               <span class="text-gray-400">{{ t('admin.usage.cacheReadCost') }}</span>
-              <span class="font-medium text-white">${{ tooltipData.cache_read_cost.toFixed(8) }}</span>
+              <span class="font-medium text-white">{{ formatBillingAmount(tooltipData.cache_read_cost.toFixed(8)) }}</span>
             </div>
           </div>
           <!-- Rate and Summary -->
@@ -504,11 +504,11 @@
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.original') }}</span>
-            <span class="font-medium text-white">${{ tooltipData?.total_cost?.toFixed(8) || '0.00000000' }}</span>
+            <span class="font-medium text-white">{{ formatBillingAmount(tooltipData?.total_cost?.toFixed(8) || '0.00000000') }}</span>
           </div>
           <div class="flex items-center justify-between gap-6">
             <span class="text-gray-400">{{ t('usage.userBilled') }}</span>
-            <span class="font-semibold text-green-400">${{ tooltipData?.actual_cost?.toFixed(8) || '0.00000000' }}</span>
+            <span class="font-semibold text-green-400">{{ formatBillingAmount(tooltipData?.actual_cost?.toFixed(8) || '0.00000000') }}</span>
           </div>
           <!-- Account billing (separated from user billing) -->
           <template v-if="showAccountBilling">
@@ -535,6 +535,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatBillingAmount } from '@/utils/billingCredits'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'

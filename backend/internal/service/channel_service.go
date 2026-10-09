@@ -680,6 +680,14 @@ func validateChannelConfig(pricing []ChannelModelPricing, mapping map[string]map
 // validatePricingEntries 校验定价条目（冲突检测 + 区间校验 + 计费模式校验），
 // 同时用于主渠道定价和 account_stats_pricing_rules 的内部定价。
 func validatePricingEntries(pricing []ChannelModelPricing) error {
+	for _, p := range pricing {
+		if p.Currency != "" && p.Currency != "USD" && p.Currency != "CNY" {
+			return fmt.Errorf("pricing currency must be USD or CNY")
+		}
+		if p.Currency == "CNY" && (p.BillingMode == "" || p.BillingMode == BillingModeToken) && (p.InputPrice == nil || p.OutputPrice == nil || p.CacheReadPrice == nil || p.CacheWritePrice == nil) {
+			return fmt.Errorf("manual CNY token pricing requires input, output, cache read and cache write prices; use explicit zero for free cache")
+		}
+	}
 	if err := validateNoConflictingModels(pricing); err != nil {
 		return err
 	}
@@ -738,6 +746,9 @@ func validatePricingTimePricing(pricing []ChannelModelPricing) error {
 func validateAccountStatsPricingRules(rules []AccountStatsPricingRule) error {
 	for i := range rules {
 		for _, pricing := range rules[i].Pricing {
+			if pricing.Currency == "CNY" {
+				return infraerrors.BadRequest("ACCOUNT_STATS_CURRENCY_UNSUPPORTED", "account cost statistics use USD; CNY cards are supported for customer billing only")
+			}
 			if pricing.TimePricing != nil && len(pricing.TimePricing.Periods) > 0 {
 				return fmt.Errorf("account stats pricing rule #%d: %w", i+1,
 					infraerrors.BadRequest("ACCOUNT_STATS_TIME_PRICING_UNSUPPORTED", "account stats pricing does not support time pricing"))

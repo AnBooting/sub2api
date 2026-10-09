@@ -19,11 +19,12 @@ type ChannelHandler struct {
 	channelService *service.ChannelService
 	billingService *service.BillingService
 	pricingService *service.PricingService
+	settingService *service.SettingService
 }
 
 // NewChannelHandler creates a new admin channel handler
-func NewChannelHandler(channelService *service.ChannelService, billingService *service.BillingService, pricingService *service.PricingService) *ChannelHandler {
-	return &ChannelHandler{channelService: channelService, billingService: billingService, pricingService: pricingService}
+func NewChannelHandler(channelService *service.ChannelService, billingService *service.BillingService, pricingService *service.PricingService, settingService *service.SettingService) *ChannelHandler {
+	return &ChannelHandler{channelService: channelService, billingService: billingService, pricingService: pricingService, settingService: settingService}
 }
 
 // --- Request / Response types ---
@@ -58,6 +59,7 @@ type updateChannelRequest struct {
 }
 
 type channelModelPricingRequest struct {
+	Currency                   string                     `json:"currency" binding:"omitempty,oneof=USD CNY"`
 	Platform                   string                     `json:"platform" binding:"omitempty,max=50"`
 	Models                     []string                   `json:"models" binding:"required,min=1,max=100"`
 	BillingMode                string                     `json:"billing_mode" binding:"omitempty,oneof=token per_request image"`
@@ -131,6 +133,7 @@ type channelResponse struct {
 }
 
 type channelModelPricingResponse struct {
+	Currency                   string                      `json:"currency"`
 	ID                         int64                       `json:"id"`
 	Platform                   string                      `json:"platform"`
 	Models                     []string                    `json:"models"`
@@ -261,6 +264,7 @@ func pricingToResponse(p *service.ChannelModelPricing) channelModelPricingRespon
 		intervals = append(intervals, intervalToResponse(iv))
 	}
 	return channelModelPricingResponse{
+		Currency:                   pricingCurrencyOrUSD(p.Currency),
 		ID:                         p.ID,
 		Platform:                   platform,
 		Models:                     models,
@@ -360,6 +364,7 @@ func pricingRequestToService(reqs []channelModelPricingRequest, allowChannelMult
 			flexMultiplier = r.FlexMultiplier
 		}
 		result = append(result, service.ChannelModelPricing{
+			Currency:                   r.Currency,
 			Platform:                   platform,
 			Models:                     r.Models,
 			BillingMode:                billingMode,
@@ -622,6 +627,8 @@ func (h *ChannelHandler) GetModelDefaultPricing(c *gin.Context) {
 	response.Success(c, gin.H{
 		"found":                        true,
 		"input_price":                  pricing.InputPricePerToken,
+		"currency":                     pricingCurrencyOrUSD(pricing.Currency),
+		"pricing_source":               pricing.PricingSource,
 		"output_price":                 pricing.OutputPricePerToken,
 		"cache_write_price":            cacheWritePrice,
 		"cache_write_1h_price":         cacheWrite1hPrice,

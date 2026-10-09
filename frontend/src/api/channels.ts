@@ -39,6 +39,7 @@ export interface UserPricingInterval {
 }
 
 export interface UserSupportedModelPricing {
+	 currency?: 'USD' | 'CNY'
   billing_mode: BillingMode
   input_price: number | null
   output_price: number | null

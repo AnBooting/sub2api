@@ -7161,6 +7161,7 @@
 
 	        <!-- Tab: Features (功能开关) -->
         <div v-show="activeTab === 'features'" class="space-y-6">
+          <PricingSettingsPanel />
 
         <div class="card">
           <div class="border-b border-gray-100 px-6 py-4 dark:border-dark-700">
@@ -8067,7 +8068,8 @@
                       t("admin.settings.payment.balanceRechargeMultiplier")
                     }}</label>
                     <input
-                      :value="form.payment_balance_recharge_multiplier || ''"
+                      :disabled="appStore.cachedPublicSettings?.billing_credits_enabled"
+                      :value="appStore.cachedPublicSettings?.billing_credits_enabled ? 1 : form.payment_balance_recharge_multiplier || ''"
                       @input="
                         form.payment_balance_recharge_multiplier =
                           parseFloat(
@@ -8079,14 +8081,15 @@
                       min="0.01"
                       class="input"
                     />
-                    <p class="mt-0.5 text-xs text-gray-400">
+					<p v-if="appStore.cachedPublicSettings?.billing_credits_enabled" class="mt-0.5 text-xs text-gray-400">{{ t('admin.settings.pricing.rechargeHint') }}</p>
+                    <p v-else class="mt-0.5 text-xs text-gray-400">
                       {{
                         t(
                           "admin.settings.payment.balanceRechargeMultiplierHint",
                         )
                       }}
                     </p>
-                    <p
+                    <p v-if="!appStore.cachedPublicSettings?.billing_credits_enabled"
                       class="mt-1 text-xs font-medium text-primary-600 dark:text-primary-400"
                     >
                       {{
@@ -9052,6 +9055,7 @@ import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
+import PricingSettingsPanel from "@/components/admin/PricingSettingsPanel.vue";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {

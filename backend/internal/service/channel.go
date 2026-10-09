@@ -88,6 +88,7 @@ type AccountStatsPricingRule struct {
 
 // ChannelModelPricing 渠道模型定价条目
 type ChannelModelPricing struct {
+	Currency                   string              `json:"currency,omitempty"`
 	ID                         int64               `json:"id,omitempty"`
 	ChannelID                  int64               `json:"channel_id,omitempty"`
 	Platform                   string              `json:"platform"` // 所属平台（anthropic/openai/gemini/...）

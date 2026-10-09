@@ -4,11 +4,13 @@ package ent
 
 import (
 	"context"
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
+	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
@@ -947,6 +949,24 @@ func (_u *UsageLogUpdate) SetNillableCacheTTLOverridden(v *bool) *UsageLogUpdate
 	return _u
 }
 
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (_u *UsageLogUpdate) SetPricingSnapshot(v jsontext.Value) *UsageLogUpdate {
+	_u.mutation.SetPricingSnapshot(v)
+	return _u
+}
+
+// AppendPricingSnapshot appends value to the "pricing_snapshot" field.
+func (_u *UsageLogUpdate) AppendPricingSnapshot(v jsontext.Value) *UsageLogUpdate {
+	_u.mutation.AppendPricingSnapshot(v)
+	return _u
+}
+
+// ClearPricingSnapshot clears the value of the "pricing_snapshot" field.
+func (_u *UsageLogUpdate) ClearPricingSnapshot() *UsageLogUpdate {
+	_u.mutation.ClearPricingSnapshot()
+	return _u
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_u *UsageLogUpdate) SetUser(v *User) *UsageLogUpdate {
 	return _u.SetUserID(v.ID)
@@ -1380,6 +1400,17 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PricingSnapshot(); ok {
+		_spec.SetField(usagelog.FieldPricingSnapshot, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedPricingSnapshot(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, usagelog.FieldPricingSnapshot, value)
+		})
+	}
+	if _u.mutation.PricingSnapshotCleared() {
+		_spec.ClearField(usagelog.FieldPricingSnapshot, field.TypeJSON)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -2461,6 +2492,24 @@ func (_u *UsageLogUpdateOne) SetNillableCacheTTLOverridden(v *bool) *UsageLogUpd
 	return _u
 }
 
+// SetPricingSnapshot sets the "pricing_snapshot" field.
+func (_u *UsageLogUpdateOne) SetPricingSnapshot(v jsontext.Value) *UsageLogUpdateOne {
+	_u.mutation.SetPricingSnapshot(v)
+	return _u
+}
+
+// AppendPricingSnapshot appends value to the "pricing_snapshot" field.
+func (_u *UsageLogUpdateOne) AppendPricingSnapshot(v jsontext.Value) *UsageLogUpdateOne {
+	_u.mutation.AppendPricingSnapshot(v)
+	return _u
+}
+
+// ClearPricingSnapshot clears the value of the "pricing_snapshot" field.
+func (_u *UsageLogUpdateOne) ClearPricingSnapshot() *UsageLogUpdateOne {
+	_u.mutation.ClearPricingSnapshot()
+	return _u
+}
+
 // SetUser sets the "user" edge to the User entity.
 func (_u *UsageLogUpdateOne) SetUser(v *User) *UsageLogUpdateOne {
 	return _u.SetUserID(v.ID)
@@ -2924,6 +2973,17 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if value, ok := _u.mutation.CacheTTLOverridden(); ok {
 		_spec.SetField(usagelog.FieldCacheTTLOverridden, field.TypeBool, value)
+	}
+	if value, ok := _u.mutation.PricingSnapshot(); ok {
+		_spec.SetField(usagelog.FieldPricingSnapshot, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AppendedPricingSnapshot(); ok {
+		_spec.AddModifier(func(u *sql.UpdateBuilder) {
+			sqljson.Append(u, usagelog.FieldPricingSnapshot, value)
+		})
+	}
+	if _u.mutation.PricingSnapshotCleared() {
+		_spec.ClearField(usagelog.FieldPricingSnapshot, field.TypeJSON)
 	}
 	if _u.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

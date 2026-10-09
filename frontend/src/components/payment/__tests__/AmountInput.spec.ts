@@ -1,3 +1,4 @@
+vi.mock('@/i18n', () => ({ getLocale: () => 'en' }))
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, mount } from '@vue/test-utils'
 import AmountInput from '../AmountInput.vue'

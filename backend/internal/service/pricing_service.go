@@ -262,12 +262,22 @@ type LiteLLMRawEntry struct {
 
 // PricingService 动态价格服务
 type PricingService struct {
-	cfg          *config.Config
-	remoteClient PricingRemoteClient
-	mu           sync.RWMutex
-	pricingData  map[string]*LiteLLMModelPricing
-	lastUpdated  time.Time
-	localHash    string
+	nativeCNYCards   map[string]*NativeCNYCard
+	nativeCNYUpdated time.Time
+	nativeCNYError   string
+	controlsMu       sync.Mutex
+	controls         *PricingControls
+	settingsRepo     SettingRepository
+	remoteGeneration uint64
+	remoteRequestID  uint64
+	remoteCancels    map[uint64]context.CancelFunc
+	stopping         bool
+	cfg              *config.Config
+	remoteClient     PricingRemoteClient
+	mu               sync.RWMutex
+	pricingData      map[string]*LiteLLMModelPricing
+	lastUpdated      time.Time
+	localHash        string
 	// fallback/override 文件在最近一次成功重建时的内容指纹，定时器据此判断是否
 	// 需要从本地目录缓存重建叠加层。
 	customFilesHash string
@@ -296,6 +306,7 @@ func (s *PricingService) Initialize() error {
 	}
 
 	// 首次加载价格数据
+	s.loadNativeCNYCache()
 	if err := s.checkAndUpdatePricing(); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Initial load failed, using fallback: %v", err)
 		if err := s.useFallbackPricing(); err != nil {
@@ -304,6 +315,11 @@ func (s *PricingService) Initialize() error {
 	}
 
 	// 启动定时更新
+	if s.RemotePullEnabled() && s.GetControls().NativeCNYEnabled {
+		if err := s.syncNativeCNY(false); err != nil {
+			s.recordNativeCNYError(err)
+		}
+	}
 	s.startUpdateScheduler()
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Service initialized with %d models", len(s.pricingData))
@@ -312,6 +328,12 @@ func (s *PricingService) Initialize() error {
 
 // Stop 停止价格服务
 func (s *PricingService) Stop() {
+	s.controlsMu.Lock()
+	s.stopping = true
+	for _, cancel := range s.remoteCancels {
+		cancel()
+	}
+	s.controlsMu.Unlock()
 	close(s.stopCh)
 	s.wg.Wait()
 	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
@@ -328,7 +350,7 @@ func (s *PricingService) startUpdateScheduler() {
 	if !remoteEnabled {
 		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Remote sync disabled: pricing remote URL is empty")
 	}
-	if !remoteEnabled && !watchCustom {
+	if !remoteEnabled && !watchCustom && s.settingsRepo == nil && !s.GetControls().NativeCNYEnabled {
 		return
 	}
 
@@ -346,9 +368,14 @@ func (s *PricingService) startUpdateScheduler() {
 		for {
 			select {
 			case <-ticker.C:
-				if remoteEnabled {
+				if s.RemotePullEnabled() && remoteEnabled {
 					if err := s.syncWithRemote(); err != nil {
 						logger.LegacyPrintf("service.pricing", "[Pricing] Sync failed: %v", err)
+					}
+				}
+				if s.RemotePullEnabled() {
+					if err := s.syncNativeCNY(false); err != nil {
+						s.recordNativeCNYError(err)
 					}
 				}
 				if watchCustom {
@@ -366,6 +393,12 @@ func (s *PricingService) startUpdateScheduler() {
 // checkAndUpdatePricing 检查并更新价格数据
 func (s *PricingService) checkAndUpdatePricing() error {
 	pricingFile := s.getPricingFilePath()
+	if !s.RemotePullEnabled() {
+		if err := s.loadPricingData(pricingFile); err == nil {
+			return nil
+		}
+		return s.useFallbackPricing()
+	}
 
 	// 检查本地文件是否存在
 	if _, err := os.Stat(pricingFile); os.IsNotExist(err) {
@@ -422,6 +455,9 @@ func (s *PricingService) checkAndUpdatePricing() error {
 
 // syncWithRemote 与远程同步（基于哈希校验）
 func (s *PricingService) syncWithRemote() error {
+	if !s.RemotePullEnabled() {
+		return nil
+	}
 	// 如果配置了哈希URL，从远程获取哈希进行比对
 	if s.cfg.Pricing.HashURL != "" {
 		remoteHash, err := s.fetchRemoteHash()
@@ -575,14 +611,16 @@ func (s *PricingService) reloadCustomPricingLayers() error {
 
 // downloadPricingData 从远程下载价格数据
 func (s *PricingService) downloadPricingData() error {
+	ctx, finish, generation, err := s.beginRemoteRequest(30 * time.Second)
+	if err != nil {
+		return err
+	}
+	defer finish()
 	remoteURL, err := s.validatePricingURL(s.cfg.Pricing.RemoteURL)
 	if err != nil {
 		return err
 	}
 	logger.LegacyPrintf("service.pricing", "[Pricing] Downloading from %s", remoteURL)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
 
 	// 获取远程哈希（用于同步锚点，不作为完整性校验）
 	var remoteHash string
@@ -613,6 +651,11 @@ func (s *PricingService) downloadPricingData() error {
 	}
 
 	// 保存到本地文件
+	s.controlsMu.Lock()
+	defer s.controlsMu.Unlock()
+	if !s.controlsLocked().RemoteEnabled || generation != s.remoteGeneration || ctx.Err() != nil {
+		return ErrPricingPullDisabled
+	}
 	pricingFile := s.getPricingFilePath()
 	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save file: %v", err)
@@ -1158,13 +1201,15 @@ func (s *PricingService) useFallbackPricing() error {
 
 // fetchRemoteHash 从远程获取哈希值
 func (s *PricingService) fetchRemoteHash() (string, error) {
+	ctx, finish, _, err := s.beginRemoteRequest(10 * time.Second)
+	if err != nil {
+		return "", err
+	}
+	defer finish()
 	hashURL, err := s.validatePricingURL(s.cfg.Pricing.HashURL)
 	if err != nil {
 		return "", err
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
 
 	hash, err := s.remoteClient.FetchHashText(ctx, hashURL)
 	if err != nil {
@@ -1696,7 +1741,20 @@ func (s *PricingService) GetStatus() map[string]any {
 
 // ForceUpdate 强制更新
 func (s *PricingService) ForceUpdate() error {
-	return s.downloadPricingData()
+	if !s.RemotePullEnabled() {
+		return ErrPricingPullDisabled
+	}
+	var usdErr error
+	if strings.TrimSpace(s.cfg.Pricing.RemoteURL) != "" {
+		if err := s.downloadPricingData(); err != nil {
+			usdErr = err
+		}
+	}
+	if err := s.syncNativeCNY(true); err != nil {
+		s.recordNativeCNYError(err)
+		return err
+	}
+	return usdErr
 }
 
 // getPricingFilePath 获取价格文件路径

@@ -1,5 +1,14 @@
 export default {
     settings: {
+	  pricing: {
+	    creditUnit: 'credits', rechargeHint: 'Credit mode: a base recharge of ¥1 or $1 adds 1 credit. Bonuses and fees are calculated separately.',
+	    currency: 'Price currency', manualCNYHint: 'CNY token cards require input, output, cache read and cache write rates. Enter 0 for free items; USD rates are never inherited.',
+	    title: 'Model pricing and credits', description: 'Choose native CNY prices and control all remote pricing requests. Changes take effect immediately.',
+	    nativeCNY: 'Use native CNY model prices', nativeCNYHint: 'Chinese models use original CNY lists; Claude/GPT keep USD lists. ¥1 and $1 each consume 1 credit, with no FX conversion; recharge credits use a ratio of 1. Missing CNY prices require manual pricing.',
+	    remote: 'Allow remote pricing requests', remoteHint: 'Turning this off stops startup checks, scheduled sync, remote hash checks and manual refresh. Cached and manual prices remain available.',
+	    offline: 'Remote pricing is off. Local prices are in use.', noCNY: 'No CNY price cache yet. Enable requests to sync, or configure manual prices with an explicit currency.',
+	    sources: 'Pricing data:', refresh: 'Sync prices now', retry: 'Retry', never: 'Not synced', failed: 'Pricing request failed', saved: 'Pricing settings saved',
+	  },
       title: 'System Settings',
       description: 'Manage registration, email verification, default values, and SMTP settings',
       tabs: {

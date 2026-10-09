@@ -832,6 +832,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 
 	// 计算费用
 	cost := s.calculateRecordUsageCost(ctx, result, apiKey, billingModel, multiplier, imageMultiplier, pricingAt)
+	if cost != nil && cost.PricingError != nil {
+		return cost.PricingError
+	}
 	// response_model：按上游成功响应自报的模型计费（渠道显式开启才生效）。
 	// 采纳条件见 responseModelBillingDeclaration + hasIdentifiedResponseModelPricing
 	// + responseModelBillingAdoptable。任一条件不满足都静默回落基线，即开启本模式前的
@@ -1159,6 +1162,9 @@ func (s *GatewayService) calculateTokenCost(
 	})
 	if err != nil {
 		logger.LegacyPrintf("service.gateway", "Calculate cost failed: %v", err)
+		if s.billingService.pricingService.RequiresNativeCNY(billingModel) {
+			return &CostBreakdown{PricingError: err}
+		}
 		return &CostBreakdown{ActualCost: 0}
 	}
 	return cost
@@ -1244,6 +1250,7 @@ func (s *GatewayService) buildRecordUsageLog(
 	}
 	if cost != nil {
 		usageLog.InputCost = cost.InputCost
+		usageLog.PricingSnapshot = costPricingSnapshot(cost)
 		usageLog.OutputCost = cost.OutputCost
 		usageLog.ImageOutputCost = cost.ImageOutputCost
 		usageLog.CacheCreationCost = cost.CacheCreationCost

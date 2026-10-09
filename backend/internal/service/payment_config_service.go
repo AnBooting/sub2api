@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"math"
 	"os"
@@ -231,6 +232,7 @@ func (s *PaymentConfigService) GetPaymentConfig(ctx context.Context) (*PaymentCo
 		SettingDailyRechargeLimit, SettingOrderTimeoutMinutes, SettingMaxPendingOrders,
 		SettingEnabledPaymentTypes, SettingBalancePayDisabled, SettingBalanceRechargeMult, SettingSubscriptionUSDToCNYRate, SettingRechargeFeeRate, SettingLoadBalanceStrategy,
 		SettingRechargeBonusTiers, SettingRechargeBonusMode, SettingRechargeBonusNotice,
+		SettingKeyPricingControls,
 		SettingProductNamePrefix, SettingProductNameSuffix,
 		SettingHelpImageURL, SettingHelpText,
 		SettingCancelRateLimitOn, SettingCancelRateLimitMax,
@@ -279,6 +281,10 @@ func (s *PaymentConfigService) parsePaymentConfig(vals map[string]string) *Payme
 		AlipayMobilePrecreateDeepLink: vals[SettingAlipayMobilePrecreateDeepLink] == "true",
 	}
 	cfg.RechargeBonusMode, _ = NormalizeRechargeBonusMode(vals[SettingRechargeBonusMode])
+	var pricingControls PricingControls
+	if json.Unmarshal([]byte(vals[SettingKeyPricingControls]), &pricingControls) == nil && pricingControls.NativeCNYEnabled {
+		cfg.BalanceRechargeMultiplier = 1
+	}
 	cfg.AlipayMobilePrecreateDeepLink = pcEnvBoolOverride(
 		SettingAlipayMobilePrecreateDeepLink,
 		cfg.AlipayMobilePrecreateDeepLink,

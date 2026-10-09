@@ -129,7 +129,7 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 4
+	idx := len(prepared.args) - 5
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)
@@ -142,4 +142,13 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	require.False(t, nullArg.Valid, "absent upstream request id must be NULL")
 
 	require.Contains(t, usageLogSelectColumns, "upstream_request_id")
+}
+
+func TestPrepareUsageLogInsert_PricingSnapshotJSONBWiring(t *testing.T) {
+	value := `{"currency":"CNY","source":"fixture","actual_cost":1.2,"quota_unit":"credits"}`
+	prepared := prepareUsageLogInsert(&service.UsageLog{UserID: 1, APIKeyID: 2, Model: "glm-test", RequestID: "snapshot", PricingSnapshot: []byte(value), CreatedAt: time.Now().UTC()})
+	idx := len(prepared.args) - 1
+	require.Equal(t, "jsonb", usageLogInsertArgTypes[idx])
+	require.JSONEq(t, value, prepared.args[idx].(string))
+	require.Contains(t, usageLogSelectColumns, "pricing_snapshot")
 }

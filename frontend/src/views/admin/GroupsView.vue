@@ -4405,6 +4405,7 @@ const groupPricingFromAPI = (
 ): PricingFormEntry[] =>
   (pricing || []).map((entry) => ({
     models: entry.models || [],
+    currency: entry.currency || "USD",
     billing_mode: entry.billing_mode || "token",
     input_price: perTokenToMTok(entry.input_price),
     output_price: perTokenToMTok(entry.output_price),
@@ -4430,6 +4431,7 @@ const groupPricingToAPI = (
     .map((entry) => ({
       platform,
       models: entry.models,
+      currency: entry.currency || "USD",
       billing_mode: entry.billing_mode,
       input_price: mTokToPerToken(entry.input_price),
       output_price: mTokToPerToken(entry.output_price),

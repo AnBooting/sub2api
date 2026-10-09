@@ -1,3 +1,5 @@
+import { billingCreditsEnabled } from './billingCredits'
+import { getLocale } from '@/i18n'
 /**
  * formatScaled formats a per-token (or per-request) USD price scaled by `scale`.
  *
@@ -10,7 +12,7 @@
  * Uses toPrecision(10) then strips trailing zeros to avoid IEEE 754 display noise.
  * `minFractionDigits` pads the result back up to a minimum number of decimals.
  */
-export function formatScaled(value: number | null, scale: number, minFractionDigits = 0): string {
+export function formatScaled(value: number | null, scale: number, minFractionDigits = 0, currency = 'USD'): string {
   if (value == null) return '-'
   let s = Number((value * scale).toPrecision(10)).toString()
   if (minFractionDigits > 0 && !s.includes('e')) {
@@ -20,7 +22,7 @@ export function formatScaled(value: number | null, scale: number, minFractionDig
       s = (dot === -1 ? `${s}.` : s) + '0'.repeat(minFractionDigits - digits)
     }
   }
-  return `$${s}`
+  return `${currency === 'CNY' ? '¥' : '$'}${s}`
 }
 
 import type { UserPricingInterval } from '@/api/channels'
@@ -39,4 +41,9 @@ export function resolveIntervalPrices(iv: UserPricingInterval, base: TokenPrices
     cache_write_1h_price: iv.cache_write_1h_price ?? iv.cache_write_price ?? price(null, iv.cache_write_multiplier, base.cache_write_1h_price),
     cache_read_price: price(iv.cache_read_price, iv.cache_read_multiplier, base.cache_read_price)
   }
+}
+
+export function formatCreditScaled(value: number | null, scale: number, minFractionDigits = 0): string {
+  const text = formatScaled(value, scale, minFractionDigits)
+  return value != null && billingCreditsEnabled.value ? `${text.slice(1)} ${getLocale().startsWith('zh') ? '额度' : 'credits'}` : text
 }

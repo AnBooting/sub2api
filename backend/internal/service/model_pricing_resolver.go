@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"maps"
 	"strings"
+	"time"
 )
 
 // PricingSource 定价来源标识
@@ -120,7 +121,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	if chPricing != nil {
 		resolved.Source = PricingSourceChannel
 		resolved.channelPricing = chPricing
-		r.applyTokenOverrides(chPricing, resolved)
+		r.applyTokenOverrides(chPricing, resolved, input.Model)
 	} else if input.GroupID != nil && r.channelService != nil {
 		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
 	}
@@ -138,9 +139,12 @@ func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPric
 		r.applyRequestTierOverrides(config, resolved)
 		return resolved
 	}
-	resolved.BasePricing, _ = r.resolveBasePricing(model)
+	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
+	if config.Currency == "CNY" {
+		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+	}
 	resolved.SupportsCacheBreakdown = resolved.BasePricing != nil && resolved.BasePricing.SupportsCacheBreakdown
-	r.applyTokenOverrides(config, resolved)
+	r.applyTokenOverrides(config, resolved, model)
 	return resolved
 }
 
@@ -218,14 +222,24 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 
 	switch resolved.Mode {
 	case BillingModeToken:
-		r.applyTokenOverrides(chPricing, resolved)
+		r.applyTokenOverrides(chPricing, resolved, model)
 	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
 		r.applyRequestTierOverrides(chPricing, resolved)
 	}
 }
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖
-func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing) {
+func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing, models ...string) {
+	model := ""
+	if len(models) > 0 {
+		model = models[0]
+	}
+	// Never inherit USD cache fields into a manual CNY card or vice versa.
+	if chPricing.Currency == "CNY" {
+		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+	} else if resolved.BasePricing != nil && resolved.BasePricing.Currency == "CNY" {
+		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
+	}
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}
 	} else {

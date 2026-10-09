@@ -42,10 +42,16 @@ func resolveAccountStatsCost(
 		reasoningEffort = reasoningEfforts[0]
 	}
 	if channelService == nil || upstreamModel == "" {
+		if billingService != nil && billingService.pricingService.RequiresNativeCNY(upstreamModel) {
+			return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, pricingAt, longContextPricingEnabled, reasoningEffort)
+		}
 		return nil
 	}
 	channel, err := channelService.GetChannelForGroup(ctx, groupID)
 	if err != nil || channel == nil {
+		if billingService != nil && billingService.pricingService.RequiresNativeCNY(upstreamModel) {
+			return tryModelFilePricing(billingService, upstreamModel, tokens, serviceTier, pricingAt, longContextPricingEnabled, reasoningEffort)
+		}
 		return nil
 	}
 
@@ -57,7 +63,7 @@ func resolveAccountStatsCost(
 	}
 
 	// 优先级 2：渠道开启"应用模型定价到账号统计"时，直接使用客户计费（倍率前）
-	if channel.ApplyPricingToAccountStats {
+	if channel.ApplyPricingToAccountStats && (billingService == nil || !billingService.pricingService.RequiresNativeCNY(upstreamModel)) {
 		cost := totalCost
 		if cost <= 0 {
 			return nil
@@ -84,6 +90,14 @@ func tryModelFilePricing(billingService *BillingService, model string, tokens Us
 	}
 	resolver := NewModelPricingResolver(nil, billingService)
 	resolved := resolver.Resolve(context.Background(), PricingInput{Model: model})
+	// Account costs remain USD; never aggregate native CNY customer credits as USD.
+	if billingService.pricingService.RequiresNativeCNY(model) {
+		resolved.BasePricing, _ = billingService.getUSDModelPricingAt(model, pricingAt)
+		if resolved.BasePricing == nil {
+			zero := 0.0
+			return &zero
+		}
+	}
 	// 无分组的解析结果默认开启长上下文，CostInput.LongContextBillingEnabled=false 无法否决，
 	// 因此直接覆写解析结果。
 	resolved.longContextPricingEnabled = longContextPricingEnabled

@@ -4,6 +4,7 @@
  */
 
 import { i18n, getLocale } from '@/i18n'
+import { billingCreditsEnabled, formatBillingAmount } from './billingCredits'
 
 /**
  * 格式化相对时间
@@ -58,7 +59,8 @@ export function formatNumber(num: number | null | undefined): string {
  * @param currency 货币代码，默认 USD
  * @returns 格式化后的字符串，如 "$1.25"
  */
-export function formatCurrency(amount: number | null | undefined, currency: string = 'USD'): string {
+export function formatCurrency(amount: number | null | undefined, currency?: string): string {
+  if (currency === undefined && billingCreditsEnabled.value) return formatBillingAmount(amount, amount != null && amount > 0 && amount < 0.01 ? 6 : 2)
   if (amount === null || amount === undefined) return '$0.00'
 
   const locale = getLocale()
@@ -68,7 +70,7 @@ export function formatCurrency(amount: number | null | undefined, currency: stri
 
   return new Intl.NumberFormat(locale, {
     style: 'currency',
-    currency: currency,
+    currency: currency || 'USD',
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits
   }).format(amount)

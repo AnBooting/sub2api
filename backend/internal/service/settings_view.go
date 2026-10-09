@@ -327,6 +327,7 @@ type DefaultSubscriptionSetting struct {
 }
 
 type PublicSettings struct {
+	BillingCreditsEnabled               bool
 	RegistrationEnabled                 bool
 	EmailVerifyEnabled                  bool
 	ForceEmailOnThirdPartySignup        bool

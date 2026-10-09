@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"strings"
 	"sync"
@@ -505,6 +506,11 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 		if pricing == nil {
 			return 0
 		}
+		var err error
+		pricing, err = resolveNativeTokenPricing(pricing, UsageTokens{InputTokens: inputTokens, OutputTokens: outputTokens}, time.Now())
+		if err != nil {
+			return 0
+		}
 		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate
 	}
 
@@ -678,6 +684,50 @@ func (s *GatewayService) EstimateInflightReservation(ctx context.Context, apiKey
 		return 0, false
 	}
 	return s.inflightEstimateDeps().estimate(ctx, apiKey, req)
+}
+
+func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
+	if d.billing == nil || d.billing.pricingService == nil || req.Model == "" {
+		return nil
+	}
+	primary, _, _ := inflightBillingModelCandidates(ctx, d, apiKey, req.Model)
+	for _, model := range primary {
+		if !d.billing.pricingService.RequiresNativeCNY(model) {
+			continue
+		}
+		if d.resolver != nil {
+			input := PricingInput{Model: model}
+			if apiKey != nil {
+				input.Group = apiKey.Group
+				input.GroupID = apiKey.GroupID
+			}
+			resolved := d.resolver.Resolve(ctx, input)
+			if req.Kind != InflightEstimateToken && (resolved == nil || (resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceChannel) || resolved.Mode == BillingModeToken) {
+				return fmt.Errorf("%w: native CNY media requests require an explicit per-request price for %s", ErrModelPricingUnavailable, model)
+			}
+			if resolved != nil && (resolved.BasePricing != nil || resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel) {
+				continue
+			}
+		}
+		if _, err := d.billing.GetModelPricing(model); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *GatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
+	if s == nil {
+		return nil
+	}
+	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
+}
+
+func (s *OpenAIGatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
+	if s == nil {
+		return nil
+	}
+	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
 }
 
 func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {

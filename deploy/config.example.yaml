@@ -163,6 +163,8 @@ security:
     # 允许下载定价数据的主机列表
     pricing_hosts:
       - "raw.githubusercontent.com"
+      - "basellm.github.io"
+      - "llm-metadata.pages.dev"
     # Allowed hosts for CRS sync (required when using CRS sync)
     # 允许 CRS 同步的主机列表（使用 CRS 同步功能时必须配置）
     crs_hosts: []
@@ -1082,6 +1084,13 @@ plugins:
 # 定价数据源（可选）
 # =============================================================================
 pricing:
+  # Global pricing network switch. Admin settings persisted in DB take precedence.
+  # 关闭后启动、定时、哈希校验和手动更新均不联网；已缓存价格继续计费。
+  remote_enabled: true
+  # 国模采用数据源的原始人民币价，¥1/$1 均扣 1 额度，不换汇。
+  native_cny_enabled: false
+  native_cny_url: "https://basellm.github.io/llm-metadata/api/all.json"
+  native_cny_supplement_url: "https://raw.githubusercontent.com/szp2005/llm-prices-cn/main/prices.json"
   # URL to fetch model pricing data (default: model-price-repo main branch)
   # 获取模型定价数据的 URL（默认：model-price-repo main 分支）
   remote_url: "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/refs/heads/main//model_prices_and_context_window.json"

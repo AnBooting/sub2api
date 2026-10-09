@@ -55,7 +55,7 @@
       </label>
       <div class="relative">
         <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-          $
+          {{ currency === 'CNY' ? '¥' : currency && currency !== 'USD' ? currency : '$' }}
         </span>
         <input
           type="text"
@@ -71,6 +71,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatBillingAmount } from '@/utils/billingCredits'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RechargeBonusTier } from '@/types/payment'
@@ -143,7 +144,7 @@ function secondLine(amt: number): string {
   if (props.bonusMode === 'discount') {
     return t('payment.rechargeBonus.payShort', { amount: formatPaymentAmount(quote.payBase, props.currency) })
   }
-  return t('payment.rechargeBonus.creditedShort', { amount: '$' + quote.credited.toFixed(2) })
+  return t('payment.rechargeBonus.creditedShort', { amount: formatBillingAmount(quote.credited) })
 }
 
 const placeholderText = computed(() => {

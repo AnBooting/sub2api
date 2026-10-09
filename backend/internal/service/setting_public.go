@@ -156,6 +156,7 @@ func (s *SettingService) GetFrontendURL(ctx context.Context) string {
 // GetPublicSettings 获取公开设置（无需登录）
 func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings, error) {
 	keys := []string{
+		SettingKeyPricingControls,
 		SettingKeyRegistrationEnabled,
 		SettingKeyEmailVerifyEnabled,
 		SettingKeyForceEmailOnThirdPartySignup,
@@ -299,7 +300,12 @@ func (s *SettingService) GetPublicSettings(ctx context.Context) (*PublicSettings
 		balanceLowNotifyThreshold = v
 	}
 
+	controls := PricingControls{NativeCNYEnabled: s.cfg != nil && s.cfg.Pricing.NativeCNYEnabled}
+	if raw := settings[SettingKeyPricingControls]; raw != "" {
+		_ = json.Unmarshal([]byte(raw), &controls)
+	}
 	return &PublicSettings{
+		BillingCreditsEnabled:               controls.NativeCNYEnabled,
 		RegistrationEnabled:                 settings[SettingKeyRegistrationEnabled] == "true",
 		EmailVerifyEnabled:                  emailVerifyEnabled,
 		ForceEmailOnThirdPartySignup:        settings[SettingKeyForceEmailOnThirdPartySignup] == "true",
@@ -560,6 +566,7 @@ func (s *SettingService) IsUserErrorViewAllowed(ctx context.Context) bool {
 // A unit test diffs this struct's JSON keys against dto.PublicSettings to catch
 // drift automatically (see setting_service_injection_test.go).
 type PublicSettingsInjectionPayload struct {
+	BillingCreditsEnabled               bool                     `json:"billing_credits_enabled"`
 	RegistrationEnabled                 bool                     `json:"registration_enabled"`
 	EmailVerifyEnabled                  bool                     `json:"email_verify_enabled"`
 	RegistrationEmailSuffixWhitelist    []string                 `json:"registration_email_suffix_whitelist"`
@@ -654,6 +661,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 	}
 
 	return &PublicSettingsInjectionPayload{
+		BillingCreditsEnabled:               settings.BillingCreditsEnabled,
 		RegistrationEnabled:                 settings.RegistrationEnabled,
 		EmailVerifyEnabled:                  settings.EmailVerifyEnabled,
 		RegistrationEmailSuffixWhitelist:    settings.RegistrationEmailSuffixWhitelist,

@@ -2,6 +2,7 @@
 package schema
 
 import (
+	"encoding/json"
 	"time"
 
 	"entgo.io/ent"
@@ -182,6 +183,9 @@ func (UsageLog) Fields() []ent.Field {
 			Default(false),
 
 		// 时间戳（只有 created_at，日志不可修改）
+		field.JSON("pricing_snapshot", json.RawMessage{}).
+			Optional().
+			Comment("Original currency and effective prices used for credit billing"),
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable().

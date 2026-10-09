@@ -10,6 +10,7 @@ import (
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
 // LiteLLM → 内置兜底价卡 → 模型策略。字段为 nil 表示该项缺失（0 视为未配置）。
 type PlazaOfficialPricing struct {
+	Currency          string
 	InputPrice        *float64
 	OutputPrice       *float64
 	CacheWritePrice   *float64 // 5m 缓存写入（= LiteLLM cache_creation）
@@ -255,6 +256,7 @@ func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaMode
 func plazaPricingFromSchedule(raw *ChannelModelPricing, sched *ContextPricingSchedule) *ChannelModelPricing {
 	out := &ChannelModelPricing{BillingMode: BillingModeToken}
 	if raw != nil {
+		out.Currency = raw.Currency
 		out.ImageInputPrice = raw.ImageInputPrice
 		out.ImageOutputPrice = raw.ImageOutputPrice
 		out.PerRequestPrice = raw.PerRequestPrice
@@ -350,10 +352,18 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 	var result *PlazaOfficialPricing
 	if mp, err := s.billingService.GetModelPricing(modelName); err == nil && mp != nil {
 		result = &PlazaOfficialPricing{
+			Currency:        mp.Currency,
 			InputPrice:      nonZeroPtr(mp.InputPricePerToken),
 			OutputPrice:     nonZeroPtr(mp.OutputPricePerToken),
 			CacheWritePrice: nonZeroPtr(mp.CacheCreationPricePerToken),
 			CacheReadPrice:  nonZeroPtr(mp.CacheReadPricePerToken),
+		}
+		if mp.NativeCard != nil {
+			rates := mp.NativeCard.ratesAt(0, mp.NativePricingAt)
+			result.InputPrice = nativePerToken(rates.Input)
+			result.OutputPrice = nativePerToken(rates.Output)
+			result.CacheReadPrice = nativePerToken(rates.CacheRead)
+			result.CacheWritePrice = nativePerToken(rates.CacheWrite)
 		}
 		// 计费只在支持 5m/1h 分档时使用 1h 价，其余情况 1h 价对用户无意义。
 		if mp.SupportsCacheBreakdown {

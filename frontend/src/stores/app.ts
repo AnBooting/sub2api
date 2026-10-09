@@ -13,6 +13,7 @@ import {
   type ReleaseInfo
 } from '@/api/admin/system'
 import { getPublicSettings as fetchPublicSettingsAPI } from '@/api/auth'
+import { configureBillingCredits } from '@/utils/billingCredits'
 
 export const useAppStore = defineStore('app', () => {
   // ==================== State ====================
@@ -294,6 +295,7 @@ export const useAppStore = defineStore('app', () => {
       window.__APP_CONFIG__ = { ...config }
     }
     cachedPublicSettings.value = config
+    configureBillingCredits(config.billing_credits_enabled === true)
     siteName.value = config.site_name || 'Sub2API'
     siteLogo.value = config.site_logo || ''
     siteVersion.value = config.version || ''
@@ -419,6 +421,7 @@ export const useAppStore = defineStore('app', () => {
   function clearPublicSettingsCache(): void {
     publicSettingsLoaded.value = false
     cachedPublicSettings.value = null
+    configureBillingCredits(false)
   }
 
   /**

@@ -209,6 +209,7 @@ export interface LoginAgreementDocument {
 }
 
 export interface PublicSettings {
+	 billing_credits_enabled?: boolean
   registration_enabled: boolean
   email_verify_enabled: boolean
   force_email_on_third_party_signup: boolean
@@ -1745,6 +1746,7 @@ export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
 export interface UsageLog {
+  pricing_snapshot?: { currency: 'CNY' | 'USD'; source: string; quota_unit: string; input_per_token?: number; output_per_token?: number; cache_read_per_token?: number; cache_write_per_token?: number }
   id: number
   user_id: number
   api_key_id: number

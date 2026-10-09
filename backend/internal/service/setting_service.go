@@ -385,6 +385,14 @@ func (s *SettingService) SetOnUpdateCallback(callback func()) {
 	s.onUpdate = callback
 }
 
+// NotifyPublicSettingsUpdate invalidates HTML injection after a dedicated
+// settings endpoint has persisted a public flag outside UpdateSettings.
+func (s *SettingService) NotifyPublicSettingsUpdate() {
+	if s.onUpdate != nil {
+		s.onUpdate()
+	}
+}
+
 // SubscribeChannelMonitorRuntime registers a listener that is invoked after
 // settings are successfully persisted (and process caches refreshed).
 // Used by ChannelMonitorRunner / ChannelMonitorV2Aggregator for immediate

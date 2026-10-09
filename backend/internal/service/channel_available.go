@@ -6,6 +6,7 @@ import (
 	"maps"
 	"sort"
 	"strings"
+	"time"
 )
 
 // AvailableGroupRef 渠道视图中关联分组的简要信息。
@@ -123,6 +124,15 @@ func (s *ChannelService) ListAvailable(ctx context.Context) ([]AvailableChannel,
 func fillGlobalPricingFallback(pricingService *PricingService, models []SupportedModel) {
 	for i := range models {
 		if pricingService != nil && pricingNeedsFallback(models[i].Pricing) {
+			if pricingService.RequiresNativeCNY(models[i].Name) {
+				if price, err := pricingService.nativePricingAt(models[i].Name, time.Now()); err == nil {
+					rates := price.NativeCard.ratesAt(0, time.Now())
+					models[i].Pricing = &ChannelModelPricing{Currency: "CNY", BillingMode: BillingModeToken, InputPrice: nativePerToken(rates.Input), OutputPrice: nativePerToken(rates.Output), CacheWritePrice: nativePerToken(rates.CacheWrite), CacheReadPrice: nativePerToken(rates.CacheRead)}
+				} else {
+					models[i].Pricing = nil
+				}
+				continue
+			}
 			if lp := pricingService.GetModelPricing(models[i].Name); lp != nil {
 				models[i].Pricing = synthesizePricingFromLiteLLM(lp, models[i].Pricing)
 			}
@@ -186,6 +196,7 @@ func synthesizePricingFromLiteLLM(lp *LiteLLMModelPricing, existing *ChannelMode
 	}
 	return &ChannelModelPricing{
 		BillingMode:                mode,
+		Currency:                   "USD",
 		InputPrice:                 nonZeroPtr(lp.InputCostPerToken),
 		OutputPrice:                nonZeroPtr(lp.OutputCostPerToken),
 		CacheWritePrice:            nonZeroPtr(lp.CacheCreationInputTokenCost),

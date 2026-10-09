@@ -251,6 +251,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		pricingAt,
 	)
 	if err != nil {
+		for _, model := range billingModels {
+			if s.billingService.pricingService.RequiresNativeCNY(model) {
+				return err
+			}
+		}
 		if !isUsagePricingUnavailableError(err) {
 			return err
 		}
@@ -416,6 +421,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	if cost != nil {
 		usageLog.InputCost = cost.InputCost
+		usageLog.PricingSnapshot = costPricingSnapshot(cost)
 		usageLog.ImageInputCost = cost.ImageInputCost
 		usageLog.OutputCost = cost.OutputCost
 		usageLog.ImageOutputCost = cost.ImageOutputCost

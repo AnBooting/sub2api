@@ -2460,6 +2460,16 @@ func CacheTTLOverriddenNEQ(v bool) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNEQ(FieldCacheTTLOverridden, v))
 }
 
+// PricingSnapshotIsNil applies the IsNil predicate on the "pricing_snapshot" field.
+func PricingSnapshotIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldPricingSnapshot))
+}
+
+// PricingSnapshotNotNil applies the NotNil predicate on the "pricing_snapshot" field.
+func PricingSnapshotNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldPricingSnapshot))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldCreatedAt, v))

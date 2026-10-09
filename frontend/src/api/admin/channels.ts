@@ -39,6 +39,7 @@ export interface ChannelTimePricing {
 }
 
 export interface ChannelModelPricing {
+  currency?: 'USD' | 'CNY'
   id?: number
   platform: string
   models: string[]
@@ -172,6 +173,7 @@ export async function remove(id: number): Promise<void> {
 }
 
 export interface ModelDefaultPricing {
+  currency?: 'USD' | 'CNY'
   found: boolean
   input_price?: number    // per-token price
   output_price?: number

@@ -669,6 +669,10 @@ type TokenRefreshConfig struct {
 }
 
 type PricingConfig struct {
+	RemoteEnabled          *bool  `mapstructure:"remote_enabled"`
+	NativeCNYEnabled       bool   `mapstructure:"native_cny_enabled"`
+	NativeCNYURL           string `mapstructure:"native_cny_url"`
+	NativeCNYSupplementURL string `mapstructure:"native_cny_supplement_url"`
 	// 价格数据远程URL（默认使用LiteLLM镜像）
 	RemoteURL string `mapstructure:"remote_url"`
 	// 哈希校验文件URL
@@ -2102,6 +2106,8 @@ func setDefaults() {
 	})
 	viper.SetDefault("security.url_allowlist.pricing_hosts", []string{
 		"raw.githubusercontent.com",
+		"basellm.github.io",
+		"llm-metadata.pages.dev",
 	})
 	viper.SetDefault("security.url_allowlist.crs_hosts", []string{})
 	viper.SetDefault("security.url_allowlist.allow_private_hosts", true)
@@ -2342,6 +2348,10 @@ func setDefaults() {
 	viper.SetDefault("pricing.remote_url", "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.json")
 	viper.SetDefault("pricing.hash_url", "https://raw.githubusercontent.com/Wei-Shaw/model-price-repo/main/model_prices_and_context_window.sha256")
 	viper.SetDefault("pricing.data_dir", "./data")
+	viper.SetDefault("pricing.remote_enabled", true)
+	viper.SetDefault("pricing.native_cny_enabled", false)
+	viper.SetDefault("pricing.native_cny_url", "https://basellm.github.io/llm-metadata/api/all.json")
+	viper.SetDefault("pricing.native_cny_supplement_url", "https://raw.githubusercontent.com/szp2005/llm-prices-cn/main/prices.json")
 	viper.SetDefault("pricing.fallback_file", "./resources/model-pricing/model_prices_and_context_window.json")
 	viper.SetDefault("pricing.override_file", "")
 	viper.SetDefault("pricing.update_interval_hours", 24)

@@ -34,8 +34,12 @@ type BuildInfo struct {
 }
 
 // ProvidePricingService creates and initializes PricingService
-func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient) (*PricingService, error) {
+func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient, settingsRepo SettingRepository) (*PricingService, error) {
 	svc := NewPricingService(cfg, remoteClient)
+	svc.settingsRepo = settingsRepo
+	if err := svc.loadControls(context.Background()); err != nil {
+		return nil, err // Never fall back to enabled remote access on a settings read failure.
+	}
 	if err := svc.Initialize(); err != nil {
 		// Pricing service initialization failure should not block startup, use fallback prices
 		println("[Service] Warning: Pricing service initialization failed:", err.Error())

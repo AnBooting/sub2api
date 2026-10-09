@@ -71,6 +71,15 @@ func reserveInflightBalanceCtx(
 	subscription *service.UserSubscription,
 	req service.InflightEstimateRequest,
 ) (context.Context, func(), error) {
+	// Native CNY pricing must be available before forwarding, even when balance
+	// reservations are disabled or the group uses a subscription.
+	if validator, ok := estimator.(interface {
+		ValidateNativePricingRequest(context.Context, *service.APIKey, service.InflightEstimateRequest) error
+	}); ok {
+		if err := validator.ValidateNativePricingRequest(ctx, apiKey, req); err != nil {
+			return ctx, inflightNoop, err
+		}
+	}
 	if billing == nil || estimator == nil || apiKey == nil || apiKey.User == nil || !billing.InflightReservationEnabled() {
 		return ctx, inflightNoop, nil
 	}

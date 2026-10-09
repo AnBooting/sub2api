@@ -365,6 +365,7 @@ type DefaultSubscriptionSetting struct {
 }
 
 type PublicSettings struct {
+	BillingCreditsEnabled               bool                     `json:"billing_credits_enabled"`
 	RegistrationEnabled                 bool                     `json:"registration_enabled"`
 	EmailVerifyEnabled                  bool                     `json:"email_verify_enabled"`
 	ForceEmailOnThirdPartySignup        bool                     `json:"force_email_on_third_party_signup"`

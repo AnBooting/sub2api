@@ -100,11 +100,19 @@
         </div>
 
         <!-- Token mode -->
+        <label class="mt-3 block text-xs text-gray-500">
+          {{ t('admin.settings.pricing.currency') }}
+          <select :value="entry.currency || 'USD'" class="input ml-2 w-24" @change="emit('update', { ...entry, currency: ($event.target as HTMLSelectElement).value as 'USD' | 'CNY' })">
+            <option value="USD">USD ($)</option>
+            <option v-if="allowNativeCurrency" value="CNY">CNY (¥)</option>
+          </select>
+        </label>
+        <p v-if="entry.currency === 'CNY'" class="mt-1 text-xs text-gray-500">{{ t('admin.settings.pricing.manualCNYHint') }}</p>
         <div v-if="entry.billing_mode === 'token'">
           <!-- Default prices (fallback when no interval matches) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ t('admin.channels.form.defaultPrices') }}
-            <span class="ml-1 font-normal text-gray-400">$/MTok</span>
+            <span class="ml-1 font-normal text-gray-400">{{ entry.currency === 'CNY' ? '¥' : '$' }}/MTok</span>
           </label>
           <div class="pricing-default-grid mt-1 grid gap-2">
             <div>
@@ -169,7 +177,7 @@
               </button>
             </div>
             <div v-if="entry.intervals && entry.intervals.length > 0" class="mt-2 space-y-2">
-              <IntervalRow
+              <IntervalRow :currency="entry.currency"
                 v-for="(iv, idx) in entry.intervals"
                 :key="idx"
                 :interval="iv"
@@ -193,7 +201,7 @@
           <!-- Default per-request price -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ t('admin.channels.form.defaultPerRequestPrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">{{ entry.currency === 'CNY' ? '¥' : '$' }}</span>
           </label>
           <div class="mt-1 w-48">
             <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
@@ -210,7 +218,7 @@
             </button>
           </div>
           <div v-if="entry.intervals && entry.intervals.length > 0" class="mt-2 space-y-2">
-            <IntervalRow
+            <IntervalRow :currency="entry.currency"
               v-for="(iv, idx) in entry.intervals"
               :key="idx"
               :interval="iv"
@@ -229,7 +237,7 @@
           <!-- Default image price (per-request, same as per_request mode) -->
           <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
             {{ entry.billing_mode === 'video' ? t('admin.channels.form.defaultVideoPrice') : t('admin.channels.form.defaultImagePrice') }}
-            <span class="ml-1 font-normal text-gray-400">$</span>
+            <span class="ml-1 font-normal text-gray-400">{{ entry.currency === 'CNY' ? '¥' : '$' }}</span>
           </label>
           <div class="mt-1 w-48">
             <input :value="entry.per_request_price" @input="emitField('per_request_price', ($event.target as HTMLInputElement).value)"
@@ -246,7 +254,7 @@
             </button>
           </div>
           <div v-if="entry.intervals && entry.intervals.length > 0" class="mt-2 space-y-2">
-            <IntervalRow
+            <IntervalRow :currency="entry.currency"
               v-for="(iv, idx) in entry.intervals"
               :key="idx"
               :interval="iv"
@@ -320,10 +328,12 @@ const props = withDefaults(defineProps<{
   hideTokenIntervals?: boolean
   enableTimePricing?: boolean
   enableTierMultipliers?: boolean
+  allowNativeCurrency?: boolean
 }>(), {
   hideTokenIntervals: false,
   enableTimePricing: false,
   enableTierMultipliers: false,
+  allowNativeCurrency: true,
 })
 
 const emit = defineEmits<{
@@ -430,6 +440,7 @@ async function onModelsUpdate(newModels: string[]) {
       emit('update', {
         ...props.entry,
         models: newModels,
+        currency: result.currency || 'USD',
         input_price: perTokenToMTok(result.input_price ?? null),
         output_price: perTokenToMTok(result.output_price ?? null),
         cache_write_price: perTokenToMTok(result.cache_write_price ?? null),

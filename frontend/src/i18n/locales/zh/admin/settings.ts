@@ -1,5 +1,14 @@
 export default {
     settings: {
+	  pricing: {
+	    creditUnit: '额度', rechargeHint: '额度模式已启用：¥1 或 $1 基础充值均到账 1 额度，赠送和手续费另行计算。',
+	    currency: '价格币种', manualCNYHint: '人民币 Token 价卡需填写输入、输出、缓存读取和缓存写入价格，免费项填写 0；不会继承美元价格。',
+	    title: '模型价格与额度计费', description: '选择国模价卡，并控制所有远程价格拉取。开关保存后即时生效。',
+	    nativeCNY: '使用国模人民币价格源', nativeCNYHint: '国模使用原始 CNY 价卡，Claude/GPT 等继续使用 USD 价卡。¥1 和 $1 都扣 1 额度，不做汇率换算；充值到账比例固定为 1。缺少人民币价格的国模需配置手动价格。',
+	    remote: '允许远程价格拉取', remoteHint: '关闭后停止启动检查、定时同步、远程哈希检查和手动刷新；保留本地缓存与手动价格。',
+	    offline: '远程拉取已关闭，当前使用本地价格。', noCNY: '暂无人民币价卡缓存。开启拉取后同步，或配置明确币种的手动价卡。',
+	    sources: '价格数据来源：', refresh: '立即同步价格', retry: '重试', never: '尚未同步', failed: '价格设置请求失败', saved: '价格设置已保存',
+	  },
       title: '系统设置',
       description: '管理注册、邮箱验证、默认值和 SMTP 设置',
       tabs: {
