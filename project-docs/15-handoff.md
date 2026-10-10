@@ -1,7 +1,7 @@
 # 交接文档（给新会话）
 
 > **读这一份就够上手。** 最后更新：2026-10-10
-> 当前阶段：**P0/P0.5 完成（准备与侦察），未写任何业务代码。**
+> 当前阶段：**P1 需求澄清进行中**——已确认决策见 [06-requirements-backlog.md](06-requirements-backlog.md) REQ-009~014；剩余问题已整理为团队问卷 [16-requirements-questionnaire.md](16-requirements-questionnaire.md)。未写任何业务代码。
 
 ---
 
@@ -46,7 +46,7 @@
 | 项 | 阻塞原因 |
 |---|---|
 | Docker 本地验证 | **Docker Desktop 未安装**（安装包在 `F:\tools\downloads\DockerDesktopInstaller.exe`，需你手动装） |
-| 推送到团队仓库 | 需要 AnBooting 组织把 `yylovehhy` 加为 Write 协作者 |
+| 推送到团队仓库 | ✅ 已就绪（`yylovehhy` = maintain 协作者，push dry-run 通过）。**`develop` 尚未推送** |
 | 全部业务需求 | **等需求澄清 + PRD 评审** |
 
 ---
@@ -138,7 +138,13 @@ upstream/main  Wei-Shaw/sub2api     只读，仅跟随 main
 
 ---
 
-## 6. 待你决策的问题（新会话必须先问清）
+## 6. 决策状态（2026-10-10 更新）
+
+**已确认**：范围以 6 项为主；顺序 需求2 → 4 → 6 → 3；价格方案 D（ADR-009）；USD 缺价拒绝带开关（ADR-010）；需求 1/5 只验证不改；卡网=云猫寄售 catfk.com；兜底=可替换有序分组链；媒体对标 new-api 能力对齐；线上为上游官方版，先部署测试服务器。详见 06 号 REQ-009~014。
+
+**仍待团队回答**：见 16 号问卷，关键阻塞题 **A1（云猫 API 能力）**、**D2（媒体报错样例）**、B1（问题账号实值）。
+
+### 原问题列表（已归档）
 
 | # | 问题 | 影响 |
 |---|---|---|

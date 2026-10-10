@@ -128,14 +128,36 @@ git -C F:\sub2 config --local http.proxy http://127.0.0.1:7877
 ```
 Clash 端口变化时同步修改。
 
-## 9. 权限（待办）
+## 9. 权限（✅ 已就绪）
 
-当前账号 `yylovehhy` 对 `AnBooting/sub2api` **只有 pull 权限**（实测 push 返回 403）。
+账号 `yylovehhy` 已是 `AnBooting/sub2api` 的协作者，角色 **maintain**。
 
-**AnBooting 是团队自己的组织账号**，直接由组织 Owner 操作即可：
-仓库 `Settings` → `Collaborators and teams` → `Add people` → 输入 `yylovehhy` → 角色选 **Write**。
+| 权限位 | 值 |
+|---|---|
+| push | ✅ |
+| maintain | ✅ |
+| triage | ✅ |
+| pull | ✅ |
+| admin | ❌ |
 
-加完后验证：
+实测 `git push --dry-run origin develop` 退出码 0，可正常推送。
+
+> **maintain 能做什么**：推送非保护分支、管理 issue/PR、管理 release。
+> **不能做什么**：改仓库设置、加协作者、删除仓库、推送受保护分支。
+> `main` 目前**无分支保护**，技术上可推，但按 §2 规则**禁止推 `main`**。
+
+### 邀请记录（备查）
+
+| 项 | 值 |
+|---|---|
+| 邀请人 | `Akanyi` |
+| 被邀请人 | `yylovehhy` |
+| 角色 | maintain |
+| 发出时间 | 2026-10-10 08:40:32 UTC |
+| 接受时间 | 2026-10-10（本地会话中通过 API 接受） |
+
+### 推送验证
+
 ```powershell
-git push --dry-run origin develop
+git push --dry-run origin develop     # 退出码 0 = 权限正常
 ```
