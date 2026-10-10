@@ -326,15 +326,19 @@ func TestProtocolRulesWithProtocolSets(t *testing.T) {
 	}
 }
 
+// Test cache identities must remain unique even when Windows clock ticks coincide.
+var commandCodeGatewayTestURLSequence atomic.Uint64
+
 // 经真实入口验证：目录声明模型支持入站协议时原样直通，不做协议转换。
 func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 	type observation struct {
 		url  string
 		body []byte
 	}
+	seenKeys := make(map[string]struct{})
 	forward := func(t *testing.T, ingress routingMatrixIngress, model string, catalog map[string][]string) observation {
 		t.Helper()
-		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), time.Now().UnixNano())
+		base := fmt.Sprintf("http://cc-%s-%d.example", strings.ReplaceAll(t.Name(), "/", "-"), commandCodeGatewayTestURLSequence.Add(1))
 		account := commandCodeTestAccount(12)
 		account.Credentials["api_base_urls"] = map[string]any{
 			APIProtocolChatCompletions: base + "/provider/v1",
@@ -343,6 +347,8 @@ func TestCommandCodeGatewayPassesThroughCatalogProtocols(t *testing.T) {
 		}
 		url := buildOpenAIModelsURL(base + "/provider/v1")
 		key := modelProtocolCatalogKey(account, url)
+		require.NotContains(t, seenKeys, key, "catalog fixtures must not share cache identities")
+		seenKeys[key] = struct{}{}
 		if catalog != nil {
 			upstreamModelProtocols.store(key, catalog, nil, time.Now())
 		} else {
