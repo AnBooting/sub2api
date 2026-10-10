@@ -8,7 +8,7 @@ export default {
         "yearMissing": "The server reports that the current Shanghai year has no maintained holiday calendar. That year is unknown. Administrators must verify and maintain dates rather than assume there are no holidays.",
         "yearMaintained": "The server reports that the current Shanghai year is maintained; an explicit empty date array counts as maintained.",
         "editorLabel": "Statutory holidays by year (JSON)",
-        "editorHelp": "Use an object mapping four-digit years to date arrays. Dates must be valid YYYY-MM-DD, match the year, and have no duplicates. Do not enter makeup-work days. A year with [] is explicitly maintained with no holidays; an absent year is unknown. Entering and saving {} explicitly clears all years. No statutory dates are supplied automatically.",
+        "editorHelp": "Use an object mapping four-digit years to date arrays. Dates must be valid YYYY-MM-DD, match the year, and have no duplicates. Do not enter makeup-work days. A year with [] is explicitly maintained with no holidays; an absent year is unknown. Entering and saving {'{'}{'}'} explicitly clears all years. No statutory dates are supplied automatically.",
         "unsaved": "Unsaved draft. Polling, pricing refreshes, and switch saves preserve it. The draft is not effective yet.",
         "save": "Save calendar",
         "resetDraft": "Discard draft and restore server value",

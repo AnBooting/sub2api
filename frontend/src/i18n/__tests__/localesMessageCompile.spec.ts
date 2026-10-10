@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { baseCompile } from '@intlify/message-compiler'
+import { createI18n } from 'vue-i18n'
 
 import en from '../locales/en'
 import zh from '../locales/zh'
@@ -30,6 +31,13 @@ function collectCompileErrors(node: unknown, path: string, out: string[]): void 
 }
 
 describe('locale messages compile', () => {
+  it.each([['zh', zh], ['en', en]] as const)('%s calendar clear help renders a visible literal empty object with the real installed message compiler', (locale, messages) => {
+    const instance = createI18n({ legacy: false, locale, messages: { [locale]: messages } })
+    const rendered = instance.global.t('admin.settings.pricing.calendar.editorHelp')
+    expect(rendered).toContain('{}')
+    expect(rendered).not.toContain("{'{'}")
+    expect(rendered).not.toContain("{'}'}")
+  })
   it.each([
     ['zh', zh],
     ['en', en]
