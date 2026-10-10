@@ -1,0 +1,533 @@
+{
+  "sourceVersion": "1.0.65",
+  "sourceTreeSha256": "2c863079f1c693b5e58004e2ca3d092254938152b8de29d83ec5a1f0db93fa19",
+  "extractedAt": "2026-09-20",
+  "note": "Exact selected source files from the verified main-site release. No generated ent or wire output; regenerate on the recipient project.",
+  "files": [
+    {
+      "category": "core",
+      "source": "frontend/src/utils/domesticProviders.ts",
+      "file": "core/frontend/src/utils/domesticProviders.ts",
+      "bytes": 2465,
+      "sha256": "bbf86e5bcab05da3e9861f30931ee5a8be7fbe2431104d2debaca347ed7fc12b"
+    },
+    {
+      "category": "core",
+      "source": "frontend/src/components/admin/group/DomesticProviderPicker.vue",
+      "file": "core/frontend/src/components/admin/group/DomesticProviderPicker.vue",
+      "bytes": 5013,
+      "sha256": "e77e4e575eae997dd7f33d5082ac38d71d8b5d89f0b1756105f81fb2fd714c91"
+    },
+    {
+      "category": "core",
+      "source": "frontend/src/api/admin/domesticPricing.ts",
+      "file": "core/frontend/src/api/admin/domesticPricing.ts",
+      "bytes": 1201,
+      "sha256": "ca5b5677f3c617b49626f6c83842ff9aa358ca09c693a1a29e237206a21f8534"
+    },
+    {
+      "category": "core",
+      "source": "backend/internal/service/domestic_provider.go",
+      "file": "core/backend/internal/service/domestic_provider.go",
+      "bytes": 1664,
+      "sha256": "55a9273911f85758475000e508ce04a62e2fdbacd73dcb6edbd8af4ecd7efe23"
+    },
+    {
+      "category": "core",
+      "source": "backend/internal/service/domestic_pricing.go",
+      "file": "core/backend/internal/service/domestic_pricing.go",
+      "bytes": 22522,
+      "sha256": "7646c0495cbc03688aeacf7584d1dffe8ed9215ffc86c7d2b1ce0bd0842ac698"
+    },
+    {
+      "category": "core",
+      "source": "backend/internal/repository/domestic_pricing_repo.go",
+      "file": "core/backend/internal/repository/domestic_pricing_repo.go",
+      "bytes": 4984,
+      "sha256": "35dc35497fb20211092331769e696d578cdbf55a410d04e795c559d430b4bd38"
+    },
+    {
+      "category": "core",
+      "source": "backend/internal/handler/admin/domestic_pricing_handler.go",
+      "file": "core/backend/internal/handler/admin/domestic_pricing_handler.go",
+      "bytes": 3428,
+      "sha256": "ff275ea03e535fc4407d444646c829cfa835e9088fe0b6317c16da3ab2ac5ef8"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/account/CreateAccountModal.vue",
+      "file": "reference/shared/frontend/src/components/account/CreateAccountModal.vue",
+      "bytes": 273693,
+      "sha256": "01e055015bbe9886f224f1893f9338fa98fe2e7d08f424440884cc278b93e10c"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/account/EditAccountModal.vue",
+      "file": "reference/shared/frontend/src/components/account/EditAccountModal.vue",
+      "bytes": 219389,
+      "sha256": "db383adf974d1c57c5b5279f414e75c442ddddce65a413a4077462376e87d4f7"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/account/AccountGroupsCell.vue",
+      "file": "reference/shared/frontend/src/components/account/AccountGroupsCell.vue",
+      "bytes": 5141,
+      "sha256": "1caaab7310c52be73b1febece789517d43cfe13ab43e0c0b6d40cfedbbccb172"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/views/admin/GroupsView.vue",
+      "file": "reference/shared/frontend/src/views/admin/GroupsView.vue",
+      "bytes": 244257,
+      "sha256": "fad5933f7b1416cc7c5246361657de7b531782596d176661bdcfa515ed9fcafe"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/views/admin/AccountsView.vue",
+      "file": "reference/shared/frontend/src/views/admin/AccountsView.vue",
+      "bytes": 92950,
+      "sha256": "f29f82effd7c9f9e2f7c53a557f0c939470d1cb2987b6cb3640c70bfd4292f9b"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/ModelIcon.vue",
+      "file": "reference/shared/frontend/src/components/common/ModelIcon.vue",
+      "bytes": 37039,
+      "sha256": "09ae604e3aed3c6a2e62dcfaaa1f38ad6b9176adac9fa3a9e390bed2d4246dd7"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/GroupSelector.vue",
+      "file": "reference/shared/frontend/src/components/common/GroupSelector.vue",
+      "bytes": 4696,
+      "sha256": "3b1d873d03a5315e3432508a2ac3e4ca81d12d62065021dee0d63bbdc7af3b64"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/GroupOptionItem.vue",
+      "file": "reference/shared/frontend/src/components/common/GroupOptionItem.vue",
+      "bytes": 5692,
+      "sha256": "4a89d160d7c01b9d78b4c322d601c654161d136b6dd8088c62052ef859387679"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/GroupBadge.vue",
+      "file": "reference/shared/frontend/src/components/common/GroupBadge.vue",
+      "bytes": 9791,
+      "sha256": "1f10f843f5944e52c9b5c6600ec2ccc83fb791cfc8ec16719325d25369a6710c"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/PlatformTypeBadge.vue",
+      "file": "reference/shared/frontend/src/components/common/PlatformTypeBadge.vue",
+      "bytes": 9825,
+      "sha256": "9b0c518db9ba38d8728f90e2cedc3172f0177011d60d608b6e495c5bd7953fd6"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/Select.vue",
+      "file": "reference/shared/frontend/src/components/common/Select.vue",
+      "bytes": 17457,
+      "sha256": "2fd9ea044c501259b65325042497ea25335b2e2eea68d01e8300eeb78777576a"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/common/PlatformIcon.vue",
+      "file": "reference/shared/frontend/src/components/common/PlatformIcon.vue",
+      "bytes": 5627,
+      "sha256": "7314c177c113bc06993d4ea57a3e619063204336c69c36870d021f7a0a12dd52"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/components/icons/Icon.vue",
+      "file": "reference/shared/frontend/src/components/icons/Icon.vue",
+      "bytes": 16906,
+      "sha256": "2b87de92e56760b67984b1dfbdc42fdbaaf44903f578e04012c7b7b8ab77efcc"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/types/index.ts",
+      "file": "reference/shared/frontend/src/types/index.ts",
+      "bytes": 62013,
+      "sha256": "e7ae936835bd256e2d2dca77c4133c444bc445b6dbe66d57bcce170a9a1f0efc"
+    },
+    {
+      "category": "reference/shared",
+      "source": "frontend/src/api/admin/index.ts",
+      "file": "reference/shared/frontend/src/api/admin/index.ts",
+      "bytes": 3618,
+      "sha256": "1e142d3c0ca0d327c343dd81875f67cafc8aee0d2e39a695d3fe134e76050ee4"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/ent/schema/group.go",
+      "file": "reference/shared/backend/ent/schema/group.go",
+      "bytes": 10605,
+      "sha256": "3e030099f811bd746bf746c7dccc85405c3356e68febf4a37a8e77cec9a13a00"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/group.go",
+      "file": "reference/shared/backend/internal/service/group.go",
+      "bytes": 14096,
+      "sha256": "5c8254b19607cba20fae435e2131d6e2e512805c680f4672fc657dbe15bce22c"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/dto/types.go",
+      "file": "reference/shared/backend/internal/handler/dto/types.go",
+      "bytes": 29958,
+      "sha256": "d8ace4cf2dc5395c311e776dc6ca7c471041f9ecf6a272876ab8aefa6b4c2441"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/dto/mappers.go",
+      "file": "reference/shared/backend/internal/handler/dto/mappers.go",
+      "bytes": 27746,
+      "sha256": "5128f6b862f80783c819e5665536e42c41ec9f36bc4f91565a379866573845c4"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/admin/group_handler.go",
+      "file": "reference/shared/backend/internal/handler/admin/group_handler.go",
+      "bytes": 35702,
+      "sha256": "33dcaa94728310fa51afde8150843de64e893c1e1cb75b9b0b2aea1a2a670a81"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/admin_service.go",
+      "file": "reference/shared/backend/internal/service/admin_service.go",
+      "bytes": 31171,
+      "sha256": "bc9b6fe6af9a896764779d21feb456fe33306d76cfa706a768e5b08d4f660da0"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/admin_group.go",
+      "file": "reference/shared/backend/internal/service/admin_group.go",
+      "bytes": 48563,
+      "sha256": "905008a50e49897fb4d2cb96f02125707c965683ae253f4d782f666f8c66fd87"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/admin_group_duplicate.go",
+      "file": "reference/shared/backend/internal/service/admin_group_duplicate.go",
+      "bytes": 8900,
+      "sha256": "6152033ce4432cb4df58463cf24fa008ff829f970237ff242b2b75f60da38743"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/admin_account.go",
+      "file": "reference/shared/backend/internal/service/admin_account.go",
+      "bytes": 63694,
+      "sha256": "17cc3605bbd9daf48b989813183e557eaca483087ad600bd19fca255cf5bdd3d"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/account_service.go",
+      "file": "reference/shared/backend/internal/service/account_service.go",
+      "bytes": 20351,
+      "sha256": "cfab617657b281e69faa4e065d9ec6ab60bd05e8d9caeb5f3b8c4ac5aafe3c23"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/repository/group_repo.go",
+      "file": "reference/shared/backend/internal/repository/group_repo.go",
+      "bytes": 37586,
+      "sha256": "c0564fad63ebf8065689b1a2502bce8e3dc22d8643335150f37b998fc2c1bd4e"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/repository/api_key_repo.go",
+      "file": "reference/shared/backend/internal/repository/api_key_repo.go",
+      "bytes": 31804,
+      "sha256": "2b693da4a98247ced3cb9ec2ed90c9f997866a413a1ea22a6bb0014a19e9c17e"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/api_key_auth_cache.go",
+      "file": "reference/shared/backend/internal/service/api_key_auth_cache.go",
+      "bytes": 3322,
+      "sha256": "388e7c6746dce82ede6edc7fe61af79655caf43da9d46be8709a6b2e98b45e8c"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/model_pricing_resolver.go",
+      "file": "reference/shared/backend/internal/service/model_pricing_resolver.go",
+      "bytes": 16193,
+      "sha256": "cd81394d87e67a98ac6adfdd1c845ecbdcedf32ff358be8381e5434e590b798d"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/billing_service.go",
+      "file": "reference/shared/backend/internal/service/billing_service.go",
+      "bytes": 68398,
+      "sha256": "46c39789d2ac245e1c4b99656ab18e307db31e6e93f5fd7e20ea41e6071b902b"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/openai_gateway_usage.go",
+      "file": "reference/shared/backend/internal/service/openai_gateway_usage.go",
+      "bytes": 35758,
+      "sha256": "7c0f234caf90fa29f34c06c36a45947e857e386a3fec65e441c52ab426fcd815"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/openai_gateway_handler.go",
+      "file": "reference/shared/backend/internal/handler/openai_gateway_handler.go",
+      "bytes": 118395,
+      "sha256": "32954fb59662a43edcedfd99b576b9ebedc65eb07f081e09645ff3da828c7951"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/openai_chat_completions.go",
+      "file": "reference/shared/backend/internal/handler/openai_chat_completions.go",
+      "bytes": 15763,
+      "sha256": "0595c3a4aa1c6472f2d51e7cec139ba92614408b469cc82e5427bf6d16020acf"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/openai_embeddings.go",
+      "file": "reference/shared/backend/internal/handler/openai_embeddings.go",
+      "bytes": 10187,
+      "sha256": "b2e5e99519ae1bbe993e6dba550fb1868ae8badb730a709af761023010369264"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/openai_alpha_search.go",
+      "file": "reference/shared/backend/internal/handler/openai_alpha_search.go",
+      "bytes": 10381,
+      "sha256": "19f1bf97095fbd8d117570ccd4791f65f90382fe391710e04188a561107de7ad"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/openai_live.go",
+      "file": "reference/shared/backend/internal/handler/openai_live.go",
+      "bytes": 8120,
+      "sha256": "1b0df6b2fb2c9c0ba7560819e2b5f0ee6d74d78dbe544b98df116e84b6cd5a31"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/gateway_usage_billing.go",
+      "file": "reference/shared/backend/internal/service/gateway_usage_billing.go",
+      "bytes": 58349,
+      "sha256": "719705698f07b31b216c4bb89045942f829febf8920366e016df8777b2db8899"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/repository/wire.go",
+      "file": "reference/shared/backend/internal/repository/wire.go",
+      "bytes": 6993,
+      "sha256": "fd4c7335d4cba34bcae97307922acdf5a11b0e1d2c8167b8a73f71aa606860cd"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/service/wire.go",
+      "file": "reference/shared/backend/internal/service/wire.go",
+      "bytes": 32203,
+      "sha256": "fb1290c26caf46474c362607d022752e16d7c6413fee6f932a8b4b967444b398"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/wire.go",
+      "file": "reference/shared/backend/internal/handler/wire.go",
+      "bytes": 10626,
+      "sha256": "fc838fa58737b41da61ab06dd7dfd512cca335d341ba52041a9937079c82694e"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/handler/handler.go",
+      "file": "reference/shared/backend/internal/handler/handler.go",
+      "bytes": 2924,
+      "sha256": "6e9c49e2e67ef33e1c3593632b24d351c483d3e18bd2d808a155b390c6e2eefd"
+    },
+    {
+      "category": "reference/shared",
+      "source": "backend/internal/server/routes/admin.go",
+      "file": "reference/shared/backend/internal/server/routes/admin.go",
+      "bytes": 35925,
+      "sha256": "6e78a9c92fbeee08cedb38bf1a1ec6c24d7d006a8f6e42c5a6a9f7c6315c5706"
+    },
+    {
+      "category": "reference/protocol",
+      "source": "backend/internal/pkg/openai_compat/upstream_capability.go",
+      "file": "reference/protocol/backend/internal/pkg/openai_compat/upstream_capability.go",
+      "bytes": 4953,
+      "sha256": "12ce8c0da5f78d979101d26f5bbf394abe72e188f064d21ed3f6a2bd65e17c1a"
+    },
+    {
+      "category": "reference/protocol",
+      "source": "backend/internal/service/openai_apikey_responses_probe.go",
+      "file": "reference/protocol/backend/internal/service/openai_apikey_responses_probe.go",
+      "bytes": 9923,
+      "sha256": "7873bdc62660c0a6dcc22a61c865dce214276cf59bd8f5610a29cddf9f8811fb"
+    },
+    {
+      "category": "reference/protocol",
+      "source": "backend/internal/service/openai_gateway_chat_completions_raw.go",
+      "file": "reference/protocol/backend/internal/service/openai_gateway_chat_completions_raw.go",
+      "bytes": 16534,
+      "sha256": "5b3c18fca73a97286aff24cc62394f99cfbad6d0b18b032a07a7cec933257531"
+    },
+    {
+      "category": "reference/protocol",
+      "source": "backend/internal/service/openai_gateway_chat_completions.go",
+      "file": "reference/protocol/backend/internal/service/openai_gateway_chat_completions.go",
+      "bytes": 35985,
+      "sha256": "22ac1d3d81f593baee1d8473985d3eccd06e70e96e495c12a255e7145d916032"
+    },
+    {
+      "category": "reference/protocol",
+      "source": "backend/internal/service/openai_gateway_responses_chat_fallback.go",
+      "file": "reference/protocol/backend/internal/service/openai_gateway_responses_chat_fallback.go",
+      "bytes": 10200,
+      "sha256": "9393b411d8c158466e91c1098eb3864d97527bcb05b80a1a55b83cf5dbbfade3"
+    },
+    {
+      "category": "reference/protocol",
+      "source": "backend/internal/service/account.go",
+      "file": "reference/protocol/backend/internal/service/account.go",
+      "bytes": 77492,
+      "sha256": "32ff2979d71c37aca3a6182335780f9a5f4853f60bb9a76593e6c38f3f164b71"
+    },
+    {
+      "category": "migrations",
+      "source": "backend/migrations/196_group_domestic_provider.sql",
+      "file": "migrations/backend/migrations/196_group_domestic_provider.sql",
+      "bytes": 634,
+      "sha256": "b61f7c752038c2c62d0cc3da98645e3f70e15ac168abb8b16fd2662f52aec77e"
+    },
+    {
+      "category": "migrations",
+      "source": "backend/migrations/197_domestic_model_pricing_overrides.sql",
+      "file": "migrations/backend/migrations/197_domestic_model_pricing_overrides.sql",
+      "bytes": 5096,
+      "sha256": "c366dd1b279a1ef7c987cf4cae9ff9b882e249d101221ffc5e6ef4cc0c79b91a"
+    },
+    {
+      "category": "migrations",
+      "source": "backend/migrations/198_group_domestic_provider_constraint.sql",
+      "file": "migrations/backend/migrations/198_group_domestic_provider_constraint.sql",
+      "bytes": 1431,
+      "sha256": "60b20af32a34f0d0f089d3a6aaa927d7f2e5b39c6712c7067a65e427b459e881"
+    },
+    {
+      "category": "tests",
+      "source": "frontend/src/utils/__tests__/domesticProviders.spec.ts",
+      "file": "tests/frontend/src/utils/__tests__/domesticProviders.spec.ts",
+      "bytes": 1479,
+      "sha256": "d5ee41b8b4618160c46df2c988daae618a2806c08db4b0f829c829baf9373181"
+    },
+    {
+      "category": "tests",
+      "source": "frontend/src/api/admin/__tests__/domesticPricing.spec.ts",
+      "file": "tests/frontend/src/api/admin/__tests__/domesticPricing.spec.ts",
+      "bytes": 850,
+      "sha256": "17e2db8d174959362a6b1c31d1cc0c782177fb9ad03891126df2429255919a63"
+    },
+    {
+      "category": "tests",
+      "source": "frontend/src/components/common/__tests__/GroupSelector.domestic.spec.ts",
+      "file": "tests/frontend/src/components/common/__tests__/GroupSelector.domestic.spec.ts",
+      "bytes": 2048,
+      "sha256": "58950c4c4b5aa0e6260ef1b37182e00332a5e5cedf6e720fde2bd3dc1154492f"
+    },
+    {
+      "category": "tests",
+      "source": "frontend/src/components/common/__tests__/GroupOptionItem.domesticRate.spec.ts",
+      "file": "tests/frontend/src/components/common/__tests__/GroupOptionItem.domesticRate.spec.ts",
+      "bytes": 666,
+      "sha256": "72e941c54c0fdb7959052248f4f6583762c21ed2571cfc67b433817cf22cf1ef"
+    },
+    {
+      "category": "tests",
+      "source": "frontend/src/components/common/__tests__/GroupBadge.domesticRate.spec.ts",
+      "file": "tests/frontend/src/components/common/__tests__/GroupBadge.domesticRate.spec.ts",
+      "bytes": 610,
+      "sha256": "1e6760fd9a85416bfa6aa0fe38da6beb98aa9b2df6af5dd5312438738871b754"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/service/domestic_pricing_test.go",
+      "file": "tests/backend/internal/service/domestic_pricing_test.go",
+      "bytes": 10266,
+      "sha256": "db4ae6015c5538f829342dc25bf5debfc8c3729de417f74bb2bbc651e1805903"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/service/domestic_pricing_china_standard_test.go",
+      "file": "tests/backend/internal/service/domestic_pricing_china_standard_test.go",
+      "bytes": 6129,
+      "sha256": "88ec949d1e391a90d9f74325d578f7d4f07ba21e2a96f16adac83e66c1f3244d"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/service/domestic_pricing_integration_test.go",
+      "file": "tests/backend/internal/service/domestic_pricing_integration_test.go",
+      "bytes": 7034,
+      "sha256": "7153ca62422f01286628c725132dba6b23ec5b6f14432e73e82fcc9d21927c63"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/service/admin_group_domestic_provider_test.go",
+      "file": "tests/backend/internal/service/admin_group_domestic_provider_test.go",
+      "bytes": 11723,
+      "sha256": "9fa96a0186aec7630e6b7251fd02aa57280d38af6790e28ca3adeeb43e006403"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/repository/domestic_pricing_repo_test.go",
+      "file": "tests/backend/internal/repository/domestic_pricing_repo_test.go",
+      "bytes": 2159,
+      "sha256": "4f081210c46ac4fece8a054081c9772f59763f22fe9071e75a58b3c8c9a4747f"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/handler/openai_domestic_pricing_test.go",
+      "file": "tests/backend/internal/handler/openai_domestic_pricing_test.go",
+      "bytes": 1141,
+      "sha256": "1202f7a7397434fb9e98c7828f394f02ba3e7670b05951e54db9106e33a1ae13"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/handler/dto/group_domestic_provider_test.go",
+      "file": "tests/backend/internal/handler/dto/group_domestic_provider_test.go",
+      "bytes": 538,
+      "sha256": "d7569edddcb756816f841adee4e17c5ff4b3c28d8fac6926d2717279d7c4623b"
+    },
+    {
+      "category": "tests",
+      "source": "backend/migrations/group_domestic_provider_migration_test.go",
+      "file": "tests/backend/migrations/group_domestic_provider_migration_test.go",
+      "bytes": 1923,
+      "sha256": "82385dfbfba3381d08a7d4b480dcf6239bfb1e5d6139ed792810eb8fc202935b"
+    },
+    {
+      "category": "tests",
+      "source": "backend/internal/pkg/openai_compat/upstream_capability_test.go",
+      "file": "tests/backend/internal/pkg/openai_compat/upstream_capability_test.go",
+      "bytes": 3984,
+      "sha256": "228074ee4f0e1042a2a6768416aff5f7ea903e0b3812cc37737ecdc137e7200e"
+    },
+    {
+      "category": "reference/test-support",
+      "source": "backend/internal/service/model_pricing_resolver_test.go",
+      "file": "reference/test-support/backend/internal/service/model_pricing_resolver_test.go",
+      "bytes": 29561,
+      "sha256": "d9403f69efdb4ea7029b69471f7e0fbf6e907aaf02840c851e3b95a50d9c91ad"
+    },
+    {
+      "category": "reference/test-support",
+      "source": "frontend/src/__tests__/setup.ts",
+      "file": "reference/test-support/frontend/src/__tests__/setup.ts",
+      "bytes": 2724,
+      "sha256": "e0839b47a111f290d00d739cb8da6b689ebab1700b0754cca791ac91327b5df7"
+    },
+    {
+      "category": "reference/test-support",
+      "source": "frontend/vitest.config.ts",
+      "file": "reference/test-support/frontend/vitest.config.ts",
+      "bytes": 938,
+      "sha256": "7fe146c9d88c0b4a24e73f7b583cb1dd3ab94436246337482d18d0c8616db1a2"
+    }
+  ]
+}

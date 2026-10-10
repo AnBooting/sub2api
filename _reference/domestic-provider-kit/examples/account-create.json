@@ -1,0 +1,19 @@
+{
+  "name": "DeepSeek example",
+  "platform": "openai",
+  "type": "apikey",
+  "credentials": {
+    "base_url": "https://api.deepseek.com",
+    "api_key": "REPLACE_WITH_YOUR_OWN_TEST_KEY"
+  },
+  "extra": {
+    "domestic_provider": "deepseek",
+    "domestic_provider_label": "DeepSeek",
+    "domestic_provider_company": "深度求索",
+    "openai_responses_mode": "force_chat_completions"
+  },
+  "concurrency": 1,
+  "priority": 1,
+  "rate_multiplier": 1,
+  "group_ids": []
+}

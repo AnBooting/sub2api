@@ -1,0 +1,8 @@
+{
+  "name": "DeepSeek",
+  "platform": "openai",
+  "domestic_provider": "deepseek",
+  "rate_multiplier": 1,
+  "is_exclusive": false,
+  "subscription_type": "standard"
+}
