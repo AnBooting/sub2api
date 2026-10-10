@@ -5020,6 +5020,18 @@
                 </div>
                 <Toggle v-model="form.allow_ungrouped_key_scheduling" />
               </div>
+              <SchedulingStrategySelect :model-value="form.scheduling_strategy" @update:model-value="(value) => { if (value !== 'inherit') form.scheduling_strategy = value }" :effective-strategy="form.scheduling_strategy" :disabled="saving" />
+              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label class="block">
+                  <span class="input-label">{{ t('admin.settings.scheduling.maxAttempts') }}</span>
+                  <input v-model.number="form.gateway_max_attempts_per_request" type="number" min="1" step="1" class="input" data-test="gateway-max-attempts" />
+                </label>
+                <label class="block">
+                  <span class="input-label">{{ t('admin.settings.scheduling.requestBudget') }}</span>
+                  <input v-model.number="form.gateway_request_budget_seconds" type="number" min="1" step="1" class="input" data-test="gateway-request-budget" />
+                </label>
+              </div>
+              <p class="input-hint">{{ t('admin.settings.scheduling.budgetHint') }}</p>
 
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <div class="mb-3">
@@ -9056,6 +9068,7 @@ import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSi
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import PricingSettingsPanel from "@/components/admin/PricingSettingsPanel.vue";
+import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelect.vue";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
@@ -9767,6 +9780,9 @@ type SettingsForm = Omit<
   // 系统全局平台限额 map；form 内始终归一化为全部平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
   account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
+  scheduling_strategy: import("@/types").SchedulingStrategy;
+  gateway_max_attempts_per_request: number;
+  gateway_request_budget_seconds: number;
 };
 
 const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
@@ -9810,6 +9826,9 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
+  scheduling_strategy: "balanced",
+  gateway_max_attempts_per_request: 16,
+  gateway_request_budget_seconds: 600,
   site_name: "Sub2API",
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
@@ -11323,6 +11342,10 @@ const siteBillingModeHint = computed(() =>
 async function saveSettings() {
   saving.value = true;
   try {
+    if (!Number.isInteger(form.gateway_max_attempts_per_request) || form.gateway_max_attempts_per_request < 1 || !Number.isInteger(form.gateway_request_budget_seconds) || form.gateway_request_budget_seconds < 1) {
+      appStore.showError(t("admin.settings.scheduling.invalidBudget"));
+      return;
+    }
     const normalizedTableDefaultPageSize = Math.floor(
       Number(form.table_default_page_size),
     );
@@ -11517,6 +11540,9 @@ async function saveSettings() {
       default_subscriptions: normalizedDefaultSubscriptions,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
       default_user_rpm_limit: form.default_user_rpm_limit,
+      scheduling_strategy: form.scheduling_strategy,
+      gateway_max_attempts_per_request: form.gateway_max_attempts_per_request,
+      gateway_request_budget_seconds: form.gateway_request_budget_seconds,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,

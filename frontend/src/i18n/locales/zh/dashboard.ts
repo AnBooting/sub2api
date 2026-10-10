@@ -66,6 +66,21 @@ export default {
 
   // API Keys
   keys: {
+    chain: {
+      conflict: "分组配置已被其他操作修改。请刷新密钥列表并重新打开编辑后再保存；本次更改未自动重试。",
+      publicGroupsHint: "通用公开标准组始终可用；这里仅配置用户倍率，专属组授权和订阅要求保持不变。",
+      "title": "普通分组尝试顺序",
+      "hint": "按顺序优先使用，当前组内候选耗尽后才尝试下一组；按实际服务组的有效倍率计费。",
+      "add": "添加普通分组",
+      "moveUp": "将 {name} 上移",
+      "moveDown": "将 {name} 下移",
+      "remove": "移除 {name}",
+      "empty": "未绑定普通分组",
+      "unavailable": "分组 #{id}（当前不可用）",
+      "haAuthorized": "用户已授权的高可用兜底",
+      "singleHint": "上方单组选项会将普通链替换为该组，兜底授权保持不变。",
+      "edit": "编辑普通分组顺序"
+    },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',

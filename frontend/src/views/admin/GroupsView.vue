@@ -626,6 +626,7 @@
           />
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
+        <SchedulingStrategySelect v-model="createForm.scheduling_strategy" allow-inherit :disabled="submitting" />
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -2264,6 +2265,7 @@
             data-tour="group-form-multiplier"
           />
         </div>
+        <SchedulingStrategySelect v-model="editForm.scheduling_strategy" allow-inherit :disabled="submitting" :effective-strategy="savedEffectiveStrategy" />
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -4296,6 +4298,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import Select from "@/components/common/Select.vue";
+import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelect.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import { platformLabel } from "@/utils/platformColors";
 import Icon from "@/components/icons/Icon.vue";
@@ -4945,6 +4948,7 @@ const createForm = reactive({
   description: "",
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
+  scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
   is_exclusive: false,
   subscription_type: "standard" as SubscriptionType,
   daily_limit_usd: null as number | null,
@@ -5304,11 +5308,13 @@ const convertApiFormatToRoutingRules = async (
   return rules;
 };
 
+const savedEffectiveStrategy = ref<import("@/types").SchedulingStrategy>();
 const editForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
+  scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
   is_exclusive: false,
   status: "active" as "active" | "inactive",
   subscription_type: "standard" as SubscriptionType,
@@ -5772,6 +5778,7 @@ const closeCreateModal = () => {
   createForm.description = "";
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
+  createForm.scheduling_strategy = "inherit";
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
   createForm.daily_limit_usd = null;
@@ -6053,6 +6060,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.description = group.description || "";
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
+  editForm.scheduling_strategy = group.scheduling_strategy ?? "inherit";
+  savedEffectiveStrategy.value = group.effective_scheduling_strategy;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";
