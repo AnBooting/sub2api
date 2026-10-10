@@ -35,7 +35,7 @@ upstream/main   Wei-Shaw/sub2api              原始上游（只读，仅跟随 
 
 | 分支 | 允许的操作 |
 |---|---|
-| `main` | 跟踪 `origin/main`。**只 `git pull`，禁止本地提交** |
+| `main` | 跟踪 `origin/main`。不直接提交；`develop` 验收后经 PR 快进合入（2026-10-10 起） |
 | `develop` | 合并已验收的特性分支；打部署标签；**部署来源** |
 | `feat/*` | 自由提交；完成后合回 develop |
 
@@ -100,7 +100,7 @@ git merge upstream/main          # 在 develop 上合并；有冲突逐个解决
 
 ## 5. 红线（不要做）
 
-- ❌ 不在 `main` 上提交
+- ❌ 不在 `main` 上直接提交（只经 PR 从 `develop` 快进合入）
 - ❌ 不 `git push --force`
 - ❌ 不提交 `.env`、`data/`、`postgres_data/`、`redis_data/`、任何 API Key 或密码
 - ❌ 不 `git reset --hard` 丢弃未提交工作
