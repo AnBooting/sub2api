@@ -54,21 +54,23 @@ type AdminUser struct {
 }
 
 type APIKey struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	GroupID     *int64     `json:"group_id"`
-	Status      string     `json:"status"`
-	IPWhitelist []string   `json:"ip_whitelist"`
-	IPBlacklist []string   `json:"ip_blacklist"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	LastUsedIP  *string    `json:"last_used_ip"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID                 int64                     `json:"id"`
+	UserID             int64                     `json:"user_id"`
+	Key                string                    `json:"key"`
+	Name               string                    `json:"name"`
+	GroupID            *int64                    `json:"group_id"`
+	GroupChainRevision int64                     `json:"group_chain_revision"`
+	Groups             []service.APIKeyGroupLink `json:"groups"`
+	Status             string                    `json:"status"`
+	IPWhitelist        []string                  `json:"ip_whitelist"`
+	IPBlacklist        []string                  `json:"ip_blacklist"`
+	LastUsedAt         *time.Time                `json:"last_used_at"`
+	LastUsedIP         *string                   `json:"last_used_ip"`
+	Quota              float64                   `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed          float64                   `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt          *time.Time                `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt          time.Time                 `json:"created_at"`
+	UpdatedAt          time.Time                 `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
 	CurrentConcurrency int `json:"current_concurrency"`
 
@@ -605,8 +607,12 @@ type UsageLog struct {
 	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
 	UpstreamEndpoint *string `json:"upstream_endpoint,omitempty"`
 
-	GroupID        *int64 `json:"group_id"`
-	SubscriptionID *int64 `json:"subscription_id"`
+	GroupID          *int64  `json:"group_id"`
+	RequestedGroupID *int64  `json:"requested_group_id"`
+	ServedGroupID    *int64  `json:"served_group_id"`
+	Failover         *string `json:"failover"`
+	AttemptCount     *int    `json:"attempt_count"`
+	SubscriptionID   *int64  `json:"subscription_id"`
 
 	InputTokens         int `json:"input_tokens"`
 	OutputTokens        int `json:"output_tokens"`

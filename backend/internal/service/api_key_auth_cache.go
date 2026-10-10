@@ -4,16 +4,18 @@ import "time"
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
-	Version     int                      `json:"version"`
-	APIKeyID    int64                    `json:"api_key_id"`
-	UserID      int64                    `json:"user_id"`
-	GroupID     *int64                   `json:"group_id,omitempty"`
-	Name        string                   `json:"name"`
-	Status      string                   `json:"status"`
-	IPWhitelist []string                 `json:"ip_whitelist,omitempty"`
-	IPBlacklist []string                 `json:"ip_blacklist,omitempty"`
-	User        APIKeyAuthUserSnapshot   `json:"user"`
-	Group       *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
+	Version            int                           `json:"version"`
+	APIKeyID           int64                         `json:"api_key_id"`
+	UserID             int64                         `json:"user_id"`
+	GroupID            *int64                        `json:"group_id,omitempty"`
+	GroupChainRevision int64                         `json:"group_chain_revision"`
+	Groups             []APIKeyAuthGroupLinkSnapshot `json:"groups"`
+	Name               string                        `json:"name"`
+	Status             string                        `json:"status"`
+	IPWhitelist        []string                      `json:"ip_whitelist,omitempty"`
+	IPBlacklist        []string                      `json:"ip_blacklist,omitempty"`
+	User               APIKeyAuthUserSnapshot        `json:"user"`
+	Group              *APIKeyAuthGroupSnapshot      `json:"group,omitempty"`
 
 	// Quota fields for API Key independent quota feature
 	Quota     float64 `json:"quota"`      // Quota limit in USD (0 = unlimited)
@@ -26,6 +28,14 @@ type APIKeyAuthSnapshot struct {
 	RateLimit5h float64 `json:"rate_limit_5h"`
 	RateLimit1d float64 `json:"rate_limit_1d"`
 	RateLimit7d float64 `json:"rate_limit_7d"`
+}
+
+type APIKeyAuthGroupLinkSnapshot struct {
+	GroupID         int64                    `json:"group_id"`
+	Role            string                   `json:"role"`
+	Position        int                      `json:"position"`
+	EnabledByUserAt *time.Time               `json:"enabled_by_user_at,omitempty"`
+	Group           *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
 }
 
 // APIKeyAuthUserSnapshot 用户快照

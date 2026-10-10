@@ -1429,6 +1429,88 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 	return result, nil
 }
 
+// AdminUpdateAPIKeyGroups replaces only normal bindings. CAS precedes every grant and write.
+func (s *adminServiceImpl) AdminUpdateAPIKeyGroups(ctx context.Context, keyID int64, input AdminUpdateAPIKeyGroupsInput) (*AdminUpdateAPIKeyGroupIDResult, error) {
+	if input.ExpectedGroupChainRevision == nil {
+		return nil, ErrGroupChainConflict
+	}
+	links, err := NormalizeAPIKeyGroupLinks(input.Groups, true)
+	if err != nil {
+		return nil, err
+	}
+	repo, ok := s.apiKeyRepo.(APIKeyGroupChainTxRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("GROUP_CHAIN_TRANSACTION_UNAVAILABLE", "group chain transaction is not configured")
+	}
+	result := &AdminUpdateAPIKeyGroupIDResult{}
+	err = repo.WithGroupChainTransaction(ctx, keyID, input.ExpectedGroupChainRevision, func(txCtx context.Context, key *APIKey) error {
+		// Check all candidates before granting any exclusive group.
+		groups := make([]*Group, 0, len(links))
+		for _, link := range links {
+			group, err := s.groupRepo.GetByID(txCtx, link.GroupID)
+			if err != nil {
+				return err
+			}
+			if !group.IsActive() {
+				return infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+			}
+			if group.IsSubscriptionType() {
+				if s.userSubRepo == nil {
+					return infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
+				}
+				if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(txCtx, key.UserID, group.ID); err != nil {
+					if errors.Is(err, ErrSubscriptionNotFound) {
+						return infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
+					}
+					return err
+				}
+			}
+			groups = append(groups, group)
+		}
+		// Reject normal IDs colliding with retained HA before granting anything.
+		if _, err := ResolveAPIKeyGroupChain(key.Groups, links, true); err != nil {
+			return err
+		}
+		for _, group := range groups {
+			if group.IsExclusive && !group.IsSubscriptionType() {
+				if err := s.userRepo.AddGroupToAllowedGroups(txCtx, key.UserID, group.ID); err != nil {
+					return fmt.Errorf("add group to user allowed groups: %w", err)
+				}
+				result.AutoGrantedGroupAccess = true
+				id := group.ID
+				result.GrantedGroupID = &id
+				result.GrantedGroupName = group.Name
+			}
+		}
+		key.Groups = links
+		fields := APIKeyUpdateFields{Groups: true, NormalGroupsOnly: true, ExpectedGroupChainRevision: input.ExpectedGroupChainRevision}
+		if input.ResetRateLimitUsage {
+			key.Usage5h = 0
+			key.Usage1d = 0
+			key.Usage7d = 0
+			key.Window5hStart = nil
+			key.Window1dStart = nil
+			key.Window7dStart = nil
+			fields.RateLimitUsage = true
+		}
+		if err := s.apiKeyRepo.Update(txCtx, key, fields); err != nil {
+			return err
+		}
+		result.APIKey = key
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, result.APIKey.Key)
+	}
+	if input.ResetRateLimitUsage && s.billingCacheService != nil {
+		_ = s.billingCacheService.InvalidateAPIKeyRateLimit(ctx, keyID)
+	}
+	return result, nil
+}
+
 // AdminResetAPIKeyRateLimitUsage resets all API key rate-limit usage windows.
 func (s *adminServiceImpl) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error) {
 	apiKey, err := s.apiKeyRepo.GetByID(ctx, keyID)

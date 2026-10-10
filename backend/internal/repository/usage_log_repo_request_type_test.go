@@ -104,6 +104,10 @@ func TestUsageLogRepositoryCreateSyncRequestTypeAndLegacyFields(t *testing.T) {
 			log.NativeCompactionV2,
 			createdAt,
 			nil, // pricing_snapshot
+			nil, // requested_group_id
+			nil, // served_group_id
+			nil, // failover
+			nil, // attempt_count
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(99), createdAt))
 
@@ -200,6 +204,10 @@ func TestUsageLogRepositoryCreate_PersistsServiceTier(t *testing.T) {
 			log.NativeCompactionV2,
 			createdAt,
 			nil, // pricing_snapshot
+			nil, // requested_group_id
+			nil, // served_group_id
+			nil, // failover
+			nil, // attempt_count
 		).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "created_at"}).AddRow(int64(100), createdAt))
 
@@ -280,8 +288,9 @@ func TestPrepareUsageLogInsert_PersistsNativeCompactionV2WithoutChangingRequestT
 	prepared := prepareUsageLogInsert(log)
 
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
-	require.Equal(t, "boolean", usageLogInsertArgTypes[len(usageLogInsertArgTypes)-3])
-	require.Equal(t, true, prepared.args[len(prepared.args)-3])
+	idx := usageLogNamedInsertArgIndex(t, "native_compaction_v2")
+	require.Equal(t, "boolean", usageLogInsertArgTypes[idx])
+	require.Equal(t, true, prepared.args[idx])
 	require.Equal(t, int16(service.RequestTypeStream), prepared.args[30])
 	require.Equal(t, service.RequestTypeStream, log.RequestType)
 	require.True(t, log.Stream)
@@ -964,6 +973,10 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			false, // native_compaction_v2
 			now,
 			[]byte(`{"currency":"CNY","source":"fixture","quota_unit":"credits"}`), // pricing_snapshot
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
 		}})
 		require.NoError(t, err)
 		require.JSONEq(t, `{"currency":"CNY","source":"fixture","quota_unit":"credits"}`, string(log.PricingSnapshot))
@@ -1045,7 +1058,19 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // session_id
 			false,             // native_compaction_v2
 			now,
-			[]byte(nil), // pricing_snapshot
+			[]byte(nil),      // pricing_snapshot
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -1109,7 +1134,19 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // session_id
 			true,              // native_compaction_v2
 			now,
-			[]byte(nil), // pricing_snapshot
+			[]byte(nil),      // pricing_snapshot
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -1174,7 +1211,19 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullString{},  // session_id
 			false,             // native_compaction_v2
 			now,
-			[]byte(nil), // pricing_snapshot
+			[]byte(nil),      // pricing_snapshot
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
+			sql.NullInt64{},  // requested_group_id
+			sql.NullInt64{},  // served_group_id
+			sql.NullString{}, // failover
+			sql.NullInt64{},  // attempt_count
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)

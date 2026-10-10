@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
@@ -921,6 +922,21 @@ func (_c *GroupCreate) AddAPIKeys(v ...*APIKey) *GroupCreate {
 	return _c.AddAPIKeyIDs(ids...)
 }
 
+// AddAPIKeyLinkIDs adds the "api_key_links" edge to the APIKeyGroupLink entity by IDs.
+func (_c *GroupCreate) AddAPIKeyLinkIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddAPIKeyLinkIDs(ids...)
+	return _c
+}
+
+// AddAPIKeyLinks adds the "api_key_links" edges to the APIKeyGroupLink entity.
+func (_c *GroupCreate) AddAPIKeyLinks(v ...*APIKeyGroupLink) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAPIKeyLinkIDs(ids...)
+}
+
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
 func (_c *GroupCreate) AddRedeemCodeIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddRedeemCodeIDs(ids...)
@@ -1718,6 +1734,22 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.APIKeyLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

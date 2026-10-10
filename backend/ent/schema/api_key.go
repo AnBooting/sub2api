@@ -41,6 +41,7 @@ func (APIKey) Fields() []ent.Field {
 		field.String("name").
 			MaxLen(100).
 			NotEmpty(),
+		field.Int64("group_chain_revision").Default(0).NonNegative(),
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
@@ -130,6 +131,7 @@ func (APIKey) Edges() []ent.Edge {
 			Field("group_id").
 			Unique(),
 		edge.To("usage_logs", UsageLog.Type),
+		edge.To("group_links", APIKeyGroupLink.Type),
 	}
 }
 

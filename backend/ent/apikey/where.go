@@ -85,6 +85,11 @@ func Name(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldName, v))
 }
 
+// GroupChainRevision applies equality check predicate on the "group_chain_revision" field. It's identical to GroupChainRevisionEQ.
+func GroupChainRevision(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldGroupChainRevision, v))
+}
+
 // GroupID applies equality check predicate on the "group_id" field. It's identical to GroupIDEQ.
 func GroupID(v int64) predicate.APIKey {
 	return predicate.APIKey(sql.FieldEQ(FieldGroupID, v))
@@ -438,6 +443,46 @@ func NameEqualFold(v string) predicate.APIKey {
 // NameContainsFold applies the ContainsFold predicate on the "name" field.
 func NameContainsFold(v string) predicate.APIKey {
 	return predicate.APIKey(sql.FieldContainsFold(FieldName, v))
+}
+
+// GroupChainRevisionEQ applies the EQ predicate on the "group_chain_revision" field.
+func GroupChainRevisionEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldEQ(FieldGroupChainRevision, v))
+}
+
+// GroupChainRevisionNEQ applies the NEQ predicate on the "group_chain_revision" field.
+func GroupChainRevisionNEQ(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNEQ(FieldGroupChainRevision, v))
+}
+
+// GroupChainRevisionIn applies the In predicate on the "group_chain_revision" field.
+func GroupChainRevisionIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldIn(FieldGroupChainRevision, vs...))
+}
+
+// GroupChainRevisionNotIn applies the NotIn predicate on the "group_chain_revision" field.
+func GroupChainRevisionNotIn(vs ...int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldNotIn(FieldGroupChainRevision, vs...))
+}
+
+// GroupChainRevisionGT applies the GT predicate on the "group_chain_revision" field.
+func GroupChainRevisionGT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGT(FieldGroupChainRevision, v))
+}
+
+// GroupChainRevisionGTE applies the GTE predicate on the "group_chain_revision" field.
+func GroupChainRevisionGTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldGTE(FieldGroupChainRevision, v))
+}
+
+// GroupChainRevisionLT applies the LT predicate on the "group_chain_revision" field.
+func GroupChainRevisionLT(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLT(FieldGroupChainRevision, v))
+}
+
+// GroupChainRevisionLTE applies the LTE predicate on the "group_chain_revision" field.
+func GroupChainRevisionLTE(v int64) predicate.APIKey {
+	return predicate.APIKey(sql.FieldLTE(FieldGroupChainRevision, v))
 }
 
 // GroupIDEQ applies the EQ predicate on the "group_id" field.
@@ -1186,6 +1231,29 @@ func HasUsageLogs() predicate.APIKey {
 func HasUsageLogsWith(preds ...predicate.UsageLog) predicate.APIKey {
 	return predicate.APIKey(func(s *sql.Selector) {
 		step := newUsageLogsStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasGroupLinks applies the HasEdge predicate on the "group_links" edge.
+func HasGroupLinks() predicate.APIKey {
+	return predicate.APIKey(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, GroupLinksTable, GroupLinksColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasGroupLinksWith applies the HasEdge predicate on the "group_links" edge with a given conditions (other predicates).
+func HasGroupLinksWith(preds ...predicate.APIKeyGroupLink) predicate.APIKey {
+	return predicate.APIKey(func(s *sql.Selector) {
+		step := newGroupLinksStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

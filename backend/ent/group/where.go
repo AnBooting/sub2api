@@ -2673,6 +2673,29 @@ func HasAPIKeysWith(preds ...predicate.APIKey) predicate.Group {
 	})
 }
 
+// HasAPIKeyLinks applies the HasEdge predicate on the "api_key_links" edge.
+func HasAPIKeyLinks() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, APIKeyLinksTable, APIKeyLinksColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAPIKeyLinksWith applies the HasEdge predicate on the "api_key_links" edge with a given conditions (other predicates).
+func HasAPIKeyLinksWith(preds ...predicate.APIKeyGroupLink) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newAPIKeyLinksStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // HasRedeemCodes applies the HasEdge predicate on the "redeem_codes" edge.
 func HasRedeemCodes() predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {

@@ -771,6 +771,34 @@ func (s *stubAdminService) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 	return nil, service.ErrAPIKeyNotFound
 }
 
+func (s *stubAdminService) AdminUpdateAPIKeyGroups(ctx context.Context, keyID int64, input service.AdminUpdateAPIKeyGroupsInput) (*service.AdminUpdateAPIKeyGroupIDResult, error) {
+	for i := range s.apiKeys {
+		if s.apiKeys[i].ID == keyID {
+			key := s.apiKeys[i]
+			if input.ExpectedGroupChainRevision == nil || *input.ExpectedGroupChainRevision != key.GroupChainRevision {
+				return nil, service.ErrGroupChainConflict
+			}
+			links, err := service.ResolveAPIKeyGroupChain(key.Groups, input.Groups, true)
+			if err != nil {
+				return nil, err
+			}
+			if !service.APIKeyGroupChainsEqual(key.Groups, links) {
+				key.GroupChainRevision++
+			}
+			key.Groups = links
+			key.GroupID = service.FirstNormalAPIKeyGroupID(links)
+			if input.ResetRateLimitUsage {
+				key.Usage5h = 0
+				key.Usage1d = 0
+				key.Usage7d = 0
+			}
+			s.apiKeys[i] = key
+			return &service.AdminUpdateAPIKeyGroupIDResult{APIKey: &key}, nil
+		}
+	}
+	return nil, service.ErrAPIKeyNotFound
+}
+
 func (s *stubAdminService) AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*service.APIKey, error) {
 	for i := range s.apiKeys {
 		if s.apiKeys[i].ID == keyID {

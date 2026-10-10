@@ -66,6 +66,7 @@ type AdminService interface {
 
 	// API Key management (admin)
 	AdminUpdateAPIKeyGroupID(ctx context.Context, keyID int64, groupID *int64) (*AdminUpdateAPIKeyGroupIDResult, error)
+	AdminUpdateAPIKeyGroups(ctx context.Context, keyID int64, input AdminUpdateAPIKeyGroupsInput) (*AdminUpdateAPIKeyGroupIDResult, error)
 	AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error)
 
 	// ReplaceUserGroup 替换用户的专属分组：授予新分组权限、迁移 Key、移除旧分组权限
@@ -481,6 +482,12 @@ type BulkUpdateAccountResult struct {
 	AccountID int64  `json:"account_id"`
 	Success   bool   `json:"success"`
 	Error     string `json:"error,omitempty"`
+}
+
+type AdminUpdateAPIKeyGroupsInput struct {
+	Groups                     []APIKeyGroupLink
+	ExpectedGroupChainRevision *int64
+	ResetRateLimitUsage        bool
 }
 
 // AdminUpdateAPIKeyGroupIDResult is the result of AdminUpdateAPIKeyGroupID.
