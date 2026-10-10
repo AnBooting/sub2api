@@ -145,7 +145,7 @@ vi.mock("@/api/admin/affiliates", () => {
 });
 const pricingAPI = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn() }));
 vi.mock("@/api/admin/pricing", () => ({ getPricingControls: pricingAPI.get, updatePricingControls: pricingAPI.update, refreshPricing: pricingAPI.refresh }));
-const pricingStatus = { remote_enabled: false, native_cny_enabled: false, usd_model_count: 10, cny_model_count: 0, usd_last_updated: "", cny_last_updated: "", cny_error: "" };
+const pricingStatus = { remote_enabled: false, native_cny_enabled: false, usd_model_count: 10, cny_model_count: 0, usd_last_updated: "", cny_last_updated: "", cny_error: "", deepseek_holidays: {}, deepseek_calendar_year_missing: true };
 beforeEach(() => {
   affiliateListUsers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 });
   pricingAPI.get.mockReset().mockResolvedValue({ ...pricingStatus });
@@ -754,6 +754,8 @@ describe("admin SettingsView payment visible method controls", () => {
     const wrapper = mountView();
     await flushPromises();
     expect(pricingAPI.get).toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="calendar-year-missing"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="calendar-draft"]').exists()).toBe(true);
     await wrapper.get('[data-testid="native-cny-toggle"]').setValue(true);
     await flushPromises();
     expect(pricingAPI.update).toHaveBeenCalledWith({ remote_enabled: false, native_cny_enabled: true });
