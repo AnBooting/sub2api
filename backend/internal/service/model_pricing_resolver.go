@@ -140,9 +140,6 @@ func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPric
 		return resolved
 	}
 	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
-	if config.Currency == "CNY" {
-		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
-	}
 	resolved.SupportsCacheBreakdown = resolved.BasePricing != nil && resolved.BasePricing.SupportsCacheBreakdown
 	r.applyTokenOverrides(config, resolved, model)
 	return resolved
@@ -230,6 +227,12 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖
 func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing, models ...string) {
+	if chPricing != nil && chPricing.Currency == "CNY" {
+		if err := manualTokenPricingError(chPricing); err != nil {
+			resolved.BasePricing = &ModelPricing{Currency: "CNY", tokenPricingError: err}
+			return
+		}
+	}
 	// A model-only rule is an allowlist/display entry, not a currency override.
 	// Preserve native CNY pricing and unavailable pricing instead of coercing an
 	// empty USD form entry into USD rates or a zero-valued manual card.
@@ -242,7 +245,13 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	}
 	// Never inherit USD cache fields into a manual CNY card or vice versa.
 	if chPricing.Currency == "CNY" {
-		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+		resolved.BasePricing = nil
+		if r.billingService.pricingService != nil {
+			resolved.BasePricing, _ = r.billingService.pricingService.nativePricingAt(model, time.Now())
+		}
+		if resolved.BasePricing == nil {
+			resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+		}
 	} else if resolved.BasePricing != nil && resolved.BasePricing.Currency == "CNY" {
 		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
 	}

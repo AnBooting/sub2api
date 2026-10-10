@@ -96,10 +96,12 @@ type BillingCache interface {
 
 // ModelPricing 模型价格配置（per-token价格，与LiteLLM格式一致）
 type ModelPricing struct {
-	Currency        string
-	PricingSource   string
-	NativeCard      *NativeCNYCard
-	NativePricingAt time.Time
+	Currency           string
+	PricingSource      string
+	NativeCard         *NativeCNYCard
+	NativePricingAt    time.Time
+	tokenPricingError  error // preserves incomplete manual CNY cards as unavailable, never zero
+	manualTokenPricing bool  // retain NativeCard policy provenance without overwriting manual rates
 	// UltrafastMultiplier is model-owned and independent of operator Fast pricing.
 	UltrafastMultiplier                float64
 	InputPricePerToken                 float64            // 每token输入价格 (USD)
@@ -299,29 +301,18 @@ const (
 // 避免计费中断；新名字由 fallback warn 日志（每模型每进程一条）暴露，
 // 运营者据此更新价卡。
 func isDeepSeekModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "deepseek-")
+	return strings.HasPrefix(nativeModelKey(model), "deepseek")
 }
 
-// deepseekPeakMultiplierAt 返回指定时刻的 DeepSeek 官方峰谷定价因子。
-// 官方口径（2026-08-23 起生效）：高峰价 = 2× 低谷价；高峰时段为
-// 01:00–04:00 与 06:00–10:00 UTC（半开区间），仅工作日；
-// 周末（北京时间周六/周日）全天低谷。北京时间用固定 +8 偏移（无夏令时）。
+// deepseekPeakMultiplierAt is the weekday/weekend policy without an installed calendar.
+// Weekends, including make-up workdays, remain offpeak. Configured holidays
+// use the same chooser through BillingService.deepSeekPricingPeriodAt.
 func deepseekPeakMultiplierAt(now time.Time) float64 {
-	beijing := now.In(time.FixedZone("Asia/Shanghai", 8*3600))
-	switch beijing.Weekday() {
-	case time.Saturday, time.Sunday:
-		return 1.0
-	}
-	switch h := now.UTC().Hour(); {
-	case h >= 1 && h < 4, h >= 6 && h < 10:
-		return 2.0
-	}
-	return 1.0
+	return chooseDeepSeekPricingPeriod(now, nil).multiplier()
 }
 
-// deepseekProRoutesToFlashAt：官方公告自北京时间 2026-09-14 12:00（04:00 UTC）起，
-// 所有 deepseek-v4-pro 请求被上游路由到 V4.1-Flash 并按 Flash 价计费（直至未来
-// V4.1 Pro 上线）。Source: https://api-docs.deepseek.com/news/news260910
+// Official Pro-to-Flash routing takes effect at Beijing 2026-09-14 12:00.
+// Source: https://api-docs.deepseek.com/news/news260910
 var deepseekProRoutesToFlashAt = time.Date(2026, 9, 14, 4, 0, 0, 0, time.UTC)
 
 // deepseekProBilledAsFlash 报告指定计费时点 deepseek-v4-pro 是否已按 Flash 价
@@ -1412,12 +1403,23 @@ func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time)
 // GetModelPricingWithChannel 获取模型定价，渠道配置的价格覆盖默认值。
 // 与其他 token 字段一致，渠道留空的图片输入/输出价沿用目录价，见 applyChannelImagePriceOverrides。
 func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
+	if err := manualTokenPricingError(channelPricing); err != nil {
+		return nil, err
+	}
 	if !hasChannelTokenOverrides(channelPricing) {
 		return s.GetModelPricing(model)
 	}
 	pricing, err := s.getUSDModelPricingAt(model, time.Now())
 	if channelPricing.Currency == "CNY" {
-		pricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+		// Preserve a native schedule as policy provenance. The manual card is
+		// complete, so its prices do not inherit native or USD dimensions.
+		pricing = nil
+		if s.pricingService != nil {
+			pricing, _ = s.pricingService.nativePricingAt(model, time.Now())
+		}
+		if pricing == nil {
+			pricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+		}
 		err = nil
 	}
 	if err != nil {
@@ -1451,7 +1453,8 @@ func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *Chan
 	if pricing == nil || channelPricing == nil {
 		return
 	}
-	pricing.NativeCard = nil
+	pricing.tokenPricingError = manualTokenPricingError(channelPricing)
+	pricing.manualTokenPricing = true
 	pricing.PricingSource = "manual"
 	pricing.Currency = channelPricing.Currency
 	if pricing.Currency == "" {
@@ -1605,18 +1608,10 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 内部已强制过）；分组/渠道自定义定价保留运营者配置，不强制覆盖官方价。
 	pricing = s.applyModelSpecificPricingPolicyEx(input.Model, pricing, resolved.Source == PricingSourceLiteLLM, pricingAt)
 
-	// DeepSeek 模型默认价卡按官方峰谷口径调整：高峰时段（01:00–04:00 与
-	// 06:00–10:00 UTC，仅工作日；北京时间周末全天低谷）按 2× 低谷价计费。
-	// 仅作用于默认价卡（Source=LiteLLM，无分组/渠道自定义定价）——分组/渠道
-	// 自定义定价保持运营者语义，不叠加。先克隆再乘，避免污染共享 fallbackPrices 指针。
-	if pricing.Currency != "CNY" && resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
-		if mult := deepseekPeakMultiplierAt(pricingAt); mult > 1 {
-			cloned := *pricing
-			cloned.InputPricePerToken *= mult
-			cloned.OutputPricePerToken *= mult
-			cloned.CacheReadPricePerToken *= mult
-			pricing = &cloned
-		}
+	// Manual/channel cards store offpeak base rates too. Native absolute
+	// schedule prices have already selected their period and must not be doubled.
+	if isDeepSeekModel(input.Model) && (pricing.NativeCard == nil || pricing.manualTokenPricing) {
+		pricing = scaleDeepSeekTokenPricing(pricing, s.deepSeekPricingPeriodAt(pricingAt).multiplier())
 	}
 
 	// 官方长上下文阶梯仅在无区间定价时应用（区间定价已包含上下文分层）。
@@ -1877,6 +1872,13 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 	pricing, err = resolveNativeTokenPricing(pricing, tokens, time.Time{})
 	if err != nil {
 		return nil, err
+	}
+	if channelPricing != nil && isDeepSeekModel(model) && pricing.manualTokenPricing {
+		at := pricing.NativePricingAt
+		if at.IsZero() {
+			at = timezone.Now()
+		}
+		pricing = scaleDeepSeekTokenPricing(pricing, s.deepSeekPricingPeriodAt(at).multiplier())
 	}
 	return s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, longContextBillingEnabled), nil
 }

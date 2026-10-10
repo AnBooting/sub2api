@@ -15,16 +15,25 @@ func (h *ChannelHandler) GetPricingControls(c *gin.Context) {
 
 func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 	var req struct {
-		RemoteEnabled    *bool `json:"remote_enabled" binding:"required"`
-		NativeCNYEnabled *bool `json:"native_cny_enabled" binding:"required"`
+		RemoteEnabled    *bool                `json:"remote_enabled" binding:"required"`
+		NativeCNYEnabled *bool                `json:"native_cny_enabled" binding:"required"`
+		DeepSeekHolidays *map[string][]string `json:"deepseek_holidays"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "both pricing switches are required")
 		return
 	}
 	before := h.pricingService.GetControls()
-	controls := service.PricingControls{RemoteEnabled: *req.RemoteEnabled, NativeCNYEnabled: *req.NativeCNYEnabled}
+	controls := before
+	controls.RemoteEnabled, controls.NativeCNYEnabled = *req.RemoteEnabled, *req.NativeCNYEnabled
+	if req.DeepSeekHolidays != nil {
+		controls.DeepSeekHolidays = *req.DeepSeekHolidays
+	}
 	if err := h.pricingService.UpdateControls(c.Request.Context(), controls); err != nil {
+		if errors.Is(err, service.ErrInvalidDeepSeekHolidays) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return
 	}

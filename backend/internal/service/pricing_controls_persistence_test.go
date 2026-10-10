@@ -32,7 +32,7 @@ func TestPricingControlsPersistAcrossRestartAndFailedSave(t *testing.T) {
 	client := &controlsPricingClient{}
 	first := NewPricingService(cfg, client)
 	first.settingsRepo = repo
-	want := PricingControls{NativeCNYEnabled: true, RemoteEnabled: false}
+	want := PricingControls{NativeCNYEnabled: true, RemoteEnabled: false, DeepSeekHolidays: map[string][]string{}}
 	require.NoError(t, first.UpdateControls(context.Background(), want))
 	next := NewPricingService(cfg, client)
 	next.settingsRepo = repo
