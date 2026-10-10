@@ -107,7 +107,7 @@
                   {{ t('userSubscriptions.daily') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  {{ formatBillingAmount((subscription.daily_usage_usd || 0).toFixed(2)) }} / {{ formatBillingAmount(subscription.group.daily_limit_usd.toFixed(2)) }}
+                  {{ formatCustomerCredit((subscription.daily_usage_usd || 0).toFixed(2)) }} / {{ formatCustomerCredit(subscription.group.daily_limit_usd.toFixed(2)) }}
                 </span>
               </div>
               <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -142,7 +142,7 @@
                   {{ t('userSubscriptions.weekly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  {{ formatBillingAmount((subscription.weekly_usage_usd || 0).toFixed(2)) }} / {{ formatBillingAmount(subscription.group.weekly_limit_usd.toFixed(2)) }}
+                  {{ formatCustomerCredit((subscription.weekly_usage_usd || 0).toFixed(2)) }} / {{ formatCustomerCredit(subscription.group.weekly_limit_usd.toFixed(2)) }}
                 </span>
               </div>
               <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -181,7 +181,7 @@
                   {{ t('userSubscriptions.monthly') }}
                 </span>
                 <span class="text-sm text-gray-500 dark:text-dark-400">
-                  {{ formatBillingAmount((subscription.monthly_usage_usd || 0).toFixed(2)) }} / {{ formatBillingAmount(subscription.group.monthly_limit_usd.toFixed(2)) }}
+                  {{ formatCustomerCredit((subscription.monthly_usage_usd || 0).toFixed(2)) }} / {{ formatCustomerCredit(subscription.group.monthly_limit_usd.toFixed(2)) }}
                 </span>
               </div>
               <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -242,7 +242,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatBillingAmount } from '@/utils/billingCredits'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { ref, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'

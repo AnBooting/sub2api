@@ -211,11 +211,11 @@
                         )
                       "
                       >{{
-                        formatUsd(usageMap.get(row.id)?.today_cost ?? 0)
+                        formatGroupCredit(usageMap.get(row.id)?.today_cost ?? 0)
                       }}</span
                     >
                     <span class="text-gray-400 dark:text-gray-500">
-                      / {{ formatUsd(row.daily_limit_usd) }}/{{
+                      / {{ formatGroupCredit(row.daily_limit_usd) }}/{{
                         t("admin.groups.limitDay")
                       }}</span
                     >
@@ -229,7 +229,7 @@
                     >·</span
                   >
                   <span v-if="row.weekly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.weekly_limit_usd) }}/{{
+                    >{{ formatGroupCredit(row.weekly_limit_usd) }}/{{
                       t("admin.groups.limitWeek")
                     }}</span
                   >
@@ -239,7 +239,7 @@
                     >·</span
                   >
                   <span v-if="row.monthly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.monthly_limit_usd) }}/{{
+                    >{{ formatGroupCredit(row.monthly_limit_usd) }}/{{
                       t("admin.groups.limitMonth")
                     }}</span
                   >
@@ -253,7 +253,7 @@
                     >{{
                       usageLoading
                         ? "—"
-                        : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
+                        : formatGroupCredit(usageMap.get(row.id)?.total_cost ?? 0)
                     }}</span
                   >
                 </div>
@@ -4265,6 +4265,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
@@ -5653,8 +5654,8 @@ const formatCost = (cost: number): string => {
   return cost.toFixed(2);
 };
 
-const formatUsd = (cost: number | null | undefined): string =>
-  `$${formatCost(cost ?? 0)}`;
+const formatGroupCredit = (cost: number | null | undefined): string =>
+  formatCustomerCredit(formatCost(cost ?? 0));
 
 const getQuotaUsageClass = (
   used: number,

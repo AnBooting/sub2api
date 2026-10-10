@@ -14,6 +14,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 import UserDashboardStats from '../UserDashboardStats.vue'
+import { configureBillingCredits } from '@/utils/billingCredits'
 import type { UserDashboardStats as UserStatsType, PlatformDashboardStats } from '@/api/usage'
 import type { PlatformQuotaItem } from '@/types'
 
@@ -82,6 +83,16 @@ function cardPlatforms(w: VueWrapper): string[] {
 }
 
 describe('UserDashboardStats 按平台拆分', () => {
+  it.each([false, true])('keeps 100 balance and 38.5 historic consumption as Credit in native-CNY mode=%s', async (enabled) => {
+    configureBillingCredits(enabled)
+    const wrapper = mountStats(makeStats({ total_actual_cost: 38.5, today_actual_cost: 38.5 }))
+    await wrapper.setProps({ balance: 100 })
+    expect(wrapper.text()).toContain('100.00 Credit')
+    expect(wrapper.text()).toContain('38.5000 Credit')
+    expect(wrapper.text()).not.toContain('$38.5')
+    configureBillingCredits(false)
+    wrapper.unmount()
+  })
   it('只有用量的平台才产生卡片；三档全空的限额记录不产生卡片', () => {
     const w = mountStats(
       makeStats({ total_actual_cost: 0.03, today_actual_cost: 0.03, by_platform: [usage('grok', 0.03)] }),

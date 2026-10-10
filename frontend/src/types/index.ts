@@ -1745,8 +1745,44 @@ export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
+export interface PricingSnapshotItem {
+  kind: 'input' | 'output' | 'cache_read' | 'cache_write' | 'cache_write_1h' | 'image' | 'video_request' | 'video_second' | string
+  base_credit_price?: number | string | null
+  usage?: number | string | null
+  normalized_usage?: number | string | null
+  subtotal?: number | string | null
+}
+export interface PricingSnapshotV2 {
+  v: 2
+  quota_unit: 'credits'
+  request_started_at?: string | null
+  price_version?: string | null
+  source?: string | null
+  currency?: string | null
+  unit?: string | null
+  period?: { label?: string; timezone?: string; window?: string } | null
+  items?: PricingSnapshotItem[] | null
+  served_group_id?: number | null
+  group_multiplier?: number | string | null
+  total_credit?: number | string | null
+  media?: { mode?: string; billable_count?: number | null; billable_seconds?: number | null; seconds_source?: string | null } | null
+}
+export interface PricingSnapshotLegacy {
+  v?: 1
+  currency?: string
+  source?: string
+  quota_unit?: string
+  input_per_token?: number
+  output_per_token?: number
+  cache_read_per_token?: number
+  cache_write_per_token?: number
+}
 export interface UsageLog {
-  pricing_snapshot?: { currency: 'CNY' | 'USD'; source: string; quota_unit: string; input_per_token?: number; output_per_token?: number; cache_read_per_token?: number; cache_write_per_token?: number }
+  requested_group_id?: number | null
+  served_group_id?: number | null
+  failover?: 'none' | 'account' | 'group' | 'ha' | null
+  attempt_count?: number | null
+  pricing_snapshot?: PricingSnapshotV2 | PricingSnapshotLegacy | null
   id: number
   user_id: number
   api_key_id: number

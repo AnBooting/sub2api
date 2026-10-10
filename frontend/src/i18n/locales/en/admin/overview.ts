@@ -1060,9 +1060,9 @@ export default {
         typeNotEditable: 'Billing type cannot be changed after group creation.',
         standard: 'Standard (Balance)',
         subscription: 'Subscription (Quota)',
-        dailyLimit: 'Daily Limit (USD)',
-        weeklyLimit: 'Weekly Limit (USD)',
-        monthlyLimit: 'Monthly Limit (USD)',
+        dailyLimit: 'Daily Limit (Credit)',
+        weeklyLimit: 'Weekly Limit (Credit)',
+        monthlyLimit: 'Monthly Limit (Credit)',
         defaultValidityDays: 'Default Validity (Days)',
         validityHint: 'Number of days the subscription is valid when assigned to a user',
         noLimit: 'No limit'

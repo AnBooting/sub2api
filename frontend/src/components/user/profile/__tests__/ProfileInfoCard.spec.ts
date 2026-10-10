@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it, vi } from 'vitest'
 import ProfileInfoCard from '@/components/user/profile/ProfileInfoCard.vue'
+import { configureBillingCredits } from '@/utils/billingCredits'
 import type { User } from '@/types'
 
 vi.mock('vue-router', () => ({
@@ -71,6 +72,14 @@ function createUser(overrides: Partial<User> = {}): User {
 }
 
 describe('ProfileInfoCard', () => {
+  it.each([false, true])('keeps a historical 100 balance as 100 Credit regardless of native-CNY mode=%s', (enabled) => {
+    configureBillingCredits(enabled)
+    const wrapper = mount(ProfileInfoCard, { props: { user: createUser({ balance: 100 }) }, global: { stubs: { Icon: true } } })
+    expect(wrapper.text()).toContain('100.00 Credit')
+    expect(wrapper.text()).not.toContain('$100')
+    configureBillingCredits(false)
+    wrapper.unmount()
+  })
   it.each([
     { avatar_source: 'dingtalk', username_source: 'dingtalk' },
     { profile_sources: { avatar: { provider: 'dingtalk' }, username: { provider: 'dingtalk' } } },

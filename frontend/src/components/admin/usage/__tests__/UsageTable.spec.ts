@@ -108,6 +108,7 @@ const DataTableStub = {
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
         <slot name="cell-latency" :row="row" />
+        <slot name="cell-served_group" :row="row" />
         <slot name="cell-cost" :row="row" />
         <slot name="cell-request_id" :row="row" />
         <slot name="cell-upstream_request_id" :row="row" />
@@ -145,6 +146,29 @@ const baseImageRow = {
 }
 
 describe('admin UsageTable tooltip', () => {
+  it('keeps historical served/failover/send facts unknown, with its original group retained in details', async () => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, group_id: 1, group: { name: 'Legacy A' }, served_group_id: null, failover: null, attempt_count: null, pricing_snapshot: null }], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true, BaseDialog: { props: ['show'], template: '<div v-if="show"><slot /></div>' } } },
+    })
+    expect(wrapper.get('[data-testid="served-group-cell"]').text()).toBe('—')
+    expect(wrapper.find('[data-testid="failover-cell"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="attempt-count-cell"]').exists()).toBe(false)
+    await wrapper.get('[data-testid="billing-detail-button"]').trigger('click')
+    expect(wrapper.find('[data-testid="missing-snapshot"]').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Legacy A')
+    wrapper.unmount()
+  })
+  it('renders served B, HA and actual send count from new C6 fields', () => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, requested_group_id: 1, served_group_id: 2, failover: 'ha', attempt_count: 3 }], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    expect(wrapper.get('[data-testid="served-group-cell"]').text()).toBe('#2')
+    expect(wrapper.get('[data-testid="failover-cell"]').text()).toBe('usage.failoverKinds.ha')
+    expect(wrapper.get('[data-testid="attempt-count-cell"]').text()).toContain('3')
+    wrapper.unmount()
+  })
   it('shows output TPS in the latency cell using total duration', () => {
     const row = { ...baseImageRow, image_count: 0, billing_mode: 'token', output_tokens: 1000, duration_ms: 20_000, first_token_ms: 10_000 }
     const wrapper = mount(UsageTable, {
@@ -329,10 +353,10 @@ describe('admin UsageTable tooltip', () => {
     expect(text).toContain('Account rate')
     expect(text).toContain('User billed')
     expect(text).toContain('Account billed')
-    expect(text).toContain('$0.092883')
-    expect(text).toContain('$5.0000 / 1M tokens')
-    expect(text).toContain('$30.0000 / 1M tokens')
-    expect(text).toContain('$0.069568')
+    expect(text).toContain('0.09288300 Credit')
+    expect(text).toContain('5.0000 Credit / 1M tokens')
+    expect(text).toContain('30.0000 Credit / 1M tokens')
+    expect(text).toContain('0.06956800 Credit')
   })
 
   it.each(['token', 'image', 'per_request'])('keeps eight decimal places in %s cost details', async (billingMode) => {
@@ -359,14 +383,27 @@ describe('admin UsageTable tooltip', () => {
     await triggers[triggers.length - 1].trigger('mouseenter')
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text())
     expect(amounts).toEqual(expect.arrayContaining([
-      '$0.00000001', '$0.00000002', '$0.00000003', '$0.00000004',
-      '$0.00000005', '$0.00000006', '$0.00000022', '$0.00000042', '$0.00000018',
+      '0.00000001 Credit', '0.00000002 Credit', '0.00000003 Credit', '0.00000004 Credit',
+      '0.00000005 Credit', '0.00000006 Credit', '0.00000022 Credit', '0.00000042 Credit', '$0.00000018',
     ]))
-    if (billingMode === 'image') expect(amounts).toContain('$0.00000011')
+    if (billingMode === 'image') expect(amounts).toContain('0.00000011 Credit')
     wrapper.unmount()
   })
 
-  it('uses eight decimal places for missing cost values', async () => {
+  it.each([0, 0.5])('keeps known supplier cost %s in USD rather than Customer Credit, including explicit zero', async (supplierBase) => {
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, billing_mode: 'per_request', image_count: 0, total_cost: undefined, actual_cost: undefined, account_stats_cost: supplierBase, account_rate_multiplier: 1.5 }], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    const expected = '$' + (supplierBase * 1.5).toFixed(8)
+    expect(wrapper.get('.fixed').text()).toContain(expected)
+    expect(wrapper.get('.fixed').text()).not.toContain((supplierBase * 1.5).toFixed(8) + ' Credit')
+    wrapper.unmount()
+  })
+
+  it('marks missing stored cost values unknown instead of inventing zero charges', async () => {
     const wrapper = mount(UsageTable, {
       props: {
         data: [{ ...baseImageRow, billing_mode: 'per_request', image_count: 0, total_cost: undefined, actual_cost: undefined }],
@@ -377,8 +414,9 @@ describe('admin UsageTable tooltip', () => {
     })
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
-    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text.startsWith('$'))
-    expect(amounts).toEqual(['$0.00000000', '$0.00000000', '$0.00000000', '$0.00000000'])
+    const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text()).filter(text => text === '—')
+    expect(amounts).toEqual(['—', '—', '—', '—'])
+    expect(wrapper.get('.fixed').text()).not.toContain('$0.00000000')
     wrapper.unmount()
   })
 
@@ -837,6 +875,7 @@ const DataTableStubWithUser = {
         <slot name="cell-reasoning_effort" :row="row" :value="row.reasoning_effort" />
         <slot name="cell-billing_mode" :row="row" />
         <slot name="cell-tokens" :row="row" />
+        <slot name="cell-served_group" :row="row" />
         <slot name="cell-cost" :row="row" />
       </div>
     </div>

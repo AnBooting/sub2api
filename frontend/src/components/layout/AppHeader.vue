@@ -252,7 +252,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatBillingAmount } from '@/utils/billingCredits'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -375,7 +375,7 @@ function handleReplayGuide() {
 }
 
 function formatHeaderMoney(value: number) {
-  return formatBillingAmount(value)
+  return formatCustomerCredit(value)
 }
 
 function handleClickOutside(event: MouseEvent) {
