@@ -763,6 +763,25 @@ describe("admin SettingsView payment visible method controls", () => {
     wrapper.unmount();
   });
 
+  it("saves global strategy and request budgets while displaying only the server-saved effective strategy", async () => {
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, scheduling_strategy: "stable", gateway_max_attempts_per_request: 16, gateway_request_budget_seconds: 600 });
+    const wrapper = mountView();
+    await flushPromises();
+    await openGatewayTab(wrapper);
+    const selector = wrapper.findComponent({ name: "SchedulingStrategySelect" });
+    expect(selector.props("effectiveStrategy")).toBe("stable");
+    await selector.get("select").setValue("latency");
+    expect(selector.props("modelValue")).toBe("latency");
+    expect(selector.props("effectiveStrategy")).toBe("stable");
+    await wrapper.get('[data-test="gateway-max-attempts"]').setValue("12");
+    await wrapper.get('[data-test="gateway-request-budget"]').setValue("300");
+    await wrapper.get("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ scheduling_strategy: "latency", gateway_max_attempts_per_request: 12, gateway_request_budget_seconds: 300 }));
+    expect(selector.props("effectiveStrategy")).toBe("latency");
+    wrapper.unmount();
+  });
+
   it("loads and saves the open button visibility for each custom menu", async () => {
     const menuItems = [
       { id: "docs", label: "Docs", url: "https://example.com/docs", icon_svg: "", visibility: "user", sort_order: 0 },

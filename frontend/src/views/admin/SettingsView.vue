@@ -5020,7 +5020,7 @@
                 </div>
                 <Toggle v-model="form.allow_ungrouped_key_scheduling" />
               </div>
-              <SchedulingStrategySelect :model-value="form.scheduling_strategy" @update:model-value="(value) => { if (value !== 'inherit') form.scheduling_strategy = value }" :effective-strategy="form.scheduling_strategy" :disabled="saving" />
+              <SchedulingStrategySelect :model-value="form.scheduling_strategy" @update:model-value="(value) => { if (value !== 'inherit') form.scheduling_strategy = value }" :effective-strategy="savedSchedulingStrategy" :disabled="saving" />
               <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label class="block">
                   <span class="input-label">{{ t('admin.settings.scheduling.maxAttempts') }}</span>
@@ -9183,6 +9183,7 @@ function handleSettingsTabKeydown(event: KeyboardEvent, tab: SettingsTab): void 
 const { copyToClipboard } = useClipboard();
 
 const loading = ref(true);
+const savedSchedulingStrategy = ref<import("@/types").SchedulingStrategy>();
 const loadFailed = ref(false);
 const saving = ref(false);
 const testingSmtp = ref(false);
@@ -11070,6 +11071,7 @@ async function loadSettings() {
   loadFailed.value = false;
   try {
     const settings = await adminAPI.settings.getSettings();
+    savedSchedulingStrategy.value = settings.scheduling_strategy;
     settings.payment_load_balance_strategy =
       settings.payment_load_balance_strategy || "round-robin";
     // Only assign non-null values from backend (null means unconfigured, keep defaults)
@@ -11875,6 +11877,7 @@ async function saveSettings() {
     const updated = await settingsStepUp.run(() =>
       adminAPI.settings.updateSettings(payload),
     );
+    savedSchedulingStrategy.value = updated.scheduling_strategy;
     for (const [key, value] of Object.entries(updated)) {
       if (key === "openai_fast_policy_settings") continue;
       if (value !== null && value !== undefined) {

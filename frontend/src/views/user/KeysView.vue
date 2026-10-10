@@ -1028,6 +1028,7 @@
       :show="showBulkEditModal"
       :selected-keys="selectedApiKeys"
       :groups="groups"
+      :user-rates="userGroupRates"
       @close="showBulkEditModal = false"
       @updated="handleBulkUpdated"
     />
