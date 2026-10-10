@@ -29,7 +29,7 @@
 3. **Seedance 的 `usage.completion_tokens` 口径**：代码在 `service/seedance.go:150` 读取该字段并按输出 token 计价，但未确认 Ark 是否对所有模型/时长都返回该字段；缺失时该次任务不计费（`handler/seedance.go:44-45` 在 `OutputTokens<=0` 时直接返回 nil）。
 4. **Composite 分组的视频路由边界**：`routes/gateway.go:96`（生成）与 `:112/:128`（状态/内容）允许 Composite，但 `:141/:149`（edits/extensions）只允许 Grok 平台；这是有意还是遗漏，未在代码注释中说明。
 5. **前端是否存在独立的用户侧生图/生视频工作台**：`grep playground` 在 `frontend/src` 无命中；仅确认了管理端账户测试与分组定价表单，未穷尽所有视图。
-6. **`_reference/domestic-provider-kit` 的媒体能力**：core 目录只有 4 个 Go 文件（provider 身份 + 定价），`grep Endpoint|Capability|image|video` 无命中；参考包自身的 UI 侧存在 `MediaCapability = 'image'|'video'|'music'`（见 `MERGE-INDEX.md:3845`），但未纳入 core 移植范围。
+6. **外部参考材料的媒体能力**：其 core 部分只有 provider 身份与定价（4 个 Go 文件），无媒体能力；媒体链路需独立设计。
 
 ---
 
@@ -234,7 +234,7 @@ default:                     // 404 "Images API is not supported for this platfo
 | 11 | **并发控制** | 图片专属限流器 | 复用 Responses 账号槽位，无视频专属闸 | `handler/image_concurrency_limiter.go:18` vs `handler/grok_media.go:369` |
 | 12 | **计费元数据约束** | `usage_logs` 有 `image_size` 校验 | 迁移 171/172 用 `billing_mode='video'` **或** `video_count>0` 豁免 `image_size` 必填；新增视频供应商若走别的 `billing_mode` 会踩约束 | `migrations/171_allow_video_usage_without_image_size.sql:3,12`、`172_video_per_second_billing_metadata.sql:10-12,25-26` |
 | 13 | **前端** | 账户测试生图模式 + 批量生图相关文案 | 仅账户测试的 video 模式（轮询至完成并预览）与分组视频定价表单；**无用户侧视频工作台/任务列表** | `frontend/src/components/admin/account/AccountTestModal.vue:267-278,462-466,1009-1015`、`frontend/src/views/admin/GroupsView.vue:1046-1072`；`grep playground` 无命中 |
-| 14 | **国模 kit 覆盖** | — | 参考包 core 只有 provider 身份与定价（4 个 Go 文件，无媒体能力） | `_reference/domestic-provider-kit/core/backend/internal/service/domestic_provider.go:8,21,34,40,54`；`grep Endpoint|Capability|image|video` 无命中 |
+| 14 | **外部参考材料覆盖** | — | 参考材料只含 provider 身份与定价（4 个 Go 文件），无媒体能力 | 对参考材料 grep `Endpoint|Capability|image|video` 无命中 |
 
 ---
 
@@ -309,4 +309,4 @@ default:                     // 404 "Images API is not supported for this platfo
 1. **视频链路不在可复用范围内**：迁移 220 把视频价限定为 Grok/composite，视频路由只认 Grok 平台；任何国模视频供应商（如可灵/即梦/Vidu）都需要**新增**平台能力枚举、路由准入、任务模型与计费分支，不能靠现有抽象复用。
 2. **图片链路的可复用面**：`ImageStorage` 抽象（`service/image_storage.go:24-28`）与异步图片任务（`service/image_task.go`）是与供应商无关的；批量图片的 `BatchImageProvider` 接口（`service/batch_image_provider.go:15-25`）也可扩展第三个 provider，但当前分组开关把平台写死为 Gemini（`service/admin_group.go:525,826-827`），接入国模需改这条判定。
 3. **计费侧最稳的接入点**：`VideoPriceConfig`/`ImagePriceConfig` + `CalculateVideoCost`/`CalculateImageCost` 与供应商无关，国模可按"分组价 + per-model map"接入；但需注意 `getDefaultVideoPrice` 的兜底会把未知视频模型折算成 2K 图片价（`service/billing_service.go:2377-2387`），与项目红线"缺价不得放行"冲突，接国模视频时必须显式定价或补拒绝逻辑。
-4. **参考包无媒体能力**：`_reference/domestic-provider-kit/core` 只提供 provider 身份与定价（4 个 Go 文件），媒体链路需要独立设计，不能从参考包摘录。
+4. **外部参考材料无媒体能力**：只提供 provider 身份与定价（4 个 Go 文件），媒体链路需独立设计。

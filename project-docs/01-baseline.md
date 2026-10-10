@@ -51,7 +51,7 @@
 | git | 2.56.0 ✅ |
 | Node.js | v24.18.0 ✅ |
 | pnpm | 11.18.0（**需降级到 9**，见 03） |
-| gh | 已登录 `yylovehhy`，scope 含 `repo` ✅ |
+| gh | 已登录并具备 `repo` scope ✅ |
 | **Go** | ❌ 原本缺失 → 已装便携版 `F:\tools\go1.27.2\go`（go1.27.2） |
 | **Docker** | ❌ 缺失，安装包已下载（606 MB），**待手动安装**（需管理员 + WSL2 + 重启） |
 | WSL | 已启用但**无发行版** |
@@ -70,11 +70,11 @@
 
 > **注意**：`F:\sub2` 的 git 已写入本地配置 `http.proxy=http://127.0.0.1:7877`。若代理端口变化，需同步修改，否则 fetch 会失败。
 
-## 6. 上游现状与移植包的关系
+## 6. 上游现状与国模能力的差距
 
-- 上游**没有**国模功能：移植包 7 个 core 文件路径在上游全部 404，GitHub 代码搜索 `domestic_provider` = 0 命中。
-- 上游**已有**近似概念 `cn_provider`（23 处命中）：用于国产厂商**余额检查 / 限流 / 调度**（`backend/internal/service/cn_provider_balance_service.go`、`ratelimit_cn_providers.go`、`domain/platforms.go`），与移植包的「分组厂商分类 + 定价命名空间」**不是同一件事**，但存在概念重叠，合并时必须核对命名与语义，避免两套并存的混乱。
-- 上游前端已有 `frontend/src/utils/keyGroupProviders.ts`，其中已有 `domestic` 分类（用于 Key 分组筛选），与本移植包的 `domesticProviders.ts` 是**不同的东西**，需合并考虑。
+- 上游**没有**独立的国模厂商分类功能：GitHub 代码搜索 `domestic_provider` = 0 命中。
+- 上游**已有**近似概念 `cn_provider`（23 处命中）：用于国产厂商**余额检查 / 限流 / 调度**（`backend/internal/service/cn_provider_balance_service.go`、`ratelimit_cn_providers.go`、`domain/platforms.go`），与「分组厂商分类 + 定价命名空间」**不是同一件事**，但存在概念重叠，新增时必须核对命名与语义，避免两套并存。
+- 上游前端已有 `frontend/src/utils/keyGroupProviders.ts`，其中已有 `domestic` 分类（用于 Key 分组筛选），与厂商分类是**不同的东西**，需一并考虑。
 
 ## 7. 上游部署资产（已具备）
 

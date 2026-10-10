@@ -6,18 +6,17 @@
 ## 项目身份
 
 - 上游：`Wei-Shaw/sub2api`（LGPL-3.0），基线 **v0.2.15 / 3a6fd1c9**
-- 本仓库：`F:\sub2`，二开集成分支 **`develop`**
-- 目标：国模（国内大模型厂商）分组/账号/定价能力 + Docker 生产部署
-- 文档索引：[project-docs/00-overview.md](project-docs/00-overview.md)
+- 本仓库：团队 fork（`origin`），二开集成分支 **`develop`**
+- 目标：按 `project-docs/prd/` 的 PRD 实现功能，并做 Docker 生产部署
+- 文档索引：`project-docs/`（需求与规格见 `project-docs/prd/`）
 
 ## 绝对红线
 
 1. **不在 `main` 分支提交**。`main` 是上游镜像，只用于 `git fetch upstream`。
-2. **不整文件覆盖共享参考文件**。`_reference/domestic-provider-kit/reference/` 是参考，不是补丁；
-   必须按 `docs/MERGE-INDEX.md` 的行号摘录逐段提取国模片段。
+2. **不整文件覆盖上游共享文件**。参考材料是参考，不是补丁；必须按行号摘录逐段提取所需片段。
 3. **不提交凭据**：`.env`、`data/`、`postgres_data/`、`redis_data/`、任何 API Key、密码、SSH 信息。
-4. **不碰** `dwin-builder`（192.168.43.119）—— 用户明确指示。
-5. **不迁移无关功能**：支付、画布、账号智商检测、渠道监控不在国模移植范围内。
+4. **不使用任何非本机的 SSH 构建机**；构建与验证一律在本地完成。
+5. **不迁移无关功能**：支付、画布、渠道监控不在本期范围内。
 6. **缺价不得放行**：未定价模型必须在上游请求前拒绝，不得按零价或回落 GPT 兜底价。
 
 ## 真实命令（本机实测）
@@ -65,14 +64,14 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 - **i18n**：前端 `build` 会先跑 `check:i18n`（locale key 完整性），新增文案必须同步 `zh` 与 `en`。
 - **ent / wire 生成物不手改**：改 schema 或 ProviderSet 后重新生成。
 - **API Key 鉴权缓存**：分组快照若新增字段（如 `domestic_provider`），必须同步缓存结构并使旧缓存失效。
-- **定价口径**：沿用源站「1 元 = 1 美元」站内政策（ADR-003），界面说明、后端计费、测试三者必须一致。
+- **定价口径**：以项目 ADR 与 PRD 的业务规则为准；界面说明、后端计费、测试三者必须一致。
 - **`.gitignore` 陷阱**：`docs/*` 与 `AGENTS.md` 被忽略；项目文档放 `project-docs/`。
 
 ## 验证标准
 
 - 后端：`go build` 退出码 0 + `go test -tags=unit ./...` 通过
 - 前端：`typecheck` 退出码 0 + `test:run` 通过 + `build` 成功
-- 功能：`_reference/domestic-provider-kit/docs/ACCEPTANCE.md` 21 项逐条有证据
+- 功能：按 PRD 的验收标准逐条给出证据
 - 部署：`/health` 200 + 三容器 healthy + 端到端调用与扣费核对
 
 ## 可用能力

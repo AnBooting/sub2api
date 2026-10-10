@@ -6,8 +6,8 @@
 
 | 工具 | 位置 | 版本 | 说明 |
 |---|---|---|---|
-| git | `E:\Git\cmd\git.exe` | 2.56.0 | 已配置 `user.name=yylovehhy` |
-| gh | `C:\Program Files\GitHub CLI\gh.exe` | 已登录 `yylovehhy` | scope: `repo`, `gist`, `read:org`, `admin:public_key` |
+| git | `E:\Git\cmd\git.exe` | 2.56.0 | 已配置 `user.name` / `user.email` |
+| gh | `C:\Program Files\GitHub CLI\gh.exe` | 已登录 | scope: `repo`, `gist`, `read:org` |
 | Node.js | `C:\Program Files\nodejs\node.exe` | v24.18.0 | 注意：CI/Docker 用 Node 20/24 |
 | pnpm | npm 全局 shim | 11.18.0 | **不要用它**，见下方「pnpm 版本陷阱」 |
 | **Go** | `F:\tools\go1.27.2\go\bin\go.exe` | **go1.27.2** | 便携版，已写入用户环境变量 |

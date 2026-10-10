@@ -9,7 +9,6 @@
 | [01-request-billing.md](01-request-billing.md) | 请求链路与计费定价 | 418 | ✅ |
 | [02-scheduling.md](02-scheduling.md) | 调度与并发控制 | 543 | ✅ |
 | [03-media.md](03-media.md) | 图片与视频生成链路 | 312 | ✅ |
-| [04-payment-fallback.md](04-payment-fallback.md) | 支付充值与兜底分组 | 556 | ✅ |
 | [05-frontend.md](05-frontend.md) | 前端结构与构建 | 447 | ✅ |
 
 ---
@@ -50,8 +49,7 @@ Compose 部署三容器（app / postgres / redis），后两者不对宿主暴�
   `docs/seedance-api.md:41` 原文：「不查询的任务不会自动结算」。
 - **计费兜底风险**：`billing_service.go:2385` 的 `getDefaultVideoPrice` 对未知视频模型
   **回落到 2K 图片价**——与「缺价不得放行」红线冲突。
-- 国模媒体链路**无法从移植包摘录**：`_reference/domestic-provider-kit/core` 只有 4 个 Go 文件
-  （provider 身份 + 定价），零媒体能力。
+- 国模媒体链路无现成参考：外部参考材料只有 provider 身份与定价，零媒体能力。
 
 ### 3. 调度是两套并行技术栈 + 快照秒级延迟
 
@@ -72,7 +70,7 @@ Compose 部署三容器（app / postgres / redis），后两者不对宿主暴�
 ⚠️ 字段名里的 "invalid request" **不是**「分组 ID 无效」。
 源码中**没有**「请求带不存在的分组 → 兜底」这条路径。
 
-### 5. 卡网对接有现成抓手，缺三样东西
+### 5. 外部充值对接有现成抓手，缺三样东西
 
 - **现成**：`POST /api/v1/admin/redeem-codes/create-and-redeem`（`redeem_handler.go:168`）——
   原子建码+兑换、强制 `Idempotency-Key`、同码不同用户 409、中途崩溃自动补兑换。
@@ -90,12 +88,11 @@ Compose 部署三容器（app / postgres / redis），后两者不对宿主暴�
 |---|---|---|
 | 1 国模 RMB / Claude·GPT 美元 | fork 已实现 → **验证补漏** | commit `11109acd` |
 | 2 调度并发 | **我们** | 无现成能力，见 02 |
-| 3 卡网嵌入 + 自动充值 | **我们** | 有抓手，缺 G1/G2/G3 |
+| 3 外部充值对接 | **我们** | 有抓手，缺 G1/G2/G3 |
 | 4 兜底分组 | **我们**（多为配置） | 机制已存在，见 04 §B |
 | 5 DeepSeek 峰谷 | fork 已实现 → **验证补漏** | `pricing_native_cny.go` ratesAt() |
 | 6 图片/视频兼容 | **我们** | 视频有缺口，见 03 |
 
-详见 [../13-requirements-mapping.md](../13-requirements-mapping.md)。
 
 ## 已知的基线问题（非我们引入）
 

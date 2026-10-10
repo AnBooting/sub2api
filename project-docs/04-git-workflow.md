@@ -7,7 +7,7 @@
 
 | 远端名 | 地址 | 用途 | 权限 |
 |---|---|---|---|
-| `origin` | `https://github.com/AnBooting/sub2api.git` | **团队基线**（你们的魔改版） | 加协作者后可推 |
+| `origin` | `https://github.com/AnBooting/sub2api.git` | **团队基线**（含 2 个魔改提交） | 协作者可推 |
 | `upstream` | `https://github.com/Wei-Shaw/sub2api.git` | 原始上游，只读参考 | 只读 |
 
 `upstream` 已配置为**只跟随 `main`**（`+refs/heads/main:refs/remotes/upstream/main`），
@@ -130,7 +130,7 @@ Clash 端口变化时同步修改。
 
 ## 9. 权限（✅ 已就绪）
 
-账号 `yylovehhy` 已是 `AnBooting/sub2api` 的协作者，角色 **maintain**。
+本地开发账号已是本仓库的协作者，角色 **maintain**。
 
 | 权限位 | 值 |
 |---|---|
@@ -146,18 +146,11 @@ Clash 端口变化时同步修改。
 > **不能做什么**：改仓库设置、加协作者、删除仓库、推送受保护分支。
 > `main` 目前**无分支保护**，技术上可推，但按 §2 规则**禁止推 `main`**。
 
-### 邀请记录（备查）
-
-| 项 | 值 |
-|---|---|
-| 邀请人 | `Akanyi` |
-| 被邀请人 | `yylovehhy` |
-| 角色 | maintain |
-| 发出时间 | 2026-10-10 08:40:32 UTC |
-| 接受时间 | 2026-10-10（本地会话中通过 API 接受） |
-
-### 推送验证
+### 推送前自检
 
 ```powershell
 git push --dry-run origin develop     # 退出码 0 = 权限正常
 ```
+
+> **注意**：本仓库若为 **public**，推送前必须确认内容不含业务策略、合作方信息与内部标识。
+> 敏感文档应留在本地，或先将仓库改为 private。

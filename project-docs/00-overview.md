@@ -17,8 +17,8 @@
 | 阶段 | 目标 | 状态 |
 |---|---|---|
 | P0 | 本地可编译、可测试、可运行的基线工程 | 进行中 |
-| P1 | 合并「国模分组 / 账号 / 定价」移植包 | 待需求确认 |
-| P2 | 按需求实现新增功能 | 等待需求 |
+| P1 | 补齐国模（国内大模型厂商）分类与绑定校验 | 待评审 |
+| P2 | 按 PRD 实现功能 | 见 `project-docs/prd/` |
 | P3 | 本地 Docker 全栈跑通 + 端到端验收 | 未开始 |
 | P4 | 部署到生产服务器 | 未开始（缺服务器信息） |
 
@@ -31,7 +31,7 @@
 
 **不做**（除非需求明确要求）：
 - 不整体覆盖上游共享文件
-- 不把移植包里无关功能（支付、画布、账号智商检测、渠道监控）带进来
+- 不把参考材料里无关功能（支付、画布、渠道监控）带进来
 - 不提交任何真实凭据、生产数据、SSH 信息
 - 不改动上游 `main` 分支
 
@@ -40,7 +40,7 @@
 上游为 **LGPL-3.0**。二次开发与分发需遵守该许可证：
 - 保留 `LICENSE` 与版权声明
 - 若通过网络提供服务，LGPL 的源码提供义务需评估
-- 移植包内含 LobeHub 图标（MIT）与 LGPL-3.0 声明，见 `_reference/domestic-provider-kit/licenses/`
+- 参考材料若含第三方资源，需保留其许可证与来源声明
 
 ## 5. 目录说明
 
@@ -51,19 +51,18 @@
 | `deploy/` | Docker Compose、部署脚本、`.env.example` |
 | `docs/` | **上游文档**（`.gitignore` 只放行白名单，勿在此放我们的文档） |
 | `project-docs/` | **本项目文档**（本目录） |
-| `_reference/` | 参考资料，不参与构建 |
 | `skills/sub2api-admin/` | 上游自带的管理 API CLI 技能 |
 
 ## 6. 相关文档
 
 | 文档 | 内容 |
 |---|---|
-| [01-baseline.md](01-baseline.md) | 本次取证的全部事实与版本 |
-| [02-merge-plan.md](02-merge-plan.md) | 移植包逐文件映射与合并动作 |
-| [03-dev-environment.md](03-dev-environment.md) | 本机开发环境与命令 |
+| [01-baseline.md](01-baseline.md) | 基线取证：版本、依赖、构建要求 |
+| [03-dev-environment.md](03-dev-environment.md) | 开发环境与常用命令 |
 | [04-git-workflow.md](04-git-workflow.md) | Git 分支模型与操作规范 |
-| [05-deploy-docker.md](05-deploy-docker.md) | Docker 部署手册（草案） |
-| [06-requirements-backlog.md](06-requirements-backlog.md) | 需求待办池（等需求录入） |
-| [07-decisions.md](07-decisions.md) | 决策记录（ADR） |
-| [08-runbook.md](08-runbook.md) | 运维手册（草案） |
-| [09-preflight-report.md](09-preflight-report.md) | 移植包预检与差异报告 |
+| [05-deploy-docker.md](05-deploy-docker.md) | Docker 部署手册 |
+| [08-runbook.md](08-runbook.md) | 运维手册 |
+| [11-collaboration-norms.md](11-collaboration-norms.md) | 协作规范与质量门 |
+| [12-worktree-strategy.md](12-worktree-strategy.md) | 并行开发与 worktree 策略 |
+| [14-prd-techspec-template.md](14-prd-techspec-template.md) | PRD 与技术规格模板 |
+| [architecture/README.md](architecture/README.md) | 架构侦察索引（含架构图） |
