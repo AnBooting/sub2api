@@ -44,6 +44,20 @@ describe('BulkEditKeysModal', () => {
     bulkUpdate.mockResolvedValue({ succeededIds: [1, 2], failures: [] })
   })
 
+  it.each([1.2, 0])('shows the same user override %s in bulk single options and the ordered chain, not the default 8x', async (rate) => {
+    const wrapper = mountModal()
+    await wrapper.setProps({ groups: [{ id: 7, name: 'Available group', rate_multiplier: 8, status: 'active' }] as Group[], userRates: { 7: rate } })
+    await wrapper.get('[data-test="enable-group"]').setValue(true)
+    expect(wrapper.get('[data-test="group-input"] option[value="7"]').text()).toContain(rate + 'x')
+    const editor = wrapper.findComponent({ name: 'GroupChainEditor' })
+    expect(editor.props('userRates')).toEqual({ 7: rate })
+    expect(editor.get('option[value="7"]').text()).toBe('Available group · ' + rate + 'x')
+    await editor.get('select').setValue('7')
+    // Real GroupBadge rendering: default 8x is crossed out, the effective user rate is bold.
+    expect(editor.get('li .font-bold').text()).toBe(rate + 'x')
+    expect(editor.get('li .line-through').text()).toBe('8x')
+  })
+
   it('requires an explicit field choice and sends only that field', async () => {
     const wrapper = mountModal()
     expect(wrapper.get('[data-test="submit"]').attributes('disabled')).toBeDefined()

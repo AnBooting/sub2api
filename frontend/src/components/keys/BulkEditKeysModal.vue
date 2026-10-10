@@ -33,7 +33,7 @@
             data-test="group-input"
           />
           <p v-if="enabled.group_id" class="input-hint">{{ t('keys.chain.singleHint') }}</p>
-          <GroupChainEditor v-if="enabled.group_id" v-model="groupIds" :groups="groups" :disabled="submitting" />
+          <GroupChainEditor v-if="enabled.group_id" v-model="groupIds" :groups="groups" :user-rates="userRates" :disabled="submitting" />
         </div>
 
         <div class="space-y-2">
@@ -167,11 +167,12 @@ type LimitField = 'quota' | 'rate_limit_5h' | 'rate_limit_1d' | 'rate_limit_7d'
 type IPField = 'ip_whitelist' | 'ip_blacklist'
 type EditableField = LimitField | IPField | 'group_id' | 'status' | 'expires_at'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   show: boolean
   selectedKeys: SelectedKey[]
   groups: Group[]
-}>()
+  userRates?: Record<number, number>
+}>(), { userRates: () => ({}) })
 const emit = defineEmits<{
   close: []
   updated: [succeededIds: number[]]
@@ -212,7 +213,7 @@ const ipFields: Array<{ key: IPField; label: string }> = [
   { key: 'ip_whitelist', label: 'keys.ipWhitelist' },
   { key: 'ip_blacklist', label: 'keys.ipBlacklist' }
 ]
-const groupOptions = computed(() => props.groups.map((group) => ({ value: group.id, label: group.name })))
+const groupOptions = computed(() => props.groups.map((group) => ({ value: group.id, label: `${group.name} · ${props.userRates[group.id] ?? group.rate_multiplier}x` })))
 const statusOptions = computed(() => [
   { value: 'active', label: t('keys.enable') },
   { value: 'inactive', label: t('keys.disable') }
