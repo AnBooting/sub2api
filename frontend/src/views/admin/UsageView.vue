@@ -187,6 +187,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { customerCreditHeader } from '@/utils/billingCredits'
 import { storedCreditSnapshot, usageRoutingExport } from '@/utils/usageBillingSnapshot'
+import { accountStatsExportValue } from '@/utils/accountStatsDisplay'
 import { useI18n } from 'vue-i18n'
 import { saveAs } from 'file-saver'
 import { useRoute } from 'vue-router'
@@ -589,7 +590,7 @@ const exportToExcel = async () => {
       t('admin.usage.cacheReadTokens'), t('admin.usage.cacheCreationTokens'),
       customerCreditHeader(t('admin.usage.inputCost')), customerCreditHeader(t('admin.usage.outputCost')),
       customerCreditHeader(t('admin.usage.cacheReadCost')), customerCreditHeader(t('admin.usage.cacheCreationCost')),
-      t('usage.rate'), t('usage.accountMultiplier'), customerCreditHeader(t('usage.original')), customerCreditHeader(t('usage.userBilled')), t('usage.accountBilled') + ' (USD)',
+      t('usage.rate'), t('usage.accountMultiplier'), customerCreditHeader(t('usage.original')), customerCreditHeader(t('usage.userBilled')), t('usage.accountBilled') + ' (' + t('usage.currencyUnknown') + ')',
       t('usage.requestedGroup'), t('usage.servedGroup'), t('usage.failover'), t('usage.attemptCount'),
       t('usage.priceVersion'), t('usage.lockedMultiplier'), customerCreditHeader(t('usage.lockedTotalCredit')),
       t('usage.firstToken'), t('usage.duration'),
@@ -611,7 +612,7 @@ const exportToExcel = async () => {
         log.cache_read_cost?.toFixed(6) || '0.000000', log.cache_creation_cost?.toFixed(6) || '0.000000',
         log.rate_multiplier?.toPrecision(4) || '1.00', (log.account_rate_multiplier ?? 1).toPrecision(4),
         log.total_cost?.toFixed(6) || '0.000000', log.actual_cost?.toFixed(6) || '0.000000',
-        ((log.account_stats_cost ?? log.total_cost) * (log.account_rate_multiplier ?? 1)).toFixed(6),
+        accountStatsExportValue(log),
         ...usageRoutingExport(log),
         storedCreditSnapshot(log)?.price_version ?? '', storedCreditSnapshot(log)?.group_multiplier ?? '', storedCreditSnapshot(log)?.total_credit ?? '',
         log.first_token_ms ?? '', log.duration_ms,

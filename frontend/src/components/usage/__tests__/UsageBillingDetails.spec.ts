@@ -11,13 +11,26 @@ const snapshot = {
   served_group_id: 2, group_multiplier: 1.2, total_credit: 1.2,
 }
 describe('readonly stored billing detail', () => {
+  it.each([
+    [1.23456789, 0.617283945, '1.23456789 Credit', '0.617283945 Credit'],
+    ['1.23456789123456789', '0.617283945617283945', '1.23456789123456789 Credit', '0.617283945617283945 Credit'],
+    [0, 0, '0 Credit', '0 Credit'],
+    [1.234e-9, '6.17e-10', '0.000000001234 Credit', '0.000000000617 Credit'],
+    [undefined, null, '—', '—'],
+  ])('retains each stored base/subtotal precision without summary rounding or multiplication (%s, %s)', (base, subtotal, baseText, subtotalText) => {
+    const wrapper = mount(UsageBillingDetails, { props: { record: { ...oldRecord, pricing_snapshot: { ...snapshot, total_credit: subtotal, items: [{ kind: 'input', base_credit_price: base, usage: 1, normalized_usage: 0.5, subtotal }] } } } })
+    const cells = wrapper.findAll('[data-testid="locked-price-items"] td')
+    expect(cells[0].text()).toBe(baseText)
+    expect(cells[3].text()).toBe(subtotalText)
+    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe(subtotalText)
+  })
   it.each([undefined, null, { v: 1 as const, currency: 'USD', input_per_token: 9 }])('does not reconstruct historical nullable facts or locked prices (%s)', (pricing_snapshot) => {
     const wrapper = mount(UsageBillingDetails, { props: { record: { ...oldRecord, pricing_snapshot } } })
     expect(wrapper.text()).toContain('Original A')
     expect(wrapper.get('[data-testid="served-group"]').text()).toBe('—')
     expect(wrapper.get('[data-testid="usage-failover"]').text()).toBe('—')
     expect(wrapper.get('[data-testid="attempt-count"]').text()).toBe('—')
-    expect(wrapper.get('[data-testid="recorded-credit"]').text()).toBe('38.50000000 Credit')
+    expect(wrapper.get('[data-testid="recorded-credit"]').text()).toBe('38.5 Credit')
     expect(wrapper.find('[data-testid="missing-snapshot"]').exists()).toBe(true)
     expect(wrapper.find('[data-testid="locked-price-items"]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('secret-account')
@@ -30,9 +43,9 @@ describe('readonly stored billing detail', () => {
     expect(wrapper.get('[data-testid="usage-failover"]').text()).toBe('usage.failoverKinds.ha')
     expect(wrapper.get('[data-testid="attempt-count"]').text()).toBe('3')
     expect(wrapper.get('[data-testid="locked-multiplier"]').text()).toBe('1.2')
-    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe('1.20000000 Credit')
+    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe('1.2 Credit')
     expect(wrapper.get('[data-testid="source-currency"]').text()).toBe('CNY')
-    expect(wrapper.get('[data-testid="locked-price-items"]').text()).toContain('2.00 Credit')
+    expect(wrapper.get('[data-testid="locked-price-items"]').text()).toContain('2 Credit')
     expect(wrapper.text()).toContain('version-locked')
     expect(wrapper.text()).not.toContain('999')
     expect(wrapper.find('[data-testid="snapshot-conflict"]').exists()).toBe(false)
@@ -42,8 +55,8 @@ describe('readonly stored billing detail', () => {
     expect(wrapper.get('[data-testid="served-group"]').text()).toContain('#2')
     expect(wrapper.get('[data-testid="served-group"]').text()).toContain('usage.fromSnapshot')
     expect(wrapper.get('[data-testid="locked-multiplier"]').text()).toBe('0')
-    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe('0.00000000 Credit')
-    expect(wrapper.get('[data-testid="locked-price-items"]').text()).toContain('0.00 Credit')
+    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe('0 Credit')
+    expect(wrapper.get('[data-testid="locked-price-items"]').text()).toContain('0 Credit')
   })
   it('shows missing saved price as unknown, not free or a current-rate replacement', () => {
     const wrapper = mount(UsageBillingDetails, { props: { record: { ...oldRecord, pricing_snapshot: { v: 2, quota_unit: 'credits', items: [{ kind: 'input' }] } } } })
@@ -56,7 +69,7 @@ describe('readonly stored billing detail', () => {
     const wrapper = mount(UsageBillingDetails, { props: { record: { ...oldRecord, served_group_id: 3, actual_cost: 38.5, pricing_snapshot: snapshot } } })
     expect(wrapper.get('[data-testid="snapshot-conflict"]').attributes('role')).toBe('alert')
     expect(wrapper.get('[data-testid="served-group"]').text()).toBe('#3')
-    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe('1.20000000 Credit')
-    expect(wrapper.get('[data-testid="recorded-credit"]').text()).toBe('38.50000000 Credit')
+    expect(wrapper.get('[data-testid="locked-credit"]').text()).toBe('1.2 Credit')
+    expect(wrapper.get('[data-testid="recorded-credit"]').text()).toBe('38.5 Credit')
   })
 })

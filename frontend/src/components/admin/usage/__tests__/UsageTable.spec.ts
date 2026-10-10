@@ -19,6 +19,7 @@ import { nextTick } from 'vue'
 import en from '@/i18n/locales/en/admin/resources'
 import zh from '@/i18n/locales/zh/admin/resources'
 import UsageTable from '../UsageTable.vue'
+import { configureBillingCredits } from '@/utils/billingCredits'
 
 let locale: 'en' | 'zh' = 'en'
 const localizedMessages: Record<'en' | 'zh', Record<string, string>> = {
@@ -146,6 +147,25 @@ const baseImageRow = {
 }
 
 describe('admin UsageTable tooltip', () => {
+  it.each([false, true].flatMap((mode) => [
+    { name: 'historical null', value: null },
+    { name: 'legacy USD Customer snapshot', value: { currency: 'USD', quota_unit: 'credits' } },
+    { name: 'CNY v2 Customer snapshot', value: { v: 2, quota_unit: 'credits', currency: 'CNY', total_credit: 0.4 } },
+  ].flatMap((snapshot) => [undefined, 0, 0.5].map((scalar) => ({ mode, snapshot, scalar })))))('never guesses the account-stat currency from mode $mode / $snapshot.name / scalar $scalar', async ({ mode, snapshot, scalar }) => {
+    configureBillingCredits(mode)
+    const wrapper = mount(UsageTable, {
+      props: { data: [{ ...baseImageRow, billing_mode: 'per_request', image_count: 0, total_cost: 2, account_stats_cost: scalar, account_rate_multiplier: 1.5, pricing_snapshot: snapshot.value }], loading: false, columns: [] },
+      global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
+    })
+    const triggers = wrapper.findAll('.group.relative')
+    await triggers[triggers.length - 1].trigger('mouseenter')
+    const expected = ((scalar ?? 2) * 1.5).toFixed(8)
+    expect(wrapper.get('.fixed').text()).toContain(expected + ' · usage.currencyUnknown')
+    expect(wrapper.get('.fixed').text()).not.toContain('$' + expected)
+    expect(wrapper.get('.fixed').text()).not.toContain(expected + ' Credit')
+    configureBillingCredits(false)
+    wrapper.unmount()
+  })
   it('keeps historical served/failover/send facts unknown, with its original group retained in details', async () => {
     const wrapper = mount(UsageTable, {
       props: { data: [{ ...baseImageRow, group_id: 1, group: { name: 'Legacy A' }, served_group_id: null, failover: null, attempt_count: null, pricing_snapshot: null }], loading: false, columns: [] },
@@ -384,22 +404,23 @@ describe('admin UsageTable tooltip', () => {
     const amounts = wrapper.get('.fixed').findAll('span').map(span => span.text())
     expect(amounts).toEqual(expect.arrayContaining([
       '0.00000001 Credit', '0.00000002 Credit', '0.00000003 Credit', '0.00000004 Credit',
-      '0.00000005 Credit', '0.00000006 Credit', '0.00000022 Credit', '0.00000042 Credit', '$0.00000018',
+      '0.00000005 Credit', '0.00000006 Credit', '0.00000022 Credit', '0.00000042 Credit', '0.00000018 · usage.currencyUnknown',
     ]))
     if (billingMode === 'image') expect(amounts).toContain('0.00000011 Credit')
     wrapper.unmount()
   })
 
-  it.each([0, 0.5])('keeps known supplier cost %s in USD rather than Customer Credit, including explicit zero', async (supplierBase) => {
+  it.each([0, 0.5])('keeps stored account statistic %s numeric but never invents its currency, including explicit zero', async (supplierBase) => {
     const wrapper = mount(UsageTable, {
       props: { data: [{ ...baseImageRow, billing_mode: 'per_request', image_count: 0, total_cost: undefined, actual_cost: undefined, account_stats_cost: supplierBase, account_rate_multiplier: 1.5 }], loading: false, columns: [] },
       global: { stubs: { DataTable: DataTableStub, EmptyState: true, Icon: true, Teleport: true } },
     })
     const triggers = wrapper.findAll('.group.relative')
     await triggers[triggers.length - 1].trigger('mouseenter')
-    const expected = '$' + (supplierBase * 1.5).toFixed(8)
+    const expected = (supplierBase * 1.5).toFixed(8) + ' · usage.currencyUnknown'
     expect(wrapper.get('.fixed').text()).toContain(expected)
     expect(wrapper.get('.fixed').text()).not.toContain((supplierBase * 1.5).toFixed(8) + ' Credit')
+    expect(wrapper.get('.fixed').text()).not.toContain('$' + (supplierBase * 1.5).toFixed(8))
     wrapper.unmount()
   })
 

@@ -336,6 +336,7 @@ export default {
 
   // Usage
   usage: {
+    currencyUnknown: "币种未知",
   "billingDetails": "消费详情",
   "recordedGroup": "原记录分组",
   "requestedGroup": "请求首选分组",

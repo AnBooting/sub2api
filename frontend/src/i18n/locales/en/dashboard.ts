@@ -331,6 +331,7 @@ export default {
 
   // Usage
   usage: {
+    currencyUnknown: "Currency unknown",
   "billingDetails": "Billing details",
   "recordedGroup": "Recorded group",
   "requestedGroup": "Requested first group",

@@ -7,7 +7,7 @@
       <div><dt class="text-gray-500">{{ t('usage.servedGroup') }}</dt><dd data-testid="served-group">{{ groupId(servedGroup) }}<span v-if="record.served_group_id == null && servedGroup != null" class="ml-1 text-xs text-gray-500">{{ t('usage.fromSnapshot') }}</span></dd></div>
       <div><dt class="text-gray-500">{{ t('usage.failover') }}</dt><dd data-testid="usage-failover">{{ record.failover != null ? t('usage.failoverKinds.' + record.failover) : '—' }}</dd></div>
       <div><dt class="text-gray-500">{{ t('usage.attemptCount') }}</dt><dd data-testid="attempt-count">{{ record.attempt_count ?? '—' }}</dd></div>
-      <div><dt class="text-gray-500">{{ t('usage.recordedCredit') }}</dt><dd data-testid="recorded-credit">{{ formatCustomerCredit(record.actual_cost, 8) }}</dd></div>
+      <div><dt class="text-gray-500">{{ t('usage.recordedCredit') }}</dt><dd data-testid="recorded-credit">{{ formatStoredCustomerCredit(record.actual_cost) }}</dd></div>
     </dl>
     <p v-if="!snapshot" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-dark-700" data-testid="missing-snapshot">{{ t('usage.missingLockedSnapshot') }}</p>
     <template v-else>
@@ -22,13 +22,13 @@
         <div><dt class="text-gray-500">{{ t('usage.lockedPeriod') }}</dt><dd>{{ snapshot.period ? [snapshot.period.label, snapshot.period.timezone, snapshot.period.window].filter((value) => value != null).join(' · ') : '—' }}</dd></div>
         <div><dt class="text-gray-500">{{ t('usage.snapshotServedGroup') }}</dt><dd>{{ groupId(snapshot.served_group_id) }}</dd></div>
         <div><dt class="text-gray-500">{{ t('usage.lockedMultiplier') }}</dt><dd data-testid="locked-multiplier">{{ storedValue(snapshot.group_multiplier) }}</dd></div>
-        <div><dt class="text-gray-500">{{ t('usage.lockedTotalCredit') }}</dt><dd data-testid="locked-credit">{{ formatCustomerCredit(snapshot.total_credit, 8) }}</dd></div>
+        <div><dt class="text-gray-500">{{ t('usage.lockedTotalCredit') }}</dt><dd data-testid="locked-credit">{{ formatStoredCustomerCredit(snapshot.total_credit) }}</dd></div>
       </dl>
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs" data-testid="locked-price-items">
           <caption class="sr-only">{{ t('usage.lockedSnapshot') }}</caption>
           <thead><tr><th scope="col" class="p-2">{{ t('usage.priceKind') }}</th><th scope="col" class="p-2">{{ t('usage.baseCreditPrice') }}</th><th scope="col" class="p-2">{{ t('usage.storedUsage') }}</th><th scope="col" class="p-2">{{ t('usage.normalizedUsage') }}</th><th scope="col" class="p-2">{{ t('usage.subtotalCredit') }}</th></tr></thead>
-          <tbody><tr v-for="(item, index) in snapshot.items ?? []" :key="index" class="border-t border-gray-100 dark:border-dark-600"><th scope="row" class="p-2 font-medium">{{ item.kind }}</th><td class="p-2">{{ formatCustomerCredit(item.base_credit_price) }}</td><td class="p-2">{{ storedValue(item.usage) }}</td><td class="p-2">{{ storedValue(item.normalized_usage) }}</td><td class="p-2">{{ formatCustomerCredit(item.subtotal) }}</td></tr></tbody>
+          <tbody><tr v-for="(item, index) in snapshot.items ?? []" :key="index" class="border-t border-gray-100 dark:border-dark-600"><th scope="row" class="p-2 font-medium">{{ item.kind }}</th><td class="p-2">{{ formatStoredCustomerCredit(item.base_credit_price) }}</td><td class="p-2">{{ storedValue(item.usage) }}</td><td class="p-2">{{ storedValue(item.normalized_usage) }}</td><td class="p-2">{{ formatStoredCustomerCredit(item.subtotal) }}</td></tr></tbody>
         </table>
       </div>
       <p v-if="!snapshot.items?.length" class="text-xs text-gray-500">{{ t('usage.missingStoredPriceItems') }}</p>
@@ -46,7 +46,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { UsageLog } from '@/types'
-import { formatCustomerCredit } from '@/utils/billingCredits'
+import { formatStoredCustomerCredit } from '@/utils/billingCredits'
 import { storedCreditSnapshot, storedServedGroupId, storedValue, usageSnapshotConflicts } from '@/utils/usageBillingSnapshot'
 const props = defineProps<{ record: UsageLog }>()
 const { t } = useI18n()

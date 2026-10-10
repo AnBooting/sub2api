@@ -551,6 +551,7 @@ import { formatCustomerCredit } from '@/utils/billingCredits'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import UsageBillingDetails from '@/components/usage/UsageBillingDetails.vue'
 import { storedServedGroupId } from '@/utils/usageBillingSnapshot'
+import { accountStatsExportValue, type AccountStatsRecord } from '@/utils/accountStatsDisplay'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
@@ -590,17 +591,10 @@ import {
   hasImageInputCost,
 } from '@/utils/imageUsage'
 
-/** Compute the account-billed cost for display: (account_stats_cost ?? total_cost) * rate_multiplier */
-type AccountBillingFields = { total_cost?: number | null; account_stats_cost?: number | null; account_rate_multiplier?: number | null }
-function accountBilled(row: AccountBillingFields): number | null {
-  const base = row.account_stats_cost ?? row.total_cost
-  if (base == null) return null
-  const result = base * (row.account_rate_multiplier ?? 1)
-  return Number.isFinite(result) ? result : null
-}
-function formatAccountBilled(row: AccountBillingFields, digits: number): string {
-  const amount = accountBilled(row)
-  return amount == null ? '—' : '$' + amount.toFixed(digits)
+// Currency cannot be recovered from this scalar or the Customer price snapshot.
+function formatAccountBilled(row: AccountStatsRecord, digits: number): string {
+  const value = accountStatsExportValue(row, digits)
+  return value === '' ? '—' : value + ' · ' + t('usage.currencyUnknown')
 }
 
 
