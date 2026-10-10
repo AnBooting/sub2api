@@ -1,12 +1,6 @@
 ---
 name: sub2api-dev-deploy
-description: >
-  Develop, build, test and Docker-deploy the Sub2API secondary-development fork at
-  F:\sub2 (upstream Wei-Shaw/sub2api, baseline v0.2.15). Use when working on the
-  sub2api codebase: Go backend (Ent/Gin), Vue 3 frontend, database migrations,
-  the domestic-provider (国模) feature port, local compose bring-up, or production
-  deployment. Covers the exact local toolchain, the pnpm-9 trap, migration
-  renumbering, merge rules for the reference kit, and deploy/rollback steps.
+description: "Use when working on the Sub2API fork at F:\\sub2: Go/Vue code, migrations, the 国模 provider port, local compose or deployment."
 ---
 
 # Sub2API 二开开发与部署
@@ -110,3 +104,9 @@ cd F:\sub2
 - 前端 `vue-tsc --noEmit` 退出码 0 + vitest 通过 + `vite build` 成功
 - 功能按 `_reference/domestic-provider-kit/docs/ACCEPTANCE.md` 21 项逐条验收
 - 部署 `/health` 200 + 三容器 healthy + 端到端调用与扣费核对
+
+## 描述补充
+
+description 只保留触发语义；完整说明如下（原文压入正文以守住 140 字符的常驻目录预算，内容不删减）：
+
+Develop, build, test and Docker-deploy the Sub2API secondary-development fork at F:\sub2 (upstream Wei-Shaw/sub2api, baseline v0.2.15). Use when working on the sub2api codebase: Go backend (Ent/Gin), Vue 3 frontend, database migrations, the domestic-provider (国模) feature port, local compose bring-up, or production deployment. Covers the exact local toolchain, the pnpm-9 trap, migration renumbering, merge rules for the reference kit, and deploy/rollback steps.
