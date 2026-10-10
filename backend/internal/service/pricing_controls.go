@@ -107,9 +107,17 @@ func (s *PricingService) UpdateControls(ctx context.Context, controls PricingCon
 	if err := validateDeepSeekHolidays(controls.DeepSeekHolidays); err != nil {
 		return err
 	}
-	controls.DeepSeekHolidays = cloneDeepSeekHolidays(controls.DeepSeekHolidays)
+	if controls.DeepSeekHolidays != nil {
+		controls.DeepSeekHolidays = cloneDeepSeekHolidays(controls.DeepSeekHolidays)
+	}
 	s.controlsMu.Lock()
 	defer s.controlsMu.Unlock()
+	// nil means the caller omitted the calendar. Preserve the latest version
+	// inside the same serialized write that persists switches and publishes memory.
+	// A non-nil empty map is an explicit clear. Never merge a handler snapshot.
+	if controls.DeepSeekHolidays == nil {
+		controls.DeepSeekHolidays = s.controlsLocked().DeepSeekHolidays
+	}
 	if s.settingsRepo != nil {
 		body, err := json.Marshal(controls)
 		if err != nil {

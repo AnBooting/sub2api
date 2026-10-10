@@ -67,7 +67,7 @@ func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	require.Equal(t, []string{"2026-10-12"}, pricing.GetControls().DeepSeekHolidays["2026"])
 	for _, calendar := range []string{
 		`{"2026":["2026-02-30"]}`, `{"2026":["2027-01-01"]}`,
-		`{"2026":["2026-10-12","2026-10-12"]}`, `{"bad":[]}`, `{"+123":[]}`, `{"2026":null}`,
+		`{"2026":["2026-10-12","2026-10-12"]}`, `{"bad":[]}`, `{"+123":[]}`, `{"2026":null}`, `null`, `[]`, `true`,
 	} {
 		body := `{"remote_enabled":false,"native_cny_enabled":false,"deepseek_holidays":` + calendar + "}"
 		require.Equal(t, http.StatusBadRequest, put(body).Code)

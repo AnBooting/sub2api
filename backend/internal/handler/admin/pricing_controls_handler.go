@@ -1,6 +1,8 @@
 package admin
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -15,20 +17,28 @@ func (h *ChannelHandler) GetPricingControls(c *gin.Context) {
 
 func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 	var req struct {
-		RemoteEnabled    *bool                `json:"remote_enabled" binding:"required"`
-		NativeCNYEnabled *bool                `json:"native_cny_enabled" binding:"required"`
-		DeepSeekHolidays *map[string][]string `json:"deepseek_holidays"`
+		RemoteEnabled    *bool           `json:"remote_enabled" binding:"required"`
+		NativeCNYEnabled *bool           `json:"native_cny_enabled" binding:"required"`
+		DeepSeekHolidays json.RawMessage `json:"deepseek_holidays"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "both pricing switches are required")
 		return
 	}
-	before := h.pricingService.GetControls()
-	controls := before
-	controls.RemoteEnabled, controls.NativeCNYEnabled = *req.RemoteEnabled, *req.NativeCNYEnabled
-	if req.DeepSeekHolidays != nil {
-		controls.DeepSeekHolidays = *req.DeepSeekHolidays
+	controls := service.PricingControls{RemoteEnabled: *req.RemoteEnabled, NativeCNYEnabled: *req.NativeCNYEnabled}
+	if len(req.DeepSeekHolidays) > 0 {
+		if bytes.Equal(bytes.TrimSpace(req.DeepSeekHolidays), []byte("null")) {
+			response.BadRequest(c, "deepseek_holidays must be an object, not null")
+			return
+		}
+		if err := json.Unmarshal(req.DeepSeekHolidays, &controls.DeepSeekHolidays); err != nil {
+			response.BadRequest(c, "deepseek_holidays must be a year-to-date-array object")
+			return
+		}
 	}
+	// This snapshot only decides whether to schedule a refresh. Calendar omission
+	// is resolved atomically by UpdateControls, not against this earlier read.
+	before := h.pricingService.GetControls()
 	if err := h.pricingService.UpdateControls(c.Request.Context(), controls); err != nil {
 		if errors.Is(err, service.ErrInvalidDeepSeekHolidays) {
 			response.BadRequest(c, err.Error())
