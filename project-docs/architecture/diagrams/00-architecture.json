@@ -1,0 +1,395 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Sub2API 架构总览",
+    "locale": "zh-CN",
+    "subtitle": "基线 AnBooting/sub2api 0e6f5efb",
+    "visual_preset": "blueprint",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/AnBooting/sub2api",
+      "provider": "github",
+      "link_mode": "web",
+      "revision": "0e6f5efb7dbd97b744b046e0e158e4b16bb935b8"
+    },
+    "views": [
+      {
+        "id": "request-path",
+        "label": "请求主链路",
+        "focus": [
+          "clients",
+          "edge",
+          "http",
+          "gateway",
+          "scheduler",
+          "upstream"
+        ],
+        "note": "从客户端到上游 AI 服务的转发路径。"
+      },
+      {
+        "id": "billing-path",
+        "label": "计费与定价",
+        "focus": [
+          "gateway",
+          "billing",
+          "pricefeed",
+          "postgres"
+        ],
+        "note": "用量如何落库、价格从哪来。"
+      },
+      {
+        "id": "state",
+        "label": "状态存储",
+        "focus": [
+          "redis",
+          "postgres",
+          "scheduler",
+          "billing"
+        ],
+        "note": "缓存与持久化分工。"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "clients",
+      "type": "external",
+      "label": "客户端",
+      "sublabel": "CC / API / 浏览器",
+      "pos": [
+        40,
+        110
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/server/routes/gateway.go",
+          "line": 180
+        }
+      ]
+    },
+    {
+      "id": "edge",
+      "type": "cloud",
+      "label": "反向代理",
+      "sublabel": "Nginx / Caddy",
+      "pos": [
+        208,
+        110
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "tag": "部署层"
+    },
+    {
+      "id": "http",
+      "type": "backend",
+      "label": "Gin HTTP",
+      "sublabel": "中间件链 :8080",
+      "pos": [
+        376,
+        110
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/cmd/server/main.go",
+          "line": 100
+        }
+      ]
+    },
+    {
+      "id": "gateway",
+      "type": "backend",
+      "label": "网关 Handler",
+      "sublabel": "/v1/* 协议转换",
+      "pos": [
+        544,
+        110
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/handler/openai_gateway_handler.go",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "scheduler",
+      "type": "backend",
+      "label": "调度与并发",
+      "sublabel": "选号 · 粘性",
+      "pos": [
+        712,
+        110
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/service/openai_account_scheduler.go",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "upstream",
+      "type": "external",
+      "label": "上游 AI 服务",
+      "sublabel": "Anthropic / [OI] / Gemini",
+      "pos": [
+        880,
+        110
+      ],
+      "size": [
+        130,
+        58
+      ]
+    },
+    {
+      "id": "web",
+      "type": "frontend",
+      "label": "内嵌 Vue SPA",
+      "sublabel": "internal/web/dist",
+      "pos": [
+        40,
+        300
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "Dockerfile",
+          "line": 60
+        }
+      ]
+    },
+    {
+      "id": "panel",
+      "type": "backend",
+      "label": "面板 API",
+      "sublabel": "/api/v1/*",
+      "pos": [
+        208,
+        300
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/server/routes/admin.go",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "billing",
+      "type": "backend",
+      "label": "计费与定价",
+      "sublabel": "用量 · CNY/USD",
+      "pos": [
+        376,
+        300
+      ],
+      "size": [
+        118,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/service/billing_service.go",
+          "line": 1
+        }
+      ]
+    },
+    {
+      "id": "pricefeed",
+      "type": "external",
+      "label": "价格数据源",
+      "sublabel": "LiteLLM · basellm",
+      "pos": [
+        544,
+        300
+      ],
+      "size": [
+        130,
+        58
+      ],
+      "sources": [
+        {
+          "path": "backend/internal/service/pricing_native_cny.go",
+          "line": 18
+        }
+      ]
+    },
+    {
+      "id": "postgres",
+      "type": "database",
+      "label": "PostgreSQL 18",
+      "sublabel": "账号 · 分组 · 账单",
+      "pos": [
+        371,
+        470
+      ],
+      "size": [
+        128,
+        56
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "Redis 8",
+      "sublabel": "缓存 · 槽位",
+      "pos": [
+        712,
+        470
+      ],
+      "size": [
+        118,
+        56
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "sub2api 单二进制（前端产物已内嵌）",
+      "wraps": [
+        "http",
+        "gateway",
+        "panel",
+        "scheduler",
+        "billing",
+        "web"
+      ],
+      "pad": 20
+    },
+    {
+      "kind": "security-group",
+      "label": "数据持久层（Compose 内网）",
+      "wraps": [
+        "postgres",
+        "redis"
+      ],
+      "pad": 14
+    }
+  ],
+  "connections": [
+    {
+      "from": "clients",
+      "to": "edge",
+      "label": "HTTPS",
+      "variant": "emphasis"
+    },
+    {
+      "from": "edge",
+      "to": "http",
+      "label": "反代",
+      "variant": "emphasis"
+    },
+    {
+      "from": "http",
+      "to": "gateway",
+      "label": "/v1/*",
+      "variant": "emphasis"
+    },
+    {
+      "from": "gateway",
+      "to": "scheduler",
+      "label": "选号"
+    },
+    {
+      "from": "scheduler",
+      "to": "upstream",
+      "label": "转发",
+      "variant": "emphasis"
+    },
+    {
+      "from": "web",
+      "to": "edge",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "from": "http",
+      "to": "panel",
+      "label": "/api/v1/*",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "gateway",
+      "to": "billing",
+      "label": "用量",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "billing",
+      "to": "pricefeed",
+      "label": "价格目录",
+      "variant": "dashed"
+    },
+    {
+      "from": "billing",
+      "to": "postgres",
+      "variant": "default",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "from": "scheduler",
+      "to": "redis",
+      "variant": "dashed",
+      "fromSide": "bottom",
+      "toSide": "top"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "请求主链路",
+      "items": [
+        "客户端 → 反代 → Gin 中间件 → 网关 Handler",
+        "网关做协议转换，再由调度器选账号"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "关键约束",
+      "items": [
+        "单二进制：前端产物内嵌进 Go 可执行文件",
+        "PostgreSQL 与 Redis 不暴露宿主端口"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "证据",
+      "items": [
+        "routes/gateway.go",
+        "service/billing_service.go"
+      ]
+    }
+  ]
+}
