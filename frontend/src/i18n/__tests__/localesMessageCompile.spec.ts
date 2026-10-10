@@ -1,4 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it, vi } from 'vitest'
+
+// Both Vite and Vitest alias vue-i18n to its runtime-only bundle. Production
+// enables this JIT flag in vite.config.ts; Vitest does not inherit that define.
+// Set it before importing the actual runtime so v9.14.5 registers its own
+// compiler (AST/JIT, no custom translation function or replacement messages).
+vi.hoisted(() => { vi.stubGlobal('__INTLIFY_JIT_COMPILATION__', true) })
+afterAll(() => vi.unstubAllGlobals())
 import { baseCompile } from '@intlify/message-compiler'
 import { createI18n } from 'vue-i18n'
 
@@ -33,6 +40,7 @@ function collectCompileErrors(node: unknown, path: string, out: string[]): void 
 describe('locale messages compile', () => {
   it.each([['zh', zh], ['en', en]] as const)('%s calendar clear help renders a visible literal empty object with the real installed message compiler', (locale, messages) => {
     const instance = createI18n({ legacy: false, locale, messages: { [locale]: messages } })
+    expect(instance.global.te('admin.settings.pricing.calendar.editorHelp')).toBe(true)
     const rendered = instance.global.t('admin.settings.pricing.calendar.editorHelp')
     expect(rendered).toContain('{}')
     expect(rendered).not.toContain("{'{'}")
