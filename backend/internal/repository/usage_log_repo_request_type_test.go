@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -904,6 +905,10 @@ type usageLogScannerStub struct {
 }
 
 func (s usageLogScannerStub) Scan(dest ...any) error {
+	columns := strings.Split(usageLogSelectColumns, ", ")
+	if len(s.values) != len(columns) {
+		return fmt.Errorf("named usage columns expect %d values, fixture has %d", len(columns), len(s.values))
+	}
 	if len(dest) != len(s.values) {
 		return fmt.Errorf("scan arg count mismatch: got %d want %d", len(dest), len(s.values))
 	}
@@ -1063,14 +1068,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			sql.NullInt64{},  // served_group_id
 			sql.NullString{}, // failover
 			sql.NullInt64{},  // attempt_count
-			sql.NullInt64{},  // requested_group_id
-			sql.NullInt64{},  // served_group_id
-			sql.NullString{}, // failover
-			sql.NullInt64{},  // attempt_count
-			sql.NullInt64{},  // requested_group_id
-			sql.NullInt64{},  // served_group_id
-			sql.NullString{}, // failover
-			sql.NullInt64{},  // attempt_count
 		}})
 		require.NoError(t, err)
 		require.NotNil(t, log.ServiceTier)
@@ -1135,14 +1132,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			true,              // native_compaction_v2
 			now,
 			[]byte(nil),      // pricing_snapshot
-			sql.NullInt64{},  // requested_group_id
-			sql.NullInt64{},  // served_group_id
-			sql.NullString{}, // failover
-			sql.NullInt64{},  // attempt_count
-			sql.NullInt64{},  // requested_group_id
-			sql.NullInt64{},  // served_group_id
-			sql.NullString{}, // failover
-			sql.NullInt64{},  // attempt_count
 			sql.NullInt64{},  // requested_group_id
 			sql.NullInt64{},  // served_group_id
 			sql.NullString{}, // failover
@@ -1212,14 +1201,6 @@ func TestScanUsageLogRequestTypeAndLegacyFallback(t *testing.T) {
 			false,             // native_compaction_v2
 			now,
 			[]byte(nil),      // pricing_snapshot
-			sql.NullInt64{},  // requested_group_id
-			sql.NullInt64{},  // served_group_id
-			sql.NullString{}, // failover
-			sql.NullInt64{},  // attempt_count
-			sql.NullInt64{},  // requested_group_id
-			sql.NullInt64{},  // served_group_id
-			sql.NullString{}, // failover
-			sql.NullInt64{},  // attempt_count
 			sql.NullInt64{},  // requested_group_id
 			sql.NullInt64{},  // served_group_id
 			sql.NullString{}, // failover

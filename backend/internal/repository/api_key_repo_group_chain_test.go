@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"database/sql"
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/DATA-DOG/go-sqlmock"
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 	"testing"
@@ -205,4 +207,57 @@ func TestAPIKeyGroupChainRepositoryLegacySameHeadAndNilHeadRepair(t *testing.T) 
 	require.Equal(t, "ha", clear.Groups[0].Role)
 	require.Nil(t, clear.GroupID)
 	require.True(t, clear.Groups[0].EnabledByUserAt.Equal(at))
+}
+
+func TestAPIKeyGroupChainAdminRepositoryDTOResponseMatchesGET(t *testing.T) {
+	repo, client := newAPIKeyRepoSQLite(t)
+	ctx := context.Background()
+	user := mustCreateAPIKeyRepoUser(t, ctx, client, "admin-response@test.com")
+	a, err := client.Group.Create().SetName("response-A").SetStatus(service.StatusActive).Save(ctx)
+	require.NoError(t, err)
+	b, err := client.Group.Create().SetName("response-B").SetStatus(service.StatusActive).Save(ctx)
+	require.NoError(t, err)
+	ha, err := client.Group.Create().SetName("response-HA").Save(ctx)
+	require.NoError(t, err)
+	key := &service.APIKey{UserID: user.ID, Name: "response", Key: "sk-admin-response", Status: service.StatusActive, GroupID: &a.ID, Quota: 100}
+	require.NoError(t, repo.Create(ctx, key))
+	at := time.Now().UTC()
+	_, err = client.APIKeyGroupLink.Create().SetAPIKeyID(key.ID).SetGroupID(ha.ID).SetRole(apikeygrouplink.RoleHa).SetPosition(0).SetEnabledByUserAt(at).Save(ctx)
+	require.NoError(t, err)
+	// Real service+real SQLite repository+real DTO, not a response-only stub.
+	groupRepo := NewAdminGroupRepository(client, repo.sql.(*sql.DB))
+	admin := service.NewAdminService(nil, nil, groupRepo, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	_, err = repo.IncrementQuotaUsed(ctx, key.ID, 31)
+	require.NoError(t, err)
+	revision := int64(0)
+	result, err := admin.AdminUpdateAPIKeyGroups(ctx, key.ID, service.AdminUpdateAPIKeyGroupsInput{Groups: []service.APIKeyGroupLink{{GroupID: b.ID, Role: "normal"}}, ExpectedGroupChainRevision: &revision})
+	require.NoError(t, err)
+	response := dto.APIKeyFromService(result.APIKey)
+	got, err := repo.GetByID(ctx, key.ID)
+	require.NoError(t, err)
+	fresh := dto.APIKeyFromService(got)
+	require.Equal(t, b.ID, *response.GroupID)
+	require.NotNil(t, response.Group)
+	require.Equal(t, b.ID, response.Group.ID)
+	require.Equal(t, "response-B", response.Group.Name)
+	require.Equal(t, fresh.Group, response.Group)
+	require.Equal(t, fresh.Groups, response.Groups)
+	require.Equal(t, int64(1), response.GroupChainRevision)
+	require.InDelta(t, 31, got.QuotaUsed, 1e-9)
+	revision = result.APIKey.GroupChainRevision
+	result, err = admin.AdminUpdateAPIKeyGroups(ctx, key.ID, service.AdminUpdateAPIKeyGroupsInput{Groups: []service.APIKeyGroupLink{}, ExpectedGroupChainRevision: &revision})
+	require.NoError(t, err)
+	response = dto.APIKeyFromService(result.APIKey)
+	got, err = repo.GetByID(ctx, key.ID)
+	require.NoError(t, err)
+	fresh = dto.APIKeyFromService(got)
+	require.Nil(t, response.GroupID)
+	require.Nil(t, response.Group)
+	require.Nil(t, fresh.Group)
+	require.Len(t, response.Groups, 1)
+	require.Equal(t, "ha", response.Groups[0].Role)
+	require.True(t, response.Groups[0].EnabledByUserAt.Equal(at))
+	require.Equal(t, fresh.Groups, response.Groups)
+	require.Equal(t, int64(2), response.GroupChainRevision)
+	require.InDelta(t, 31, got.QuotaUsed, 1e-9)
 }

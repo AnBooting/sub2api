@@ -373,7 +373,7 @@ func (s *APIKeyService) snapshotFromAPIKey(ctx context.Context, apiKey *APIKey) 
 	if apiKey.GroupID != nil && *apiKey.GroupID > 0 && s.userGroupRateRepo != nil {
 		override, err := s.userGroupRateRepo.GetRPMOverrideByUserAndGroup(ctx, apiKey.UserID, *apiKey.GroupID)
 		if err == nil && override != nil {
-			snapshot.User.UserGroupRPMOverride = override
+			snapshot.User.UserGroupRPMOverride = cloneGroupValuePointer(override)
 		}
 		// 查询失败或无 override 时留 nil，checkRPM 会回退到 DB 查询
 	}
@@ -551,7 +551,7 @@ func (s *APIKeyService) snapshotToAPIKey(key string, snapshot *APIKeyAuthSnapsho
 			BalanceNotifyExtraEmails:   append([]NotifyEmailEntry(nil), snapshot.User.BalanceNotifyExtraEmails...),
 			TotalRecharged:             snapshot.User.TotalRecharged,
 			RPMLimit:                   snapshot.User.RPMLimit,
-			UserGroupRPMOverride:       snapshot.User.UserGroupRPMOverride,
+			UserGroupRPMOverride:       cloneGroupValuePointer(snapshot.User.UserGroupRPMOverride),
 		},
 	}
 	apiKey.Group = apiKeyAuthGroupFromSnapshot(snapshot.Group)

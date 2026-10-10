@@ -7,6 +7,15 @@ import (
 	"time"
 )
 
+type chainRPMOverrideRepositoryStub struct {
+	UserGroupRateRepository
+	value *int
+}
+
+func (s *chainRPMOverrideRepositoryStub) GetRPMOverrideByUserAndGroup(context.Context, int64, int64) (*int, error) {
+	return s.value, nil
+}
+
 func TestAPIKeyGroupChainAuthSnapshotAllRolesVersionAndIsolation(t *testing.T) {
 	at := time.Now().UTC()
 	price := 0.2
@@ -16,8 +25,9 @@ func TestAPIKeyGroupChainAuthSnapshotAllRolesVersionAndIsolation(t *testing.T) {
 	ha.ID = 9
 	ha.Name = "HA"
 	key := &APIKey{ID: 1, UserID: 7, Key: "k", GroupID: &id, Group: group, GroupChainRevision: 5, User: &User{ID: 7, Status: StatusActive, AllowedGroups: []int64{9}}, Groups: []APIKeyGroupLink{{GroupID: 1, Role: "normal", Group: group}, {GroupID: 9, Role: "ha", EnabledByUserAt: &at, Group: ha}}}
+	rpm := 17
 	key.User.BalanceNotifyExtraEmails = []NotifyEmailEntry{{Email: "owned@example.test", Verified: true}}
-	svc := &APIKeyService{}
+	svc := &APIKeyService{userGroupRateRepo: &chainRPMOverrideRepositoryStub{value: &rpm}}
 	snapshot := svc.snapshotFromAPIKey(context.Background(), key)
 	require.Equal(t, 25, snapshot.Version)
 	require.Equal(t, int64(5), snapshot.GroupChainRevision)
@@ -26,6 +36,8 @@ func TestAPIKeyGroupChainAuthSnapshotAllRolesVersionAndIsolation(t *testing.T) {
 	group.ModelRouting["model"][0] = 99
 	group.ModelAllowlist.Models[0] = "changed"
 	key.User.BalanceNotifyExtraEmails[0].Email = "source-mutated@example.test"
+	rpm = 99
+	require.Equal(t, 17, *snapshot.User.UserGroupRPMOverride)
 	got := svc.snapshotToAPIKey("k", snapshot)
 	require.Equal(t, int64(4), got.Groups[0].Group.ModelRouting["model"][0])
 	require.Equal(t, "model", got.Groups[0].Group.ModelAllowlist.Models[0])
@@ -34,6 +46,9 @@ func TestAPIKeyGroupChainAuthSnapshotAllRolesVersionAndIsolation(t *testing.T) {
 	*got.Groups[1].Group.ModelPricing[0].InputPrice = 99
 	*got.Groups[1].EnabledByUserAt = at.Add(time.Hour)
 	got.User.AllowedGroups[0] = 42
+	require.Equal(t, 17, *got.User.UserGroupRPMOverride)
+	*got.User.UserGroupRPMOverride = 88
+	require.Equal(t, 17, *snapshot.User.UserGroupRPMOverride)
 	require.Equal(t, "owned@example.test", got.User.BalanceNotifyExtraEmails[0].Email)
 	got.User.BalanceNotifyExtraEmails[0].Email = "request-mutated@example.test"
 	got.User.BalanceNotifyExtraEmails[0].Disabled = true
@@ -42,6 +57,9 @@ func TestAPIKeyGroupChainAuthSnapshotAllRolesVersionAndIsolation(t *testing.T) {
 	require.Equal(t, 0.2, *next.Groups[1].Group.ModelPricing[0].InputPrice)
 	require.True(t, next.Groups[1].EnabledByUserAt.Equal(at))
 	require.Equal(t, int64(9), next.User.AllowedGroups[0])
+	require.Equal(t, 17, *next.User.UserGroupRPMOverride)
+	*snapshot.User.UserGroupRPMOverride = 66
+	require.Equal(t, 17, *next.User.UserGroupRPMOverride)
 	require.Equal(t, "owned@example.test", next.User.BalanceNotifyExtraEmails[0].Email)
 	require.False(t, next.User.BalanceNotifyExtraEmails[0].Disabled)
 	require.True(t, next.User.BalanceNotifyExtraEmails[0].Verified)

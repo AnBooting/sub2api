@@ -299,7 +299,10 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey, fiel
 		key.Groups = resolved
 		fields.GroupID = true
 		fields.Groups = changed
-		return r.updateFields(txCtx, key, fields)
+		if err := r.updateFields(txCtx, key, fields); err != nil {
+			return err
+		}
+		return hydrateAPIKeyGroupChain(txCtx, clientFromContext(txCtx, r.client), key)
 	})
 }
 
@@ -1169,6 +1172,34 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}
+}
+
+// Synchronize mutation responses with GET using the same locked transaction.
+// Only relation snapshots are refreshed; quota and usage columns are not rewritten.
+func hydrateAPIKeyGroupChain(ctx context.Context, client *dbent.Client, key *service.APIKey) error {
+	key.Group = nil
+	ids := make([]int64, 0, len(key.Groups))
+	for _, link := range key.Groups {
+		ids = append(ids, link.GroupID)
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	rows, err := client.Group.Query().Where(group.IDIn(ids...)).All(ctx)
+	if err != nil {
+		return err
+	}
+	groups := make(map[int64]*service.Group, len(rows))
+	for _, row := range rows {
+		groups[row.ID] = groupEntityToService(row)
+	}
+	for i := range key.Groups {
+		key.Groups[i].Group = groups[key.Groups[i].GroupID]
+	}
+	if key.GroupID != nil {
+		key.Group = groups[*key.GroupID]
+	}
+	return nil
 }
 
 func loadAPIKeyGroupLinks(q *dbent.APIKeyGroupLinkQuery) {
