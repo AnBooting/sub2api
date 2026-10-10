@@ -162,21 +162,7 @@
                 class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
                 :title="t('keys.clickToChangeGroup')"
               >
-                <GroupBadge
-                  v-if="row.group"
-                  :name="row.group.name"
-                  :platform="row.group.platform"
-                  :subscription-type="row.group.subscription_type"
-                  :rate-multiplier="row.group.rate_multiplier"
-                  :user-rate-multiplier="userGroupRates[row.group.id]"
-                  :peak-rate-enabled="row.group.peak_rate_enabled"
-                  :peak-start="row.group.peak_start"
-                  :peak-end="row.group.peak_end"
-                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
-                />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
-                  t('keys.noGroup')
-                }}</span>
+<KeyGroupChain :api-key="row" :groups="groups" :user-rates="userGroupRates" />
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
                 <svg
                   class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
@@ -540,6 +526,7 @@
             id="key-form-group"
             :aria-label="t('keys.groupLabel')"
             v-model="formData.group_id"
+            @update:model-value="setSingleFormGroup"
             :options="formGroupOptions"
             :placeholder="t('keys.selectGroup')"
             :empty-text="t('common.noGroupsAvailable')"
@@ -578,6 +565,18 @@
               />
             </template>
           </Select>
+        </div>
+
+        <p class="input-hint">{{ t('keys.chain.singleHint') }}</p>
+        <GroupChainEditor
+          :model-value="formData.group_ids"
+          :groups="groups"
+          :user-rates="userGroupRates"
+          :disabled="submitting"
+          @update:model-value="setFormGroupChain"
+        />
+        <div v-if="showEditModal && selectedKey?.groups?.some((entry) => entry.role === 'ha')" class="text-xs text-gray-500">
+          <KeyGroupChain :api-key="{ ...selectedKey!, group_id: null, groups: selectedKey!.groups!.filter((entry) => entry.role === 'ha') }" :groups="groups" />
         </div>
 
         <!-- Custom Key Section (only for create) -->
@@ -1155,6 +1154,8 @@
             />
           </div>
         </div>
+        <p class="px-3 py-2 text-xs text-gray-500">{{ t('keys.chain.singleHint') }}</p>
+        <button type="button" class="btn btn-secondary mx-3 my-2" @click="editKey(selectedKeyForGroup!); groupSelectorKeyId = null">{{ t('keys.chain.edit') }}</button>
         <!-- Group list -->
         <div class="max-h-80 overflow-y-auto p-1.5">
           <button
@@ -1212,6 +1213,9 @@ import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
+import GroupChainEditor from '@/components/keys/GroupChainEditor.vue'
+import KeyGroupChain from '@/components/keys/KeyGroupChain.vue'
+import { normalGroupIds, normalGroupEntries, replaceNormalGroups, isGroupChainConflict } from '@/utils/keyGroupChain'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -1433,6 +1437,7 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
 const formData = ref({
   name: '',
   group_id: null as number | null,
+  group_ids: [] as number[],
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1540,10 +1545,16 @@ const formGroupOptions = computed(() => showEditModal.value
   : groupOptions.value.filter((group) => getKeyGroupProvider(group.platform) === createProvider.value)
 )
 
+const setFormGroupChain = (ids: number[]) => {
+  formData.value.group_ids = ids
+  formData.value.group_id = ids[0] ?? null
+}
+const setSingleFormGroup = (value: string | number | boolean | null) => {
+  setFormGroupChain(typeof value === 'number' ? [value] : [])
+}
 const selectCreateProvider = (provider: KeyGroupProvider) => {
   if (createProvider.value === provider) return
   createProvider.value = provider
-  formData.value.group_id = null
 }
 
 // Also handles groups arriving after the create dialog has already opened.
@@ -1552,9 +1563,7 @@ watch([showCreateModal, createProviderOptions], ([isOpen, providers], [wasOpen])
   if (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0)) {
     selectCreateProvider(providers.find((provider) => provider.count > 0)?.value ?? 'anthropic')
   }
-  if (!formGroupOptions.value.some((group) => group.value === formData.value.group_id)) {
-    formData.value.group_id = null
-  }
+
 })
 
 // Group dropdown search
@@ -1700,7 +1709,8 @@ const editKey = (key: ApiKey) => {
   const hasExpiration = !!key.expires_at
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
+    group_id: normalGroupIds(key)[0] ?? null,
+    group_ids: normalGroupIds(key),
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1770,7 +1780,7 @@ const openGroupSelector = (key: ApiKey) => {
 const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+  if (normalGroupIds(key).length <= 1 && key.group_id === newGroupId) return
 
   try {
     await keysAPI.update(key.id, { group_id: newGroupId })
@@ -1799,8 +1809,7 @@ const confirmDelete = (key: ApiKey) => {
 }
 
 const handleSubmit = async () => {
-  // Validate group_id is required
-  if (formData.value.group_id === null) {
+  if (!showEditModal.value && formData.value.group_ids.length === 0 && formData.value.group_id === null) {
     appStore.showError(t('keys.groupRequired'))
     return
   }
@@ -1857,7 +1866,8 @@ const handleSubmit = async () => {
     if (showEditModal.value && selectedKey.value) {
       const updates: UpdateApiKeyRequest = {
         name: formData.value.name,
-        group_id: formData.value.group_id,
+        expected_group_chain_revision: selectedKey.value.group_chain_revision,
+        groups: replaceNormalGroups(formData.value.group_ids.length ? formData.value.group_ids : (formData.value.group_id ? [formData.value.group_id] : []), selectedKey.value.groups),
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1881,7 +1891,8 @@ const handleSubmit = async () => {
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        normalGroupEntries(formData.value.group_ids.length ? formData.value.group_ids : (formData.value.group_id ? [formData.value.group_id] : []))
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1892,7 +1903,7 @@ const handleSubmit = async () => {
     closeModals()
     loadApiKeys()
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
+    const errorMsg = showEditModal.value && isGroupChainConflict(error) ? t('keys.chain.conflict') : (error.response?.data?.detail || error.message || t('keys.failedToSave'))
     appStore.showError(errorMsg)
     // Don't advance tour on error
   } finally {
@@ -1927,6 +1938,7 @@ const closeModals = () => {
   formData.value = {
     name: '',
     group_id: null,
+    group_ids: [],
     status: 'active',
     use_custom_key: false,
     custom_key: '',

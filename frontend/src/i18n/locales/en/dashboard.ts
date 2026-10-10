@@ -66,6 +66,21 @@ export default {
 
   // API Keys
   keys: {
+    chain: {
+      conflict: "The group configuration changed in another operation. Refresh the key list and reopen the editor before saving. This change was not automatically retried.",
+      publicGroupsHint: "Public standard groups are always available. Configure user rates here; exclusive access and subscription requirements are unchanged.",
+      "title": "Ordinary group order",
+      "hint": "Try groups in order, exhausting eligible accounts in each group first. Billing uses the effective rate of the group that serves the request.",
+      "add": "Add ordinary group",
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down",
+      "remove": "Remove {name}",
+      "empty": "No ordinary groups bound",
+      "unavailable": "Group #{id} (currently unavailable)",
+      "haAuthorized": "User-authorized HA fallback",
+      "singleHint": "The single-group picker above replaces the ordinary chain. HA consent is unchanged.",
+      "edit": "Edit ordinary group order"
+    },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',

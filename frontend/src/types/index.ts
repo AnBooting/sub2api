@@ -107,7 +107,7 @@ export interface AdminUser extends User {
   last_used_at?: string | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
-  // 为 true 时该用户仅可使用 allowed_groups 中列出的公开分组。
+  // 历史兼容字段；通用公开标准组访问不再受此值限制。
   // 管理侧权限开关，普通用户接口不返回。
   restrict_public_groups?: boolean
   // 当前并发数（仅管理员列表接口返回）
@@ -565,7 +565,12 @@ export interface ReasoningEffortMapping {
   model?: string
 }
 
+export type SchedulingStrategy = 'balanced' | 'stable' | 'latency'
+export type GroupSchedulingStrategy = 'inherit' | SchedulingStrategy
+
 export interface Group {
+  scheduling_strategy?: GroupSchedulingStrategy
+  effective_scheduling_strategy?: SchedulingStrategy
   id: number
   name: string
   description: string | null
@@ -731,7 +736,18 @@ export interface CompositeRouteDecision {
   reason?: string
 }
 
+export interface ApiKeyGroup {
+  group_id: number
+  role: 'normal' | 'ha'
+  position: number
+  enabled_by_user_at?: string | null
+}
+
+export type ApiKeyGroupInput = Pick<ApiKeyGroup, 'group_id' | 'role' | 'position'>
+
 export interface ApiKey {
+  group_chain_revision: number
+  groups?: ApiKeyGroup[]
   id: number
   user_id: number
   key: string
@@ -764,6 +780,7 @@ export interface ApiKey {
 }
 
 export interface CreateApiKeyRequest {
+  groups?: ApiKeyGroupInput[]
   name: string
   group_id?: number | null
   custom_key?: string // Optional custom API Key
@@ -777,6 +794,8 @@ export interface CreateApiKeyRequest {
 }
 
 export interface UpdateApiKeyRequest {
+  expected_group_chain_revision?: number
+  groups?: ApiKeyGroupInput[]
   name?: string
   group_id?: number | null
   status?: 'active' | 'inactive'
@@ -792,6 +811,7 @@ export interface UpdateApiKeyRequest {
 }
 
 export interface CreateGroupRequest {
+  scheduling_strategy?: GroupSchedulingStrategy
   name: string
   description?: string | null
   platform?: GroupPlatform
@@ -857,6 +877,7 @@ export interface CreateGroupRequest {
 }
 
 export interface UpdateGroupRequest {
+  scheduling_strategy?: GroupSchedulingStrategy
   name?: string
   description?: string | null
   platform?: GroupPlatform

@@ -77,14 +77,19 @@ describe('BulkEditKeysModal', () => {
     expect(wrapper.get('[data-test="submit"]').attributes('disabled')).toBeDefined()
   })
 
-  it('requires an available group when changing group', async () => {
+  it('saves an explicitly chosen normal chain, including clearing it', async () => {
     const wrapper = mountModal()
     await wrapper.get('[data-test="enable-group"]').setValue(true)
     await wrapper.get('form').trigger('submit')
-    expect(bulkUpdate).not.toHaveBeenCalled()
+    expect(bulkUpdate).toHaveBeenCalledWith([1, 2], { groups: [] })
+    await flushPromises()
+    // A successful first submit removes all pending keys. Reopen for the next edit.
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await wrapper.get('[data-test="enable-group"]').setValue(true)
     await wrapper.get('[data-test="group-input"]').setValue('7')
     await wrapper.get('form').trigger('submit')
-    expect(bulkUpdate).toHaveBeenCalledWith([1, 2], { group_id: 7 })
+    expect(bulkUpdate).toHaveBeenLastCalledWith([1, 2], { groups: [{ group_id: 7, role: 'normal', position: 0 }] })
   })
 
   it('clears only an explicitly selected IP list and expiration', async () => {

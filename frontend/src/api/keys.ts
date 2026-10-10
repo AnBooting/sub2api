@@ -4,7 +4,8 @@
  */
 
 import { apiClient } from './client'
-import type { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
+import { replaceNormalGroups } from '@/utils/keyGroupChain'
+import type { ApiKey, ApiKeyGroupInput, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
 
 /**
  * List all API keys for current user
@@ -65,10 +66,13 @@ export async function create(
   ipBlacklist?: string[],
   quota?: number,
   expiresInDays?: number,
-  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number }
+  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number },
+  groups?: ApiKeyGroupInput[]
 ): Promise<ApiKey> {
   const payload: CreateApiKeyRequest = { name }
-  if (groupId !== undefined) {
+  if (groups !== undefined) {
+    payload.groups = groups
+  } else if (groupId !== undefined) {
     payload.group_id = groupId
   }
   if (customKey) {
@@ -125,7 +129,15 @@ export async function bulkUpdate(
   const result: BulkUpdateApiKeysResult = { succeededIds: [], failures: [] }
   for (let offset = 0; offset < uniqueIds.length; offset += 5) {
     const batch = uniqueIds.slice(offset, offset + 5)
-    const responses = await Promise.allSettled(batch.map((id) => update(id, updates)))
+    const responses = await Promise.allSettled(batch.map(async (id) => {
+      // The user endpoint replaces the whole chain. Read each key so bulk normal edits
+      // preserve that key's own HA consent; a failed read must not result in a write.
+      if (updates.groups !== undefined && updates.groups.every((entry) => entry.role === 'normal')) {
+        const current = await getById(id)
+        return update(id, { ...updates, groups: replaceNormalGroups(updates.groups.map((entry) => entry.group_id), current.groups), expected_group_chain_revision: current.group_chain_revision })
+      }
+      return update(id, updates)
+    }))
     responses.forEach((response, index) => {
       if (response.status === 'fulfilled') {
         result.succeededIds.push(batch[index])

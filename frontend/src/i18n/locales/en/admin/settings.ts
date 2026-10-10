@@ -480,6 +480,21 @@ export default {
           'Reject Claude Code clients above this version (semver format). Leave empty to allow any version.'
       },
       scheduling: {
+  "strategy": "Scheduling strategy",
+  "strategyHint": "Strategy affects candidate ordering and affinity, never concurrency, safe retries, or model capability checks.",
+  "effectiveStrategy": "Current effective strategy",
+  "strategies": {
+    "inherit": "Inherit global",
+    "stable": "Stability first",
+    "balanced": "Balanced",
+    "latency": "Latency first"
+  },
+  "maxAttempts": "Maximum sends per request",
+  "requestBudget": "Total request budget (seconds)",
+  "budgetHint": "Includes all actual upstream retries. Existing lower limits still apply. Defaults: 16 sends / 600 seconds.",
+  "invalidBudget": "Attempt and time budgets must be positive integers."
+,
+
         title: 'Gateway Scheduling Settings',
         description: 'Control API Key scheduling behavior',
         allowUngroupedKey: 'Allow Ungrouped Key Scheduling',

@@ -473,6 +473,21 @@ export default {
         maxVersionHint: '拒绝高于此版本的 Claude Code 客户端请求（semver 格式）。留空则不限制最高版本。'
       },
       scheduling: {
+  "strategy": "调度策略",
+  "strategyHint": "策略仅影响候选排序与亲和，不放宽并发、安全重试或模型能力约束。",
+  "effectiveStrategy": "当前有效策略",
+  "strategies": {
+    "inherit": "继承全局",
+    "stable": "稳定优先",
+    "balanced": "平衡",
+    "latency": "响应速度优先"
+  },
+  "maxAttempts": "单请求最大发送次数",
+  "requestBudget": "单请求总预算（秒）",
+  "budgetHint": "包括所有真实上游重试，现有更小的限制仍然有效。默认 16 次 / 600 秒。",
+  "invalidBudget": "发送次数与预算必须为正整数。"
+,
+
         title: '网关调度设置',
         description: '控制 API Key 的调度行为',
         allowUngroupedKey: '允许未分组 Key 调度',
