@@ -136,10 +136,19 @@ vi.mock("@/stores/app", () => ({
   useAppStore: () => ({ showError, showSuccess, showWarning: vi.fn(), showInfo: vi.fn(), fetchPublicSettings }),
 }));
 
+// Affiliate settings hydrate through this direct module when the real watcher enables them.
+// Keep that request hermetic without replacing the watcher or swallowing console errors.
+const affiliateListUsers = vi.hoisted(() => vi.fn());
+vi.mock("@/api/admin/affiliates", () => {
+  const api = { listUsers: affiliateListUsers };
+  return { affiliatesAPI: api, default: api };
+});
+
 const pricingAPI = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn() }));
 vi.mock("@/api/admin/pricing", () => ({ getPricingControls: pricingAPI.get, updatePricingControls: pricingAPI.update, refreshPricing: pricingAPI.refresh }));
 const pricingStatus = { remote_enabled: false, native_cny_enabled: false, usd_model_count: 10, cny_model_count: 0, usd_last_updated: "", cny_last_updated: "", cny_error: "" };
 beforeEach(() => {
+  affiliateListUsers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 });
   pricingAPI.get.mockReset().mockResolvedValue({ ...pricingStatus });
   pricingAPI.update.mockReset().mockImplementation(async (controls) => ({ ...pricingStatus, ...controls }));
   pricingAPI.refresh.mockReset().mockResolvedValue({ ...pricingStatus });
@@ -1265,6 +1274,8 @@ describe("admin SettingsView payment visible method controls", () => {
         affiliate_admin_recharge_enabled: true,
       }),
     );
+    expect(affiliateListUsers).toHaveBeenCalledTimes(1);
+    expect(affiliateListUsers).toHaveBeenCalledWith({ page: 1, page_size: 20, search: "" });
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {
