@@ -50,30 +50,76 @@
 **我们要做的**：不重做。做**验证与补漏**：
 - [ ] 端到端验证：国模走 CNY、Claude/GPT 走 USD，账本数值正确
 - [ ] 验证峰谷、上下文阶梯、缓存价、手动价卡优先级
-- [ ] 验证缺价确实拒绝转发
+- [ ] 验证国模缺价确实拒绝转发
 - [ ] 检查 `pricing_snapshot` 落库内容是否完整
 - [ ] 核对与国模移植包（`_reference/domestic-provider-kit`）的**价格口径冲突**——见下方 §7
 
+### ⚠️ 重要：缺价行为按币种分裂（已核实源码）
+
+| 路径 | 缺价时的行为 | 证据（已核实） |
+|---|---|---|
+| **国模（CNY）** | **fail-closed**：直接 `return err`，拒绝转发 | `service/openai_gateway_usage.go:253-258`；转发前还有 `ValidateNativePricingRequest`（`handler/gateway_inflight_reservation.go:76-82`，**即使余额预留开关关闭也无条件执行**） |
+| **USD（Claude/GPT 等）** | **fail-open**：记 `pricing_missing_record_zero_cost` 警告后**按零成本放行** | `service/openai_gateway_usage.go:259-272` |
+
+**这意味着**：项目红线「缺价不得放行」目前**只对国模成立**。USD 模型缺价会以**零成本**放行并只记一条 WARN 日志。
+
+→ 这是**上游既有行为**，不是我们引入的。是否要改成 fail-closed，需要你决策（见 §9 问题 11）。
+
 ---
 
-## 2. 需求 2：调度与并发 — ❌ 归我们
+## 2. 需求 2：调度与并发 — ❌ 归我们（**根因已定位**）
 
-**现状**：未做。上游有完整调度器，但没有「按账号精细控制并发」的现成能力（待侦察确认）。
+**问题陈述**（你的原话）：「部分账号不并发，部分账号并发过大」
 
-**已知相关代码**（待 task-2 补全）：
-- `backend/internal/service/openai_account_scheduler.go`（112 KB）
-- `backend/internal/service/gateway_scheduling.go`（98 KB）
-- `backend/internal/service/ratelimit_service.go`（107 KB）
-- `backend/internal/service/ratelimit_cn_providers.go`
+**根因（已核实源码）**：存在**「两个数」的结构性分裂**。
 
-**问题陈述**（用户原话）：「部分账号不并发，部分账号并发过大」
+| 用途 | 使用的字段 | 代码位置 |
+|---|---|---|
+| **真实抢槽硬上限**（决定能不能并发） | `account.Concurrency` | `service/gateway_scheduling.go:177,369,483,569,754,801` |
+| **选号负载率的分母**（决定会不会被选中） | `account.EffectiveLoadFactor()` | `service/gateway_scheduling.go:441` |
 
-**初步假设**（**待侦察验证，不是结论**）：
-- 账号级并发上限可能没有独立字段，或存在但默认值不合理
-- 调度器可能未把账号并发上限纳入评分
-- 粘性会话可能导致热点账号堆积
+```go
+// backend/internal/service/account.go:169  （已核实）
+func (a *Account) EffectiveLoadFactor() int {
+    if a.LoadFactor != nil && *a.LoadFactor > 0 { return *a.LoadFactor }  // 优先 load_factor
+    if a.Concurrency > 0 { return a.Concurrency }                          // 回落 concurrency
+    return 1
+}
+```
 
-**产出**：task-2 → `project-docs/architecture/02-scheduling.md`
+```go
+// backend/internal/repository/concurrency_cache.go  （已核实）
+loadRate := 0
+if ac.maxConcurrency > 0 {
+    loadRate = (currentConcurrency + waitingCount) * 100 / ac.maxConcurrency
+}
+```
+
+**后果**：
+- `load_factor > concurrency` → LoadRate 虚低 → 被优先选中 → **并发贴顶**
+- `load_factor < concurrency` → LoadRate 虚高 → 被 `LoadRate < 100` 过滤掉（`gateway_scheduling.go:730`）→ **表现为「不并发」**
+
+**另外两个已核实的关键事实**：
+
+| 事实 | 证据 |
+|---|---|
+| `concurrency <= 0` 表示**完全不限制**（直接返回 Acquired，不写 Redis） | `service/concurrency_service.go:343-349` |
+| `concurrency` 默认值 **3**；`load_factor` 是 `Optional().Nillable()`，**无默认值** | `ent/schema/account.go`、`migrations/001_init.sql:68` |
+
+**其他加剧因素**（已核实）：
+1. **粘性是流量集中的第一大结构性原因**：粘性 TTL 默认 3600s；高级调度器权重 `previous_response=5.0`、`session_sticky=3.0`，而 `load` 仅 **1.0**（`config.go:2494-2503`）。
+2. **WS 长连接持续占用并发**：抢槽时 `count = ZCARD(普通槽) + ZCARD(Live 租约)`（`concurrency_cache.go:71-107`），Live 租约 TTL 60s。
+3. **槽位泄漏最长占位 30 分钟**：槽位 TTL 默认 30 分钟（`config.go:2548`）。
+4. **快照秒级延迟**：账号变更走 `scheduler_outbox`，默认 1s 轮询、5s 滞后告警、10s 强制重建（`config.go:2569-2571`）。**「改了并发数没生效」要先排除这层。**
+
+**并发超限不是直接拒绝，是四段式**：换账号 → 指数退避等待（100ms→2s，±20% 抖动）→ 排队（sticky 3 / fallback 100）→ 最后才 429。
+
+**管理入口已存在**：账号编辑 / 批量编辑里有「并发数」与「负载因子」两个字段（`BulkEditAccountModal.vue`），
+文案是「提高负载因子可以提高对账号的调度频率」——**这正好印证了两者语义不同**。
+
+**产出**：`project-docs/architecture/02-scheduling.md`（543 行，含 20 条「不并发」+ 14 条「并发过大」排查清单）
+
+**⚠️ 注意**：以上是**代码层面的根因**。你的线上实际情况需要现场数据确认（Redis 槽位计数、账号字段实值）。
 
 ---
 
@@ -98,26 +144,32 @@
 
 ---
 
-## 4. 需求 4：兜底分组（默认兜底 AWSB 分组）— ⚠️ 机制已存在
+## 4. 需求 4：兜底分组（默认兜底 AWSB 分组）— ⚠️ 机制已存在，但语义与直觉不同
 
-**重要发现**：上游 `group` 表**已经有兜底分组字段**：
+**重要发现**：上游 `group` 表**已经有兜底分组字段**，但**触发条件与字段名暗示的不一样**（已核实源码）：
 
-| 字段 | 注释（源码原文） |
-|---|---|
-| `fallback_group_id` | 非 [CC] 请求降级使用的分组 ID |
-| `fallback_group_id_on_invalid_request` | **无效请求兜底使用的分组 ID** |
+| 字段 | **真实触发条件** | 证据（已核实） |
+|---|---|---|
+| `fallback_group_id` | **非 [CC] 客户端**请求降级 | `service/gateway_scheduling.go:922-949`（`resolveGatewayGroup` 循环，带环检测） |
+| `fallback_group_id_on_invalid_request` | **仅上游返回 prompt too long 时** | `handler/gateway_handler.go:1005-1054` |
 
-证据：`backend/ent/schema/group.go:202-209`、`backend/ent/group.go:108-110`
+⚠️ **字段名里的 "invalid request" 不是「分组 ID 无效」**。源码中**没有**「请求带不存在的分组 → 兜底」这条路径。
 
-**所以「兜底分组」不是要新建的功能，而是配置问题。** `AWSB` 在代码里**没有任何字面量**（`git grep -i awsb` = 0 命中），说明它是**你部署里的一个分组名称**。
+**所以「兜底分组」不是要新建的功能，而是配置问题。** `AWSB` 在代码里**没有任何字面量**（`git grep -i awsb` = 0 命中），说明它是**你部署里的一个分组名称**（可能是 AWS Bedrock 的缩写）。
 
-**待澄清**（需要你回答）：
-1. 「默认兜底」是指哪个场景的默认？
-   - (a) 请求带了**不存在的分组**时 → 用 `fallback_group_id_on_invalid_request`
-   - (b) 非 CC 客户端请求 → 用 `fallback_group_id`
-   - (c) 用户**没有分配任何分组**时 → 目前没有全局默认，需要新做
+**四种可能的语义**（需你确认是哪一种）：
+
+| 语义 | 现状 | 需要做什么 |
+|---|---|---|
+| (a) 非 CC 客户端降级 | ✅ 已支持 | **纯配置**：给分组设 `fallback_group_id` |
+| (b) 上游 prompt too long 兜底 | ✅ 已支持 | **纯配置**：给分组设 `fallback_group_id_on_invalid_request` |
+| (c) 用户**没有分配任何分组**时 | ❌ 无全局默认，直接落 `PlatformAnthropic`（`gateway_scheduling.go:63-66`） | **需写代码**：加全局默认分组设置 |
+| (d) 分组内**无可用账号**时兜底到别处 | ❌ 无（`gateway_handler.go:683-707` / `1070-1072` 直接失败） | **需写代码** |
+
+**待澄清**：
+1. 「默认兜底」是 (a) (b) (c) (d) 中的哪一种（或哪几种）？
 2. 「AWSB」是什么的缩写？是分组名还是账号来源？
-3. 是希望**全局默认**（所有分组未配置时统一兜底到 AWSB），还是**每个分组各自配置**？
+3. 要**全局默认**还是**每分组各自配置**？
 
 **产出**：task-4 报告 + 需求澄清后出方案
 
@@ -159,7 +211,7 @@ type NativeSchedule struct {
 
 ## 6. 需求 6：图片/视频生成兼容性 — ⚠️ 归我们
 
-**重要发现**：上游**已经有视频路由和视频计费字段**，不是从零开始。
+**重要发现**：上游**已经有视频路由和视频计费字段**，不是从零开始——**但视频被硬编码为 Grok 专属**。
 
 **已有的视频路由**（`backend/internal/server/routes/gateway.go:270-281`）：
 ```
@@ -190,6 +242,28 @@ video_model_prices          按模型族和分辨率覆盖视频每秒价格
 - 批量：`/v1/images/batches` 全套（提交/列表/查询/下载/取消/删除）
 - 分组开关：`allow_image_generation`、`allow_batch_image_generation`
 - 文档：`docs/ASYNC_IMAGE_TASKS.md`、`docs/BATCH_IMAGE_MVP.md`、`docs/seedance-api.md`
+
+### ⚠️ 视频的四个致命缺口（已核实）
+
+| # | 缺口 | 证据（已核实） |
+|---|---|---|
+| **V1** | **视频被硬编码为 Grok/xAI 专属**，非 Grok 分组的视频价被清空 | `migrations/220_clear_non_grok_video_generation_config.sql:1`：`-- Videos are Grok/xAI-only.` |
+| **V2** | **无独立 `allow_video_generation` 开关**，复用 `allow_image_generation` | `migrations/220:3`：`-- ...not a separate allow_video_generation flag which was never applied on this branch.` |
+| **V3** | **无本地任务表 + 被动结算**：只有客户端轮询到 `done+video.url` 才扣费 | `service/grok_media.go:431-440`（仅 Redis pending/billed 快照）；`docs/seedance-api.md:41` 原文：「不查询的任务不会自动结算」 |
+| **V4** | **未知视频模型回落到 2K 图片价** | `billing_service.go:2385` `getDefaultVideoPrice` → `s.getDefaultImagePrice(model, ImageBillingSize2K)` |
+
+**现有视频供应商**（只有两家，都是「原生协议透传 + 硬分支」）：
+
+| 供应商 | 路由 | 计费口径 |
+|---|---|---|
+| Grok / xAI | `routes/gateway.go:270-281`（12 条） | 按秒 × 时长 × 数量（`CalculateVideoCost`） |
+| Seedance / 火山 Ark | `routes/gateway.go:367-371` | 按上游 `usage.completion_tokens`（`service/seedance.go:150`） |
+
+**对比图片**：图片有**三条完整链路**（同步 / 异步 Redis 24h TTL / 批量 PostgreSQL 三表 + Worker），
+视频**一条都没有**——没有统一抽象、没有任务持久化、没有主动结算、没有对象存储。
+
+**国模媒体链路无法从移植包摘录**：`_reference/domestic-provider-kit/core` 只有 4 个 Go 文件
+（provider 身份 + 定价），**零媒体能力**。需独立设计。
 
 **所以「视频兼容性不如 new」需要精确定位**：到底缺什么？
 
@@ -275,3 +349,6 @@ video_model_prices          按模型族和分辨率覆盖视频每秒价格
 
 **关于价格口径（§7）**：
 10. 选 A / B / C / D 哪个？
+
+**关于缺价行为**：
+11. USD 模型缺价目前是**零成本放行**（只记 WARN）。要不要改成和国模一样**拒绝转发**？（改了对线上是破坏性变更：任何价格目录没覆盖的模型都会开始报错）
