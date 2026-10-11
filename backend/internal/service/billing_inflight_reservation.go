@@ -687,14 +687,12 @@ func (s *GatewayService) EstimateInflightReservation(ctx context.Context, apiKey
 }
 
 func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
-	if d.billing == nil || d.billing.pricingService == nil || req.Model == "" {
+	if d.billing == nil || req.Model == "" {
 		return nil
 	}
 	primary, _, _ := inflightBillingModelCandidates(ctx, d, apiKey, req.Model)
 	for _, model := range primary {
-		if !d.billing.pricingService.RequiresNativeCNY(model) {
-			continue
-		}
+		requiresNative := d.billing.pricingService.RequiresNativeCNY(model)
 		if d.resolver != nil {
 			input := PricingInput{Model: model}
 			if apiKey != nil {
@@ -702,12 +700,21 @@ func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, 
 				input.GroupID = apiKey.GroupID
 			}
 			resolved := d.resolver.Resolve(ctx, input)
+			if resolved != nil && resolved.pricingError != nil {
+				return resolved.pricingError
+			}
+			if !requiresNative {
+				continue
+			}
 			if req.Kind != InflightEstimateToken && (resolved == nil || (resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceChannel) || resolved.Mode == BillingModeToken) {
 				return fmt.Errorf("%w: native CNY media requests require an explicit per-request price for %s", ErrModelPricingUnavailable, model)
 			}
 			if resolved != nil && (resolved.BasePricing != nil || resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel) {
 				continue
 			}
+		}
+		if !requiresNative {
+			continue
 		}
 		if _, err := d.billing.GetModelPricing(model); err != nil {
 			return err

@@ -1,19 +1,36 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
 
 const nativeCNYDefaultURL = "https://basellm.github.io/llm-metadata/api/all.json"
 const nativeCNYSupplementDefaultURL = "https://raw.githubusercontent.com/szp2005/llm-prices-cn/main/prices.json"
+
+// Runtime validation also protects old/imported cards that bypass save-time checks.
+func validateManualCNYTokenPricing(p *ChannelModelPricing) error {
+	if p == nil || p.Currency != "CNY" {
+		return nil
+	}
+	for _, price := range []*float64{p.InputPrice, p.OutputPrice, p.CacheReadPrice, p.CacheWritePrice} {
+		if price == nil || math.IsNaN(*price) || math.IsInf(*price, 0) || *price < 0 {
+			return fmt.Errorf("%w: manual CNY token pricing requires explicit input, output, cache read and cache write prices", ErrModelPricingUnavailable)
+		}
+	}
+	return nil
+}
 
 // NativeRates are always original CNY per million tokens, never converted USD.
 type NativeRates struct {
@@ -41,6 +58,7 @@ type NativeSchedule struct {
 	Windows  []NativeWindow `json:"windows"`
 }
 type NativeCNYCard struct {
+	holidayCalendar *deepseekHolidayCalendar
 	NativeRates
 	Tiers     []NativeTier    `json:"tiers,omitempty"`
 	Schedule  *NativeSchedule `json:"schedule,omitempty"`
@@ -63,9 +81,24 @@ func nativeModelKey(name string) string {
 }
 
 func isNativeCNModel(name string) bool {
-	key := nativeModelKey(name)
-	for _, prefix := range []string{"deepseek", "qwen", "qwq", "qvq", "glm", "kimi", "moonshot", "minimax", "doubao", "ernie", "hunyuan", "spark", "mimo", "baichuan", "step", "longcat", "bailing", "sensenova"} {
-		if strings.HasPrefix(key, prefix) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	// These generic words need explicit model families, not arbitrary prefixes.
+	for _, family := range []string{"spark-lite", "spark-pro", "spark-max", "spark-ultra", "spark-x1"} {
+		if name == family || strings.HasPrefix(name, family+"-") {
+			return true
+		}
+	}
+	step := strings.TrimPrefix(name, "step")
+	step = strings.TrimPrefix(step, "-")
+	if strings.HasPrefix(name, "step") && len(step) > 0 && step[0] >= '0' && step[0] <= '9' {
+		return true
+	}
+	for _, prefix := range []string{"deepseek", "qwen", "qwq", "qvq", "glm", "kimi", "moonshot", "minimax", "doubao", "ernie", "hunyuan", "mimo", "baichuan", "longcat", "bailing", "sensenova"} {
+		if name == prefix || strings.HasPrefix(name, prefix+"-") || strings.HasPrefix(name, prefix+"_") ||
+			(strings.HasPrefix(name, prefix) && len(name) > len(prefix) && name[len(prefix)] >= '0' && name[len(prefix)] <= '9') {
 			return true
 		}
 	}
@@ -73,7 +106,13 @@ func isNativeCNModel(name string) bool {
 }
 
 func (s *PricingService) RequiresNativeCNY(model string) bool {
-	return s != nil && s.GetControls().NativeCNYEnabled && isNativeCNModel(model)
+	if s == nil || !s.GetControls().NativeCNYEnabled {
+		return false
+	}
+	s.mu.RLock()
+	card := s.nativeCNYCards[nativeModelKey(model)]
+	s.mu.RUnlock()
+	return card != nil || isNativeCNModel(model)
 }
 
 func validNativeRates(r NativeRates, complete bool) bool {
@@ -270,7 +309,7 @@ func nativeMinute(clock string) (int, bool) {
 }
 func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 	rates, tiers := c.NativeRates, c.Tiers
-	if c.Schedule != nil {
+	if c.Schedule != nil && !(strings.EqualFold(c.Provider, "deepseek") && deepseekOffPeakDay(at, c.holidayCalendar)) {
 		loc, _ := time.LoadLocation(c.Schedule.Timezone)
 		now := at.In(loc)
 		minute := now.Hour()*60 + now.Minute()
@@ -324,9 +363,13 @@ func nativePerToken(value *float64) *float64 {
 	return &price
 }
 func (s *PricingService) recordNativeCNYError(err error) {
+	if errors.Is(err, ErrPricingPullDisabled) || errors.Is(err, context.Canceled) {
+		return
+	}
 	s.mu.Lock()
 	s.nativeCNYError = err.Error()
 	s.mu.Unlock()
+	s.recordPricingSyncResult("CNY", err)
 }
 func (s *PricingService) loadNativeCNYCache() {
 	body, err := os.ReadFile(s.nativeCNYPath())
@@ -351,7 +394,7 @@ func (s *PricingService) loadNativeCNYCache() {
 	}
 	s.mu.Unlock()
 }
-func (s *PricingService) syncNativeCNY(force bool) error {
+func (s *PricingService) syncNativeCNY(force bool) (resultErr error) {
 	if !s.GetControls().NativeCNYEnabled {
 		return nil
 	}
@@ -365,6 +408,15 @@ func (s *PricingService) syncNativeCNY(force bool) error {
 	if !force && time.Since(last) < interval {
 		return nil
 	}
+	var supplementErr error
+	defer func() {
+		if resultErr != nil {
+			s.recordNativeCNYError(resultErr)
+		} else {
+			s.recordPricingSyncResult("CNY", nil)
+			s.recordPricingSyncResult("CNY supplement", supplementErr)
+		}
+	}()
 	ctx, finish, generation, err := s.beginRemoteRequest(30 * time.Second)
 	if err != nil {
 		return err
@@ -392,7 +444,6 @@ func (s *PricingService) syncNativeCNY(force bool) error {
 		supplement = nativeCNYSupplementDefaultURL
 	}
 	supplement, err = s.validatePricingURL(supplement)
-	var supplementErr error
 	if err != nil {
 		supplementErr = err
 	} else {
@@ -454,6 +505,12 @@ func (s *PricingService) nativePricingAt(model string, at time.Time) (*ModelPric
 	if card == nil {
 		return nil, fmt.Errorf("%w: no original CNY price for %s", ErrModelPricingUnavailable, model)
 	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	clonedCard := *card
+	clonedCard.holidayCalendar = s.deepseekCalendar()
+	card = &clonedCard
 	rates := card.ratesAt(0, at)
 	p := &ModelPricing{Currency: "CNY", PricingSource: card.Source, NativeCard: card, NativePricingAt: at, CacheCreationPriceExplicit: true}
 	applyNativeRates(p, rates)
@@ -474,6 +531,9 @@ func applyNativeRates(p *ModelPricing, r NativeRates) {
 	p.ImageInputPricePerToken = 0
 	p.ImageCacheReadPricePerToken = 0
 }
+
+var missingNativeCachePriceWarned sync.Map
+
 func resolveNativeTokenPricing(p *ModelPricing, tokens UsageTokens, at time.Time) (*ModelPricing, error) {
 	if p.NativeCard == nil {
 		return p, nil
@@ -486,6 +546,11 @@ func resolveNativeTokenPricing(p *ModelPricing, tokens UsageTokens, at time.Time
 	}
 	r := p.NativeCard.ratesAt(tokens.InputTokens+tokens.CacheReadTokens+tokens.CacheCreationTokens, at)
 	if (tokens.CacheReadTokens > 0 && r.CacheRead == nil) || ((tokens.CacheCreationTokens > 0 || tokens.CacheCreation5mTokens > 0 || tokens.CacheCreation1hTokens > 0) && r.CacheWrite == nil) {
+		key := fmt.Sprintf("%s:%t:%t", p.NativeCard.Provider, r.CacheRead == nil, r.CacheWrite == nil)
+		if _, seen := missingNativeCachePriceWarned.LoadOrStore(key, struct{}{}); !seen {
+			slog.Warn("CNY pricing unavailable: usage includes cache tokens without explicit price; refusing to assume free caching",
+				"provider", p.NativeCard.Provider, "cache_read_price_missing", r.CacheRead == nil, "cache_write_price_missing", r.CacheWrite == nil)
+		}
 		return nil, fmt.Errorf("%w: CNY cache price is missing", ErrModelPricingUnavailable)
 	}
 	cloned := *p

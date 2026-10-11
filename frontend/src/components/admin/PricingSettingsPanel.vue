@@ -28,6 +28,13 @@
         </div>
         <p v-if="status.native_cny_enabled && !status.cny_model_count" class="text-sm text-amber-600">{{ t('admin.settings.pricing.noCNY') }}</p>
         <p v-if="status.cny_error" class="break-words text-sm text-amber-600">{{ status.cny_error }}</p>
+        <p v-if="status.usd_error" class="break-words text-sm text-amber-600">{{ status.usd_error }}</p>
+        <div class="space-y-2">
+          <label for="deepseek-holidays" class="block font-medium">{{ t('admin.settings.pricing.holidays') }}</label>
+          <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.holidaysHint') }}</p>
+          <textarea id="deepseek-holidays" v-model="holidayDraft" :disabled="saving" rows="5" class="input w-full" data-testid="deepseek-holidays" />
+          <button type="button" class="btn btn-secondary" :disabled="saving" data-testid="save-deepseek-holidays" @click="saveHolidays">{{ t('admin.settings.pricing.saveHolidays') }}</button>
+        </div>
         <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.sources') }} <a href="https://github.com/basellm/llm-metadata" target="_blank" rel="noopener noreferrer" class="underline">basellm</a> · <a href="https://llmabacus.com" target="_blank" rel="noopener noreferrer" class="underline">LLM Abacus</a></p>
         <button type="button" class="btn btn-secondary" :disabled="saving || refreshing || !status.remote_enabled" data-testid="refresh-pricing" @click="refresh">{{ t('admin.settings.pricing.refresh') }}</button>
       </template>
@@ -42,7 +49,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/format'
-import { getPricingControls, updatePricingControls, refreshPricing, type PricingStatus, type PricingControls } from '@/api/admin/pricing'
+import { getPricingControls, updatePricingControls, refreshPricing, updateDeepseekHolidays, type PricingStatus, type PricingControls } from '@/api/admin/pricing'
 
 const { t } = useI18n()
 const app = useAppStore()
@@ -51,6 +58,7 @@ const saving = ref(false)
 const refreshing = ref(false)
 const loading = ref(true)
 const error = ref('')
+const holidayDraft = ref('')
 let revision = 0
 const timestamp = (date: string) => date && !date.startsWith('0001-') ? formatDateTime(date) : t('admin.settings.pricing.never')
 const message = (err: unknown) => (err as { response?: { data?: { message?: string } } }).response?.data?.message || t('admin.settings.pricing.failed')
@@ -58,7 +66,21 @@ const message = (err: unknown) => (err as { response?: { data?: { message?: stri
 async function load() {
   loading.value = true
   error.value = ''
-  try { status.value = await getPricingControls() } catch (err) { error.value = message(err) } finally { loading.value = false }
+  try {
+    status.value = await getPricingControls()
+    holidayDraft.value = (status.value.deepseek_holidays || []).join('\n')
+  } catch (err) { error.value = message(err) } finally { loading.value = false }
+}
+async function saveHolidays() {
+  if (!status.value || saving.value) return
+  saving.value = true
+  revision++
+  error.value = ''
+  try {
+    status.value = await updateDeepseekHolidays(holidayDraft.value.split(/[\s,]+/).filter(Boolean))
+    holidayDraft.value = (status.value.deepseek_holidays || []).join('\n')
+    app.showSuccess(t('admin.settings.pricing.saved'))
+  } catch (err) { error.value = message(err) } finally { saving.value = false }
 }
 async function save(patch: Partial<PricingControls>) {
   if (!status.value || saving.value) return

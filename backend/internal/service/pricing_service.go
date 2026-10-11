@@ -262,22 +262,28 @@ type LiteLLMRawEntry struct {
 
 // PricingService 动态价格服务
 type PricingService struct {
-	nativeCNYCards   map[string]*NativeCNYCard
-	nativeCNYUpdated time.Time
-	nativeCNYError   string
-	controlsMu       sync.Mutex
-	controls         *PricingControls
-	settingsRepo     SettingRepository
-	remoteGeneration uint64
-	remoteRequestID  uint64
-	remoteCancels    map[uint64]context.CancelFunc
-	stopping         bool
-	cfg              *config.Config
-	remoteClient     PricingRemoteClient
-	mu               sync.RWMutex
-	pricingData      map[string]*LiteLLMModelPricing
-	lastUpdated      time.Time
-	localHash        string
+	nativeCNYCards    map[string]*NativeCNYCard
+	nativeCNYUpdated  time.Time
+	nativeCNYError    string
+	controlsMu        sync.Mutex
+	controls          *PricingControls
+	holidayCalendar   *deepseekHolidayCalendar
+	settingsRepo      SettingRepository
+	usdPricingError   string
+	alertsMu          sync.Mutex
+	syncAlertTimes    map[string]time.Time
+	alertSender       pricingAlertSender
+	alertEmailLimiter *slidingWindowLimiter
+	remoteGeneration  uint64
+	remoteRequestID   uint64
+	remoteCancels     map[uint64]context.CancelFunc
+	stopping          bool
+	cfg               *config.Config
+	remoteClient      PricingRemoteClient
+	mu                sync.RWMutex
+	pricingData       map[string]*LiteLLMModelPricing
+	lastUpdated       time.Time
+	localHash         string
 	// fallback/override 文件在最近一次成功重建时的内容指纹，定时器据此判断是否
 	// 需要从本地目录缓存重建叠加层。
 	customFilesHash string
@@ -316,9 +322,7 @@ func (s *PricingService) Initialize() error {
 
 	// 启动定时更新
 	if s.RemotePullEnabled() && s.GetControls().NativeCNYEnabled {
-		if err := s.syncNativeCNY(false); err != nil {
-			s.recordNativeCNYError(err)
-		}
+		_ = s.syncNativeCNY(false)
 	}
 	s.startUpdateScheduler()
 
@@ -374,9 +378,7 @@ func (s *PricingService) startUpdateScheduler() {
 					}
 				}
 				if s.RemotePullEnabled() {
-					if err := s.syncNativeCNY(false); err != nil {
-						s.recordNativeCNYError(err)
-					}
+					_ = s.syncNativeCNY(false)
 				}
 				if watchCustom {
 					s.reloadIfCustomFilesChanged()
@@ -454,7 +456,8 @@ func (s *PricingService) checkAndUpdatePricing() error {
 }
 
 // syncWithRemote 与远程同步（基于哈希校验）
-func (s *PricingService) syncWithRemote() error {
+func (s *PricingService) syncWithRemote() (resultErr error) {
+	defer func() { s.recordUSDPricingSyncResult(resultErr) }()
 	if !s.RemotePullEnabled() {
 		return nil
 	}
@@ -610,7 +613,8 @@ func (s *PricingService) reloadCustomPricingLayers() error {
 }
 
 // downloadPricingData 从远程下载价格数据
-func (s *PricingService) downloadPricingData() error {
+func (s *PricingService) downloadPricingData() (resultErr error) {
+	defer func() { s.recordUSDPricingSyncResult(resultErr) }()
 	ctx, finish, generation, err := s.beginRemoteRequest(30 * time.Second)
 	if err != nil {
 		return err
@@ -1751,7 +1755,6 @@ func (s *PricingService) ForceUpdate() error {
 		}
 	}
 	if err := s.syncNativeCNY(true); err != nil {
-		s.recordNativeCNYError(err)
 		return err
 	}
 	return usdErr

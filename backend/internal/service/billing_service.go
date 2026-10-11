@@ -307,16 +307,7 @@ func isDeepSeekModel(model string) bool {
 // 01:00–04:00 与 06:00–10:00 UTC（半开区间），仅工作日；
 // 周末（北京时间周六/周日）全天低谷。北京时间用固定 +8 偏移（无夏令时）。
 func deepseekPeakMultiplierAt(now time.Time) float64 {
-	beijing := now.In(time.FixedZone("Asia/Shanghai", 8*3600))
-	switch beijing.Weekday() {
-	case time.Saturday, time.Sunday:
-		return 1.0
-	}
-	switch h := now.UTC().Hour(); {
-	case h >= 1 && h < 4, h >= 6 && h < 10:
-		return 2.0
-	}
-	return 1.0
+	return deepseekPeakMultiplierWithCalendar(now, defaultDeepseekCalendar)
 }
 
 // deepseekProRoutesToFlashAt：官方公告自北京时间 2026-09-14 12:00（04:00 UTC）起，
@@ -1412,10 +1403,17 @@ func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time)
 // GetModelPricingWithChannel 获取模型定价，渠道配置的价格覆盖默认值。
 // 与其他 token 字段一致，渠道留空的图片输入/输出价沿用目录价，见 applyChannelImagePriceOverrides。
 func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
-	if !hasChannelTokenOverrides(channelPricing) {
-		return s.GetModelPricing(model)
+	return s.getModelPricingWithChannelAt(model, channelPricing, timezone.Now())
+}
+
+func (s *BillingService) getModelPricingWithChannelAt(model string, channelPricing *ChannelModelPricing, pricingAt time.Time) (*ModelPricing, error) {
+	if err := validateManualCNYTokenPricing(channelPricing); err != nil {
+		return nil, err
 	}
-	pricing, err := s.getUSDModelPricingAt(model, time.Now())
+	if !hasChannelTokenOverrides(channelPricing) {
+		return s.getModelPricingAt(model, pricingAt)
+	}
+	pricing, err := s.getUSDModelPricingAt(model, pricingAt)
 	if channelPricing.Currency == "CNY" {
 		pricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
 		err = nil
@@ -1514,13 +1512,16 @@ type CostInput struct {
 // CalculateCostUnified 统一计费入口，支持三种计费模式。
 // 使用 ModelPricingResolver 解析定价，然后根据 BillingMode 分发计算。
 func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
+	if input.Resolved != nil && input.Resolver == nil {
+		input.Resolver = NewModelPricingResolver(nil, s)
+	}
 	if input.Resolver == nil {
 		// 无 Resolver，回退到旧路径
 		applyLongContextBilling := true
 		if input.LongContextBillingEnabled != nil {
 			applyLongContextBilling = *input.LongContextBillingEnabled
 		}
-		pricing, err := s.GetModelPricing(input.Model)
+		pricing, err := s.getModelPricingAt(input.Model, input.PricingAt)
 		if err != nil {
 			return nil, err
 		}
@@ -1537,10 +1538,14 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 	resolved := input.Resolved
 	if resolved == nil {
 		resolved = input.Resolver.Resolve(input.Ctx, PricingInput{
-			Model:   input.Model,
-			GroupID: input.GroupID,
-			Group:   input.Group,
+			Model:     input.Model,
+			GroupID:   input.GroupID,
+			Group:     input.Group,
+			PricingAt: input.PricingAt,
 		})
+	}
+	if resolved.pricingError != nil {
+		return nil, resolved.pricingError
 	}
 
 	// 保存时强制 > 0；若仍有负数泄漏（缓存/迁移残留），按 0 处理避免按 1x 误扣。
@@ -1593,6 +1598,9 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 同源），零值回退当前时刻。
 	pricingAt := input.PricingAt
 	if pricingAt.IsZero() {
+		pricingAt = resolved.pricingAt
+	}
+	if pricingAt.IsZero() {
 		pricingAt = timezone.Now()
 	}
 
@@ -1610,7 +1618,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 仅作用于默认价卡（Source=LiteLLM，无分组/渠道自定义定价）——分组/渠道
 	// 自定义定价保持运营者语义，不叠加。先克隆再乘，避免污染共享 fallbackPrices 指针。
 	if pricing.Currency != "CNY" && resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
-		if mult := deepseekPeakMultiplierAt(pricingAt); mult > 1 {
+		if mult := deepseekPeakMultiplierWithCalendar(pricingAt, s.pricingService.deepseekCalendar()); mult > 1 {
 			cloned := *pricing
 			cloned.InputPricePerToken *= mult
 			cloned.OutputPricePerToken *= mult
@@ -1623,7 +1631,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	applyLongCtx := len(resolved.Intervals) == 0 && contextTierPricingEnabled
 
 	breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
-	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, input.PricingAt))
+	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, pricingAt))
 	applyCostBreakdownMultiplier(breakdown, reasoningEffortBillingMultiplier(input.ReasoningEffort, pricing.ReasoningEffortMultipliers))
 	return breakdown, nil
 }

@@ -43,6 +43,8 @@ type ResolvedPricing struct {
 	channelPricing *ChannelModelPricing
 
 	longContextPricingEnabled bool
+	pricingAt                 time.Time
+	pricingError              error
 }
 
 // ModelPricingResolver 统一模型定价解析器。
@@ -62,15 +64,22 @@ func NewModelPricingResolver(channelService *ChannelService, billingService *Bil
 
 // PricingInput 定价解析输入
 type PricingInput struct {
-	Model   string
-	GroupID *int64 // nil 表示不检查渠道
-	Group   *Group
+	Model     string
+	GroupID   *int64 // nil 表示不检查渠道
+	Group     *Group
+	PricingAt time.Time
 }
 
 // Resolve 解析模型定价。
 // 1. 获取基础定价（LiteLLM → Fallback）
 // 2. 如果指定了 GroupID，查找渠道定价并覆盖
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
+	if input.PricingAt.IsZero() {
+		input.PricingAt = GatewayTokenRequestPricingAtFromContext(ctx)
+	}
+	if input.PricingAt.IsZero() {
+		input.PricingAt = time.Now()
+	}
 	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
 	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
 		// Group token cards only override the first-tier / flat rates.
@@ -80,7 +89,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 			stripped.Intervals = nil
 			groupPricing = &stripped
 		}
-		resolved := r.resolveConfiguredPricing(groupPricing, input.Model, PricingSourceGroup)
+		resolved := r.resolveConfiguredPricing(groupPricing, input.Model, PricingSourceGroup, input.PricingAt)
 		resolved.longContextPricingEnabled = longContextPricingEnabled
 		return resolved
 	}
@@ -107,10 +116,11 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	}
 
 	// 1. 获取基础定价
-	basePricing, source := r.resolveBasePricing(input.Model)
+	basePricing, source := r.resolveBasePricing(input.Model, input.PricingAt)
 
 	resolved := &ResolvedPricing{
 		Mode:                   BillingModeToken,
+		pricingAt:              input.PricingAt,
 		BasePricing:            basePricing,
 		Source:                 source,
 		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
@@ -118,7 +128,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	resolved.longContextPricingEnabled = longContextPricingEnabled
 
 	// 2. 如果有 GroupID，尝试渠道覆盖
-	if chPricing != nil {
+	if chPricing != nil && (hasChannelTokenOverrides(chPricing) || chPricing.Currency == "CNY") {
 		resolved.Source = PricingSourceChannel
 		resolved.channelPricing = chPricing
 		r.applyTokenOverrides(chPricing, resolved, input.Model)
@@ -129,17 +139,21 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	return resolved
 }
 
-func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string) *ResolvedPricing {
+func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string, times ...time.Time) *ResolvedPricing {
+	at := time.Now()
+	if len(times) > 0 && !times[0].IsZero() {
+		at = times[0]
+	}
 	mode := config.BillingMode
 	if mode == "" {
 		mode = BillingModeToken
 	}
-	resolved := &ResolvedPricing{Mode: mode, Source: source, channelPricing: config}
+	resolved := &ResolvedPricing{Mode: mode, Source: source, channelPricing: config, pricingAt: at}
 	if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
 		r.applyRequestTierOverrides(config, resolved)
 		return resolved
 	}
-	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
+	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, at)
 	if config.Currency == "CNY" {
 		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
 	}
@@ -172,8 +186,12 @@ func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
 }
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
-func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, string) {
-	pricing, err := r.billingService.GetModelPricing(model)
+func (r *ModelPricingResolver) resolveBasePricing(model string, times ...time.Time) (*ModelPricing, string) {
+	at := time.Now()
+	if len(times) > 0 && !times[0].IsZero() {
+		at = times[0]
+	}
+	pricing, err := r.billingService.getModelPricingAt(model, at)
 	if err != nil {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback",
 			"model", model, "error", err)
@@ -212,6 +230,10 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 	if chPricing == nil {
 		return
 	}
+	if (chPricing.BillingMode == "" || chPricing.BillingMode == BillingModeToken) &&
+		!hasChannelTokenOverrides(chPricing) && chPricing.Currency != "CNY" {
+		return
+	}
 
 	resolved.Source = PricingSourceChannel
 	resolved.channelPricing = chPricing
@@ -230,6 +252,11 @@ func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupI
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖
 func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing, models ...string) {
+	if err := validateManualCNYTokenPricing(chPricing); err != nil {
+		resolved.BasePricing, resolved.Intervals = nil, nil
+		resolved.pricingError = err
+		return
+	}
 	// A model-only rule is an allowlist/display entry, not a currency override.
 	// Preserve native CNY pricing and unavailable pricing instead of coercing an
 	// empty USD form entry into USD rates or a zero-valued manual card.
@@ -244,7 +271,7 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	if chPricing.Currency == "CNY" {
 		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
 	} else if resolved.BasePricing != nil && resolved.BasePricing.Currency == "CNY" {
-		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
+		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, resolved.pricingAt)
 	}
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}
@@ -331,6 +358,9 @@ func filterValidIntervals(intervals []PricingInterval) []PricingInterval {
 // GetIntervalPricing 根据 context token 数获取区间定价。
 // 如果有区间列表，找到匹配区间并构造 ModelPricing；否则直接返回 BasePricing。
 func (r *ModelPricingResolver) GetIntervalPricing(resolved *ResolvedPricing, totalContextTokens int) *ModelPricing {
+	if resolved.pricingError != nil {
+		return nil
+	}
 	if len(resolved.Intervals) == 0 {
 		return resolved.BasePricing
 	}

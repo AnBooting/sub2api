@@ -1145,7 +1145,7 @@ func (s *GatewayService) calculateTokenCost(
 	var resolved *ResolvedPricing
 	if s.resolver != nil && apiKey.Group != nil {
 		gid := apiKey.Group.ID
-		resolved = s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
+		resolved = s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group, PricingAt: pricingAt})
 	}
 
 	cost, err := s.billingService.CalculateTokenCostForRequest(TokenCostRequest{
@@ -1162,7 +1162,7 @@ func (s *GatewayService) calculateTokenCost(
 	})
 	if err != nil {
 		logger.LegacyPrintf("service.gateway", "Calculate cost failed: %v", err)
-		if s.billingService.pricingService.RequiresNativeCNY(billingModel) {
+		if s.billingService.pricingService.RequiresNativeCNY(billingModel) || (resolved != nil && resolved.pricingError != nil) {
 			return &CostBreakdown{PricingError: err}
 		}
 		return &CostBreakdown{ActualCost: 0}

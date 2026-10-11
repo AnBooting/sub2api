@@ -49,19 +49,20 @@ func (s *PricingService) RefreshNativeCNY() {
 	s.controlsMu.Unlock()
 	go func() {
 		defer s.wg.Done()
-		if err := s.syncNativeCNY(true); err != nil {
-			s.recordNativeCNYError(err)
-		}
+		_ = s.syncNativeCNY(true) // The sync method records failures and alerts once.
 	}()
 }
 
 func (s *PricingService) GetPricingControlStatus() map[string]any {
 	controls := s.GetControls()
+	holidays := s.DeepseekHolidayDates()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return map[string]any{
 		"remote_enabled": controls.RemoteEnabled, "native_cny_enabled": controls.NativeCNYEnabled,
-		"usd_model_count": len(s.pricingData), "usd_last_updated": s.lastUpdated,
+		"deepseek_holidays": holidays,
+		"usd_model_count":   len(s.pricingData), "usd_last_updated": s.lastUpdated,
+		"usd_error":       s.usdPricingError,
 		"cny_model_count": len(s.nativeCNYCards), "cny_last_updated": s.nativeCNYUpdated, "cny_error": s.nativeCNYError,
 	}
 }
@@ -70,9 +71,20 @@ func (s *PricingService) loadControls(ctx context.Context) error {
 	if s.settingsRepo == nil {
 		return nil
 	}
-	values, err := s.settingsRepo.GetMultiple(ctx, []string{SettingKeyPricingControls})
+	values, err := s.settingsRepo.GetMultiple(ctx, []string{SettingKeyPricingControls, SettingKeyDeepseekHolidays})
 	if err != nil {
 		return err
+	}
+	if raw := values[SettingKeyDeepseekHolidays]; raw != "" {
+		var dates []string
+		if err := json.Unmarshal([]byte(raw), &dates); err != nil {
+			return err
+		}
+		calendar, err := newDeepseekCalendar(dates)
+		if err != nil {
+			return err
+		}
+		s.holidayCalendar = calendar
 	}
 	if raw := values[SettingKeyPricingControls]; raw != "" {
 		var controls PricingControls

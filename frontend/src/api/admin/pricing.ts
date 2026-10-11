@@ -5,6 +5,8 @@ export interface PricingControls {
   native_cny_enabled: boolean
 }
 export interface PricingStatus extends PricingControls {
+	deepseek_holidays?: string[]
+	usd_error?: string
   usd_model_count: number
   usd_last_updated: string
   cny_model_count: number
@@ -20,4 +22,8 @@ export async function updatePricingControls(controls: PricingControls): Promise<
 }
 export async function refreshPricing(): Promise<PricingStatus> {
   return (await apiClient.post<PricingStatus>(`${path}/refresh`, undefined, { timeout: 65000 })).data
+}
+
+export async function updateDeepseekHolidays(dates: string[]): Promise<PricingStatus> {
+  return (await apiClient.put<PricingStatus>(`${path}/holidays`, { dates })).data
 }

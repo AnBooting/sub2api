@@ -783,6 +783,7 @@ func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	{
 		channels.GET("", h.Admin.Channel.List)
 		channels.GET("/model-pricing", h.Admin.Channel.GetModelDefaultPricing)
+		channels.PUT("/pricing/holidays", h.Admin.Channel.UpdateDeepseekHolidays)
 		channels.GET("/pricing/sync-models", h.Admin.Channel.SyncPricingModels)
 		channels.GET("/pricing/settings", h.Admin.Channel.GetPricingControls)
 		channels.PUT("/pricing/settings", h.Admin.Channel.UpdatePricingControls)

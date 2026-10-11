@@ -21,20 +21,27 @@ const (
 // =========================
 
 func (s *OpsService) GetEmailNotificationConfig(ctx context.Context) (*OpsEmailNotificationConfig, error) {
+	if s == nil {
+		return defaultOpsEmailNotificationConfig(), nil
+	}
+	return getOpsEmailNotificationConfig(ctx, s.settingRepo)
+}
+
+func getOpsEmailNotificationConfig(ctx context.Context, settingRepo SettingRepository) (*OpsEmailNotificationConfig, error) {
 	defaultCfg := defaultOpsEmailNotificationConfig()
-	if s == nil || s.settingRepo == nil {
+	if settingRepo == nil {
 		return defaultCfg, nil
 	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
 
-	raw, err := s.settingRepo.GetValue(ctx, SettingKeyOpsEmailNotificationConfig)
+	raw, err := settingRepo.GetValue(ctx, SettingKeyOpsEmailNotificationConfig)
 	if err != nil {
 		if errors.Is(err, ErrSettingNotFound) {
 			// Initialize defaults on first read (best-effort).
 			if b, mErr := json.Marshal(defaultCfg); mErr == nil {
-				_ = s.settingRepo.Set(ctx, SettingKeyOpsEmailNotificationConfig, string(b))
+				_ = settingRepo.Set(ctx, SettingKeyOpsEmailNotificationConfig, string(b))
 			}
 			return defaultCfg, nil
 		}

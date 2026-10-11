@@ -13,6 +13,25 @@ func (h *ChannelHandler) GetPricingControls(c *gin.Context) {
 	response.Success(c, h.pricingService.GetPricingControlStatus())
 }
 
+func (h *ChannelHandler) UpdateDeepseekHolidays(c *gin.Context) {
+	var req struct {
+		Dates *[]string `json:"dates" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "dates must be a list of YYYY-MM-DD holiday dates")
+		return
+	}
+	if err := h.pricingService.UpdateDeepseekHolidays(c.Request.Context(), *req.Dates); err != nil {
+		if errors.Is(err, service.ErrInvalidDeepseekHolidays) {
+			response.BadRequest(c, err.Error())
+		} else {
+			response.InternalError(c, "could not save holiday calendar")
+		}
+		return
+	}
+	response.Success(c, h.pricingService.GetPricingControlStatus())
+}
+
 func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 	var req struct {
 		RemoteEnabled    *bool `json:"remote_enabled" binding:"required"`
