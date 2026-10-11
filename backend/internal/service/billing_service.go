@@ -1814,7 +1814,9 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 			}
 		}
 	}
-	if unitPrice == nil && input.SizeTier == "" {
+	// A missing named price still falls back to genuine context tiers even
+	// when callers supplied a size. Never borrow a different named tier.
+	if unitPrice == nil {
 		totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
 		var contextTiers []PricingInterval
 		for _, tier := range resolved.RequestTiers {

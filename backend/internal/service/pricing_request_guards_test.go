@@ -96,6 +96,62 @@ func TestRequestBillingContextPerRequestMissingAndExplicitZero(t *testing.T) {
 }
 func requestPricingTestInt(value int) *int { return &value }
 
+func TestCalculateCostUnified_SizeAndContextTierFallback(t *testing.T) {
+	zero, quarter, one, other := 0.0, 0.25, 1.0, 0.9
+	for _, test := range []struct {
+		name        string
+		root        *float64
+		tiers       []PricingInterval
+		want        float64
+		unavailable bool
+	}{
+		{name: "size_without_named_uses_context_before_default", root: &one, tiers: []PricingInterval{{MinTokens: 0, PerRequestPrice: &quarter}}, want: 0.25},
+		{name: "size_without_named_context_zero_before_default", root: &one, tiers: []PricingInterval{{MinTokens: 0, PerRequestPrice: &zero}}, want: 0},
+		{name: "size_without_named_context_price_without_default", tiers: []PricingInterval{{MinTokens: 0, PerRequestPrice: &quarter}}, want: 0.25},
+		{name: "context_miss_uses_default", root: &one, tiers: []PricingInterval{{MinTokens: 11, PerRequestPrice: &quarter}}, want: 1},
+		{name: "context_miss_without_default_rejects", tiers: []PricingInterval{{MinTokens: 11, PerRequestPrice: &quarter}}, unavailable: true},
+		{name: "named_zero_before_context_and_default", root: &one, tiers: []PricingInterval{{TierLabel: "1K", PerRequestPrice: &zero}, {MinTokens: 0, PerRequestPrice: &quarter}}, want: 0},
+		{name: "named_nil_uses_context_before_default", root: &one, tiers: []PricingInterval{{TierLabel: "1K", InputPrice: &one}, {MinTokens: 0, PerRequestPrice: &quarter}}, want: 0.25},
+		{name: "other_named_price_is_not_context", tiers: []PricingInterval{{TierLabel: "2K", PerRequestPrice: &other}}, unavailable: true},
+		{name: "other_named_price_does_not_hide_context", root: &one, tiers: []PricingInterval{{TierLabel: "2K", PerRequestPrice: &other}, {MinTokens: 0, PerRequestPrice: &quarter}}, want: 0.25},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			billing := newTestBillingService()
+			resolver := NewModelPricingResolver(nil, billing)
+			group := &Group{ID: 1, RateMultiplier: 1, ModelPricing: []ChannelModelPricing{{Models: []string{"image-model"}, BillingMode: BillingModeImage, Currency: "CNY", PerRequestPrice: test.root, Intervals: test.tiers}}}
+			// Resolve a real configured card, then preserve the existing nonempty
+			// size + context input used by actual image settlement callers.
+			resolved := resolver.Resolve(context.Background(), PricingInput{Model: "image-model", Group: group})
+			input := CostInput{Ctx: context.Background(), Model: "image-model", RequestCount: 1, SizeTier: "1K", Tokens: UsageTokens{InputTokens: 10}, RateMultiplier: 1, Resolver: resolver, Resolved: resolved}
+			cost, err := billing.CalculateCostUnified(input)
+			if test.unavailable {
+				require.ErrorIs(t, err, ErrModelPricingUnavailable)
+				require.Nil(t, cost)
+			} else {
+				require.NoError(t, err)
+				require.InDelta(t, test.want, cost.TotalCost, 1e-12)
+				require.Equal(t, "CNY", cost.PricingCurrency)
+			}
+			// Exercise the opaque quote too; a helper-only success is insufficient.
+			_, request, err := (inflightEstimateDeps{billing: billing}).prepareRequestBilling(context.Background(), &APIKey{GroupID: requestPricingTestInt64(1), Group: group}, InflightEstimateRequest{Model: "image-model"})
+			require.NoError(t, err)
+			scope, err := request.ScopeFor(1, "", "")
+			require.NoError(t, err)
+			quote, err := request.PricingFor(scope)
+			require.NoError(t, err)
+			cost, err = quote.Calculate(input)
+			if test.unavailable {
+				require.ErrorIs(t, err, ErrModelPricingUnavailable)
+				require.Nil(t, cost)
+				return
+			}
+			require.NoError(t, err)
+			require.InDelta(t, test.want, cost.TotalCost, 1e-12)
+			require.Equal(t, "CNY", cost.PricingCurrency)
+		})
+	}
+}
+
 func TestCalculateCostUnified_LegacyDefaultPresenceCompatibility(t *testing.T) {
 	zero := 0.0
 	for _, test := range []struct {
