@@ -416,6 +416,32 @@ func TestArtexQuotedToolJSONStringIsNeverAnActualDeclaration(t *testing.T) {
 	}
 }
 
+func TestArtexWholeTailBoundedScanSemanticCases(t *testing.T) {
+	// Source-derived fixed text, not a benchmark or a broader resource policy.
+	const prefix = "**中间产物输出规约**：脚本、payload、抓到的响应体、临时数据等一切中间产物，**一律写到本次意图的专属工作目录 "
+	const suffix = "**（已自动建好，直接用相对路径写在这里即可，无需再手动建目录）——**不要写 /tmp、不要用其它绝对路径**。"
+	for _, tc := range []struct {
+		name, text string
+		expected   bool
+	}{
+		{"repeatPrefixNoSuffix", strings.Repeat(prefix, 3), false},
+		{"emptySlotThenValidTail", prefix + suffix + "\n" + prefix + "valid-relative-dir" + suffix, true},
+		{"firstValidDirectory", prefix + "valid-relative-dir" + suffix, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			require.Equal(t, tc.expected, artexWholeTail(tc.text, prefix, suffix))
+			// Keep all three independent actual schemas intact for the protocol fixture.
+			for _, protocol := range []ArtexProtocol{ArtexAnthropic, ArtexChat, ArtexResponses} {
+				request := artexFixtureRequest(t, protocol, "worker")
+				require.Len(t, request["tools"], 3)
+				artexFixtureSetInstruction(request, protocol, tc.text)
+				_, found := DetectArtexCore(protocol, artexFixtureMarshal(t, request))
+				require.Equal(t, tc.expected, found)
+			}
+		})
+	}
+}
+
 func TestArtexGuardDecisionModesAndMetadataOnlyLogs(t *testing.T) {
 	var logs bytes.Buffer
 	old := slog.Default()

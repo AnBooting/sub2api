@@ -171,6 +171,11 @@ func artexWholeTail(text, prefix, suffix string) bool {
 		}
 		text = text[start+len(prefix):]
 		end := strings.Index(text, suffix)
+		if end < 0 {
+			// No later prefix can have a suffix if the entire remainder has none.
+			// Avoid repeatedly scanning the same suffix-less remaining text.
+			return false
+		}
 		if end > 0 {
 			return true
 		} // only the directory slot is variable
