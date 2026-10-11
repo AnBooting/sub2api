@@ -30,6 +30,30 @@ func RegisterGatewayRoutes(
 	compositeResolver *service.CompositeRouteResolver,
 	cfg *config.Config,
 ) {
+	registerGatewayRoutes(r, h, apiKeyAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, nil)
+}
+
+// testDispatch is private fixture injection only. The public/production entry
+// always supplies nil; no request/header/env can substitute business handlers.
+func registerGatewayRoutes(
+	r *gin.Engine, h *handler.Handlers, apiKeyAuth middleware.APIKeyAuthMiddleware,
+	apiKeyService *service.APIKeyService, subscriptionService *service.SubscriptionService,
+	opsService *service.OpsService, settingService *service.SettingService,
+	compositeResolver *service.CompositeRouteResolver, cfg *config.Config,
+	testDispatch map[string]gin.HandlerFunc,
+) {
+	artexTerminal := func(next gin.HandlerFunc) gin.HandlerFunc {
+		if testDispatch == nil {
+			return next
+		}
+		return func(c *gin.Context) {
+			if terminal := testDispatch[c.FullPath()]; terminal != nil {
+				terminal(c)
+				return
+			}
+			next(c)
+		}
+	}
 	bodyLimit := middleware.RequestBodyLimit(cfg.Gateway.MaxBodySize)
 	textBodyLimit := middleware.RequestBodyLimit(cfg.Gateway.TextMaxBodySize)
 	clientRequestID := middleware.ClientRequestID()
@@ -45,6 +69,7 @@ func RegisterGatewayRoutes(
 	// 分组级模型白名单准入：在 apiKeyAuth 之后、compositeTarget 之前，
 	// 保证校验发生在合成路由改写与调度之前，且只看客户端书写的模型名。
 	groupModelAllowlist := middleware.GroupModelAllowlist()
+	artexGuard := middleware.ArtexGuard(cfg)
 
 	isOpenAIResponsesCompatibleGatewayPlatform := func(c *gin.Context) bool {
 		// openai、grok 与多协议 API Key 供应商经 OpenAI 网关转发（平台清单）。
@@ -187,14 +212,15 @@ func RegisterGatewayRoutes(
 	gateway.Use(groupModelAllowlist)
 	gateway.Use(compositeTarget)
 	gateway.Use(requireGroupAnthropic)
+	gateway.Use(artexGuard)
 	{
 		// /v1/messages: auto-route based on group platform
 		gateway.POST("/messages", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.Messages(c)
+				artexTerminal(h.OpenAIGateway.Messages)(c)
 				return
 			}
-			h.Gateway.Messages(c)
+			artexTerminal(h.Gateway.Messages)(c)
 		})
 		// System One carries only JSON text, so it uses the text body limit.
 		gateway.POST("/systemone", textBodyLimit, h.Gateway.SystemOne)
@@ -213,17 +239,17 @@ func RegisterGatewayRoutes(
 		// OpenAI Responses API: auto-route based on group platform
 		gateway.POST("/responses", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.Responses(c)
+				artexTerminal(h.OpenAIGateway.Responses)(c)
 				return
 			}
-			h.Gateway.Responses(c)
+			artexTerminal(h.Gateway.Responses)(c)
 		})
 		gateway.POST("/responses/*subpath", guardResponsesSubpath(func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.Responses(c)
+				artexTerminal(h.OpenAIGateway.Responses)(c)
 				return
 			}
-			h.Gateway.Responses(c)
+			artexTerminal(h.Gateway.Responses)(c)
 		}))
 		gateway.POST("/alpha/search", textBodyLimit, h.OpenAIGateway.AlphaSearch)
 		gateway.GET("/responses", func(c *gin.Context) {
@@ -232,10 +258,10 @@ func RegisterGatewayRoutes(
 		// OpenAI Chat Completions API: auto-route based on group platform
 		gateway.POST("/chat/completions", func(c *gin.Context) {
 			if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-				h.OpenAIGateway.ChatCompletions(c)
+				artexTerminal(h.OpenAIGateway.ChatCompletions)(c)
 				return
 			}
-			h.Gateway.ChatCompletions(c)
+			artexTerminal(h.Gateway.ChatCompletions)(c)
 		})
 		gateway.POST("/embeddings", textBodyLimit, func(c *gin.Context) {
 			if !isOpenAIOnlyEndpointGatewayPlatform(c) {
@@ -354,15 +380,15 @@ func RegisterGatewayRoutes(
 	// OpenAI Responses API（不带v1前缀的别名）— auto-route based on group platform
 	responsesHandler := func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-			h.OpenAIGateway.Responses(c)
+			artexTerminal(h.OpenAIGateway.Responses)(c)
 			return
 		}
-		h.Gateway.Responses(c)
+		artexTerminal(h.Gateway.Responses)(c)
 	}
 	// 根路径别名共用中间件链：白名单准入在 apiKeyAuth 之后、compositeTarget
 	// 之前，避免逐条路由手工维护链导致漏挂。
 	rootRoute := func(method, path string, limit gin.HandlerFunc, handler gin.HandlerFunc) {
-		r.Handle(method, path, limit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic, handler)
+		r.Handle(method, path, limit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic, artexGuard, handler)
 	}
 	for _, prefix := range []string{"/api/v3", "/v3", "/v1", ""} {
 		rootRoute(http.MethodPost, prefix+"/contents/generations/tasks", bodyLimit, h.OpenAIGateway.SeedanceTasks)
@@ -379,7 +405,7 @@ func RegisterGatewayRoutes(
 	rootRoute(http.MethodGet, "/models/:model", bodyLimit, h.Gateway.Models)
 	rootRoute(http.MethodPost, "/messages/count_tokens", bodyLimit, countTokensHandler)
 	codexDirect := r.Group("/backend-api/codex")
-	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic)
+	codexDirect.Use(bodyLimit, clientRequestID, opsErrorLogger, endpointNorm, gin.HandlerFunc(apiKeyAuth), groupModelAllowlist, compositeTarget, requireGroupAnthropic, artexGuard)
 	{
 		codexDirect.POST("/realtime/calls", h.OpenAIGateway.Live)
 		codexDirect.GET("/:call_id", h.OpenAIGateway.LiveSideband)
@@ -394,10 +420,10 @@ func RegisterGatewayRoutes(
 	// OpenAI Chat Completions API（不带v1前缀的别名）— auto-route based on group platform
 	rootRoute(http.MethodPost, "/chat/completions", bodyLimit, func(c *gin.Context) {
 		if isOpenAIResponsesCompatibleGatewayPlatform(c) {
-			h.OpenAIGateway.ChatCompletions(c)
+			artexTerminal(h.OpenAIGateway.ChatCompletions)(c)
 			return
 		}
-		h.Gateway.ChatCompletions(c)
+		artexTerminal(h.Gateway.ChatCompletions)(c)
 	})
 	rootRoute(http.MethodPost, "/embeddings", textBodyLimit, func(c *gin.Context) {
 		if !isOpenAIOnlyEndpointGatewayPlatform(c) {
@@ -494,8 +520,9 @@ func RegisterGatewayRoutes(
 	antigravityV1.Use(gin.HandlerFunc(apiKeyAuth))
 	antigravityV1.Use(groupModelAllowlist)
 	antigravityV1.Use(requireGroupAnthropic)
+	antigravityV1.Use(artexGuard)
 	{
-		antigravityV1.POST("/messages", h.Gateway.Messages)
+		antigravityV1.POST("/messages", artexTerminal(h.Gateway.Messages))
 		antigravityV1.POST("/messages/count_tokens", h.Gateway.CountTokens)
 		antigravityV1.GET("/models", h.Gateway.AntigravityModels)
 		antigravityV1.GET("/usage", h.Gateway.Usage)
