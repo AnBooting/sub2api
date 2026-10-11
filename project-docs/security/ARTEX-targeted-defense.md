@@ -1,4 +1,6 @@
-# ARTEX 专属识别与拦截设计（实现候选，待最终验证独审）
+# ARTEX 专属识别与拦截设计（本地实现已验，未部署）
+
+> 最后代码候选 `8046ae4361c786d00ad4ce73f7da2b066f9d65db` 已通过本地定向、完整 unit/vet/正常 VCS build 与只读独审（0 未关闭 Required）。范围、原失败和未验证边界见[交付报告](<F:/sub2--wt--artex-defense/project-docs/security/ARTEX-defense-report.md>)；不代表生产启用或原 PRD 整体验收。
 
 ## 范围与事实绑定
 
@@ -57,10 +59,10 @@ HTTP 强命中返回协议兼容 403、稳定 code artex_client_blocked/type per
 
 最后运行 detector/middleware/routes/config/WS 定向 + 后端全 unit/vet/build，绑定最后 Git 候选、原始输出及 readonly 独审。设计门未批准前不实施入口封禁；最终独审不覆盖实际生产开启/流量回放，未部署不称已生效。
 
-## 实践覆盖边界（源码候选，尚未运行验证）
+## 实践覆盖边界（本地实现及验证范围）
 
 - HTTP 实际文本入口：`/v1/messages`、`/antigravity/v1/messages`；`/v1/chat/completions`、`/chat/completions`；`/v1/responses`、`/responses`、`/backend-api/codex/responses` 及各自已有 `/compact` 生成请求子路径（包括裸入口尾斜线兼容）。原不可安全转发的畸形后缀仍由既有守卫返回 404；字符合法但非已证模型生成语义的其它后缀（包括 `/unknown`）跳过本专项 gate，保留原路由分发/上游行为，不新造 403 或 404。`input_tokens` 等计数入口不新增此拦截；无根 `/messages` 或 Antigravity Chat/Responses 路由，不虚构其覆盖。
 - 此 gate 只读既有 MaxBytesReader 限定字节并恢复 Body cursor；不改 ContentLength、Content-Length、TransferEncoding、Content-Encoding、GetBody，不新增解压。前置原中间件已经变换并回填的 PrereadBody 按当时实际生效字节检查；未被原链解压的压缩包不假称可识别。
 - native pool/shared/dedicated 与 HTTP bridge 原实现只接受逐次 response.create，不支持 session.update 的 instructions/tools 继承；检测当前实际帧，不给这些路径凭空造历史。Passthrough 对当前 response.create/session.update 的合法字段及**真实上游 session.updated echo**确认的 instructions/tools 两字段进行检查，客户端提交不等于远端接受；pending/rejected/error 不升 known。每次确认只以本次 echo 中实际字段建立 fresh known，缺字段为 unknown，不沿用旧证据。null/空字符串/空数组显式覆盖；每个 response.create 覆盖只对该次有效，不持久化。
 - 上游不提供可靠成功 echo 时，拆分提交且未确认的有效会话内容、仅通过 previous_response_id 保存在远端的历史均不可安全复原，识别存在明确漏检边界；不为补齐覆盖引入等待引擎或跨请求画像。主动把完整尾巴与真实工具族放在有效系统指令中复刻执行协议依然观测等价，无法靠本规则区分正常授权实验；不是“零误伤”或全变种保证。
-- 注册路由测试仅用 private terminal DI 保留真实注册/auth/permission/limit/guard/subpath 链，终端向本机 httptest mock 上游发真实 HTTP 并记录 fixture usage。公开注册签名不变且生产永远 nil DI；该 fixture 不是带真实账号与数据库扣款的完整生产计费集成证明。WS fixtures 走真实 service ingress/native WriteJSON/passthrough WriteFrame/HTTP bridge Do 调用计数，尚待 Lead 执行并独审。
+- 注册路由测试仅用 private terminal DI 保留真实注册/auth/permission/limit/guard/subpath 链，终端向本机 httptest mock 上游发真实 HTTP 并记录 fixture usage。公开注册签名不变且生产永远 nil DI；该 fixture 不是带真实账号与数据库扣款的完整生产计费集成证明。WS fixtures 走真实 service ingress/native WriteJSON/passthrough WriteFrame/HTTP bridge Do 调用计数，已完成最后同代码定向验证及只读独审；未验证真实账号与生产上游。
