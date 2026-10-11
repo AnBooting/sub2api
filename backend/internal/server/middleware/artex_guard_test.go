@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
@@ -167,6 +168,221 @@ func TestArtexHTTPGatePreservesChunkedAndPrereadMetadata(t *testing.T) {
 		recorder := httptest.NewRecorder()
 		router.ServeHTTP(recorder, req)
 		require.Equal(t, http.StatusNoContent, recorder.Code)
+	}
+}
+
+func TestArtexHTTPKeywordCaseNegativesReachActualMockUpstream(t *testing.T) {
+	// Reuse independent HTTP wire fixtures. Malformed/noncanonical schemas are
+	// NOT a strong ARTEX declaration: enforce must leave validation to upstream.
+	cases := []string{"root_TYPE", "root_PROPERTIES", "root_REQUIRED", "root_mixedcase", "prop_TYPE", "items_ITEMS", "item_TYPE", "wrong_type_value", "lower_wrong_upper_correct", "canonical_valid_inert_uppercase_extra"}
+	for _, protocol := range []string{"anthropic", "chat", "responses"} {
+		for _, mode := range []string{config.ArtexGuardEnforce, config.ArtexGuardMonitor, config.ArtexGuardOff} {
+			for _, mutation := range cases {
+				t.Run(protocol+"/"+mode+"/"+mutation, func(t *testing.T) {
+					var request map[string]any
+					require.NoError(t, json.Unmarshal(artexHTTPFixture(t, protocol, true), &request))
+					tool := request["tools"].([]any)[0].(map[string]any)
+					if protocol == "chat" {
+						tool = tool["function"].(map[string]any)
+					}
+					field := "parameters"
+					if protocol == "anthropic" {
+						field = "input_schema"
+					}
+					schema := tool[field].(map[string]any)
+					props := schema["properties"].(map[string]any)
+					prop := props["vulnclass"].(map[string]any)
+					array := props["asset_ids"].(map[string]any)
+					item := array["items"].(map[string]any)
+					switch mutation {
+					case "root_TYPE":
+						schema["TYPE"] = schema["type"]
+						delete(schema, "type")
+					case "root_PROPERTIES":
+						schema["PROPERTIES"] = schema["properties"]
+						delete(schema, "properties")
+					case "root_REQUIRED":
+						schema["REQUIRED"] = schema["required"]
+						delete(schema, "required")
+					case "root_mixedcase":
+						schema["tYpE"] = schema["type"]
+						delete(schema, "type")
+					case "prop_TYPE":
+						prop["TYPE"] = prop["type"]
+						delete(prop, "type")
+					case "items_ITEMS":
+						array["ITEMS"] = array["items"]
+						delete(array, "items")
+					case "item_TYPE":
+						item["TYPE"] = item["type"]
+						delete(item, "type")
+					case "wrong_type_value":
+						schema["type"] = "Object"
+					case "lower_wrong_upper_correct":
+						schema["type"] = "array"
+						schema["TYPE"] = "object"
+					case "canonical_valid_inert_uppercase_extra":
+						schema["TYPE"] = "array"
+						schema["PROPERTIES"] = "inert"
+						schema["REQUIRED"] = "inert"
+						prop["TYPE"] = "number"
+						array["ITEMS"] = "inert"
+						item["TYPE"] = "string"
+					}
+					body, err := json.Marshal(request)
+					require.NoError(t, err)
+					var calls atomic.Int64
+					upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						calls.Add(1)
+						actual, err := io.ReadAll(r.Body)
+						if err != nil {
+							t.Errorf("mock read: %v", err)
+							w.WriteHeader(http.StatusBadRequest)
+							return
+						}
+						if !bytes.Equal(body, actual) {
+							t.Error("guard changed upstream body bytes")
+						}
+						w.WriteHeader(http.StatusNoContent)
+					}))
+					defer upstream.Close()
+					path := map[string]string{"anthropic": "/v1/messages", "chat": "/v1/chat/completions", "responses": "/v1/responses"}[protocol]
+					cfg := &config.Config{Gateway: config.GatewayConfig{ArtexGuard: config.ArtexGuardConfig{Mode: mode}}}
+					router := gin.New()
+					router.POST(path, RequestBodyLimit(int64(len(body))), ArtexGuard(cfg), func(c *gin.Context) {
+						response, err := http.Post(upstream.URL, "application/json", c.Request.Body)
+						require.NoError(t, err)
+						defer response.Body.Close()
+						c.Status(response.StatusCode)
+					})
+					recorder := httptest.NewRecorder()
+					router.ServeHTTP(recorder, httptest.NewRequest("POST", path, bytes.NewReader(body)))
+					canonicalPositive := mutation == "canonical_valid_inert_uppercase_extra"
+					if canonicalPositive && mode == config.ArtexGuardEnforce {
+						require.Equal(t, http.StatusForbidden, recorder.Code)
+						require.Contains(t, recorder.Body.String(), service.ArtexGuardBlockedCode)
+						require.Zero(t, calls.Load())
+					} else {
+						require.Equal(t, http.StatusNoContent, recorder.Code)
+						require.NotContains(t, recorder.Body.String(), service.ArtexGuardBlockedCode)
+						require.Equal(t, int64(1), calls.Load())
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestArtexHTTPProtocolBlocksAndFullToolRoleBoundaries(t *testing.T) {
+	for _, protocol := range []string{"anthropic", "chat", "responses"} {
+		for _, mode := range []string{config.ArtexGuardEnforce, config.ArtexGuardMonitor, config.ArtexGuardOff} {
+			for _, place := range []string{"right", "wrong", "user", "assistant", "tool_result", "metadata", "quoted_tools"} {
+				t.Run(protocol+"/"+mode+"/"+place, func(t *testing.T) {
+					var request map[string]any
+					require.NoError(t, json.Unmarshal(artexHTTPFixture(t, protocol, true), &request))
+					require.Len(t, request["tools"], 3)
+					if place == "quoted_tools" {
+						catalog, err := json.Marshal(request["tools"])
+						require.NoError(t, err)
+						request["tools"] = []any{string(catalog)} // source quotation, never actual declarations
+					} else {
+						switch protocol {
+						case "anthropic":
+							request["system"] = "normal assistant"
+						case "chat":
+							request["messages"] = []any{map[string]any{"role": "system", "content": "normal assistant"}}
+						default:
+							request["instructions"] = "normal assistant"
+						}
+						tail := artexHTTPWorkerTail
+						if place == "right" || place == "wrong" {
+							kind := "text"
+							if (protocol == "responses") == (place == "right") {
+								kind = "input_text"
+							}
+							blocks := []any{map[string]any{"type": kind, "text": tail}}
+							switch protocol {
+							case "anthropic":
+								request["system"] = blocks
+							case "chat":
+								request["messages"] = []any{map[string]any{"role": "system", "content": blocks}}
+							default:
+								delete(request, "instructions")
+								request["input"] = []any{map[string]any{"type": "message", "role": "developer", "content": blocks}}
+							}
+						} else if place == "metadata" {
+							request["metadata"] = map[string]any{"reference": tail}
+						} else {
+							switch protocol {
+							case "anthropic":
+								role := place
+								block := map[string]any{"type": "text", "text": tail}
+								if place == "tool_result" {
+									role = "user"
+									block = map[string]any{"type": "tool_result", "tool_use_id": "fixture", "content": tail}
+								}
+								request["messages"] = []any{map[string]any{"role": role, "content": []any{block}}}
+							case "chat":
+								message := map[string]any{"role": place, "content": []any{map[string]any{"type": "text", "text": tail}}}
+								if place == "tool_result" {
+									message = map[string]any{"role": "tool", "tool_call_id": "fixture", "content": tail}
+								}
+								request["messages"] = append(request["messages"].([]any), message)
+							default:
+								kind := "input_text"
+								if place == "assistant" {
+									kind = "output_text"
+								}
+								message := map[string]any{"type": "message", "role": place, "content": []any{map[string]any{"type": kind, "text": tail}}}
+								if place == "tool_result" {
+									message = map[string]any{"type": "function_call_output", "call_id": "fixture", "output": tail}
+								}
+								request["input"] = []any{message}
+							}
+						}
+					}
+					body, err := json.Marshal(request)
+					require.NoError(t, err)
+					var calls atomic.Int64
+					upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						calls.Add(1)
+						actual, err := io.ReadAll(r.Body)
+						if err != nil {
+							t.Errorf("mock read: %v", err)
+							w.WriteHeader(http.StatusBadRequest)
+							return
+						}
+						if !bytes.Equal(body, actual) {
+							t.Error("guard changed protocol body bytes")
+						}
+						w.WriteHeader(http.StatusNoContent)
+					}))
+					defer upstream.Close()
+					path := map[string]string{"anthropic": "/v1/messages", "chat": "/v1/chat/completions", "responses": "/v1/responses"}[protocol]
+					cfg := &config.Config{Gateway: config.GatewayConfig{ArtexGuard: config.ArtexGuardConfig{Mode: mode}}}
+					router := gin.New()
+					router.POST(path, RequestBodyLimit(int64(len(body))), ArtexGuard(cfg), func(c *gin.Context) {
+						response, err := http.Post(upstream.URL, "application/json", c.Request.Body)
+						require.NoError(t, err)
+						defer response.Body.Close()
+						c.Status(response.StatusCode)
+					})
+					recorder := httptest.NewRecorder()
+					router.ServeHTTP(recorder, httptest.NewRequest("POST", path, bytes.NewReader(body)))
+					if place == "right" && mode == config.ArtexGuardEnforce {
+						require.Equal(t, http.StatusForbidden, recorder.Code)
+						require.Contains(t, recorder.Body.String(), service.ArtexGuardBlockedCode)
+						require.Zero(t, calls.Load())
+					} else {
+						// Invalid input blocks may be rejected by a real business handler. The
+						// isolated mock proves only this targeted gate did NOT hard-block them.
+						require.Equal(t, http.StatusNoContent, recorder.Code)
+						require.NotContains(t, recorder.Body.String(), service.ArtexGuardBlockedCode)
+						require.Equal(t, int64(1), calls.Load())
+					}
+				})
+			}
+		}
 	}
 }
 

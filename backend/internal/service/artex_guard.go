@@ -151,9 +151,13 @@ func artexText(raw json.RawMessage, responses bool) string {
 		return ""
 	}
 	var texts []string
+	blockKind := "text"
+	if responses {
+		blockKind = "input_text"
+	}
 	for _, block := range blocks {
 		kind := artexString(block["type"])
-		if kind == "text" || (responses && kind == "input_text") {
+		if kind == blockKind {
 			texts = append(texts, artexString(block["text"]))
 		}
 	}
@@ -173,31 +177,37 @@ func artexWholeTail(text, prefix, suffix string) bool {
 	}
 }
 func artexSchemaMatches(raw json.RawMessage, signature artexToolSignature) bool {
-	var schema struct {
-		Type       string                     `json:"type"`
-		Properties map[string]json.RawMessage `json:"properties"`
-		Required   []string                   `json:"required"`
+	// JSON Schema keywords are case-sensitive. A tagged Go struct would
+	// silently accept TYPE/Properties/Items via encoding/json case folding.
+	// Exact map indexes also prevent an uppercase extra from overriding the
+	// real lowercase keyword, while still allowing inert extension members.
+	var schema map[string]json.RawMessage
+	if json.Unmarshal(raw, &schema) != nil || artexString(schema["type"]) != "object" {
+		return false
 	}
-	if json.Unmarshal(raw, &schema) != nil || schema.Type != "object" {
+	var properties map[string]json.RawMessage
+	if json.Unmarshal(schema["properties"], &properties) != nil {
+		return false
+	}
+	var requiredSet []string
+	if value, provided := schema["required"]; provided && json.Unmarshal(value, &requiredSet) != nil {
 		return false
 	}
 	for _, field := range signature.fields {
-		var prop struct {
-			Type  string `json:"type"`
-			Items struct {
-				Type string `json:"type"`
-			} `json:"items"`
-		}
-		if json.Unmarshal(schema.Properties[field.name], &prop) != nil || prop.Type != field.kind {
+		var prop map[string]json.RawMessage
+		if json.Unmarshal(properties[field.name], &prop) != nil || artexString(prop["type"]) != field.kind {
 			return false
 		}
-		if field.itemKind != "" && prop.Items.Type != field.itemKind {
-			return false
+		if field.itemKind != "" {
+			var items map[string]json.RawMessage
+			if json.Unmarshal(prop["items"], &items) != nil || artexString(items["type"]) != field.itemKind {
+				return false
+			}
 		}
 	}
 	for _, required := range signature.required {
 		found := false
-		for _, actual := range schema.Required {
+		for _, actual := range requiredSet {
 			if actual == required {
 				found = true
 				break

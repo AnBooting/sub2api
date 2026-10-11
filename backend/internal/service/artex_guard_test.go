@@ -235,6 +235,187 @@ func TestArtexCoreIgnoresWrongProtocolInstructionFields(t *testing.T) {
 	require.True(t, found, "legal JSON Unicode escapes have the same effective text")
 }
 
+func TestArtexSchemaKeywordsRequireExactCanonicalCase(t *testing.T) {
+	// Mutations originate in independent literal fixtures, not production tables.
+	cases := []struct {
+		name, level, keyword, replacement string
+		expected                          bool
+	}{
+		{"root_TYPE", "root", "type", "TYPE", false}, {"root_Type", "root", "type", "Type", false}, {"root_tYpE", "root", "type", "tYpE", false},
+		{"root_PROPERTIES", "root", "properties", "PROPERTIES", false}, {"root_Properties", "root", "properties", "Properties", false}, {"root_pRoPeRtIeS", "root", "properties", "pRoPeRtIeS", false},
+		{"root_REQUIRED", "root", "required", "REQUIRED", false}, {"root_Required", "root", "required", "Required", false}, {"root_rEqUiReD", "root", "required", "rEqUiReD", false},
+		{"prop_TYPE", "prop", "type", "TYPE", false}, {"prop_Type", "prop", "type", "Type", false}, {"prop_tYpE", "prop", "type", "tYpE", false},
+		{"items_ITEMS", "array", "items", "ITEMS", false}, {"items_Items", "array", "items", "Items", false}, {"items_iTeMs", "array", "items", "iTeMs", false},
+		{"item_TYPE", "item", "type", "TYPE", false}, {"item_Type", "item", "type", "Type", false}, {"item_tYpE", "item", "type", "tYpE", false},
+		{"wrong_root_type_value", "value", "", "", false}, {"wrong_prop_type_value", "value", "", "", false},
+		{"lower_root_wrong_upper_correct", "shadow", "", "", false}, {"lower_prop_wrong_upper_correct", "shadow", "", "", false},
+		{"canonical_valid_inert_uppercase_extra", "extra", "", "", true},
+	}
+	for _, protocol := range []ArtexProtocol{ArtexAnthropic, ArtexChat, ArtexResponses} {
+		for _, tc := range cases {
+			t.Run(string(protocol)+"/"+tc.name, func(t *testing.T) {
+				request := artexFixtureRequest(t, protocol, "worker")
+				schema := artexFixtureSchema(request["tools"].([]any)[0], protocol) // trace has original required
+				props := schema["properties"].(map[string]any)
+				intent := props["intent_id"].(map[string]any)
+				array := props["step_ids"].(map[string]any)
+				item := array["items"].(map[string]any)
+				switch tc.level {
+				case "root", "prop", "array", "item":
+					target := map[string]map[string]any{"root": schema, "prop": intent, "array": array, "item": item}[tc.level]
+					target[tc.replacement] = target[tc.keyword]
+					delete(target, tc.keyword)
+				case "value":
+					if tc.name == "wrong_root_type_value" {
+						schema["type"] = "Object"
+					} else {
+						intent["type"] = "Integer"
+					}
+				case "shadow":
+					if tc.name == "lower_root_wrong_upper_correct" {
+						schema["type"] = "array"
+						schema["TYPE"] = "object"
+					} else {
+						intent["type"] = "string"
+						intent["TYPE"] = "integer"
+					}
+				case "extra":
+					schema["TYPE"] = "array"
+					schema["PROPERTIES"] = "inert"
+					schema["REQUIRED"] = "inert"
+					intent["TYPE"] = "number"
+					array["ITEMS"] = "inert"
+					item["TYPE"] = "string"
+				}
+				_, found := DetectArtexCore(protocol, artexFixtureMarshal(t, request))
+				require.Equal(t, tc.expected, found)
+			})
+		}
+	}
+}
+
+func TestArtexSchemaUppercaseMustNeverOverrideCanonicalLowercase(t *testing.T) {
+	// A raw member order proves that a later case-insensitive lookalike cannot
+	// fix an invalid canonical value, and an extra cannot poison a valid one.
+	for _, tc := range []struct {
+		raw      string
+		expected bool
+	}{
+		{`{"type":"array","TYPE":"object","properties":{"goal_id":{"type":"integer"},"evidence_id":{"type":"integer"},"reason":{"type":"string"}},"required":["goal_id","evidence_id"]}`, false},
+		{`{"type":"object","TYPE":"array","properties":{"goal_id":{"type":"integer"},"evidence_id":{"type":"integer"},"reason":{"type":"string"}},"required":["goal_id","evidence_id"]}`, true},
+	} {
+		require.Equal(t, tc.expected, artexSchemaMatches([]byte(tc.raw), artexTools["prove_goal"]))
+	}
+}
+
+func TestArtexInstructionBlocksStayProtocolSpecificWithFullTools(t *testing.T) {
+	for _, protocol := range []ArtexProtocol{ArtexAnthropic, ArtexChat, ArtexResponses} {
+		for _, family := range []string{"worker", "planner", "main"} {
+			for _, right := range []bool{false, true} {
+				t.Run(string(protocol)+"/"+family+map[bool]string{true: "/right", false: "/wrong"}[right], func(t *testing.T) {
+					request := artexFixtureRequest(t, protocol, family)
+					require.Len(t, request["tools"], 3) // keep actual declarations, not a missing-tools negative
+					tail := artexFixtureTaskTail
+					if family == "worker" {
+						tail = artexFixtureWorkerTail
+					}
+					blockKind := "text"
+					if (protocol == ArtexResponses) == right {
+						blockKind = "input_text"
+					}
+					blocks := []any{map[string]any{"type": blockKind, "text": tail}}
+					switch protocol {
+					case ArtexAnthropic:
+						request["system"] = blocks
+					case ArtexChat:
+						request["messages"] = []any{map[string]any{"role": "developer", "content": blocks}}
+					case ArtexResponses:
+						delete(request, "instructions")
+						request["input"] = []any{map[string]any{"type": "message", "role": "system", "content": blocks}}
+					}
+					_, found := DetectArtexCore(protocol, artexFixtureMarshal(t, request))
+					require.Equal(t, right, found)
+				})
+			}
+		}
+	}
+}
+
+func TestArtexNonInstructionTailNeverMatchesDespiteFullToolDeclarations(t *testing.T) {
+	for _, protocol := range []ArtexProtocol{ArtexAnthropic, ArtexChat, ArtexResponses} {
+		for _, place := range []string{"user", "assistant", "tool_result", "metadata"} {
+			t.Run(string(protocol)+"/"+place, func(t *testing.T) {
+				request := artexFixtureRequest(t, protocol, "worker")
+				artexFixtureSetInstruction(request, protocol, "normal assistant")
+				require.Len(t, request["tools"], 3)
+				tail := artexFixtureWorkerTail
+				if place == "metadata" {
+					request["metadata"] = map[string]any{"reference": tail, "quoted_tools": string(artexFixtureMarshal(t, request["tools"]))}
+				} else {
+					switch protocol {
+					case ArtexAnthropic:
+						role := place
+						if place == "tool_result" {
+							role = "user"
+						}
+						block := map[string]any{"type": "text", "text": tail}
+						if place == "tool_result" {
+							block = map[string]any{"type": "tool_result", "tool_use_id": "fixture", "content": tail}
+						}
+						request["messages"] = []any{map[string]any{"role": role, "content": []any{block}}}
+					case ArtexChat:
+						message := map[string]any{"role": place, "content": []any{map[string]any{"type": "text", "text": tail}}}
+						if place == "tool_result" {
+							message = map[string]any{"role": "tool", "tool_call_id": "fixture", "content": tail}
+						}
+						request["messages"] = []any{map[string]any{"role": "system", "content": "normal assistant"}, message}
+					case ArtexResponses:
+						kind := "input_text"
+						if place == "assistant" {
+							kind = "output_text"
+						}
+						message := map[string]any{"type": "message", "role": place, "content": []any{map[string]any{"type": kind, "text": tail}}}
+						if place == "tool_result" {
+							message = map[string]any{"type": "function_call_output", "call_id": "fixture", "output": tail}
+						}
+						request["input"] = []any{message}
+					}
+				}
+				_, found := DetectArtexCore(protocol, artexFixtureMarshal(t, request))
+				require.False(t, found)
+			})
+		}
+	}
+}
+
+func TestArtexQuotedToolJSONStringIsNeverAnActualDeclaration(t *testing.T) {
+	for _, protocol := range []ArtexProtocol{ArtexAnthropic, ArtexChat, ArtexResponses} {
+		for _, place := range []string{"string_array", "metadata", "schema_string"} {
+			t.Run(string(protocol)+"/"+place, func(t *testing.T) {
+				request := artexFixtureRequest(t, protocol, "worker") // effective full tail remains
+				tools := request["tools"].([]any)
+				saved := string(artexFixtureMarshal(t, tools))
+				switch place {
+				case "string_array":
+					request["tools"] = []any{saved}
+				case "metadata":
+					delete(request, "tools")
+					request["metadata"] = map[string]any{"tool_catalog": saved}
+				case "schema_string":
+					tool := artexFixtureTool(tools[0], protocol)
+					field := "parameters"
+					if protocol == ArtexAnthropic {
+						field = "input_schema"
+					}
+					tool[field] = string(artexFixtureMarshal(t, tool[field])) // one schema is quoted source, not an object
+				}
+				_, found := DetectArtexCore(protocol, artexFixtureMarshal(t, request))
+				require.False(t, found)
+			})
+		}
+	}
+}
+
 func TestArtexGuardDecisionModesAndMetadataOnlyLogs(t *testing.T) {
 	var logs bytes.Buffer
 	old := slog.Default()
