@@ -2200,6 +2200,7 @@ func (s *openAIWSUsageHandlerChannelRepoStub) GetGroupPlatforms(ctx context.Cont
 func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	groupID := int64(4203)
+	inputPrice, outputPrice, cachePrice := 1e-6, 2e-6, 0.0
 	accounts := []service.Account{
 		{
 			ID: 9910, Name: "pool-api-key", Platform: service.PlatformOpenAI,
@@ -2230,6 +2231,11 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	upstream := &openAIHTTPPassthroughFailoverUpstream{}
+	snapshotAccounts := make([]*service.Account, 0, len(accounts))
+	for i := range accounts {
+		snapshotAccounts = append(snapshotAccounts, &accounts[i])
+	}
+	schedulerSnapshot := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: snapshotAccounts}, nil, nil, nil, cfg)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
@@ -2241,7 +2247,7 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 		nil,
 		nil,
 		cfg,
-		nil,
+		schedulerSnapshot,
 		nil,
 		service.NewBillingService(cfg, nil),
 		nil,
@@ -2274,8 +2280,9 @@ func TestOpenAIResponses_APIKeyPassthroughPool5xxRetriesThenExhaustsMaxSwitches(
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
 		ID: 1803, GroupID: &groupID,
-		User:  &service.User{ID: 1703, Status: service.StatusActive},
-		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+		User: &service.User{ID: 1703, Status: service.StatusActive},
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive,
+			ModelPricing: []service.ChannelModelPricing{{Models: []string{"gpt-5.2"}, InputPrice: &inputPrice, OutputPrice: &outputPrice, CacheReadPrice: &cachePrice, CacheWritePrice: &cachePrice}}},
 	})
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1703, Concurrency: 0})
 
@@ -2300,6 +2307,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 		t.Run(tt.name, func(t *testing.T) {
 			gin.SetMode(gin.TestMode)
 			groupID := int64(4203)
+			inputPrice, outputPrice, cachePrice := 1e-6, 2e-6, 0.0
 			accounts := []service.Account{
 				{
 					ID: 9910, Name: "pool-api-key", Platform: service.PlatformOpenAI,
@@ -2331,6 +2339,11 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 			upstream := &openAIHTTPPassthroughAuthFailoverUpstream{statusCode: tt.statusCode}
 			rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
+			snapshotAccounts := make([]*service.Account, 0, len(accounts))
+			for i := range accounts {
+				snapshotAccounts = append(snapshotAccounts, &accounts[i])
+			}
+			schedulerSnapshot := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: snapshotAccounts}, nil, nil, nil, cfg)
 			billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 			t.Cleanup(billingCacheSvc.Stop)
 			gatewaySvc := service.NewOpenAIGatewayService(
@@ -2342,7 +2355,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 				nil,
 				nil,
 				cfg,
-				nil,
+				schedulerSnapshot,
 				nil,
 				service.NewBillingService(cfg, nil),
 				rateLimitSvc,
@@ -2375,8 +2388,9 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 			c.Request.Header.Set("Content-Type", "application/json")
 			c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
 				ID: 1803, GroupID: &groupID,
-				User:  &service.User{ID: 1703, Status: service.StatusActive},
-				Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+				User: &service.User{ID: 1703, Status: service.StatusActive},
+				Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive,
+					ModelPricing: []service.ChannelModelPricing{{Models: []string{"gpt-5.2"}, InputPrice: &inputPrice, OutputPrice: &outputPrice, CacheReadPrice: &cachePrice, CacheWritePrice: &cachePrice}}},
 			})
 			c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1703, Concurrency: 0})
 
@@ -2392,6 +2406,7 @@ func TestOpenAIResponses_APIKeyPassthroughPoolAuthFailureRetriesThenSwitchesToHe
 func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	groupID := int64(4204)
+	inputPrice, outputPrice, cachePrice := 1e-6, 2e-6, 0.0
 	accounts := []service.Account{
 		{
 			ID: 9912, Name: "pool-sse-rate-limit", Platform: service.PlatformOpenAI,
@@ -2413,6 +2428,11 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	upstream := &openAIHTTPPassthroughSSERateLimitUpstream{}
+	snapshotAccounts := make([]*service.Account, 0, len(accounts))
+	for i := range accounts {
+		snapshotAccounts = append(snapshotAccounts, &accounts[i])
+	}
+	schedulerSnapshot := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: snapshotAccounts}, nil, nil, nil, cfg)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 	t.Cleanup(billingCacheSvc.Stop)
 	gatewaySvc := service.NewOpenAIGatewayService(
@@ -2424,7 +2444,7 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 		nil,
 		nil,
 		cfg,
-		nil,
+		schedulerSnapshot,
 		nil,
 		service.NewBillingService(cfg, nil),
 		nil,
@@ -2457,8 +2477,9 @@ func TestOpenAIResponses_APIKeyPassthroughSSERateLimitUsesConfiguredPoolRetry(t 
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set(string(middleware.ContextKeyAPIKey), &service.APIKey{
 		ID: 1804, GroupID: &groupID,
-		User:  &service.User{ID: 1704, Status: service.StatusActive},
-		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+		User: &service.User{ID: 1704, Status: service.StatusActive},
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive,
+			ModelPricing: []service.ChannelModelPricing{{Models: []string{"gpt-5.6-sol"}, InputPrice: &inputPrice, OutputPrice: &outputPrice, CacheReadPrice: &cachePrice, CacheWritePrice: &cachePrice}}},
 	})
 	c.Set(string(middleware.ContextKeyUser), middleware.AuthSubject{UserID: 1704, Concurrency: 0})
 

@@ -773,7 +773,9 @@ func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 			return NormalizeOpenAICompatiblePlatform(platform), false, true
 		}
 		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
-		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor)
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(account *Account, model string) string {
+			return resolveOpenAIAccountUpstreamModelForRequest(account, model, false)
+		})
 	}
 	return d
 }

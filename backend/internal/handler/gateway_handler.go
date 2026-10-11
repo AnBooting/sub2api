@@ -2489,6 +2489,13 @@ func extractQuotaResetSeconds(err error) int {
 }
 
 func billingErrorDetails(err error) (status int, code, message string, retryAfter int) {
+	if errors.Is(err, service.ErrModelPricingUnavailable) {
+		msg := pkgerrors.Message(err)
+		if msg == "" {
+			msg = "Model pricing is unavailable. Please retry later."
+		}
+		return http.StatusServiceUnavailable, "pricing_unavailable", msg, 0
+	}
 	if errors.Is(err, service.ErrBillingServiceUnavailable) {
 		msg := pkgerrors.Message(err)
 		if msg == "" {

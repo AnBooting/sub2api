@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
@@ -28,6 +29,68 @@ func withGatewayRequestBilling(ctx context.Context, request *RequestBillingConte
 		}
 	}
 	return ctx
+}
+
+type gatewayRequestBillingAccountCtxKey struct{}
+
+// These are server-selected execution facts, never customer price overrides.
+type gatewayRequestBillingAccount struct {
+	groupID   int64
+	accountID int64
+}
+
+// WithGatewayRequestBillingAccount binds the real selected account to the
+// existing immutable bundle before any upstream write. Unknown facts fail closed.
+func WithGatewayRequestBillingAccount(ctx context.Context, groupID, accountID int64) (context.Context, error) {
+	request := GatewayRequestBillingFromContext(ctx)
+	if request == nil || accountID <= 0 {
+		return ctx, ErrModelPricingUnavailable
+	}
+	upstream, err := request.UpstreamModelFor(groupID, accountID)
+	if err != nil {
+		return ctx, err
+	}
+	if _, err = request.ScopeFor(groupID, upstream, ""); err != nil {
+		return ctx, err
+	}
+	return context.WithValue(ctx, gatewayRequestBillingAccountCtxKey{}, gatewayRequestBillingAccount{groupID: groupID, accountID: accountID}), nil
+}
+
+func gatewayRequestBillingAccountFromContext(ctx context.Context) (gatewayRequestBillingAccount, bool) {
+	if ctx == nil {
+		return gatewayRequestBillingAccount{}, false
+	}
+	facts, ok := ctx.Value(gatewayRequestBillingAccountCtxKey{}).(gatewayRequestBillingAccount)
+	return facts, ok
+}
+
+func frozenGatewayRequestAccountModel(ctx context.Context, accountID int64) (string, bool, error) {
+	request := GatewayRequestBillingFromContext(ctx)
+	if request == nil {
+		return "", false, nil
+	}
+	facts, ok := gatewayRequestBillingAccountFromContext(ctx)
+	if !ok || facts.accountID != accountID {
+		return "", true, fmt.Errorf("%w: selected account does not match frozen execution", ErrModelPricingUnavailable)
+	}
+	model, err := request.UpstreamModelFor(facts.groupID, accountID)
+	return model, true, err
+}
+
+// TransferGatewayRequestPricingContext preserves immutable values on a worker
+// context without inheriting the client's cancellation or discarding the worker
+// deadline. Parent is normally context.WithoutCancel(requestContext).
+func TransferGatewayRequestPricingContext(base, parent context.Context) context.Context {
+	if base == nil {
+		base = context.Background()
+	}
+	if request := GatewayRequestBillingFromContext(parent); request != nil {
+		base = withGatewayRequestBilling(base, request)
+	}
+	if facts, ok := gatewayRequestBillingAccountFromContext(parent); ok {
+		base = context.WithValue(base, gatewayRequestBillingAccountCtxKey{}, facts)
+	}
+	return base
 }
 
 type gatewayTokenRequestPricingAtCtxKey struct{}

@@ -13,7 +13,7 @@ type requestAccountMapping struct {
 
 // Only account ids and resolved model strings cross this boundary. Account
 // credentials remain in the existing scheduler snapshot, never in billing.
-func requestAccountMappingsFromSnapshot(list inflightSnapshotLister, platformFor func(context.Context, *APIKey, string) (string, bool, bool)) func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
+func requestAccountMappingsFromSnapshot(list inflightSnapshotLister, platformFor func(context.Context, *APIKey, string) (string, bool, bool), actualModelResolver ...func(*Account, string) string) func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
 	return func(ctx context.Context, key *APIKey, model string) (map[int64]requestAccountMapping, error) {
 		platform, forced, ok := platformFor(ctx, key, model)
 		if !ok || platform == "" {
@@ -25,9 +25,11 @@ func requestAccountMappingsFromSnapshot(list inflightSnapshotLister, platformFor
 		}
 		results := make(map[int64]requestAccountMapping, len(accounts))
 		for i := range accounts {
-			mapped, matched := accounts[i].ResolveMappedModel(model)
-			if !matched {
-				mapped = model
+			mapped := model
+			if len(actualModelResolver) > 0 {
+				mapped = actualModelResolver[0](&accounts[i], model)
+			} else if resolved, matched := accounts[i].ResolveMappedModel(model); matched {
+				mapped = resolved
 			}
 			mapped = strings.TrimSpace(mapped)
 			if mapped == "" {

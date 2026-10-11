@@ -133,6 +133,9 @@ type openAIProfitControlGate struct {
 // 只固定 pricingAt、不装门。handler 各文本入口应在选号循环前调用一次。
 func (s *OpenAIGatewayService) WithOpenAIRequestPricingContext(ctx context.Context, groupID *int64) (context.Context, time.Time) {
 	pricingAt := timezone.Now()
+	if request := GatewayRequestBillingFromContext(ctx); request != nil {
+		pricingAt = request.StartedAt()
+	}
 	ctx = context.WithValue(ctx, openAIPricingAtCtxKey{}, pricingAt)
 	return s.withOpenAIProfitControlGate(ctx, groupID), pricingAt
 }

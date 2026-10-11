@@ -70,8 +70,15 @@ func (s *OpenAIGatewayService) forwardResponsesViaRawChatCompletions(
 		return nil, fmt.Errorf("convert responses to chat completions: %w", err)
 	}
 
-	billingModel := resolveOpenAIForwardModel(account, originalModel, "")
-	upstreamModel := normalizeOpenAIModelForUpstream(account, billingModel)
+	frozenModel, locked, lockErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if lockErr != nil {
+		return nil, lockErr
+	}
+	billingModel, upstreamModel := frozenModel, frozenModel
+	if !locked {
+		billingModel = resolveOpenAIForwardModel(account, originalModel, "")
+		upstreamModel = normalizeOpenAIModelForUpstream(account, billingModel)
+	}
 	if err := validateGPT61SolCompatRequest(body, upstreamModel); err != nil {
 		writeOpenAIResponsesFallbackError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err

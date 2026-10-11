@@ -77,6 +77,14 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 	}
 	accountRepo := openAIImagesFailoverAccountRepo{accounts: accounts}
 	cfg := &config.Config{RunMode: config.RunModeSimple}
+	cfg.Default.RateMultiplier = 1
+	snapshotAccounts := make([]*service.Account, 0, len(accounts))
+	for i := range accounts {
+		snapshotAccounts = append(snapshotAccounts, &accounts[i])
+	}
+	schedulerSnapshot := service.NewSchedulerSnapshotService(&fakeSchedulerCache{accounts: snapshotAccounts}, nil, nil, nil, cfg)
+	billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	t.Cleanup(billingCacheService.Stop)
 	gatewayService := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
@@ -86,11 +94,11 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 		nil,
 		nil,
 		cfg,
+		schedulerSnapshot,
 		nil,
+		service.NewBillingService(cfg, nil),
 		nil,
-		nil,
-		nil,
-		nil,
+		billingCacheService,
 		upstream,
 		nil,
 		nil,
@@ -101,13 +109,11 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 		nil,
 		nil,
 	)
-	billingService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
-	t.Cleanup(billingService.Stop)
 	concurrencyService := service.NewConcurrencyService(nil)
 	handler := NewOpenAIGatewayHandler(
 		gatewayService,
 		concurrencyService,
-		billingService,
+		billingCacheService,
 		service.NewAPIKeyService(nil, nil, nil, nil, nil, nil, cfg),
 		nil,
 		nil,
@@ -122,6 +128,7 @@ func newOpenAIResponsesFailoverTestHandler(t *testing.T, upstream service.HTTPUp
 func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 	groupID := int64(3131)
+	inputPrice, outputPrice, cachePrice := 1e-6, 2e-6, 0.0
 	body := []byte(`{"model":"gpt-5.1","stream":false,"input":"hello"}`)
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader(body))
 	if ctx != nil {
@@ -135,8 +142,9 @@ func newOpenAIResponsesFailoverTestContext(t *testing.T, ctx context.Context) (*
 		ID:      99,
 		GroupID: &groupID,
 		Group: &service.Group{
-			ID:       groupID,
-			Platform: service.PlatformOpenAI,
+			ID:           groupID,
+			Platform:     service.PlatformOpenAI,
+			ModelPricing: []service.ChannelModelPricing{{Models: []string{"gpt-5.1"}, InputPrice: &inputPrice, OutputPrice: &outputPrice, CacheReadPrice: &cachePrice, CacheWritePrice: &cachePrice}},
 		},
 		User: &service.User{ID: 100},
 	})

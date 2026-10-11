@@ -256,7 +256,7 @@ func usageRecordContext(parent context.Context, base context.Context) context.Co
 	if requestID, _ := parent.Value(ctxkey.RequestID).(string); strings.TrimSpace(requestID) != "" {
 		base = context.WithValue(base, ctxkey.RequestID, strings.TrimSpace(requestID))
 	}
-	return base
+	return service.TransferGatewayRequestPricingContext(base, context.WithoutCancel(parent))
 }
 
 // wrapUsageRecordTaskContext 包装计费任务：复制请求级 context 值，并接管请求的在途余额预留引用。
@@ -568,8 +568,43 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		}
 	}
 
-	// 解析渠道级模型映射
+	// First consumer slice: ordinary OpenAI Responses text only. Compact, explicit
+	// media and non-OpenAI protocol adapters retain their existing paths.
+	lockedText := !legacyCompact && !imageIntent && openAICompatibleRequestPlatform(c.Request.Context(), apiKey) == service.PlatformOpenAI
+	var requestBilling *service.RequestBillingContext
+	if lockedText {
+		if !h.validateFunctionCallOutputRequest(c, body, reqLog) {
+			return
+		}
+		priceRequest := tokenInflightEstimate(reqModel, body)
+		prepared, request, priceErr := h.gatewayService.PrepareRequestBilling(c.Request.Context(), apiKey, priceRequest)
+		if priceErr == nil {
+			priceErr = h.gatewayService.ValidateRequestPricing(prepared, apiKey, priceRequest)
+		}
+		if priceErr != nil {
+			status, code, message, _ := billingErrorDetails(priceErr)
+			h.errorResponse(c, status, code, message)
+			return
+		}
+		requestBilling = request
+		c.Request = c.Request.WithContext(prepared)
+	}
+	// Execution restrictions are still checked; pricing/model mapping comes only
+	// from the frozen bundle on the new path, never the returned live mapping.
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+	if requestBilling != nil {
+		groupID := int64(0)
+		if apiKey.GroupID != nil {
+			groupID = *apiKey.GroupID
+		}
+		var mappingErr error
+		channelMapping, mappingErr = requestBilling.MappingFor(groupID)
+		if mappingErr != nil {
+			status, code, message, _ := billingErrorDetails(mappingErr)
+			h.errorResponse(c, status, code, message)
+			return
+		}
+	}
 	forwardBody := openAIModelMappedBody(body, channelMapping.Mapped, channelMapping.MappedModel, h.gatewayService.ReplaceModelInBody)
 	seedOpenAIForwardImageIntentHint(c, channelMapping.Mapped, imageIntent)
 	forwardModel := openAIChannelForwardModel(channelMapping, reqModel)
@@ -764,6 +799,19 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		sessionHash = ensureOpenAIPoolModeSessionHash(sessionHash, account)
 		reqLog.Debug("openai.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		setOpsSelectedAccount(c, account.ID, account.Platform)
+		if requestBilling != nil {
+			groupID := int64(0)
+			if apiKey.GroupID != nil {
+				groupID = *apiKey.GroupID
+			}
+			bound, bindingErr := service.WithGatewayRequestBillingAccount(c.Request.Context(), groupID, account.ID)
+			if bindingErr != nil {
+				status, code, message, _ := billingErrorDetails(bindingErr)
+				h.handleStreamingAwareError(c, status, code, message, streamStarted)
+				return
+			}
+			c.Request = c.Request.WithContext(bound)
+		}
 
 		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {

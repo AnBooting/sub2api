@@ -253,6 +253,20 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		body = sanitizedBody
 	}
 
+	// The prepared ordinary Responses snapshot already preserves passthrough
+	// identity semantics; never reapply a live normal account mapping here.
+	frozenModel, hasFrozenModel, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenErr != nil {
+		return nil, frozenErr
+	}
+	if hasFrozenModel {
+		nextBody, setErr := sjson.SetBytes(body, "model", frozenModel)
+		if setErr != nil {
+			return nil, setErr
+		}
+		body = nextBody
+		upstreamPassthroughModel = frozenModel
+	}
 	// Apply OpenAI fast policy to the passthrough body (filter/block by service_tier).
 	// 统一使用 upstream 视角的 model：透传路径下 body 已经过 compact 映射 +
 	// OAuth normalize，body 中的 model 字段即上游真正会看到的 slug。
@@ -367,6 +381,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		actualModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 		if actualModel == "" {
 			actualModel = reqModel
+		}
+		if hasFrozenModel && actualModel != frozenModel {
+			return nil, fmt.Errorf("%w: passthrough body model changed after freeze", ErrModelPricingUnavailable)
 		}
 		SetOpsUpstreamModel(c, actualModel)
 		upstreamCtx, releaseUpstreamCtx := detachUpstreamContext(ctx)

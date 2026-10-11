@@ -296,13 +296,25 @@ const (
 )
 
 // isDeepSeekModel 判断模型名是否为 DeepSeek 模型（大小写不敏感）。
+// 归一化只做小写化 + trim，并取最后一段 "/" 之后的部分（如
+// "openrouter/deepseek-v4-flash" 取 "deepseek-v4-flash"），再按 "deepseek-"
+// 前缀判定。此处**不能**复用 nativeModelKey：它会剥掉连字符等所有非字母数字
+// 字符，使 "deepseekcoder" 这类与 DeepSeek 家族无关的名字也命中 "deepseek"
+// 前缀而被误判为 DeepSeek 模型。连字符必须保留：官方与历史模型名一律带连字符
+// （deepseek-v4-flash / deepseek-v4-pro / deepseek-coder 等），而无连字符的
+// deepseekcoder / deepseekv3 之类并非 DeepSeek 家族（CNY 国模族判定
+// isNativeCNModel 需要宽前缀，语义不同，勿混用）。
 // 任意 deepseek- 前缀均视为 DeepSeek 模型：官方模型（v4-flash / v4-pro /
 // v4-flash-vision-exp）按各自价卡计价，其余 deepseek-*（含已停服的
 // deepseek-chat / deepseek-reasoner 与未知型号）统一按 flash 价兜底，
 // 避免计费中断；新名字由 fallback warn 日志（每模型每进程一条）暴露，
 // 运营者据此更新价卡。
 func isDeepSeekModel(model string) bool {
-	return strings.HasPrefix(nativeModelKey(model), "deepseek")
+	key := strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndex(key, "/"); i >= 0 {
+		key = key[i+1:]
+	}
+	return strings.HasPrefix(key, "deepseek-")
 }
 
 // deepseekPeakMultiplierAt is the weekday/weekend policy without an installed calendar.
