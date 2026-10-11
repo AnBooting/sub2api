@@ -8,6 +8,28 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
+type gatewayRequestBillingCtxKey struct{}
+
+// GatewayRequestBillingFromContext returns the opaque immutable request bundle.
+func GatewayRequestBillingFromContext(ctx context.Context) *RequestBillingContext {
+	if ctx == nil {
+		return nil
+	}
+	request, _ := ctx.Value(gatewayRequestBillingCtxKey{}).(*RequestBillingContext)
+	return request
+}
+
+func withGatewayRequestBilling(ctx context.Context, request *RequestBillingContext) context.Context {
+	ctx = context.WithValue(ctx, gatewayRequestBillingCtxKey{}, request)
+	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, request.StartedAt())
+	if id := request.requestedGroupID; id != nil {
+		if candidate := request.candidates[*id]; candidate != nil && candidate.group != nil {
+			ctx = context.WithValue(ctx, gatewayTokenRequestBillingGroupCtxKey{}, cloneAPIKeyGroup(candidate.group))
+		}
+	}
+	return ctx
+}
+
 type gatewayTokenRequestPricingAtCtxKey struct{}
 type gatewayTokenRequestBillingGroupCtxKey struct{}
 
@@ -17,6 +39,9 @@ type gatewayTokenRequestBillingGroupCtxKey struct{}
 func WithGatewayTokenRequestPricing(ctx context.Context) (context.Context, time.Time) {
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	if request := GatewayRequestBillingFromContext(ctx); request != nil {
+		return ctx, request.StartedAt()
 	}
 	pricingAt := timezone.Now()
 	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)

@@ -50,6 +50,7 @@ type ResolvedPricing struct {
 type ModelPricingResolver struct {
 	channelService *ChannelService
 	billingService *BillingService
+	pricingAt      time.Time // fixed only on request-owned immutable resolvers
 }
 
 // NewModelPricingResolver 创建定价解析器实例
@@ -58,6 +59,13 @@ func NewModelPricingResolver(channelService *ChannelService, billingService *Bil
 		channelService: channelService,
 		billingService: billingService,
 	}
+}
+
+func (r *ModelPricingResolver) pricingInstant() time.Time {
+	if !r.pricingAt.IsZero() {
+		return r.pricingAt
+	}
+	return time.Now()
 }
 
 // PricingInput 定价解析输入
@@ -139,7 +147,7 @@ func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPric
 		r.applyRequestTierOverrides(config, resolved)
 		return resolved
 	}
-	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
+	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, r.pricingInstant())
 	resolved.SupportsCacheBreakdown = resolved.BasePricing != nil && resolved.BasePricing.SupportsCacheBreakdown
 	r.applyTokenOverrides(config, resolved, model)
 	return resolved
@@ -170,7 +178,7 @@ func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
 func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, string) {
-	pricing, err := r.billingService.GetModelPricing(model)
+	pricing, err := r.billingService.getModelPricingAt(model, r.pricingInstant())
 	if err != nil {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback",
 			"model", model, "error", err)
@@ -247,13 +255,13 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	if chPricing.Currency == "CNY" {
 		resolved.BasePricing = nil
 		if r.billingService.pricingService != nil {
-			resolved.BasePricing, _ = r.billingService.pricingService.nativePricingAt(model, time.Now())
+			resolved.BasePricing, _ = r.billingService.pricingService.nativePricingAt(model, r.pricingInstant())
 		}
 		if resolved.BasePricing == nil {
 			resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
 		}
 	} else if resolved.BasePricing != nil && resolved.BasePricing.Currency == "CNY" {
-		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, time.Now())
+		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, r.pricingInstant())
 	}
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}

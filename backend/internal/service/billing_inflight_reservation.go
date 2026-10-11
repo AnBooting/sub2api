@@ -336,7 +336,8 @@ type inflightEstimateDeps struct {
 	// 即账号映射后的模型），因此这里取所有候选映射模型的最高估算。
 	// 仅在首选/渠道候选均无法定价（或 composite 分组）时才调用；实现只读调度器快照，
 	// 不在请求路径上直接查库，也不按模型名缓存（内存不随请求模型名增长）。
-	accountMappedModels func(ctx context.Context, apiKey *APIKey, model string) []string
+	accountMappedModels    func(ctx context.Context, apiKey *APIKey, model string) []string
+	accountMappingSnapshot func(ctx context.Context, apiKey *APIKey, model string) (map[int64]string, error)
 }
 
 // inflightSnapshotLister 调度器快照读取（与账号选择同源：Redis 快照，未命中时由快照服务自身回源并回填）。
@@ -663,16 +664,16 @@ func (s *GatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d.userGroupRate = s.getUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
-		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
-			func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
-				accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
-				return accounts, err
-			},
-			func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
-				platform, forced, err := s.resolvePlatform(ctx, apiKey.GroupID, apiKey.Group, model)
-				return platform, forced, err == nil
-			},
-		)
+		list := func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
+			accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
+			return accounts, err
+		}
+		platformFor := func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
+			platform, forced, err := s.resolvePlatform(ctx, apiKey.GroupID, apiKey.Group, model)
+			return platform, forced, err == nil
+		}
+		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor)
 	}
 	return d
 }
@@ -730,6 +731,21 @@ func (s *GatewayService) ValidateNativePricingRequest(ctx context.Context, apiKe
 	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
 }
 
+// PrepareRequestBilling freezes pricing rules once before the first account selection.
+func (s *GatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(ctx, key, req)
+}
+
+func (s *OpenAIGatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(ctx, key, req)
+}
+
 func (s *OpenAIGatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
 	if s == nil {
 		return nil
@@ -745,19 +761,19 @@ func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d.userGroupRate = s.ResolveUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
-		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
-			func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
-				accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
-				return accounts, err
-			},
-			func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
-				platform := PlatformOpenAI
-				if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
-					platform = apiKey.Group.Platform
-				}
-				return NormalizeOpenAICompatiblePlatform(platform), false, true
-			},
-		)
+		list := func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
+			accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
+			return accounts, err
+		}
+		platformFor := func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
+			platform := PlatformOpenAI
+			if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
+				platform = apiKey.Group.Platform
+			}
+			return NormalizeOpenAICompatiblePlatform(platform), false, true
+		}
+		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor)
 	}
 	return d
 }
