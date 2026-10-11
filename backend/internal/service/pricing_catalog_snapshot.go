@@ -203,7 +203,7 @@ func requestCatalogVersion(billing *BillingService, channels *ChannelService, ca
 	entries := make([]any, 0, len(ids))
 	for _, id := range ids {
 		c := candidates[id]
-		entries = append(entries, []any{id, c.group, c.multiplier, c.mapping, c.allowedUpstreamModels, c.accountUpstreamModels})
+		entries = append(entries, []any{id, c.group, c.multiplier, c.mapping, c.allowedUpstreamModels, c.accountUpstreamModels, c.accountLongContext})
 	}
 	data["candidates"] = entries
 	body, err := json.Marshal(data)

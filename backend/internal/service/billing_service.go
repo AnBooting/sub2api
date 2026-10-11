@@ -96,6 +96,7 @@ type BillingCache interface {
 
 // ModelPricing 模型价格配置（per-token价格，与LiteLLM格式一致）
 type ModelPricing struct {
+	TokenPricePresence TokenPricePresence
 	Currency           string
 	PricingSource      string
 	NativeCard         *NativeCNYCard
@@ -994,6 +995,11 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextInputMultiplier:    2,
 		LongContextOutputMultiplier:   2,
 	}
+	// Built-in exact model cards are explicitly declared operator defaults,
+	// including zero charges for unmetered cache dimensions; never a family guess.
+	for _, price := range s.fallbackPrices {
+		price.TokenPricePresence = completeTokenPricePresence()
+	}
 }
 
 // getFallbackPricing 根据模型系列获取回退价格
@@ -1358,6 +1364,7 @@ func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time)
 			enableBreakdown := price1h > 0 && price1h > price5m
 			return s.applyModelSpecificPricingPolicyEx(model, &ModelPricing{
 				Currency:                           "USD",
+				TokenPricePresence:                 litellmPricing.TokenPricePresence,
 				PricingSource:                      "catalog",
 				InputPricePerToken:                 litellmPricing.InputCostPerToken,
 				InputPricePerTokenPriority:         litellmPricing.InputCostPerTokenPriority,
@@ -1454,6 +1461,7 @@ func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *Chan
 		return
 	}
 	pricing.tokenPricingError = manualTokenPricingError(channelPricing)
+	applyTokenPricePresence(pricing, channelPricing)
 	pricing.manualTokenPricing = true
 	pricing.PricingSource = "manual"
 	pricing.Currency = channelPricing.Currency
@@ -1499,6 +1507,7 @@ func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *Chan
 type CostInput struct {
 	Ctx                       context.Context
 	Model                     string
+	SelectedAccountID         int64  // execution fact selecting frozen account policy, not customer-price scope
 	GroupID                   *int64 // 用于渠道定价查找
 	Group                     *Group
 	Tokens                    UsageTokens
@@ -1796,23 +1805,51 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 		units = float64(count)
 	}
 
-	var unitPrice float64
-
+	var unitPrice *float64
 	if input.SizeTier != "" {
-		unitPrice = input.Resolver.GetRequestTierPrice(resolved, input.SizeTier)
+		for _, tier := range resolved.RequestTiers {
+			if tier.TierLabel == input.SizeTier {
+				unitPrice = tier.PerRequestPrice
+				break
+			}
+		}
 	}
-
-	if unitPrice == 0 {
+	if unitPrice == nil && input.SizeTier == "" {
 		totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
-		unitPrice = input.Resolver.GetRequestTierPriceByContext(resolved, totalContext)
+		var contextTiers []PricingInterval
+		for _, tier := range resolved.RequestTiers {
+			if tier.TierLabel == "" {
+				contextTiers = append(contextTiers, tier)
+			}
+		}
+		if tier := FindMatchingInterval(contextTiers, totalContext); tier != nil {
+			unitPrice = tier.PerRequestPrice
+		}
 	}
-
-	// 回退到默认按次价格
-	if unitPrice == 0 {
-		unitPrice = resolved.DefaultPerRequestPrice
+	// Only an explicitly present default fills a missing tier. Explicit zero
+	// never falls through to a higher default price, and absence is not free.
+	if unitPrice == nil && resolved.channelPricing != nil {
+		unitPrice = resolved.channelPricing.PerRequestPrice
 	}
-
-	totalCost := unitPrice * units
+	// Preserve the exported pre-resolved positive scalar contract only when
+	// there is no genuine source card. A present source with a missing default
+	// cannot be filled by a stale scalar, and scalar zero is still absence.
+	if unitPrice == nil && resolved.channelPricing == nil {
+		legacyPrice := resolved.DefaultPerRequestPrice
+		if err := validRequestPrice(legacyPrice); err != nil {
+			return nil, err
+		}
+		if legacyPrice > 0 {
+			unitPrice = &legacyPrice
+		}
+	}
+	if unitPrice == nil {
+		return nil, fmt.Errorf("%w: per-request tier/default price is missing", ErrModelPricingUnavailable)
+	}
+	if err := validRequestPrice(*unitPrice); err != nil {
+		return nil, err
+	}
+	totalCost := *unitPrice * units
 	actualCost := totalCost * input.RateMultiplier
 	currency := "USD"
 	if resolved.channelPricing != nil && resolved.channelPricing.Currency == "CNY" {

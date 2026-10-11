@@ -27,6 +27,7 @@ type requestBillingCandidate struct {
 	mapping               ChannelMappingResult
 	allowedUpstreamModels []string
 	accountUpstreamModels map[int64]string
+	accountLongContext    map[int64]bool
 }
 
 // RequestBillingContext owns a complete frozen pricing/mapping bundle. No live
@@ -136,7 +137,15 @@ func (p *LockedRequestPricing) Calculate(input CostInput) (*CostBreakdown, error
 	input.Resolver = p.request.resolver
 	input.Resolved = p.resolved
 	// Caller-supplied live account switches cannot replace request-start rules.
-	input.LongContextBillingEnabled = nil
+	accountPolicy := false
+	if input.SelectedAccountID != 0 {
+		policy, known := p.candidate.accountLongContext[input.SelectedAccountID]
+		if !known {
+			return nil, fmt.Errorf("%w: selected account policy was not frozen", ErrModelPricingUnavailable)
+		}
+		accountPolicy = policy
+	}
+	input.LongContextBillingEnabled = &accountPolicy
 	cost, err := p.request.billing.CalculateCostUnified(input)
 	if err != nil {
 		return nil, err
@@ -313,17 +322,25 @@ func requestResolvedPricingAvailability(billing *BillingService, model string, r
 		if resolved.channelPricing == nil {
 			return missing()
 		}
-		if resolved.channelPricing.PerRequestPrice != nil {
-			return validRequestPrice(*resolved.channelPricing.PerRequestPrice)
-		}
-		if len(resolved.RequestTiers) > 0 {
-			for _, tier := range resolved.RequestTiers {
-				if tier.PerRequestPrice != nil {
-					if err := validRequestPrice(*tier.PerRequestPrice); err != nil {
-						return err
-					}
-				}
+		base := resolved.channelPricing.PerRequestPrice
+		if base != nil {
+			if err := validRequestPrice(*base); err != nil {
+				return err
 			}
+		}
+		for _, tier := range resolved.RequestTiers {
+			price := tier.PerRequestPrice
+			if price == nil {
+				price = base
+			}
+			if price == nil {
+				return missing()
+			}
+			if err := validRequestPrice(*price); err != nil {
+				return err
+			}
+		}
+		if base != nil || len(resolved.RequestTiers) > 0 {
 			return nil
 		}
 		return missing()
@@ -334,6 +351,9 @@ func requestResolvedPricingAvailability(billing *BillingService, model string, r
 	}
 	if price.tokenPricingError != nil {
 		return price.tokenPricingError
+	}
+	if err := tokenPriceCompletenessError(price); err != nil {
+		return err
 	}
 	if price.NativeCard != nil {
 		return nil
@@ -357,11 +377,21 @@ func (d inflightEstimateDeps) prepareRequestBilling(ctx context.Context, key *AP
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if previous := GatewayRequestBillingFromContext(ctx); previous != nil {
-		return ctx, previous, nil
-	}
 	if key == nil || d.billing == nil || strings.TrimSpace(req.Model) == "" {
 		return ctx, nil, fmt.Errorf("%w: cannot freeze missing request pricing inputs", ErrModelPricingUnavailable)
+	}
+	// Scope zero is synthesized only for a truly ungrouped legacy key. It is
+	// never accepted as an explicit legacy group id or a configured chain link.
+	if key.GroupID != nil && *key.GroupID <= 0 {
+		return ctx, nil, fmt.Errorf("%w: explicit group id must be positive", ErrModelPricingUnavailable)
+	}
+	for _, link := range key.Groups {
+		if link.GroupID <= 0 {
+			return ctx, nil, fmt.Errorf("%w: configured group id must be positive", ErrModelPricingUnavailable)
+		}
+	}
+	if previous := GatewayRequestBillingFromContext(ctx); previous != nil {
+		return ctx, previous, nil
 	}
 	startedAt := timezone.Now()
 	billing := cloneRequestBillingService(d.billing)
@@ -437,9 +467,12 @@ func (d inflightEstimateDeps) prepareRequestBilling(ctx context.Context, key *AP
 				return ctx, nil, err
 			}
 			candidate.accountUpstreamModels = make(map[int64]string, len(results))
+			candidate.accountLongContext = make(map[int64]bool, len(results))
 			seen := map[string]bool{}
-			for accountID, model := range results {
+			for accountID, policy := range results {
+				model := policy.Model
 				candidate.accountUpstreamModels[accountID] = model
+				candidate.accountLongContext[accountID] = policy.LongContextBillingEnabled
 				if !seen[model] {
 					seen[model] = true
 					candidate.allowedUpstreamModels = append(candidate.allowedUpstreamModels, model)

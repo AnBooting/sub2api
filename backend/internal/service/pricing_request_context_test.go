@@ -115,26 +115,26 @@ func TestRequestBillingContextFreezesFullNativeTierCalendarAndCatalog(t *testing
 
 func TestRequestBillingContextFreezesExactAccountMappingAndSource(t *testing.T) {
 	billing := newTestBillingService()
-	one, two := 1e-6, 2e-6
+	one, two, zero := 1e-6, 2e-6, 0.0
 	cache := newEmptyChannelCache()
 	cache.channelByGroupID[7] = &Channel{ID: 9, Status: StatusActive, BillingModelSource: BillingModelSourceUpstream}
 	cache.groupPlatform[7] = PlatformOpenAI
 	cache.mappingByGroupModel[channelModelKey{groupID: 7, platform: PlatformOpenAI, model: "requested"}] = "channel-target"
 	for model, rate := range map[string]*float64{"account-a": &one, "account-b": &two, "channel-target": &one} {
-		cache.pricingByGroupModel[channelModelKey{groupID: 7, platform: PlatformOpenAI, model: model}] = &ChannelModelPricing{InputPrice: rate, OutputPrice: rate}
+		cache.pricingByGroupModel[channelModelKey{groupID: 7, platform: PlatformOpenAI, model: model}] = &ChannelModelPricing{InputPrice: rate, OutputPrice: rate, CacheReadPrice: &zero, CacheWritePrice: &zero}
 	}
 	channels := newTestChannelServiceWithCache(t, cache)
 	group := &Group{ID: 7, Platform: PlatformOpenAI, RateMultiplier: 1}
 	key := &APIKey{GroupID: requestPricingTestInt64(7), Group: group}
-	results := map[int64]string{11: "account-a", 12: "account-b"}
-	deps := inflightEstimateDeps{billing: billing, resolver: NewModelPricingResolver(channels, billing), accountMappingSnapshot: func(context.Context, *APIKey, string) (map[int64]string, error) { return results, nil }}
+	results := map[int64]requestAccountMapping{11: {Model: "account-a"}, 12: {Model: "account-b"}}
+	deps := inflightEstimateDeps{billing: billing, resolver: NewModelPricingResolver(channels, billing), accountMappingSnapshot: func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) { return results, nil }}
 	_, request, err := deps.prepareRequestBilling(context.Background(), key, InflightEstimateRequest{Model: "requested"})
 	require.NoError(t, err)
 	mapping, err := request.MappingFor(7)
 	require.NoError(t, err)
 	require.Equal(t, "channel-target", mapping.MappedModel)
 	require.Equal(t, int64(9), mapping.ChannelID)
-	results[11] = "account-b" // still in allowed set, but X's relationship stays A.
+	results[11] = requestAccountMapping{Model: "account-b"} // still in allowed set, but X's relationship stays A.
 	cache.channelByGroupID[7].BillingModelSource = BillingModelSourceRequested
 	cache.mappingByGroupModel[channelModelKey{groupID: 7, platform: PlatformOpenAI, model: "requested"}] = "changed-live"
 	*cache.pricingByGroupModel[channelModelKey{groupID: 7, platform: PlatformOpenAI, model: "account-a"}].InputPrice = 999
@@ -197,7 +197,7 @@ func TestRequestBillingContextUnknownAndResponseModelFailClosed(t *testing.T) {
 }
 
 func TestRequestBillingContextMappingSnapshotErrorsAreNotIdentity(t *testing.T) {
-	deps := inflightEstimateDeps{billing: newTestBillingService(), accountMappingSnapshot: func(context.Context, *APIKey, string) (map[int64]string, error) {
+	deps := inflightEstimateDeps{billing: newTestBillingService(), accountMappingSnapshot: func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
 		return nil, errors.New("scheduler snapshot unavailable")
 	}}
 	_, request, err := deps.prepareRequestBilling(context.Background(), &APIKey{}, InflightEstimateRequest{Model: "claude-sonnet-4"})
@@ -246,8 +246,8 @@ func TestRequestBillingContextFullNativeLadderAndHAGettersAreOwned(t *testing.T)
 func TestRequestBillingContextOwnsCompleteUSDCatalogAndReturnedMaps(t *testing.T) {
 	billing := newTestBillingService()
 	billing.pricingService = NewPricingService(billing.cfg, nil)
-	billing.pricingService.pricingData["catalog-request"] = &LiteLLMModelPricing{InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6}
-	billing.pricingService.pricingData["catalog-response"] = &LiteLLMModelPricing{InputCostPerToken: 3e-6, OutputCostPerToken: 4e-6}
+	billing.pricingService.pricingData["catalog-request"] = &LiteLLMModelPricing{InputCostPerToken: 1e-6, OutputCostPerToken: 2e-6, TokenPricePresence: completeTokenPricePresence()}
+	billing.pricingService.pricingData["catalog-response"] = &LiteLLMModelPricing{InputCostPerToken: 3e-6, OutputCostPerToken: 4e-6, TokenPricePresence: completeTokenPricePresence()}
 	cache := newEmptyChannelCache()
 	cache.channelByGroupID[1] = &Channel{ID: 7, Status: StatusActive, BillingModelSource: BillingModelSourceResponse}
 	cache.groupPlatform[1] = PlatformOpenAI

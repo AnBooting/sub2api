@@ -337,7 +337,7 @@ type inflightEstimateDeps struct {
 	// 仅在首选/渠道候选均无法定价（或 composite 分组）时才调用；实现只读调度器快照，
 	// 不在请求路径上直接查库，也不按模型名缓存（内存不随请求模型名增长）。
 	accountMappedModels    func(ctx context.Context, apiKey *APIKey, model string) []string
-	accountMappingSnapshot func(ctx context.Context, apiKey *APIKey, model string) (map[int64]string, error)
+	accountMappingSnapshot func(ctx context.Context, apiKey *APIKey, model string) (map[int64]requestAccountMapping, error)
 }
 
 // inflightSnapshotLister 调度器快照读取（与账号选择同源：Redis 快照，未命中时由快照服务自身回源并回填）。
