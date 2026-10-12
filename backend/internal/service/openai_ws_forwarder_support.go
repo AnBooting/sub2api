@@ -78,6 +78,11 @@ func (s *OpenAIGatewayService) performOpenAIWSGeneratePrewarm(
 	prewarmPayload["generate"] = false
 	prewarmPayloadJSON := payloadAsJSONBytes(prewarmPayload)
 
+	// TS-02 S3b：WSv2 预热写帧也纳入请求预算，避免预热探测绕过统一发送预算。
+	if err := allowUpstreamSend(ctx); err != nil {
+		lease.MarkBroken()
+		return NewRequestAttemptBudgetFailoverError()
+	}
 	if err := lease.WriteJSONWithContextTimeout(ctx, prewarmPayload, s.openAIWSWriteTimeout()); err != nil {
 		lease.MarkBroken()
 		logOpenAIWSModeInfo(

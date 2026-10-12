@@ -217,7 +217,8 @@ func (s *GatewayService) executeBedrockUpstream(
 					break
 				}
 
-				delay := retryBackoffDelay(attempt)
+				// TS-02 S3b：先钳到请求预算剩余时间，再受既有总耗时上限约束。
+				delay := retryBackoffDelayWithBudget(ctx, attempt)
 				remaining := maxRetryElapsed - elapsed
 				if delay > remaining {
 					delay = remaining

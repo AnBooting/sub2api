@@ -50,6 +50,8 @@ var budgetHookWiringTable = []budgetHookWiringCase{
 	{"antigravity_gateway_retry.go", budgetHookSendMarker, 3},
 	{"antigravity_gateway_upstream.go", budgetHookSendMarker, 1},
 	{"openai_ws_forwarder_ingress.go", budgetHookAllowMarker, 1},
+	{"openai_ws_forwarder_support.go", budgetHookAllowMarker, 1},
+	{"openai_ws_forwarder_v2.go", budgetHookAllowMarker, 1},
 	{"openai_ws_turn_budget_frame_conn.go", budgetHookAllowMarker, 1},
 }
 

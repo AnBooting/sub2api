@@ -794,6 +794,10 @@ func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverE
 		googleError(c, http.StatusBadGateway, "Upstream request failed")
 		return
 	}
+	if failoverErr.Reason == service.RequestAttemptBudgetReason {
+		googleError(c, http.StatusServiceUnavailable, strings.TrimSpace(failoverErr.ClientMessage))
+		return
+	}
 
 	statusCode := failoverErr.StatusCode
 	responseBody := failoverErr.ResponseBody

@@ -731,8 +731,11 @@ func (e *UpstreamFailoverError) IsCredentialFailure() bool {
 // ShouldReportAccountScheduleFailure prevents provider- and request-scoped
 // credential failures from being misattributed to the selected account. Legacy
 // and inference failures retain their existing scheduler-health behavior.
+//
+// TS-02 S3b：预算耗尽发生在本站发送前，不归因到所选账号，也不得触发账号
+// 健康/调度失败上报或 API Key 健康度熔断。
 func (e *UpstreamFailoverError) ShouldReportAccountScheduleFailure() bool {
-	if e == nil {
+	if e == nil || e.Reason == RequestAttemptBudgetReason {
 		return false
 	}
 	return !e.IsCredentialFailure() || e.Scope == GatewayFailureScopeAccount

@@ -575,6 +575,7 @@ func TestClassifyBudgetFailoverErrorConstructorFailPolicy(t *testing.T) {
 	require.False(t, failoverErr.IsRetryableClass())
 	require.False(t, failoverErr.ShouldRetryNextAccount())
 	require.Equal(t, RequestAttemptBudgetReason, failoverErr.Reason)
+	require.False(t, failoverErr.ShouldReportAccountScheduleFailure(), "预算耗尽不得上报账号调度失败")
 }
 
 // TestGrokCredentialExitClassifiesByReason 钉死 Grok 凭据出口（覆盖账号级与

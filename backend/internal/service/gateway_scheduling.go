@@ -197,7 +197,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 						AccountID:      account.ID,
 						MaxConcurrency: account.Concurrency,
-						Timeout:        cfg.StickySessionWaitTimeout,
+						Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 						MaxWaiting:     cfg.StickySessionMaxWaiting,
 					})
 				}
@@ -205,7 +205,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 			return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 				AccountID:      account.ID,
 				MaxConcurrency: account.Concurrency,
-				Timeout:        cfg.FallbackWaitTimeout,
+				Timeout:        clampAccountWaitTimeout(ctx, cfg.FallbackWaitTimeout),
 				MaxWaiting:     cfg.FallbackMaxWaiting,
 			})
 		}
@@ -400,7 +400,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 										return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
 											AccountID:      stickyAccountID,
 											MaxConcurrency: stickyAccount.Concurrency,
-											Timeout:        cfg.StickySessionWaitTimeout,
+											Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 											MaxWaiting:     cfg.StickySessionMaxWaiting,
 										})
 									}
@@ -512,7 +512,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return s.newSelectionResult(ctx, item.account, false, nil, &AccountWaitPlan{
 						AccountID:      item.account.ID,
 						MaxConcurrency: item.account.Concurrency,
-						Timeout:        cfg.StickySessionWaitTimeout,
+						Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 						MaxWaiting:     cfg.StickySessionMaxWaiting,
 					})
 				}
@@ -611,7 +611,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 							return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 								AccountID:      accountID,
 								MaxConcurrency: account.Concurrency,
-								Timeout:        cfg.StickySessionWaitTimeout,
+								Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 								MaxWaiting:     cfg.StickySessionMaxWaiting,
 							})
 						}
@@ -791,7 +791,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 		return s.newSelectionResult(ctx, acc, false, nil, &AccountWaitPlan{
 			AccountID:      acc.ID,
 			MaxConcurrency: acc.Concurrency,
-			Timeout:        cfg.FallbackWaitTimeout,
+			Timeout:        clampAccountWaitTimeout(ctx, cfg.FallbackWaitTimeout),
 			MaxWaiting:     cfg.FallbackMaxWaiting,
 		})
 	}
@@ -822,6 +822,15 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 	}
 
 	return nil, false, nil
+}
+
+// clampAccountWaitTimeout 把账号选号等待钳到单逻辑请求预算剩余时间（TS-02 S3b）。
+// nil 预算保持原等待；有预算且剩余时间更短时，等待不能超过请求总预算。
+func clampAccountWaitTimeout(ctx context.Context, timeout time.Duration) time.Duration {
+	if budget := RequestAttemptBudgetFromContext(ctx); budget != nil && budget.Remaining() < timeout {
+		return budget.Remaining()
+	}
+	return timeout
 }
 
 func (s *GatewayService) schedulingConfig() config.GatewaySchedulingConfig {

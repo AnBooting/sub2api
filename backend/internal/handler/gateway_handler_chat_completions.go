@@ -414,6 +414,10 @@ func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *serv
 	if lastErr != nil {
 		copyFailoverRetryAfter(c, lastErr.ResponseHeaders)
 	}
+	if lastErr != nil && lastErr.Reason == service.RequestAttemptBudgetReason {
+		h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", strings.TrimSpace(lastErr.ClientMessage))
+		return
+	}
 	if lastErr != nil && lastErr.IsCredentialFailure() {
 		status, message := credentialFailoverClientResponse(lastErr)
 		h.chatCompletionsErrorResponse(c, status, "server_error", message)

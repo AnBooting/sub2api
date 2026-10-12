@@ -232,14 +232,16 @@ func (s *FailoverState) HandleFailoverError(
 	if ctx != nil && ctx.Err() != nil {
 		return FailoverCanceled
 	}
-	s.LastFailoverErr = failoverErr
-	if failoverErr == nil || !failoverErr.ShouldRetryNextAccount() {
-		return FailoverExhausted
-	}
-
 	// TS-02 S3：预算已耗尽时不再重试、不再换号，直接按耗尽终止。
 	// 原较小限制优先：预算只是二级上限，MaxSwitches / retryLimit 仍各自生效。
+	// LastFailoverErr 必须指向预算错误本身，避免出口拿到上一次真实上游错误，
+	// 被通用 writer 误写 Ops 上游错误/错误状态码。
 	if requestAttemptBudgetExhausted(ctx, "handle_failover_error") {
+		s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
+		return FailoverExhausted
+	}
+	s.LastFailoverErr = failoverErr
+	if failoverErr == nil || !failoverErr.ShouldRetryNextAccount() {
 		return FailoverExhausted
 	}
 
@@ -329,6 +331,7 @@ func (s *FailoverState) HandleSelectionExhausted(ctx context.Context) FailoverAc
 
 	// TS-02 S3：预算已耗尽时不再退避重选，直接按耗尽终止。
 	if requestAttemptBudgetExhausted(ctx, "handle_selection_exhausted") {
+		s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
 		return FailoverExhausted
 	}
 

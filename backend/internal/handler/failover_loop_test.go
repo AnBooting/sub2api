@@ -1066,6 +1066,8 @@ func TestHandleFailoverError_RequestAttemptBudget(t *testing.T) {
 		require.Equal(t, FailoverExhausted, action, "预算耗尽必须终止")
 		require.Zero(t, fs.SwitchCount, "预算耗尽不得继续换号")
 		require.Zero(t, fs.SameAccountRetryCount[100], "预算耗尽不得继续同号重试")
+		require.NotNil(t, fs.LastFailoverErr, "预算耗尽必须保留耗尽错误供出口 writer 使用")
+		require.Equal(t, service.RequestAttemptBudgetReason, fs.LastFailoverErr.Reason, "出口错误必须是预算错误而非上一次真实上游错误")
 		require.Empty(t, mock.calls, "预算耗尽不得临时封禁账号")
 		require.ErrorIs(t, budget.AllowSend(), service.ErrRequestAttemptBudgetExhausted,
 			"第 17 次发送必须被预算拒绝")
@@ -1214,6 +1216,8 @@ func TestHandleSelectionExhausted_RequestAttemptBudget(t *testing.T) {
 		action := fs.HandleSelectionExhausted(ctx)
 		require.Equal(t, FailoverExhausted, action)
 		require.Less(t, time.Since(start), 100*time.Millisecond, "预算耗尽不得退避")
+		require.NotNil(t, fs.LastFailoverErr, "预算耗尽必须保留耗尽错误供出口 writer 使用")
+		require.Equal(t, service.RequestAttemptBudgetReason, fs.LastFailoverErr.Reason, "出口错误必须是预算错误而非上一次真实上游错误")
 	})
 
 	t.Run("单账号退避被钳到Remaining", func(t *testing.T) {

@@ -1716,6 +1716,10 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 	if failoverErr != nil {
 		copyFailoverRetryAfter(c, failoverErr.ResponseHeaders)
 	}
+	if failoverErr != nil && failoverErr.Reason == service.RequestAttemptBudgetReason {
+		h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", strings.TrimSpace(failoverErr.ClientMessage), streamStarted)
+		return
+	}
 	if failoverErr != nil && failoverErr.IsCredentialFailure() {
 		status, message := credentialFailoverClientResponse(failoverErr)
 		h.anthropicStreamingAwareError(c, status, "api_error", message, streamStarted)

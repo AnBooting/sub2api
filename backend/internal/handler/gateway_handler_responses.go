@@ -394,6 +394,17 @@ func (h *GatewayHandler) handleResponsesFailoverExhausted(c *gin.Context, lastEr
 	if lastErr != nil {
 		copyFailoverRetryAfter(c, lastErr.ResponseHeaders)
 	}
+	if lastErr != nil && lastErr.Reason == service.RequestAttemptBudgetReason {
+		if streamStarted {
+			service.MarkOpsStreamError(c, requestAttemptBudgetExhaustedCode, strings.TrimSpace(lastErr.ClientMessage), http.StatusServiceUnavailable)
+			if c != nil && c.Writer != nil && (c.Writer.Size() <= 0 || gatewayStreamHasOnlyHeartbeats(c)) {
+				writeResponsesFailedSSE(c, requestAttemptBudgetExhaustedCode, "", strings.TrimSpace(lastErr.ClientMessage))
+			}
+		} else {
+			h.responsesErrorResponse(c, http.StatusServiceUnavailable, requestAttemptBudgetExhaustedCode, strings.TrimSpace(lastErr.ClientMessage))
+		}
+		return
+	}
 	statusCode := http.StatusBadGateway
 	if lastErr != nil && lastErr.StatusCode > 0 {
 		statusCode = lastErr.StatusCode
