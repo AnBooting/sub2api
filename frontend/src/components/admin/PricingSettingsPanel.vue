@@ -32,6 +32,8 @@
         <div class="space-y-2">
           <label for="deepseek-holidays" class="block font-medium">{{ t('admin.settings.pricing.holidays') }}</label>
           <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.holidaysHint') }}</p>
+          <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.calendarYears') }}: {{ (status.deepseek_calendar_years || []).join(', ') }}</p>
+          <p v-if="status.deepseek_calendar_error" class="text-sm text-amber-600" role="alert">{{ status.deepseek_calendar_error }}</p>
           <textarea id="deepseek-holidays" v-model="holidayDraft" :disabled="saving" rows="5" class="input w-full" data-testid="deepseek-holidays" />
           <button type="button" class="btn btn-secondary" :disabled="saving" data-testid="save-deepseek-holidays" @click="saveHolidays">{{ t('admin.settings.pricing.saveHolidays') }}</button>
         </div>
@@ -39,7 +41,8 @@
         <button type="button" class="btn btn-secondary" :disabled="saving || refreshing || !status.remote_enabled" data-testid="refresh-pricing" @click="refresh">{{ t('admin.settings.pricing.refresh') }}</button>
       </template>
       <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
-      <button v-if="!status && !loading" type="button" class="btn btn-secondary" @click="load">{{ t('admin.settings.pricing.retry') }}</button>
+      <button v-if="!status && !loading" type="button" class="btn btn-secondary" @click="load()">{{ t('admin.settings.pricing.retry') }}</button>
+      <TotpStepUpDialog :controller="holidayStepUp" />
     </div>
   </div>
 </template>
@@ -49,6 +52,8 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/format'
+import { useStepUp, isStepUpCancelled, isStepUpBlocked, stepUpBlockReason } from '@/composables/useStepUp'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { getPricingControls, updatePricingControls, refreshPricing, updateDeepseekHolidays, type PricingStatus, type PricingControls } from '@/api/admin/pricing'
 
 const { t } = useI18n()
@@ -59,16 +64,17 @@ const refreshing = ref(false)
 const loading = ref(true)
 const error = ref('')
 const holidayDraft = ref('')
+const holidayStepUp = useStepUp()
 let revision = 0
 const timestamp = (date: string) => date && !date.startsWith('0001-') ? formatDateTime(date) : t('admin.settings.pricing.never')
 const message = (err: unknown) => (err as { response?: { data?: { message?: string } } }).response?.data?.message || t('admin.settings.pricing.failed')
 
-async function load() {
+async function load(preserveDraft = false) {
   loading.value = true
   error.value = ''
   try {
     status.value = await getPricingControls()
-    holidayDraft.value = (status.value.deepseek_holidays || []).join('\n')
+    if (!preserveDraft) holidayDraft.value = (status.value.deepseek_holidays || []).join('\n')
   } catch (err) { error.value = message(err) } finally { loading.value = false }
 }
 async function saveHolidays() {
@@ -77,10 +83,16 @@ async function saveHolidays() {
   revision++
   error.value = ''
   try {
-    status.value = await updateDeepseekHolidays(holidayDraft.value.split(/[\s,]+/).filter(Boolean))
+    const dates = holidayDraft.value.split(/[\s,]+/).filter(Boolean)
+    status.value = await holidayStepUp.run(() => updateDeepseekHolidays(dates))
     holidayDraft.value = (status.value.deepseek_holidays || []).join('\n')
     app.showSuccess(t('admin.settings.pricing.saved'))
-  } catch (err) { error.value = message(err) } finally { saving.value = false }
+  } catch (err) {
+    if (isStepUpCancelled(err)) return
+    error.value = isStepUpBlocked(err)
+      ? t(stepUpBlockReason(err) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN' ? 'stepUp.adminApiKeyForbidden' : 'stepUp.notEnabled')
+      : message(err)
+  } finally { saving.value = false }
 }
 async function save(patch: Partial<PricingControls>) {
   if (!status.value || saving.value) return
@@ -91,7 +103,7 @@ async function save(patch: Partial<PricingControls>) {
     status.value = await updatePricingControls({ remote_enabled: status.value.remote_enabled, native_cny_enabled: status.value.native_cny_enabled, ...patch })
     await app.fetchPublicSettings(true)
     app.showSuccess(t('admin.settings.pricing.saved'))
-  } catch (err) { const detail = message(err); await load(); error.value = detail } finally { saving.value = false }
+  } catch (err) { const detail = message(err); await load(true); error.value = detail } finally { saving.value = false }
 }
 async function refresh() {
   if (!status.value?.remote_enabled || saving.value || refreshing.value) return

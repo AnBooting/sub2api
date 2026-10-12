@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"time"
 )
 
@@ -56,12 +57,14 @@ func (s *PricingService) RefreshNativeCNY() {
 func (s *PricingService) GetPricingControlStatus() map[string]any {
 	controls := s.GetControls()
 	holidays := s.DeepseekHolidayDates()
+	years, calendarError := s.deepseekCalendarStatus()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return map[string]any{
 		"remote_enabled": controls.RemoteEnabled, "native_cny_enabled": controls.NativeCNYEnabled,
-		"deepseek_holidays": holidays,
-		"usd_model_count":   len(s.pricingData), "usd_last_updated": s.lastUpdated,
+		"deepseek_holidays":       holidays,
+		"deepseek_calendar_years": years, "deepseek_calendar_error": calendarError,
+		"usd_model_count": len(s.pricingData), "usd_last_updated": s.lastUpdated,
 		"usd_error":       s.usdPricingError,
 		"cny_model_count": len(s.nativeCNYCards), "cny_last_updated": s.nativeCNYUpdated, "cny_error": s.nativeCNYError,
 	}
@@ -75,27 +78,46 @@ func (s *PricingService) loadControls(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	s.calendarWriteMu.Lock()
+	calendar := defaultDeepseekCalendar
+	var calendarErr error
 	if raw := values[SettingKeyDeepseekHolidays]; raw != "" {
 		var dates []string
 		if err := json.Unmarshal([]byte(raw), &dates); err != nil {
-			return err
+			calendarErr = err
+		} else if len(dates) > 0 {
+			if parsed, err := newDeepseekCalendar(dates); err != nil {
+				calendarErr = err
+			} else {
+				calendar = parsed
+			}
 		}
-		calendar, err := newDeepseekCalendar(dates)
-		if err != nil {
-			return err
-		}
-		s.holidayCalendar = calendar
 	}
+	s.calendarMu.Lock()
+	s.holidayCalendar = calendar
+	s.calendarError = ""
+	if calendarErr != nil {
+		s.calendarError = "Invalid saved DeepSeek holiday calendar; built-in dates restored"
+	}
+	s.calendarMu.Unlock()
+	s.calendarWriteMu.Unlock()
+	if calendarErr != nil {
+		slog.Warn("Invalid saved DeepSeek holiday calendar; using built-in dates", "error", calendarErr)
+		s.recordPricingSyncResult("DeepSeek calendar", ErrInvalidDeepseekHolidays)
+	}
+	s.deepseekCalendarAt(time.Now())
 	if raw := values[SettingKeyPricingControls]; raw != "" {
 		var controls PricingControls
 		if err := json.Unmarshal([]byte(raw), &controls); err != nil {
 			return err
 		}
+		s.controlsMu.Lock()
 		s.controls = &controls
+		s.controlsMu.Unlock()
 	} else {
 		// Persist configuration defaults so checkout and public settings share
 		// the exact same currency mode as the pricing engine.
-		body, err := json.Marshal(s.controlsLocked())
+		body, err := json.Marshal(s.GetControls())
 		if err != nil {
 			return err
 		}

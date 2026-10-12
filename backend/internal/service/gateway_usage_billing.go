@@ -10,7 +10,6 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
 func (s *GatewayService) getUserGroupRateMultiplier(ctx context.Context, userID, groupID int64, groupDefaultMultiplier float64) float64 {
@@ -798,10 +797,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	}
 	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。高峰因子按请求时刻现算，
 	// 不并入上面的 getUserGroupRateMultiplier，以免污染 user:group 倍率缓存。
-	pricingAt := input.PricingAt
-	if pricingAt.IsZero() {
-		pricingAt = timezone.Now()
-	}
+	pricingAt := requestPricingAt(ctx, input.PricingAt)
+	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, multiplier, pricingAt)
 
 	// 确定计费模型
@@ -940,6 +937,8 @@ func (s *GatewayService) calculateRecordUsageCost(
 	imageMultiplier float64,
 	pricingAt time.Time,
 ) *CostBreakdown {
+	pricingAt = requestPricingAt(ctx, pricingAt)
+	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	// 图片生成：渠道定价为 token 计费时走 token 路径，否则走图片计费
 	if result.ImageCount > 0 {
 		if resolved := s.resolveChannelPricing(ctx, billingModel, apiKey); resolved != nil && resolved.Mode == BillingModeToken {
@@ -1059,7 +1058,7 @@ func (s *GatewayService) resolveChannelPricing(ctx context.Context, billingModel
 		return nil
 	}
 	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group, PricingAt: requestPricingAt(ctx, time.Time{})})
 	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
 		return resolved
 	}

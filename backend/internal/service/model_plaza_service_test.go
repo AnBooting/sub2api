@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -499,7 +500,8 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	}}
 	groups := []Group{{ID: 10, Name: "cn", Platform: PlatformDeepseek, RateMultiplier: 1, LongContextPricingEnabled: true}}
 	svc := newPlazaServiceWithBilling(channels, groups, map[int64]string{10: PlatformDeepseek}, nil)
-	out, err := svc.ListGroups(context.Background())
+	ctx := context.WithValue(context.Background(), gatewayTokenRequestPricingAtCtxKey{}, time.Date(2026, 10, 12, 18, 0, 0, 0, time.UTC))
+	out, err := svc.ListGroups(ctx)
 	require.NoError(t, err)
 	m := out[0].Models[0]
 	require.NotNil(t, m.TimePricing)

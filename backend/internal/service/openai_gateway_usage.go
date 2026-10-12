@@ -207,7 +207,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
 	// Resolve，以免污染 user:group 倍率缓存。
 	baseMultiplier := multiplier
-	pricingAt := openAIUsagePricingAt(input)
+	pricingAt := requestPricingAt(ctx, input.PricingAt)
+	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
 	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
@@ -577,6 +578,8 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	longContextBillingGate *bool,
 	pricingAt time.Time,
 ) (*CostBreakdown, error) {
+	pricingAt = requestPricingAt(ctx, pricingAt)
+	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	billingModel := firstUsageBillingModel(billingModels)
 	if result != nil && result.WebSearchCalls > 0 {
 		// Codex alpha/search 网页搜索按次计费：上游不返回 usage/token 字段，单价只取
@@ -959,7 +962,7 @@ func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, 
 		return nil
 	}
 	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group, PricingAt: requestPricingAt(ctx, time.Time{})})
 	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
 		return resolved
 	}

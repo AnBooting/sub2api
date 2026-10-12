@@ -124,13 +124,21 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 		return out, nil
 	}
 
+	// Probe standard prices without the daily channel multiplier. Keep the
+	// original resolution for the separate time schedule returned below.
+	standard := *resolved
+	if resolved.channelPricing != nil {
+		card := resolved.channelPricing.Clone()
+		card.TimePricing = nil
+		standard.channelPricing = &card
+	}
 	req := TokenCostRequest{
 		Ctx:            ctx,
 		Model:          in.Model,
 		Group:          in.Group,
 		RateMultiplier: 1,
 		Resolver:       resolver,
-		Resolved:       resolved,
+		Resolved:       &standard,
 	}
 	probe := func(tokens UsageTokens) (*CostBreakdown, error) {
 		r := req

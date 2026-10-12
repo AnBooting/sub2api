@@ -2,13 +2,44 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"html"
 	"log/slog"
+	"net"
+	"os"
 	"strings"
 	"time"
 )
+
+// Only fixed error categories leave the service. Wrapped URL errors and
+// remote response bodies may contain internal hosts, credentials or tokens.
+func pricingAlertDetail(source string, err error) string {
+	category := "source unavailable or invalid data"
+	var dns *net.DNSError
+	var syntax *json.SyntaxError
+	var typeErr *json.UnmarshalTypeError
+	var pathErr *os.PathError
+	var network net.Error
+	switch {
+	case errors.Is(err, ErrDeepseekCalendarUnavailable):
+		category = "billing year unavailable; peak pricing disabled"
+	case errors.Is(err, ErrInvalidDeepseekHolidays):
+		category = "invalid saved calendar; built-in dates restored"
+	case errors.Is(err, context.DeadlineExceeded):
+		category = "timeout"
+	case errors.As(err, &dns):
+		category = "DNS failure"
+	case errors.As(err, &network) && network.Timeout():
+		category = "timeout"
+	case errors.As(err, &syntax), errors.As(err, &typeErr):
+		category = "invalid pricing data"
+	case errors.As(err, &pathErr):
+		category = "cache persistence failure"
+	}
+	return fmt.Sprintf("%s: %s", source, category)
+}
 
 type pricingAlertSender interface {
 	SendPricingSyncAlert(context.Context, string, string, string) error
@@ -70,18 +101,20 @@ func (s *PricingService) recordPricingSyncResult(source string, err error) {
 		return
 	}
 	limiter.SetLimit(cfg.Alert.RateLimitPerHour)
-	failed := false
+	failed, succeeded := false, false
 	for _, recipient := range cfg.Alert.Recipients {
 		recipient = strings.TrimSpace(recipient)
 		if recipient == "" || !limiter.Allow(time.Now().UTC()) {
 			continue
 		}
-		if sendErr := s.alertSender.SendPricingSyncAlert(ctx, recipient, source, fmt.Sprintf("%s sync failed: %v", source, err)); sendErr != nil {
+		if sendErr := s.alertSender.SendPricingSyncAlert(ctx, recipient, source, pricingAlertDetail(source, err)); sendErr != nil {
 			failed = true
 			slog.Warn("Pricing sync alert email delivery failed", "source", source, "error", sendErr)
+		} else {
+			succeeded = true
 		}
 	}
-	if failed {
+	if failed && !succeeded {
 		s.alertsMu.Lock()
 		if s.syncAlertTimes[source] == now {
 			delete(s.syncAlertTimes, source)

@@ -6,6 +6,8 @@ export interface PricingControls {
 }
 export interface PricingStatus extends PricingControls {
 	deepseek_holidays?: string[]
+	deepseek_calendar_years?: number[]
+	deepseek_calendar_error?: string
 	usd_error?: string
   usd_model_count: number
   usd_last_updated: string

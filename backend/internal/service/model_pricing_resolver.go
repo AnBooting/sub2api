@@ -132,8 +132,6 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 		resolved.Source = PricingSourceChannel
 		resolved.channelPricing = chPricing
 		r.applyTokenOverrides(chPricing, resolved, input.Model)
-	} else if input.GroupID != nil && r.channelService != nil {
-		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
 	}
 
 	return resolved
@@ -222,32 +220,6 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 		return nil
 	}
 	return r.channelService.GetChannelModelPricing(ctx, groupID, normalized)
-}
-
-// applyChannelOverrides 应用渠道定价覆盖
-func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupID int64, model string, resolved *ResolvedPricing) {
-	chPricing := r.lookupChannelPricingNormalized(ctx, groupID, model)
-	if chPricing == nil {
-		return
-	}
-	if (chPricing.BillingMode == "" || chPricing.BillingMode == BillingModeToken) &&
-		!hasChannelTokenOverrides(chPricing) && chPricing.Currency != "CNY" {
-		return
-	}
-
-	resolved.Source = PricingSourceChannel
-	resolved.channelPricing = chPricing
-	resolved.Mode = chPricing.BillingMode
-	if resolved.Mode == "" {
-		resolved.Mode = BillingModeToken
-	}
-
-	switch resolved.Mode {
-	case BillingModeToken:
-		r.applyTokenOverrides(chPricing, resolved, model)
-	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
-		r.applyRequestTierOverrides(chPricing, resolved)
-	}
 }
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖

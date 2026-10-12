@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -268,6 +269,9 @@ type PricingService struct {
 	controlsMu        sync.Mutex
 	controls          *PricingControls
 	holidayCalendar   *deepseekHolidayCalendar
+	calendarMu        sync.RWMutex
+	calendarWriteMu   sync.Mutex
+	calendarError     string
 	settingsRepo      SettingRepository
 	usdPricingError   string
 	alertsMu          sync.Mutex
@@ -306,6 +310,7 @@ func NewPricingService(cfg *config.Config, remoteClient PricingRemoteClient) *Pr
 
 // Initialize 初始化价格服务
 func (s *PricingService) Initialize() error {
+	s.deepseekCalendarAt(time.Now())
 	// 确保数据目录存在
 	if err := os.MkdirAll(s.cfg.Pricing.DataDir, 0755); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
@@ -419,6 +424,7 @@ func (s *PricingService) checkAndUpdatePricing() error {
 		remoteHash, err := s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash on startup: %v", err)
+			s.recordUSDPricingSyncResult(err)
 			return nil // 已加载本地文件，哈希获取失败不影响启动
 		}
 
@@ -456,17 +462,18 @@ func (s *PricingService) checkAndUpdatePricing() error {
 }
 
 // syncWithRemote 与远程同步（基于哈希校验）
-func (s *PricingService) syncWithRemote() (resultErr error) {
-	defer func() { s.recordUSDPricingSyncResult(resultErr) }()
+func (s *PricingService) syncWithRemote() error {
 	if !s.RemotePullEnabled() {
 		return nil
 	}
+	s.deepseekCalendarAt(time.Now())
 	// 如果配置了哈希URL，从远程获取哈希进行比对
 	if s.cfg.Pricing.HashURL != "" {
 		remoteHash, err := s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash: %v", err)
-			return nil // 哈希获取失败不影响正常使用
+			s.recordUSDPricingSyncResult(err)
+			return err // Retain prices, but do not report an unconfirmed sync as healthy.
 		}
 
 		s.mu.RLock()
@@ -479,6 +486,7 @@ func (s *PricingService) syncWithRemote() (resultErr error) {
 			return s.downloadPricingData()
 		}
 		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Hash check passed, no update needed")
+		s.recordUSDPricingSyncResult(nil)
 		return nil
 	}
 
@@ -497,6 +505,7 @@ func (s *PricingService) syncWithRemote() (resultErr error) {
 		return s.downloadPricingData()
 	}
 
+	s.recordUSDPricingSyncResult(nil)
 	return nil
 }
 
@@ -628,10 +637,12 @@ func (s *PricingService) downloadPricingData() (resultErr error) {
 
 	// 获取远程哈希（用于同步锚点，不作为完整性校验）
 	var remoteHash string
+	var hashErr error
 	if strings.TrimSpace(s.cfg.Pricing.HashURL) != "" {
 		remoteHash, err = s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash (continuing): %v", err)
+			hashErr = err
 		}
 	}
 
@@ -661,8 +672,8 @@ func (s *PricingService) downloadPricingData() (resultErr error) {
 		return ErrPricingPullDisabled
 	}
 	pricingFile := s.getPricingFilePath()
-	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save file: %v", err)
+	if err := writePricingCacheFile(pricingFile, body); err != nil {
+		return fmt.Errorf("save pricing cache: %w", err)
 	}
 
 	// 使用远程哈希作为同步锚点，防止重复下载
@@ -672,8 +683,8 @@ func (s *PricingService) downloadPricingData() (resultErr error) {
 		syncHash = remoteHash
 	}
 	hashFile := s.getHashFilePath()
-	if err := os.WriteFile(hashFile, []byte(syncHash+"\n"), 0644); err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save hash: %v", err)
+	if err := writePricingCacheFile(hashFile, []byte(syncHash+"\n")); err != nil {
+		return fmt.Errorf("save pricing hash: %w", err)
 	}
 
 	// 更新内存数据
@@ -686,7 +697,29 @@ func (s *PricingService) downloadPricingData() (resultErr error) {
 	s.mu.Unlock()
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Downloaded %d models successfully", len(data))
-	return nil
+	return hashErr
+}
+
+// Replace each cache file only after a complete write. A failed write cannot
+// truncate the previous prices, and temporary files are always cleaned up.
+func writePricingCacheFile(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".pricing-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
 // parsePricingData 解析价格数据（处理各种格式）
@@ -1219,7 +1252,11 @@ func (s *PricingService) fetchRemoteHash() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(hash), nil
+	hash = strings.TrimSpace(hash)
+	if hash == "" {
+		return "", errors.New("empty remote pricing hash")
+	}
+	return hash, nil
 }
 
 func (s *PricingService) validatePricingURL(raw string) (string, error) {

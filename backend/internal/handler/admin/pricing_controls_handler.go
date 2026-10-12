@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 )
@@ -21,6 +22,7 @@ func (h *ChannelHandler) UpdateDeepseekHolidays(c *gin.Context) {
 		response.BadRequest(c, "dates must be a list of YYYY-MM-DD holiday dates")
 		return
 	}
+	before := h.pricingService.DeepseekHolidayDates()
 	if err := h.pricingService.UpdateDeepseekHolidays(c.Request.Context(), *req.Dates); err != nil {
 		if errors.Is(err, service.ErrInvalidDeepseekHolidays) {
 			response.BadRequest(c, err.Error())
@@ -29,6 +31,8 @@ func (h *ChannelHandler) UpdateDeepseekHolidays(c *gin.Context) {
 		}
 		return
 	}
+	middleware.SetAuditAction(c, "admin.pricing.holidays.update")
+	middleware.SetAuditHolidayCalendar(c, before, h.pricingService.DeepseekHolidayDates())
 	response.Success(c, h.pricingService.GetPricingControlStatus())
 }
 

@@ -11,6 +11,16 @@ import (
 type gatewayTokenRequestPricingAtCtxKey struct{}
 type gatewayTokenRequestBillingGroupCtxKey struct{}
 
+func requestPricingAt(ctx context.Context, explicit time.Time) time.Time {
+	if !explicit.IsZero() {
+		return explicit
+	}
+	if at := GatewayTokenRequestPricingAtFromContext(ctx); !at.IsZero() {
+		return at
+	}
+	return timezone.Now()
+}
+
 // WithGatewayTokenRequestPricing marks a shared-gateway request as token billed
 // and freezes the downstream pricing instant for its whole lifetime. Media and
 // metadata-only handlers deliberately do not call this helper.

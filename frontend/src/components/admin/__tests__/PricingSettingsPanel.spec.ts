@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import PricingSettingsPanel from '../PricingSettingsPanel.vue'
-const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn(), holidays: vi.fn() }))
+const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn(), holidays: vi.fn(), stepUp: vi.fn((action: () => Promise<unknown>) => action()) }))
+vi.mock('@/composables/useStepUp', () => ({ useStepUp: () => ({ run: api.stepUp }), isStepUpCancelled: () => false, isStepUpBlocked: () => false, stepUpBlockReason: () => '' }))
+vi.mock('@/components/auth/TotpStepUpDialog.vue', () => ({ default: { template: '<div />' } }))
 vi.mock('@/api/admin/pricing', () => ({ getPricingControls: api.get, updatePricingControls: api.update, refreshPricing: api.refresh, updateDeepseekHolidays: api.holidays }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ fetchPublicSettings: vi.fn(), showSuccess: vi.fn() }) }))
@@ -18,6 +20,7 @@ describe('pricing switches', () => {
     await wrapper.get('[data-testid="deepseek-holidays"]').setValue('2026-10-01\n2026-10-02')
     await wrapper.get('[data-testid="save-deepseek-holidays"]').trigger('click'); await flushPromises()
     expect(api.holidays).toHaveBeenCalledWith(['2026-10-01', '2026-10-02'])
+    expect(api.stepUp).toHaveBeenCalledTimes(1)
     expect(api.update).not.toHaveBeenCalled()
   })
 
@@ -28,6 +31,21 @@ describe('pricing switches', () => {
     await wrapper.get('[data-testid="save-deepseek-holidays"]').trigger('click'); await flushPromises()
     expect(wrapper.get('[role="alert"]').text()).toBe('invalid holiday date')
     expect((wrapper.get('[data-testid="deepseek-holidays"]').element as HTMLTextAreaElement).value).toBe('2026-02-30')
+  })
+  it('preserves holiday drafts when saving a switch fails', async () => {
+    api.get.mockResolvedValue({ ...initial, deepseek_holidays: ['2026-10-01'] })
+    api.update.mockRejectedValue({ response: { data: { message: 'save failed' } } })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    await wrapper.get('[data-testid="deepseek-holidays"]').setValue('2026-12-01')
+    await wrapper.get('[data-testid="remote-pull-toggle"]').setValue(false); await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toBe('save failed')
+    expect((wrapper.get('[data-testid="deepseek-holidays"]').element as HTMLTextAreaElement).value).toBe('2026-12-01')
+  })
+  it('shows calendar coverage and operational errors', async () => {
+    api.get.mockResolvedValue({ ...initial, deepseek_calendar_years: [2026], deepseek_calendar_error: 'peak pricing disabled' })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    expect(wrapper.text()).toContain('2026')
+    expect(wrapper.get('[role="alert"]').text()).toBe('peak pricing disabled')
   })
   it('disables all pulls while a manual refresh is still running', async () => {
     let finish!: (value: unknown) => void

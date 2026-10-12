@@ -5,16 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"slices"
 	"sort"
-	"sync"
 	"time"
 )
 
 const SettingKeyDeepseekHolidays = "deepseek.holidays"
 
 var ErrInvalidDeepseekHolidays = errors.New("invalid DeepSeek holiday calendar")
+var ErrDeepseekCalendarUnavailable = errors.New("DeepSeek holiday calendar does not cover billing year; peak pricing disabled")
 
 type deepseekHolidayCalendar struct {
 	dates    []string
@@ -38,8 +37,6 @@ var defaultDeepseekCalendar = func() *deepseekHolidayCalendar {
 	calendar, _ := newDeepseekCalendar(dates)
 	return calendar
 }()
-
-var missingDeepseekCalendarYear sync.Map
 
 func newDeepseekCalendar(dates []string) (*deepseekHolidayCalendar, error) {
 	if len(dates) > 3660 {
@@ -67,8 +64,8 @@ func (s *PricingService) deepseekCalendar() *deepseekHolidayCalendar {
 	if s == nil {
 		return defaultDeepseekCalendar
 	}
-	s.controlsMu.Lock()
-	defer s.controlsMu.Unlock()
+	s.calendarMu.RLock()
+	defer s.calendarMu.RUnlock()
 	if s.holidayCalendar == nil {
 		return defaultDeepseekCalendar
 	}
@@ -80,16 +77,70 @@ func (s *PricingService) UpdateDeepseekHolidays(ctx context.Context, dates []str
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrInvalidDeepseekHolidays, err)
 	}
-	s.controlsMu.Lock()
-	defer s.controlsMu.Unlock()
+	// An empty list explicitly restores the built-in calendar.
+	if len(dates) == 0 {
+		calendar = defaultDeepseekCalendar
+	} else if !calendar.years[time.Now().In(time.FixedZone("Asia/Shanghai", 8*3600)).Year()] {
+		return fmt.Errorf("%w: dates must cover the current Beijing billing year", ErrInvalidDeepseekHolidays)
+	}
+	s.calendarWriteMu.Lock()
+	defer s.calendarWriteMu.Unlock()
 	if s.settingsRepo != nil {
 		body, _ := json.Marshal(calendar.dates)
 		if err := s.settingsRepo.Set(ctx, SettingKeyDeepseekHolidays, string(body)); err != nil {
 			return err
 		}
 	}
+	s.calendarMu.Lock()
 	s.holidayCalendar = calendar
+	s.calendarError = ""
+	s.calendarMu.Unlock()
+	s.recordPricingSyncResult("DeepSeek calendar", nil)
+	for year := range calendar.years {
+		s.recordPricingSyncResult(fmt.Sprintf("DeepSeek calendar %d", year), nil)
+	}
 	return nil
+}
+
+// Missing custom years use the built-in table. Years absent from both tables
+// remain off-peak to avoid charging a holiday at the weekday peak rate.
+func effectiveDeepseekCalendar(calendar *deepseekHolidayCalendar, year int) *deepseekHolidayCalendar {
+	if calendar != nil && calendar.years[year] {
+		return calendar
+	}
+	return defaultDeepseekCalendar
+}
+
+func (s *PricingService) deepseekCalendarAt(at time.Time) *deepseekHolidayCalendar {
+	year := at.In(time.FixedZone("Asia/Shanghai", 8*3600)).Year()
+	calendar := effectiveDeepseekCalendar(s.deepseekCalendar(), year)
+	if s != nil && !calendar.years[year] {
+		s.recordPricingSyncResult(fmt.Sprintf("DeepSeek calendar %d", year), ErrDeepseekCalendarUnavailable)
+	}
+	return calendar
+}
+
+func (s *PricingService) deepseekCalendarStatus() ([]int, string) {
+	calendar := s.deepseekCalendar()
+	years := make(map[int]bool)
+	for year := range defaultDeepseekCalendar.years {
+		years[year] = true
+	}
+	for year := range calendar.years {
+		years[year] = true
+	}
+	covered := make([]int, 0, len(years))
+	for year := range years {
+		covered = append(covered, year)
+	}
+	sort.Ints(covered)
+	s.calendarMu.RLock()
+	detail := s.calendarError
+	s.calendarMu.RUnlock()
+	if !years[time.Now().In(time.FixedZone("Asia/Shanghai", 8*3600)).Year()] {
+		detail = ErrDeepseekCalendarUnavailable.Error()
+	}
+	return covered, detail
 }
 
 func (s *PricingService) DeepseekHolidayDates() []string {
@@ -101,10 +152,9 @@ func deepseekOffPeakDay(at time.Time, calendar *deepseekHolidayCalendar) bool {
 		calendar = defaultDeepseekCalendar
 	}
 	beijing := at.In(time.FixedZone("Asia/Shanghai", 8*3600))
+	calendar = effectiveDeepseekCalendar(calendar, beijing.Year())
 	if !calendar.years[beijing.Year()] {
-		if _, seen := missingDeepseekCalendarYear.LoadOrStore(beijing.Year(), struct{}{}); !seen {
-			slog.Warn("DeepSeek holiday calendar has no dates for billing year; using weekday schedule", "year", beijing.Year())
-		}
+		return true
 	}
 	return calendar.holidays[beijing.Format(time.DateOnly)] || beijing.Weekday() == time.Saturday || beijing.Weekday() == time.Sunday
 }

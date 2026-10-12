@@ -532,7 +532,8 @@ func TestResolveContextPricingSchedule_TimePricing(t *testing.T) {
 
 	t.Run("渠道分时按开始时间升序列出且跳过倍率 1 的时段", func(t *testing.T) {
 		bs, resolver := newTokenCostTestEnv(t, PlatformAnthropic, sonnetChannelWithTimePricing(valid), nil)
-		sched, err := bs.ResolveContextPricingSchedule(context.Background(), resolver, ContextPricingScheduleInput{
+		ctx := context.WithValue(context.Background(), gatewayTokenRequestPricingAtCtxKey{}, time.Date(2026, 10, 12, 18, 0, 0, 0, time.UTC))
+		sched, err := bs.ResolveContextPricingSchedule(ctx, resolver, ContextPricingScheduleInput{
 			Model: "claude-sonnet-4", Group: enabledGroup(PlatformAnthropic), Platform: PlatformAnthropic,
 		})
 		require.NoError(t, err)

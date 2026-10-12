@@ -2,7 +2,8 @@ export default {
     settings: {
 	  pricing: {
 	    holidays: 'DeepSeek 法定节假日',
-	    holidaysHint: '按北京时间判断日期，每行一个 YYYY-MM-DD。默认包含 2026 年官方放假日期；请按年维护完整列表。节假日和周末（含补班）使用谷价，仅适用于官方价格；自定义价由运营者配置。',
+	    holidaysHint: '按北京时间判断日期，每行一个 YYYY-MM-DD；非空列表必须包含当前年份。清空后保存可恢复内置 2026 年日历。请按年维护完整假期；缺年时使用内置日历，仍缺年则禁用高峰加价并告警。节假日和周末（含补班）使用谷价，仅适用于官方价格；自定义价由运营者配置。',
+	    calendarYears: '日历覆盖年份',
 	    saveHolidays: '保存节假日',
 	    creditUnit: '额度', rechargeHint: '额度模式已启用：¥1 或 $1 基础充值均到账 1 额度，赠送和手续费另行计算。',
 	    currency: '价格币种', manualCNYHint: '人民币 Token 价卡需填写输入、输出、缓存读取和缓存写入价格，免费项填写 0；不会继承美元价格。',

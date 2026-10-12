@@ -11,7 +11,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/google/uuid"
 )
 
@@ -308,6 +307,7 @@ const (
 
 // InflightEstimateRequest 单请求估算输入。
 type InflightEstimateRequest struct {
+	PricingAt time.Time
 	Model     string
 	BodyBytes int
 	MaxTokens int
@@ -427,7 +427,7 @@ func inflightBillingModelCandidates(ctx context.Context, deps inflightEstimateDe
 	return primary, fallbacks, upstreamInput
 }
 
-func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, image float64) {
+func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey, at time.Time) (text, image float64) {
 	rate := 1.0
 	if d.cfg != nil && d.cfg.Default.RateMultiplier > 0 {
 		rate = d.cfg.Default.RateMultiplier
@@ -438,7 +438,7 @@ func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, 
 			rate = d.userGroupRate(ctx, apiKey.User.ID, *apiKey.GroupID, rate)
 		}
 	}
-	return computePeakAwareMultipliers(apiKey, rate, timezone.Now())
+	return computePeakAwareMultipliers(apiKey, rate, at)
 }
 
 func tokenCounts(cfg config.InflightReservationConfig, bodyBytes, maxTokens int) (int, int) {
@@ -479,6 +479,7 @@ func validCost(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v
 
 // estimateOne 估算单个候选计费模型（未乘倍率的 token 部分与按次部分分开返回，便于套用不同倍率）。
 func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, model string, req InflightEstimateRequest, textRate, imageRate float64) float64 {
+	at := requestPricingAt(ctx, req.PricingAt)
 	cfg := inflightReservationCfg(d.cfg)
 	units := req.Units
 	if units <= 0 {
@@ -486,7 +487,7 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 	}
 	var resolved *ResolvedPricing
 	if d.resolver != nil {
-		in := PricingInput{Model: model}
+		in := PricingInput{Model: model, PricingAt: at}
 		if apiKey != nil {
 			in.GroupID = apiKey.GroupID
 			in.Group = apiKey.Group
@@ -501,17 +502,21 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 			pricing = d.resolver.GetIntervalPricing(resolved, inputTokens)
 		}
 		if pricing == nil && d.billing != nil {
-			pricing, _ = d.billing.GetModelPricing(model)
+			pricing, _ = d.billing.getModelPricingAt(model, at)
 		}
 		if pricing == nil {
 			return 0
 		}
 		var err error
-		pricing, err = resolveNativeTokenPricing(pricing, UsageTokens{InputTokens: inputTokens, OutputTokens: outputTokens}, time.Now())
+		pricing, err = resolveNativeTokenPricing(pricing, UsageTokens{InputTokens: inputTokens, OutputTokens: outputTokens}, at)
 		if err != nil {
 			return 0
 		}
-		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate
+		multiplier := resolvedChannelTimeMultiplier(resolved, at)
+		if (resolved == nil || resolved.Source == PricingSourceLiteLLM) && pricing.Currency != "CNY" && isDeepSeekModel(model) {
+			multiplier *= deepseekPeakMultiplierWithCalendar(at, d.billing.pricingService.deepseekCalendarAt(at))
+		}
+		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate * multiplier
 	}
 
 	var cost float64
@@ -587,7 +592,8 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 		// 非计量请求（媒体状态查询、custom-voices 等）：无需预留，也不算「无法定价」。
 		return 0, true
 	}
-	textRate, imageRate := d.rates(ctx, apiKey)
+	req.PricingAt = requestPricingAt(ctx, req.PricingAt)
+	textRate, imageRate := d.rates(ctx, apiKey, req.PricingAt)
 	if textRate <= 0 && imageRate <= 0 {
 		// 免费分组：不计费，也无需预留。
 		return 0, true
@@ -694,7 +700,7 @@ func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, 
 	for _, model := range primary {
 		requiresNative := d.billing.pricingService.RequiresNativeCNY(model)
 		if d.resolver != nil {
-			input := PricingInput{Model: model}
+			input := PricingInput{Model: model, PricingAt: requestPricingAt(ctx, req.PricingAt)}
 			if apiKey != nil {
 				input.Group = apiKey.Group
 				input.GroupID = apiKey.GroupID
@@ -716,7 +722,7 @@ func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, 
 		if !requiresNative {
 			continue
 		}
-		if _, err := d.billing.GetModelPricing(model); err != nil {
+		if _, err := d.billing.getModelPricingAt(model, requestPricingAt(ctx, req.PricingAt)); err != nil {
 			return err
 		}
 	}

@@ -2,7 +2,8 @@ export default {
     settings: {
 	  pricing: {
 	    holidays: 'DeepSeek public holidays',
-	    holidaysHint: 'Dates use Beijing time. Enter one YYYY-MM-DD per line. The default includes official 2026 holidays; maintain the complete list each year. Holidays and weekends, including make-up workdays, use off-peak official rates. Custom prices follow operator settings.',
+	    holidaysHint: 'Dates use Beijing time. Enter one YYYY-MM-DD per line; a nonempty list must include the current year. Clear and save to restore the built-in 2026 calendar. Maintain all holidays each year. Missing years use built-in dates; if unavailable, peak pricing is disabled and an alert is sent. Holidays and weekends, including make-up workdays, use off-peak official rates. Custom prices follow operator settings.',
+	    calendarYears: 'Calendar coverage years',
 	    saveHolidays: 'Save holidays',
 	    creditUnit: 'credits', rechargeHint: 'Credit mode: a base recharge of ¥1 or $1 adds 1 credit. Bonuses and fees are calculated separately.',
 	    currency: 'Price currency', manualCNYHint: 'CNY token cards require input, output, cache read and cache write rates. Enter 0 for free items; USD rates are never inherited.',

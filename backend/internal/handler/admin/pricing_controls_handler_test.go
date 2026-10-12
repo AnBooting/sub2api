@@ -66,5 +66,5 @@ func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 		router.ServeHTTP(rec, req)
 		require.Equal(t, http.StatusOK, rec.Code)
 	}
-	require.Empty(t, pricing.DeepseekHolidayDates())
+	require.Contains(t, pricing.DeepseekHolidayDates(), "2026-10-01", "empty list restores built-in holidays")
 }

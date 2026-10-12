@@ -395,6 +395,7 @@ func (s *PricingService) loadNativeCNYCache() {
 	s.mu.Unlock()
 }
 func (s *PricingService) syncNativeCNY(force bool) (resultErr error) {
+	s.deepseekCalendarAt(time.Now())
 	if !s.GetControls().NativeCNYEnabled {
 		return nil
 	}
@@ -509,7 +510,7 @@ func (s *PricingService) nativePricingAt(model string, at time.Time) (*ModelPric
 		at = time.Now()
 	}
 	clonedCard := *card
-	clonedCard.holidayCalendar = s.deepseekCalendar()
+	clonedCard.holidayCalendar = s.deepseekCalendarAt(at)
 	card = &clonedCard
 	rates := card.ratesAt(0, at)
 	p := &ModelPricing{Currency: "CNY", PricingSource: card.Source, NativeCard: card, NativePricingAt: at, CacheCreationPriceExplicit: true}
