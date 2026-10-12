@@ -419,3 +419,110 @@ func TestOpenAIResponsesLockedPricingRetryHotMutationAndRealDebit(t *testing.T) 
 		})
 	}
 }
+
+// lockedCompactRequestBody 构造走 legacy /responses/compact 链路的请求体。
+// fixture 的 requestBody 固定 POST /openai/v1/responses（裸端点），而
+// IsOpenAIResponsesCompactPath 只认 /compact 后缀，路径直投不可达；因此采用
+// 真实 Codex 客户端的 body 信号形态：非流式 + input 带 compaction_trigger，由
+// normalizeOpenAIResponsesCompactRequest 把路径提升为
+// /openai/v1/responses/compact 并使 legacyCompact 成立（与原生 v2 流式压缩
+// 回归护栏同源，仅 stream 取反；compact 归一化会丢弃 stream 字段，故上游走
+// 非流式 JSON 回路）。
+func lockedCompactRequestBody(model string) string {
+	return fmt.Sprintf(`{"model":%q,"input":[{"role":"user","content":"hello"},{"type":"compaction_trigger"}],"stream":false}`, model)
+}
+
+// TestOpenAIResponsesLockedPricingCompactMissingPriceRejected 锁定：
+// compact 请求纳入锁价切片后，分组价缺 output 维仍必须在上游请求前被拒
+// （503 pricing_unavailable），不产生任何上游调用与账目。
+func TestOpenAIResponsesLockedPricingCompactMissingPriceRejected(t *testing.T) {
+	f := newLockedHTTPFixture(t, false)
+	f.group.ModelPricing[0].OutputPrice = nil
+	rec, c := f.requestBody(t, lockedCompactRequestBody("client-model"), nil)
+	require.True(t, service.IsOpenAIResponsesCompactPath(c), "body-signal compact request must be promoted to /responses/compact")
+	require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+	require.Equal(t, "pricing_unavailable", gjson.GetBytes(rec.Body.Bytes(), "error.type").String())
+	require.Empty(t, f.upstream.calls)
+	_, selected := c.Get(opsAccountIDKey)
+	require.False(t, selected)
+	require.Empty(t, f.ledger.commands)
+}
+
+// TestOpenAIResponsesLockedPricingCompactExplicitZeroBilled 锁定：
+// compact 请求显式零价放行（不被误判为缺价），上游 1 次、入账 1 条、金额 0。
+func TestOpenAIResponsesLockedPricingCompactExplicitZeroBilled(t *testing.T) {
+	f := newLockedHTTPFixture(t, true)
+	rec, c := f.requestBody(t, lockedCompactRequestBody("client-model"), nil)
+	require.True(t, service.IsOpenAIResponsesCompactPath(c))
+	require.Equal(t, 200, rec.Code, rec.Body.String())
+	require.Len(t, f.upstream.calls, 1)
+	// 未配置 compact_model_mapping 时冻结的 compact 链解析为账号自身；
+	// passthrough 同时忽略普通 model_mapping，body 模型保持客户端模型名。
+	require.Equal(t, "client-model", f.upstream.calls[0].model)
+	require.Equal(t, "Bearer fixture-not-a-secret", f.upstream.calls[0].header.Get("Authorization"))
+	require.Len(t, f.ledger.commands, 1)
+	require.InDelta(t, 0.0, f.ledger.commands[0].BalanceCost, 1e-12)
+	require.InDelta(t, 100, f.ledger.balance, 1e-12)
+	require.Equal(t, f.upstream.calls[0].id, f.ledger.commands[0].RequestID)
+}
+
+// TestOpenAIResponsesLockedPricingCompactMappingFrozenAndBilledOnce 锁定：
+// compact 请求的账号上游模型按 compact 链冻结（compact_model_mapping 命中），
+// 上游 body 模型即冻结模型、按分组冻结价计费恰好一次、requestID 与冻结一致。
+func TestOpenAIResponsesLockedPricingCompactMappingFrozenAndBilledOnce(t *testing.T) {
+	f := newLockedHTTPFixture(t, false)
+	for _, account := range f.accounts {
+		account.Credentials["compact_model_mapping"] = map[string]any{"client-model": "gpt-5.4-compact"}
+	}
+	// token 数由上游 usage 推导（与 ImageInputTokensBilled 同口径的 usageOverride）：
+	// input 1000 / output 500，默认缓存读 0。
+	f.upstream.usageOverride = `{"input_tokens":1000,"output_tokens":500,"input_tokens_details":{"cached_tokens":0}}`
+	rec, c := f.requestBody(t, lockedCompactRequestBody("client-model"), nil)
+	require.True(t, service.IsOpenAIResponsesCompactPath(c))
+	require.Equal(t, 200, rec.Code, rec.Body.String())
+	require.Len(t, f.upstream.calls, 1)
+	require.Equal(t, "gpt-5.4-compact", f.upstream.calls[0].model, "upstream body must carry the frozen compact-mapped model")
+	require.Len(t, f.ledger.commands, 1)
+	// 计费模型仍是分组冻结的 client-model（1e-6/2e-6）× 用户组倍率 1.2：
+	// (1000*1e-6 + 500*2e-6) * 1.2 = 0.0024；compact 映射只改上游模型、不改售价。
+	require.InDelta(t, 0.0024, f.ledger.commands[0].BalanceCost, 1e-12)
+	request := service.GatewayRequestBillingFromContext(c.Request.Context())
+	require.NotNil(t, request)
+	frozenModel, frozenErr := request.UpstreamModelFor(71, f.upstream.calls[0].accountID)
+	require.NoError(t, frozenErr)
+	require.Equal(t, "gpt-5.4-compact", frozenModel, "frozen account model must be resolved through the compact chain")
+	require.Equal(t, request.RequestID(), f.upstream.calls[0].id)
+	require.Equal(t, request.RequestID(), f.ledger.commands[0].RequestID)
+}
+
+// TestOpenAIResponsesLockedPricingCompactFailoverReusesFrozenPricing 锁定：
+// compact 请求首账号 5xx（fixture failFirst 返回 502，与既有 failover 用例同机制）
+// failover 到第二账号后仍按同一冻结价只入账一次；冻结表按新账号重绑 compact 口径。
+func TestOpenAIResponsesLockedPricingCompactFailoverReusesFrozenPricing(t *testing.T) {
+	f := newLockedHTTPFixture(t, false)
+	for _, account := range f.accounts {
+		account.Credentials["compact_model_mapping"] = map[string]any{"client-model": "gpt-5.4-compact"}
+	}
+	f.upstream.failFirst = true
+	rec, c := f.requestBody(t, lockedCompactRequestBody("client-model"), nil)
+	require.True(t, service.IsOpenAIResponsesCompactPath(c))
+	require.Equal(t, 200, rec.Code, rec.Body.String())
+	require.Len(t, f.upstream.calls, 2)
+	require.NotEqual(t, f.upstream.calls[0].accountID, f.upstream.calls[1].accountID)
+	require.Equal(t, "gpt-5.4-compact", f.upstream.calls[0].model)
+	require.Equal(t, "gpt-5.4-compact", f.upstream.calls[1].model, "failover rebinds the new account's frozen compact model")
+	require.Equal(t, f.upstream.calls[0].id, f.upstream.calls[1].id)
+	require.Equal(t, f.upstream.calls[0].version, f.upstream.calls[1].version)
+	require.Equal(t, f.upstream.calls[0].startedAt, f.upstream.calls[1].startedAt, "failover reuses the same frozen bundle start time")
+	require.Len(t, f.ledger.commands, 1, "only the successful attempt is billed once")
+	// 与 MappingFrozenAndBilledOnce 同一推导：(1000*1e-6 + 500*2e-6) * 1.2 = 0.0024。
+	require.InDelta(t, 0.0024, f.ledger.commands[0].BalanceCost, 1e-12)
+	require.InDelta(t, 100-0.0024, f.ledger.balance, 1e-12)
+	request := service.GatewayRequestBillingFromContext(c.Request.Context())
+	require.NotNil(t, request)
+	require.Equal(t, request.RequestID(), f.upstream.calls[1].id)
+	require.Equal(t, request.RequestID(), f.ledger.commands[0].RequestID)
+	frozenModel, frozenErr := request.UpstreamModelFor(71, f.upstream.calls[1].accountID)
+	require.NoError(t, frozenErr)
+	require.Equal(t, "gpt-5.4-compact", frozenModel, "failover account is frozen through the same compact chain")
+}

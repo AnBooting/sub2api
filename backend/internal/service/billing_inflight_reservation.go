@@ -308,10 +308,14 @@ const (
 
 // InflightEstimateRequest 单请求估算输入。
 type InflightEstimateRequest struct {
-	Model     string
-	BodyBytes int
-	MaxTokens int
-	Kind      InflightEstimateKind
+	Model string
+	// RequireCompact 为 true 时（/compact 请求），账号级上游模型按 compact 链
+	// 解析，与调度器准入口径一致；冻结表必须与实际转发模型同源，否则用量核对
+	// 会拒绝"actual upstream model differs from the frozen account model"。
+	RequireCompact bool
+	BodyBytes      int
+	MaxTokens      int
+	Kind           InflightEstimateKind
 	// Units 按次/按张数量（<=0 视为 1）。
 	Units int
 	// SearchCalls 叠加的搜索次数（按分组 search_price_per_1k 计）。
@@ -743,17 +747,17 @@ func (s *OpenAIGatewayService) PrepareRequestBilling(ctx context.Context, key *A
 	if s == nil {
 		return ctx, nil, ErrModelPricingUnavailable
 	}
-	return s.inflightEstimateDeps().prepareRequestBilling(ctx, key, req)
+	return s.inflightEstimateDeps(req).prepareRequestBilling(ctx, key, req)
 }
 
 func (s *OpenAIGatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
 	if s == nil {
 		return nil
 	}
-	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
+	return s.inflightEstimateDeps(req).validateNativePricingRequest(ctx, apiKey, req)
 }
 
-func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
+func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest) inflightEstimateDeps {
 	d := inflightEstimateDeps{cfg: s.cfg, billing: s.billingService, resolver: s.resolver}
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
@@ -772,9 +776,12 @@ func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 			}
 			return NormalizeOpenAICompatiblePlatform(platform), false, true
 		}
+		requireCompact := req.RequireCompact
 		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		// 冻结表中的账号上游模型必须与调度准入、实际转发同口径：
+		// /compact 请求按 compact 链解析，其余请求按普通链解析。
 		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(account *Account, model string) string {
-			return resolveOpenAIAccountUpstreamModelForRequest(account, model, false)
+			return resolveOpenAIAccountUpstreamModelForRequest(account, model, requireCompact)
 		})
 	}
 	return d
@@ -785,5 +792,5 @@ func (s *OpenAIGatewayService) EstimateInflightReservation(ctx context.Context, 
 	if s == nil {
 		return 0, false
 	}
-	return s.inflightEstimateDeps().estimate(ctx, apiKey, req)
+	return s.inflightEstimateDeps(req).estimate(ctx, apiKey, req)
 }
