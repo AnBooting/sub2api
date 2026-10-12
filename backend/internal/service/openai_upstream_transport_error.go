@@ -115,6 +115,12 @@ func isClientCanceledTransportError(ctx context.Context, err error) bool {
 //
 // passthrough tags the Ops error event for the OpenAI passthrough forward path.
 func (s *OpenAIGatewayService) handleOpenAIUpstreamTransportError(ctx context.Context, c *gin.Context, account *Account, err error, passthrough bool) error {
+	// TS-02 S3：预算拒绝不是传输故障——上游从未被调用，既不记 Ops 上游错误，
+	// 也不得临时封禁账号；直接转成终止型 failover（503 / no_available_group），
+	// 让 handler 的 ShouldRetryNextAccount()==false 分支复用耗尽出口。
+	if IsRequestAttemptBudgetError(err) {
+		return NewRequestAttemptBudgetFailoverError()
+	}
 	if isClientCanceledTransportError(ctx, err) {
 		return err
 	}

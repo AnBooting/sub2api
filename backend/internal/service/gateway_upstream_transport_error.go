@@ -40,6 +40,11 @@ var gatewayTransportFailoverBody = []byte(`{"type":"error","error":{"type":"upst
 // It deliberately does NOT write to the response: the handler owns the
 // response (failover, or a protocol-correct error once failover is exhausted).
 func (s *GatewayService) handleUpstreamTransportError(ctx context.Context, c *gin.Context, account *Account, err error, event OpsUpstreamErrorEvent) error {
+	// TS-02 S3：预算拒绝不是传输故障——上游从未被调用，既不记 Ops 上游错误，
+	// 也不得临时封禁账号；直接转成终止型 failover（503 / no_available_group）。
+	if IsRequestAttemptBudgetError(err) {
+		return NewRequestAttemptBudgetFailoverError()
+	}
 	if isClientCanceledTransportError(ctx, err) {
 		return err
 	}

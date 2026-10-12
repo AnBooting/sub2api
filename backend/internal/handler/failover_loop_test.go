@@ -1040,3 +1040,193 @@ func TestFailoverClientGone(t *testing.T) {
 		require.False(t, failoverClientGone(nil))
 	})
 }
+
+// ---------------------------------------------------------------------------
+// TS-02 S3：单逻辑请求重试预算（C-8）接入
+// ---------------------------------------------------------------------------
+
+// budgetCtxWith 构造挂了单逻辑请求预算的 ctx（clientDeadline 零值表示无客户端约束）。
+func budgetCtxWith(maxSends int, window time.Duration, clientDeadline time.Time) (context.Context, *service.RequestAttemptBudget) {
+	budget := service.NewRequestAttemptBudget(time.Now(), maxSends, window, clientDeadline)
+	return service.WithRequestAttemptBudget(context.Background(), budget), budget
+}
+
+func TestHandleFailoverError_RequestAttemptBudget(t *testing.T) {
+	t.Run("16 次发送触顶后终止且不再发第 17 次", func(t *testing.T) {
+		ctx, budget := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Time{})
+		for i := 0; i < service.DefaultRequestAttemptBudgetSends; i++ {
+			require.NoErrorf(t, budget.AllowSend(), "第 %d 次发送必须放行", i+1)
+		}
+		require.True(t, budget.Exhausted())
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		action := fs.HandleFailoverError(ctx, mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(500, true, false))
+
+		require.Equal(t, FailoverExhausted, action, "预算耗尽必须终止")
+		require.Zero(t, fs.SwitchCount, "预算耗尽不得继续换号")
+		require.Zero(t, fs.SameAccountRetryCount[100], "预算耗尽不得继续同号重试")
+		require.Empty(t, mock.calls, "预算耗尽不得临时封禁账号")
+		require.ErrorIs(t, budget.AllowSend(), service.ErrRequestAttemptBudgetExhausted,
+			"第 17 次发送必须被预算拒绝")
+	})
+
+	t.Run("600 秒窗口的 deadline 触顶后终止", func(t *testing.T) {
+		// 预算起点在 1 小时前 → start+600s 已过期（次数一次未用）。
+		budget := service.NewRequestAttemptBudget(time.Now().Add(-time.Hour), service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Time{})
+		ctx := service.WithRequestAttemptBudget(context.Background(), budget)
+		require.True(t, budget.Exhausted())
+		require.Zero(t, budget.Used(), "终止必须来自 deadline 而不是次数")
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		action := fs.HandleFailoverError(ctx, mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(500, false, false))
+
+		require.Equal(t, FailoverExhausted, action)
+		require.Zero(t, fs.SwitchCount)
+	})
+
+	t.Run("客户端更早的 deadline 触顶后终止", func(t *testing.T) {
+		ctx, budget := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Now().Add(-time.Second))
+		require.True(t, budget.Exhausted())
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		action := fs.HandleFailoverError(ctx, mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(500, true, false))
+
+		require.Equal(t, FailoverExhausted, action)
+		require.Zero(t, fs.SwitchCount)
+		require.Zero(t, fs.SameAccountRetryCount[100])
+	})
+
+	t.Run("原较小限制优先_maxAccountSwitches为1时预算有余量也按1次终止", func(t *testing.T) {
+		ctx, budget := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Time{})
+		require.False(t, budget.Exhausted())
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(1, false)
+		err := newTestFailoverErr(500, false, false)
+
+		require.Equal(t, FailoverContinue, fs.HandleFailoverError(ctx, mock, 100, "openai", maxSameAccountRetries, err))
+		require.Equal(t, 1, fs.SwitchCount)
+
+		require.Equal(t, FailoverExhausted, fs.HandleFailoverError(ctx, mock, 200, "openai", maxSameAccountRetries, err))
+		require.Equal(t, 1, fs.SwitchCount, "耗尽时不再递增")
+		require.False(t, budget.Exhausted(), "终止来自更小的 maxAccountSwitches，预算并未放宽它")
+	})
+
+	t.Run("同号重试退避被钳到Remaining", func(t *testing.T) {
+		// 窗口取 500ms 而非 80ms：下界断言需要「预算尚未耗尽」这一前提成立，
+		// 窗口过小会让机器卡顿本身变成假失败（Remaining() 归零 → 退避被钳成 0）。
+		ctx, budget := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Now().Add(500*time.Millisecond))
+		require.False(t, budget.Exhausted())
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		start := time.Now()
+		action := fs.HandleFailoverError(ctx, mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(400, true, false))
+		elapsed := time.Since(start)
+
+		require.GreaterOrEqual(t, elapsed, 200*time.Millisecond)
+		require.Less(t, elapsed, 3*time.Second, "500ms 同号重试退避必须被钳到约 500ms 而不是等满 500ms")
+		require.Equal(t, 1, fs.SameAccountRetryCount[100])
+		// 钳制后的等待正好用掉剩余预算，返回 Continue 前的复查因此判定耗尽：
+		// 这正是「不得用已耗尽的预算发起下一次真实上游发送」的预期行为。
+		require.Equal(t, FailoverExhausted, action)
+		require.True(t, budget.Exhausted())
+	})
+
+	t.Run("预算充足时同号重试仍返回Continue", func(t *testing.T) {
+		ctx, budget := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Time{})
+		require.False(t, budget.Exhausted())
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		action := fs.HandleFailoverError(ctx, mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(400, true, false))
+
+		require.Equal(t, FailoverContinue, action)
+		require.Equal(t, 1, fs.SameAccountRetryCount[100])
+		require.False(t, budget.Exhausted(), "预算充足时不得被误判耗尽")
+	})
+
+	t.Run("nil预算时退避不被钳制", func(t *testing.T) {
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		start := time.Now()
+		action := fs.HandleFailoverError(context.Background(), mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(400, true, false))
+		elapsed := time.Since(start)
+
+		require.Equal(t, FailoverContinue, action)
+		require.GreaterOrEqual(t, elapsed, 400*time.Millisecond,
+			"nil 预算必须保留 500ms 原始退避（Remaining() 对 nil 返回 0，不得直接 min）")
+	})
+
+	t.Run("Antigravity线性延时被钳到Remaining", func(t *testing.T) {
+		ctx, budget := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Now().Add(500*time.Millisecond))
+
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		fs.SwitchCount = 1 // 下一次 delay = (2-1)*1s = 1s
+		start := time.Now()
+		action := fs.HandleFailoverError(ctx, mock, 100, service.PlatformAntigravity, maxSameAccountRetries, newTestFailoverErr(500, false, false))
+		elapsed := time.Since(start)
+
+		require.Less(t, elapsed, 2*time.Second, "1s Antigravity 延时必须被钳到约 500ms 而不是等满 1s")
+		// 钳制后的等待正好用掉剩余预算，返回 Continue 前的复查因此判定耗尽：
+		// 这正是「不得用已耗尽的预算启动下一次真实上游发送」的预期行为。
+		require.Equal(t, FailoverExhausted, action)
+		require.True(t, budget.Exhausted())
+		require.Zero(t, budget.Remaining())
+	})
+
+	t.Run("clampFailoverDelayToBudget的nil语义", func(t *testing.T) {
+		require.Equal(t, 2*time.Second, clampFailoverDelayToBudget(context.Background(), 2*time.Second),
+			"nil 预算不得被钳（Remaining() 对 nil 返回 0，直接 min 会把退避压成 0）")
+
+		ctx, _ := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Now().Add(500*time.Millisecond))
+		clamped := clampFailoverDelayToBudget(ctx, 2*time.Second)
+		require.Greater(t, clamped, time.Duration(0))
+		require.LessOrEqual(t, clamped, 500*time.Millisecond)
+
+		require.Equal(t, 10*time.Millisecond, clampFailoverDelayToBudget(ctx, 10*time.Millisecond),
+			"剩余预算大于退避时必须原样返回")
+	})
+
+	t.Run("无预算请求行为不变", func(t *testing.T) {
+		mock := &mockTempUnscheduler{}
+		fs := NewFailoverState(3, false)
+		action := fs.HandleFailoverError(context.Background(), mock, 100, "openai", maxSameAccountRetries, newTestFailoverErr(500, false, false))
+		require.Equal(t, FailoverContinue, action)
+		require.Equal(t, 1, fs.SwitchCount)
+	})
+}
+
+func TestHandleSelectionExhausted_RequestAttemptBudget(t *testing.T) {
+	t.Run("预算耗尽时不退避直接终止", func(t *testing.T) {
+		ctx, budget := budgetCtxWith(1, service.DefaultRequestAttemptBudgetWindow, time.Time{})
+		require.NoError(t, budget.AllowSend())
+		require.True(t, budget.Exhausted())
+
+		fs := NewFailoverState(3, false)
+		fs.LastFailoverErr = newTestFailoverErr(503, false, false)
+
+		start := time.Now()
+		action := fs.HandleSelectionExhausted(ctx)
+		require.Equal(t, FailoverExhausted, action)
+		require.Less(t, time.Since(start), 100*time.Millisecond, "预算耗尽不得退避")
+	})
+
+	t.Run("单账号退避被钳到Remaining", func(t *testing.T) {
+		ctx, _ := budgetCtxWith(service.DefaultRequestAttemptBudgetSends, service.DefaultRequestAttemptBudgetWindow, time.Now().Add(500*time.Millisecond))
+
+		fs := NewFailoverState(3, false)
+		fs.LastFailoverErr = newTestFailoverErr(503, false, false)
+
+		start := time.Now()
+		action := fs.HandleSelectionExhausted(ctx)
+		elapsed := time.Since(start)
+
+		require.Equal(t, FailoverContinue, action)
+		require.Less(t, elapsed, 3*time.Second, "2s 单账号退避必须被钳到约 500ms")
+	})
+}

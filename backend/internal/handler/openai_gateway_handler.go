@@ -703,6 +703,14 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	pricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(pricingCtx)
 
+	// TS-02 S3：单逻辑请求统一重试预算（C-8）。挂载点必须在 lockedText 判断之外，
+	// 覆盖 E7 全部请求形态（文本 / compact / nativeV2 / imageIntent）；clientDeadline
+	// 传零值（本期不读客户端 deadline）。刻意不给请求 ctx 加 context.WithTimeout：
+	// 只查询 deadline，加超时会破坏流式 detach 计费约定。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, requestBudget := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
+
 	for {
 		// Streaming Forward intentionally detaches the upstream request so usage can
 		// be drained after a disconnect. Re-check the client context before every
@@ -944,7 +952,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 						return
 					}
 					if !openAIForwardMayFailover(c, writerSizeBeforeForward, failoverErr) {
-						h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
+						// TS-02：预算耗尽是本站策略终止，账号健康且未被调用，
+						// 不得据此记录账号健康失败（会污染账号调度分数）。
+						if failoverErr.Reason != service.RequestAttemptBudgetReason {
+							h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
+						}
 						h.handleFailoverExhausted(c, failoverErr, true)
 						return
 					}
@@ -953,7 +965,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					if c.Writer.Written() {
 						streamStarted = true
 					}
-					if failoverErr.ShouldReportAccountScheduleFailure() {
+					// TS-02：预算耗尽时账号本身健康且从未被调用，记调度失败会污染
+					// 账号调度分数，因此跳过账号健康上报（只记预算 WARN 日志）。
+					if failoverErr.Reason != service.RequestAttemptBudgetReason && failoverErr.ShouldReportAccountScheduleFailure() {
 						h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, forwardModel, requireCompact, nil), false, nil, err)
 					}
 					if !failoverErr.ShouldRetryNextAccount() {
@@ -968,8 +982,14 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
 						if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
+							// TS-02 S3：预算已耗尽则不再重试，复用耗尽出口（503 / no_available_group）。
+							if requestBudget.Exhausted() {
+								h.handleFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), streamStarted)
+								return
+							}
 							sameAccountRetryCount[account.ID]++
-							retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
+							// TS-02 S3：退避钳到预算剩余时间（nil 预算不钳）。
+							retryDelay := clampFailoverDelayToBudget(c.Request.Context(), sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID]))
 							reqLog.Warn("openai.pool_mode_same_account_retry",
 								zap.Int64("account_id", account.ID),
 								zap.Int("upstream_status", failoverErr.StatusCode),
@@ -984,6 +1004,12 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 							}
 							continue
 						}
+					}
+					// TS-02 S3：预算已耗尽则不再换号，复用耗尽出口（503 / no_available_group）。
+					// 放在 RecordOpenAIAccountSwitch 之前：被预算挡下的尝试不产生账号切换。
+					if requestBudget.Exhausted() {
+						h.handleFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), streamStarted)
+						return
 					}
 					h.gatewayService.RecordOpenAIAccountSwitch()
 					failedAccountIDs[account.ID] = struct{}{}
@@ -3578,12 +3604,41 @@ func (h *OpenAIGatewayHandler) handleConcurrencyError(c *gin.Context, err error,
 	h.handleStreamingAwareErrorWithCode(c, status, errType, code, message, streamStarted, false)
 }
 
+// requestAttemptBudgetExhaustedCode 是 TS-02 预算耗尽出口的错误码。
+// 复用 C-7 既有的 no_available_group（503），不新增错误码。
+const requestAttemptBudgetExhaustedCode = "no_available_group"
+
 func (h *OpenAIGatewayHandler) handleFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError, streamStarted bool) {
 	if failoverErr == nil {
 		h.handleFailoverExhaustedSimple(c, http.StatusBadGateway, streamStarted)
 		return
 	}
 	copyFailoverRetryAfter(c, failoverErr.ResponseHeaders)
+	if failoverErr.Reason == service.RequestAttemptBudgetReason {
+		// TS-02 S3：预算耗尽复用本终止出口，状态码 503 + C-7 的 no_available_group。
+		ctx := context.Background()
+		if c != nil && c.Request != nil {
+			ctx = c.Request.Context()
+		}
+		fields := make([]zap.Field, 0, 4)
+		if budget := service.RequestAttemptBudgetFromContext(ctx); budget != nil {
+			fields = append(fields,
+				zap.Int("budget_used", budget.Used()),
+				zap.Int("budget_max", budget.MaxSends()),
+				zap.String("budget_deadline", budget.Deadline().Format(time.RFC3339Nano)),
+			)
+		}
+		logger.FromContext(ctx).Warn("openai.request_attempt_budget_exhausted", fields...)
+		message := strings.TrimSpace(failoverErr.ClientMessage)
+		if message == "" {
+			message = "Service temporarily unavailable"
+		}
+		// 刻意不调用 service.SetOpsUpstreamError：预算耗尽发生在本站发送前，
+		// 上游从未被调用，记为「上游错误」会污染上游错误率与上游状态码统计。
+		// 本站策略终止只通过上面的 WARN 日志与客户端错误码暴露。
+		h.handleStreamingAwareErrorWithCode(c, http.StatusServiceUnavailable, "api_error", requestAttemptBudgetExhaustedCode, message, streamStarted, false)
+		return
+	}
 	if failoverErr.IsOpenAIRequestBodyTooLarge() {
 		service.SetOpsUpstreamError(c, http.StatusRequestEntityTooLarge, service.OpenAIRequestBodyTooLargeClientMessage, "")
 		h.handleStreamingAwareError(

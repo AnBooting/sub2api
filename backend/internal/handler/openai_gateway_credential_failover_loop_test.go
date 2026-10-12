@@ -402,6 +402,11 @@ func (u *grokCredentialHandlerUpstream) requests() ([]string, []string) {
 	return append([]string(nil), u.requestURLs...), append([]string(nil), u.authorization...)
 }
 
+// TestResponsesCredentialFailoverLoop 的调用次数期望与 TS-02 S3 预算已对齐：
+// E7 handler 现在给每个逻辑请求挂 16 次 / 600s 预算（本 fixture 的 settingService
+// 为 nil → 代码默认值），而本文件各子用例单逻辑请求最多 3 次真实上游发送，
+// 远低于 16 次上限，因此既有 accountHits()/selectorCalls() 期望不变；
+// 预算也不放宽 fixture 里 cfg.Gateway.MaxAccountSwitches = 3 的既有上界（原较小限制优先）。
 func TestResponsesCredentialFailoverLoop(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
