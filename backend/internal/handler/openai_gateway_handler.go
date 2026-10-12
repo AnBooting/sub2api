@@ -1554,7 +1554,11 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 						return
 					}
 					if c.Writer.Size() != writerSizeBeforeForward {
-						h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
+						// TS-02：预算耗尽是本站策略终止，账号健康且未被调用，
+						// 不得据此记录账号健康失败（会污染账号调度分数）。
+						if failoverErr.Reason != service.RequestAttemptBudgetReason {
+							h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
+						}
 						h.handleAnthropicFailoverExhausted(c, failoverErr, true)
 						return
 					}
@@ -1681,10 +1685,17 @@ func resolveOpenAIMessagesMetadataSession(c *gin.Context, sessionHash, promptCac
 
 // anthropicErrorResponse writes an error in Anthropic Messages API format.
 func (h *OpenAIGatewayHandler) anthropicErrorResponse(c *gin.Context, status int, errType, message string) {
+	h.anthropicErrorResponseWithCode(c, status, errType, "", message)
+}
+
+// anthropicErrorResponseWithCode is anthropicErrorResponse plus an optional
+// protocol-level error code (C-7 / TS-02 budget exits use no_available_group).
+func (h *OpenAIGatewayHandler) anthropicErrorResponseWithCode(c *gin.Context, status int, errType, code, message string) {
 	c.JSON(status, gin.H{
 		"type": "error",
 		"error": gin.H{
 			"type":    errType,
+			"code":    code,
 			"message": message,
 		},
 	})
@@ -1717,7 +1728,11 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 		copyFailoverRetryAfter(c, failoverErr.ResponseHeaders)
 	}
 	if failoverErr != nil && failoverErr.Reason == service.RequestAttemptBudgetReason {
-		h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", strings.TrimSpace(failoverErr.ClientMessage), streamStarted)
+		if streamStarted {
+			h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", strings.TrimSpace(failoverErr.ClientMessage), streamStarted)
+		} else {
+			h.anthropicErrorResponseWithCode(c, http.StatusServiceUnavailable, "api_error", requestAttemptBudgetExhaustedCode, strings.TrimSpace(failoverErr.ClientMessage))
+		}
 		return
 	}
 	if failoverErr != nil && failoverErr.IsCredentialFailure() {

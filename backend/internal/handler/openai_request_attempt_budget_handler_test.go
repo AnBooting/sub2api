@@ -46,7 +46,7 @@ func TestAnthropicBudgetExhaustedFailoverExit_Returns503(t *testing.T) {
 	errBody, ok := envelope["error"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "api_error", errBody["type"])
-	require.NotNil(t, errBody["message"])
+	require.Equal(t, "no_available_group", errBody["code"])
 	_, hasOpsError := c.Get(service.OpsUpstreamErrorsKey)
 	require.False(t, hasOpsError, "预算耗尽不得记录 Ops 上游错误（上游从未被调用）")
 }
@@ -65,7 +65,7 @@ func TestGatewayHandlerBudgetExhaustedFailoverExit_Returns503NoAvailableGroup(t 
 	errBody, ok := envelope["error"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "api_error", errBody["type"])
-	require.NotNil(t, errBody["message"])
+	require.Equal(t, "no_available_group", errBody["code"])
 	_, hasOpsError := c.Get(service.OpsUpstreamErrorsKey)
 	require.False(t, hasOpsError, "预算耗尽不得记录 Ops 上游错误（上游从未被调用）")
 }
@@ -102,7 +102,7 @@ func TestChatCompletionsBudgetExhaustedFailoverExit_Returns503NoAvailableGroup(t
 	errBody, ok := envelope["error"].(map[string]any)
 	require.True(t, ok)
 	require.Equal(t, "api_error", errBody["type"])
-	require.NotNil(t, errBody["message"])
+	require.Equal(t, "no_available_group", errBody["code"])
 	_, hasOpsError := c.Get(service.OpsUpstreamErrorsKey)
 	require.False(t, hasOpsError, "预算耗尽不得记录 Ops 上游错误（上游从未被调用）")
 }

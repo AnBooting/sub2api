@@ -346,7 +346,11 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 						return
 					}
 					if c.Writer.Size() != writerSizeBeforeForward {
-						h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
+						// TS-02：预算耗尽是本站策略终止，账号健康且未被调用，
+						// 不得据此记录账号健康失败（会污染账号调度分数）。
+						if failoverErr.Reason != service.RequestAttemptBudgetReason {
+							h.gatewayService.ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)
+						}
 						h.handleFailoverExhausted(c, failoverErr, true)
 						return
 					}

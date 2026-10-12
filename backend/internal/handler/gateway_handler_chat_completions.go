@@ -398,9 +398,16 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 
 // chatCompletionsErrorResponse writes an error in OpenAI Chat Completions format.
 func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int, errType, message string) {
+	h.chatCompletionsErrorResponseWithCode(c, status, errType, "", message)
+}
+
+// chatCompletionsErrorResponseWithCode is chatCompletionsErrorResponse plus an
+// optional protocol-level error code (C-7 / TS-02 budget exits use no_available_group).
+func (h *GatewayHandler) chatCompletionsErrorResponseWithCode(c *gin.Context, status int, errType, code, message string) {
 	c.JSON(status, gin.H{
 		"error": gin.H{
 			"type":    errType,
+			"code":    code,
 			"message": message,
 		},
 	})
@@ -415,7 +422,7 @@ func (h *GatewayHandler) handleCCFailoverExhausted(c *gin.Context, lastErr *serv
 		copyFailoverRetryAfter(c, lastErr.ResponseHeaders)
 	}
 	if lastErr != nil && lastErr.Reason == service.RequestAttemptBudgetReason {
-		h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "api_error", strings.TrimSpace(lastErr.ClientMessage))
+		h.chatCompletionsErrorResponseWithCode(c, http.StatusServiceUnavailable, "api_error", requestAttemptBudgetExhaustedCode, strings.TrimSpace(lastErr.ClientMessage))
 		return
 	}
 	if lastErr != nil && lastErr.IsCredentialFailure() {

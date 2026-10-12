@@ -1136,6 +1136,8 @@ func TestHandleFailoverError_RequestAttemptBudget(t *testing.T) {
 		// 这正是「不得用已耗尽的预算发起下一次真实上游发送」的预期行为。
 		require.Equal(t, FailoverExhausted, action)
 		require.True(t, budget.Exhausted())
+		require.NotNil(t, fs.LastFailoverErr, "退避吃满预算后出口必须拿到预算错误")
+		require.Equal(t, service.RequestAttemptBudgetReason, fs.LastFailoverErr.Reason, "不得拿上一次真实上游错误")
 	})
 
 	t.Run("预算充足时同号重试仍返回Continue", func(t *testing.T) {
@@ -1179,6 +1181,8 @@ func TestHandleFailoverError_RequestAttemptBudget(t *testing.T) {
 		require.Equal(t, FailoverExhausted, action)
 		require.True(t, budget.Exhausted())
 		require.Zero(t, budget.Remaining())
+		require.NotNil(t, fs.LastFailoverErr, "换号退避吃满预算后出口必须拿到预算错误")
+		require.Equal(t, service.RequestAttemptBudgetReason, fs.LastFailoverErr.Reason, "不得拿上一次真实上游错误")
 	})
 
 	t.Run("clampFailoverDelayToBudget的nil语义", func(t *testing.T) {

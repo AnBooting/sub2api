@@ -271,6 +271,7 @@ func (s *FailoverState) HandleFailoverError(
 		// 退避期间预算可能刚好用尽：返回 Continue 前复查，避免用已耗尽的预算
 		// 发起下一次真实上游发送（钳制后的等待正好吃掉剩余预算时必命中）。
 		if requestAttemptBudgetExhausted(ctx, "handle_failover_error_same_account_after_backoff") {
+			s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
 			return FailoverExhausted
 		}
 		return FailoverContinue
@@ -309,6 +310,7 @@ func (s *FailoverState) HandleFailoverError(
 	// 退避期间预算可能刚好用尽：返回 Continue 前再确认一次，避免用已耗尽的
 	// 预算启动下一次真实上游发送。
 	if requestAttemptBudgetExhausted(ctx, "handle_failover_error_after_backoff") {
+		s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
 		return FailoverExhausted
 	}
 

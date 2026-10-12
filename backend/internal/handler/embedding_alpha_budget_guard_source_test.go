@@ -47,3 +47,21 @@ func TestEmbeddingsAndAlphaSearchBudgetRejectStopsBeforeSwitch(t *testing.T) {
 		})
 	}
 }
+
+func TestMessagesAndChatCompletionsBudgetRejectSkipsHealthFailure(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		file string
+	}{
+		{name: "messages", file: "openai_gateway_handler.go"},
+		{name: "chat_completions", file: "openai_chat_completions.go"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			src, err := os.ReadFile(tc.file)
+			require.NoError(t, err)
+			body := string(src)
+			require.Contains(t, body, `if failoverErr.Reason != service.RequestAttemptBudgetReason {`, "健康失败上报前必须有预算 Reason 守卫")
+			require.Contains(t, body, "ObserveOpenAIAccountHealthFailure(c.Request.Context(), account, err)")
+		})
+	}
+}

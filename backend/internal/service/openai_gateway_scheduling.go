@@ -1169,7 +1169,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 				selection, selectErr := s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 					AccountID:      account.ID,
 					MaxConcurrency: account.Concurrency,
-					Timeout:        cfg.StickySessionWaitTimeout,
+					Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 					MaxWaiting:     cfg.StickySessionMaxWaiting,
 				})
 				return markStickySessionHit(selection, stickyHit), selectErr
@@ -1178,7 +1178,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		selection, selectErr := s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 			AccountID:      account.ID,
 			MaxConcurrency: account.Concurrency,
-			Timeout:        cfg.FallbackWaitTimeout,
+			Timeout:        clampAccountWaitTimeout(ctx, cfg.FallbackWaitTimeout),
 			MaxWaiting:     cfg.FallbackMaxWaiting,
 		})
 		return markStickySessionHit(selection, stickyHit), selectErr
@@ -1243,7 +1243,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 							selection, selectErr := s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 								AccountID:      accountID,
 								MaxConcurrency: account.Concurrency,
-								Timeout:        cfg.StickySessionWaitTimeout,
+								Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 								MaxWaiting:     cfg.StickySessionMaxWaiting,
 							})
 							return markStickySessionHit(selection, true), selectErr
@@ -1489,7 +1489,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 		return s.newSelectionResult(ctx, fresh, false, nil, &AccountWaitPlan{
 			AccountID:      fresh.ID,
 			MaxConcurrency: fresh.Concurrency,
-			Timeout:        cfg.FallbackWaitTimeout,
+			Timeout:        clampAccountWaitTimeout(ctx, cfg.FallbackWaitTimeout),
 			MaxWaiting:     cfg.FallbackMaxWaiting,
 		})
 	}
