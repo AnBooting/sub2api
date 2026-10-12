@@ -63,6 +63,9 @@ type ContextPricingScheduleInput struct {
 	// Platform 为请求的具体平台（composite 分组传模型所属平台），
 	// 决定渠道定价查找与平台旧规则的适用。
 	Platform string
+	// PricingAt 是阶梯表的计费时点：峰谷/分时等时间相关价格按该时刻解析。
+	// 零值回退 timezone.Now()，因此未注入时生产行为与既有实现一致。
+	PricingAt time.Time
 }
 
 var errContextPricingResolverRequired = errors.New("context pricing schedule: resolver is required")
@@ -85,6 +88,11 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 	}
 	if ctx == nil {
 		ctx = context.Background()
+	}
+	// 计费时点：显式注入优先（测试与历史补账），零值回退当前时刻。
+	at := in.PricingAt
+	if at.IsZero() {
+		at = timezone.Now()
 	}
 	if in.Platform != "" {
 		ctx = WithResolvedTargetPlatform(ctx, in.Platform)
@@ -118,7 +126,7 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 		sort.Ints(bounds)
 		out := &ContextPricingSchedule{Basis: ContextPricingBasisWholeRequest}
 		for _, seg := range buildContextSegments(bounds) {
-			rates := card.ratesAt(seg.min+1, timezone.Now())
+			rates := card.ratesAt(seg.min+1, at)
 			out.Tiers = append(out.Tiers, ContextPricingTier{MinTokens: seg.min, MaxTokens: seg.max, Input: nativePerToken(rates.Input), Output: nativePerToken(rates.Output), CacheRead: nativePerToken(rates.CacheRead), CacheWrite: nativePerToken(rates.CacheWrite)})
 		}
 		return out, nil
@@ -129,8 +137,9 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 		Model:          in.Model,
 		Group:          in.Group,
 		RateMultiplier: 1,
+		PricingAt:      at,
 		Resolver:       resolver,
-		Resolved:       resolved,
+		Resolved:       standardPriceResolved(resolved),
 	}
 	probe := func(tokens UsageTokens) (*CostBreakdown, error) {
 		r := req
@@ -138,7 +147,7 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 		return s.CalculateTokenCostForRequest(r)
 	}
 
-	plan := s.contextPricingBreakpoints(resolver, resolved, in.Model)
+	plan := s.contextPricingBreakpoints(resolver, resolved, in.Model, at)
 	segments := buildContextSegments(plan.bounds)
 
 	tiers := make([]ContextPricingTier, 0, len(segments))
@@ -153,6 +162,24 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 	applyContextTierLabels(tiers, plan)
 
 	return &ContextPricingSchedule{Basis: ContextPricingBasisWholeRequest, Tiers: tiers, TimePricing: resolvedTimePricingSchedule(resolved)}, nil
+}
+
+// standardPriceResolved 返回阶梯表探针专用的解析结果副本：剥掉渠道分时倍率。
+//
+// Tiers 是标准时段单价（见 ContextPricingSchedule 注释），分时倍率由展示层按时段行
+// 单独相乘（前端 paidPerMillion 会再乘一次 period.multiplier）。而计费侧的
+// resolvedChannelTimeMultiplier 读的正是请求级 PricingAt：探针一旦带上非零时点，
+// 分时倍率就会被烘进单价，展示层再乘一次即双重计倍。因此探针必须看到一份
+// 「无分时」的解析结果。副本只影响该倍率；定价本体与 TimePricing 列表仍用原值。
+func standardPriceResolved(resolved *ResolvedPricing) *ResolvedPricing {
+	if resolved == nil || resolved.channelPricing == nil || resolved.channelPricing.TimePricing == nil {
+		return resolved
+	}
+	stripped := *resolved
+	channelPricing := *resolved.channelPricing
+	channelPricing.TimePricing = nil
+	stripped.channelPricing = &channelPricing
+	return &stripped
 }
 
 // resolvedTimePricingSchedule 列出计费会生效的分时倍率时段。
@@ -218,7 +245,8 @@ type contextBreakpointPlan struct {
 }
 
 // contextPricingBreakpoints 从计费自身的规则输入收集价格断点（不读取任何倍率）。
-func (s *BillingService) contextPricingBreakpoints(resolver *ModelPricingResolver, resolved *ResolvedPricing, model string) contextBreakpointPlan {
+// at 与阶梯表探针使用同一计费时点，避免同一份表内混用两个时刻。
+func (s *BillingService) contextPricingBreakpoints(resolver *ModelPricingResolver, resolved *ResolvedPricing, model string, at time.Time) contextBreakpointPlan {
 	plan := contextBreakpointPlan{}
 	if !resolved.longContextPricingEnabled {
 		return plan
@@ -245,10 +273,9 @@ func (s *BillingService) contextPricingBreakpoints(resolver *ModelPricingResolve
 	if pricing == nil {
 		return plan
 	}
-	// 该路径无既有计费时点（ContextPricingScheduleInput 无时间字段），显式传
-	// 当前时刻；此处 pricing 仅取 LongContextInputThreshold 等时间无关字段，
-	// DeepSeek pro→Flash 切换不影响断点结果。
-	pricing = s.applyModelSpecificPricingPolicyEx(model, pricing, true, timezone.Now())
+	// 此处 pricing 仅取 LongContextInputThreshold 等时间无关字段，
+	// DeepSeek pro→Flash 切换不影响断点结果；时点仍与探针保持一致。
+	pricing = s.applyModelSpecificPricingPolicyEx(model, pricing, true, at)
 	if pricing.LongContextInputThreshold <= 0 {
 		return plan
 	}

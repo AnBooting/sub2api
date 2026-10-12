@@ -6,10 +6,32 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
 )
+
+// plazaPricingLocation 是广场定价测试使用的时区；加载失败时退回 UTC（时点仍是固定值）。
+func plazaPricingLocation() *time.Location {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		return time.UTC
+	}
+	return loc
+}
+
+// fixedOffPeakPricingAt 是固定的 DeepSeek 低谷时点：北京时间 2026-08-24（周一）03:00。
+// 峰谷规则下倍率为 1，用于让展示价断言不随跑测试的钟点变化。
+func fixedOffPeakPricingAt() time.Time {
+	return time.Date(2026, 8, 24, 3, 0, 0, 0, plazaPricingLocation())
+}
+
+// fixedPeakPricingAt 是固定的 DeepSeek 高峰时点：北京时间 2026-08-24（周一）10:00，
+// 落在官方高峰窗口 09:00-12:00 内，倍率为 2。
+func fixedPeakPricingAt() time.Time {
+	return time.Date(2026, 8, 24, 10, 0, 0, 0, plazaPricingLocation())
+}
 
 // newPlazaService 构造 ListGroups 测试用的 ModelPlazaService（不接计费服务：展示定价原样透传）。
 func newPlazaService(channels []Channel, groups []Group, pricing *PricingService) *ModelPlazaService {
@@ -346,7 +368,13 @@ func TestListPlazaGroups_RepoErrorsPropagate(t *testing.T) {
 }
 
 // newPlazaServiceWithBilling 构造接入计费服务与解析器的广场服务：解析器的渠道服务与广场共用同一份渠道数据。
+// 计费时点固定为 DeepSeek 低谷，避免展示价随跑测试的钟点（峰谷窗口）变化。
 func newPlazaServiceWithBilling(channels []Channel, groups []Group, groupPlatforms map[int64]string, catalog *PricingService) *ModelPlazaService {
+	return newPlazaServiceWithBillingAt(channels, groups, groupPlatforms, catalog, fixedOffPeakPricingAt())
+}
+
+// newPlazaServiceWithBillingAt 同上，但由调用方指定计费时点（用于峰谷两个方向的确定性断言）。
+func newPlazaServiceWithBillingAt(channels []Channel, groups []Group, groupPlatforms map[int64]string, catalog *PricingService, at time.Time) *ModelPlazaService {
 	repo := &mockChannelRepository{
 		listAllFn: func(ctx context.Context) ([]Channel, error) { return channels, nil },
 		getGroupPlatformsFn: func(ctx context.Context, _ []int64) (map[int64]string, error) {
@@ -355,7 +383,9 @@ func newPlazaServiceWithBilling(channels []Channel, groups []Group, groupPlatfor
 	}
 	cs := NewChannelService(repo, nil, nil, nil, nil)
 	bs := NewBillingService(&config.Config{}, catalog)
-	return NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(cs, bs))
+	svc := NewModelPlazaService(repo, &stubGroupRepoForAvailable{activeGroups: groups}, catalog, bs, NewModelPricingResolver(cs, bs))
+	svc.pricingAt = func() time.Time { return at }
+	return svc
 }
 
 func plazaModelsByName(models []PlazaModel) map[string]PlazaModel {
@@ -506,6 +536,27 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	require.Equal(t, "Asia/Shanghai", m.TimePricing.Timezone)
 	require.Len(t, m.TimePricing.Periods, 1)
 	require.InDelta(t, 0.5, m.TimePricing.Periods[0].Multiplier, 1e-12)
-	// 展示单价为标准时段价
+	// 展示单价为标准时段价：注入的固定时点（北京周一 03:00，DeepSeek 低谷）倍率为 1，
+	// 且渠道分时倍率由展示层按时段行单独相乘，不烘进单价（否则此处会是 0.14e-6）。
 	require.InDelta(t, 0.28e-6, *m.Pricing.InputPrice, 1e-15)
+}
+
+func TestListGroups_TimePricingDeepseekPeakDoublesDisplayPrice(t *testing.T) {
+	// 峰谷规则生效方向的确定性断言：注入固定高峰时点（北京周一 10:00），
+	// 渠道手动卡的标准价被官方高峰倍率 2x 缩放。不依赖跑测试的钟点。
+	channels := []Channel{{
+		ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10},
+		ModelPricing: []ChannelModelPricing{{
+			Platform: PlatformDeepseek, Models: []string{"deepseek-chat"}, BillingMode: BillingModeToken,
+			InputPrice: testPtrFloat64(0.28e-6), OutputPrice: testPtrFloat64(0.42e-6),
+		}},
+	}}
+	groups := []Group{{ID: 10, Name: "cn", Platform: PlatformDeepseek, RateMultiplier: 1, LongContextPricingEnabled: true}}
+	svc := newPlazaServiceWithBillingAt(channels, groups, map[int64]string{10: PlatformDeepseek}, nil, fixedPeakPricingAt())
+	out, err := svc.ListGroups(context.Background())
+	require.NoError(t, err)
+	m := out[0].Models[0]
+	require.NotNil(t, m.Pricing)
+	require.InDelta(t, 0.56e-6, *m.Pricing.InputPrice, 1e-15, "高峰窗口展示价 = 标准价 × 2")
+	require.InDelta(t, 0.84e-6, *m.Pricing.OutputPrice, 1e-15)
 }

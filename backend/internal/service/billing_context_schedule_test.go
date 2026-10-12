@@ -534,6 +534,7 @@ func TestResolveContextPricingSchedule_TimePricing(t *testing.T) {
 		bs, resolver := newTokenCostTestEnv(t, PlatformAnthropic, sonnetChannelWithTimePricing(valid), nil)
 		sched, err := bs.ResolveContextPricingSchedule(context.Background(), resolver, ContextPricingScheduleInput{
 			Model: "claude-sonnet-4", Group: enabledGroup(PlatformAnthropic), Platform: PlatformAnthropic,
+			PricingAt: fixedOffPeakPricingAt(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, sched.TimePricing)
@@ -577,6 +578,7 @@ func TestResolveContextPricingSchedule_TimePricing(t *testing.T) {
 		bs, resolver := newTokenCostTestEnv(t, PlatformAnthropic, sonnetChannelWithTimePricing(weekdays), nil)
 		sched, err := bs.ResolveContextPricingSchedule(context.Background(), resolver, ContextPricingScheduleInput{
 			Model: "claude-sonnet-4", Group: enabledGroup(PlatformAnthropic), Platform: PlatformAnthropic,
+			PricingAt: fixedOffPeakPricingAt(),
 		})
 		require.NoError(t, err)
 		require.NotNil(t, sched.TimePricing, "探针锚点必须落在工作日，否则仅工作日配置的时段会被整组剔除")
@@ -615,6 +617,7 @@ func TestResolveContextPricingSchedule_TimePricing(t *testing.T) {
 		bs, resolver := newTokenCostTestEnv(t, PlatformAnthropic, sonnetChannelWithTimePricing(invalid), nil)
 		sched, err := bs.ResolveContextPricingSchedule(context.Background(), resolver, ContextPricingScheduleInput{
 			Model: "claude-sonnet-4", Group: enabledGroup(PlatformAnthropic), Platform: PlatformAnthropic,
+			PricingAt: fixedOffPeakPricingAt(),
 		})
 		require.NoError(t, err)
 		require.Nil(t, sched.TimePricing)
@@ -627,6 +630,7 @@ func TestResolveContextPricingSchedule_TimePricing(t *testing.T) {
 		}}}
 		sched, err := bs.ResolveContextPricingSchedule(context.Background(), resolver, ContextPricingScheduleInput{
 			Model: "claude-sonnet-4", Group: group, Platform: PlatformAnthropic,
+			PricingAt: fixedOffPeakPricingAt(),
 		})
 		require.NoError(t, err)
 		require.Nil(t, sched.TimePricing)
@@ -636,6 +640,7 @@ func TestResolveContextPricingSchedule_TimePricing(t *testing.T) {
 		bs, resolver := newTokenCostTestEnv(t, PlatformAnthropic, sonnetChannelWithTimePricing(nil), nil)
 		sched, err := bs.ResolveContextPricingSchedule(context.Background(), resolver, ContextPricingScheduleInput{
 			Model: "claude-sonnet-4", Group: enabledGroup(PlatformAnthropic), Platform: PlatformAnthropic,
+			PricingAt: fixedOffPeakPricingAt(),
 		})
 		require.NoError(t, err)
 		require.Nil(t, sched.TimePricing)
