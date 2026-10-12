@@ -991,6 +991,33 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 		}
 	}
 
+	// gateway 统一重试预算（C-8）：缺省/解析失败/非正数一律回退默认 16 / 600。
+	result.GatewayMaxAttemptsPerRequest, result.GatewayRequestBudgetSeconds = defaultGatewayRequestAttemptBudgetLimits()
+	if raw, ok := settings[SettingKeyGatewayMaxAttemptsPerRequest]; ok {
+		switch v, err := strconv.Atoi(strings.TrimSpace(raw)); {
+		case err != nil:
+			slog.Warn("[Setting] parseSettings: invalid gateway_max_attempts_per_request, using default",
+				"value", raw, "default", result.GatewayMaxAttemptsPerRequest, "error", err)
+		case v <= 0:
+			slog.Warn("[Setting] parseSettings: non-positive gateway_max_attempts_per_request, using default",
+				"value", v, "default", result.GatewayMaxAttemptsPerRequest)
+		default:
+			result.GatewayMaxAttemptsPerRequest = v
+		}
+	}
+	if raw, ok := settings[SettingKeyGatewayRequestBudgetSeconds]; ok {
+		switch v, err := strconv.Atoi(strings.TrimSpace(raw)); {
+		case err != nil:
+			slog.Warn("[Setting] parseSettings: invalid gateway_request_budget_seconds, using default",
+				"value", raw, "default", result.GatewayRequestBudgetSeconds, "error", err)
+		case v <= 0:
+			slog.Warn("[Setting] parseSettings: non-positive gateway_request_budget_seconds, using default",
+				"value", v, "default", result.GatewayRequestBudgetSeconds)
+		default:
+			result.GatewayRequestBudgetSeconds = v
+		}
+	}
+
 	result.AllowUserViewErrorRequests = settings[SettingKeyAllowUserViewErrorRequests] == "true" // default false
 
 	// Publish Grok default model_mapping options for accounts with empty mapping.

@@ -381,6 +381,11 @@ type UpdateSettingsRequest struct {
 	// 各平台账号自动停调阈值（整体替换语义：nil = 不修改，non-nil = 整体覆盖）。
 	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds"`
 
+	// gateway 统一重试预算（C-8，指针以区分"未提供"：nil = 保持现值）。
+	// 显式传非正值（<=0）由本 handler 返回 400 且不写库；service 层零值 = 未提供。
+	GatewayMaxAttemptsPerRequest *int `json:"gateway_max_attempts_per_request"`
+	GatewayRequestBudgetSeconds  *int `json:"gateway_request_budget_seconds"`
+
 	// auth-source 层 platform quota 覆盖（override 语义：nil = 不修改，non-nil = 整体覆盖该 source 的 quota 配置）。
 	AuthSourceEmailPlatformQuotas    map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_email_platform_quotas"`
 	AuthSourceLinuxDoPlatformQuotas  map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_linuxdo_platform_quotas"`
@@ -1521,6 +1526,23 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
+	// gateway 统一重试预算（C-8）：显式提供时必须 > 0。
+	// service 层零值 = 未提供（跳过写入），只有这里的指针能区分「显式 0」；
+	// S1 的 fail-closed 语义下 maxSends<=0 或 window<=0 等于拒绝所有发送，
+	// 必须在显式提交时拒绝，不能让站长把全量请求配死。
+	if req.GatewayMaxAttemptsPerRequest != nil && *req.GatewayMaxAttemptsPerRequest <= 0 {
+		response.ErrorWithDetails(c, http.StatusBadRequest,
+			"gateway_max_attempts_per_request must be > 0",
+			"INVALID_GATEWAY_MAX_ATTEMPTS_PER_REQUEST", nil)
+		return
+	}
+	if req.GatewayRequestBudgetSeconds != nil && *req.GatewayRequestBudgetSeconds <= 0 {
+		response.ErrorWithDetails(c, http.StatusBadRequest,
+			"gateway_request_budget_seconds must be > 0",
+			"INVALID_GATEWAY_REQUEST_BUDGET_SECONDS", nil)
+		return
+	}
+
 	settings := &service.SystemSettings{
 		// 系统全局 platform quota 默认值（整体替换语义）
 		DefaultPlatformQuotas:       req.DefaultPlatformQuotas,
@@ -2038,6 +2060,18 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.CyberSessionBlockTTLSeconds
 		}(),
+		GatewayMaxAttemptsPerRequest: func() int {
+			if req.GatewayMaxAttemptsPerRequest != nil {
+				return *req.GatewayMaxAttemptsPerRequest
+			}
+			return previousSettings.GatewayMaxAttemptsPerRequest
+		}(),
+		GatewayRequestBudgetSeconds: func() int {
+			if req.GatewayRequestBudgetSeconds != nil {
+				return *req.GatewayRequestBudgetSeconds
+			}
+			return previousSettings.GatewayRequestBudgetSeconds
+		}(),
 	}
 
 	// req.AuthSourceXxxPlatformQuotas 为 nil 表示本次请求未包含该 source 的 quota 配置（保留 previousAuthSourceDefaults 中的值）；
@@ -2457,6 +2491,9 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		CyberSessionBlockTTLSeconds: updatedSettings.CyberSessionBlockTTLSeconds,
 		AccountSchedulingThresholds: updatedSettings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:  updatedSettings.AllowUserViewErrorRequests,
+
+		GatewayMaxAttemptsPerRequest: updatedSettings.GatewayMaxAttemptsPerRequest,
+		GatewayRequestBudgetSeconds:  updatedSettings.GatewayRequestBudgetSeconds,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
 		slog.Error("openai_fast_policy_settings_get_failed", "error", err)

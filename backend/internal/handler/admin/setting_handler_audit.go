@@ -619,6 +619,12 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if !equalAccountSchedulingThresholds(before.AccountSchedulingThresholds, after.AccountSchedulingThresholds) {
 		changed = append(changed, service.SettingKeyAccountSchedulingThresholds)
 	}
+	if before.GatewayMaxAttemptsPerRequest != after.GatewayMaxAttemptsPerRequest {
+		changed = append(changed, service.SettingKeyGatewayMaxAttemptsPerRequest)
+	}
+	if before.GatewayRequestBudgetSeconds != after.GatewayRequestBudgetSeconds {
+		changed = append(changed, service.SettingKeyGatewayRequestBudgetSeconds)
+	}
 	changed = appendAuthSourceDefaultChanges(changed, beforeAuthSourceDefaults, afterAuthSourceDefaults)
 	return changed
 }

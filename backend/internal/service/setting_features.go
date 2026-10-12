@@ -11,7 +11,10 @@ import (
 	"math"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
+
+	"golang.org/x/sync/singleflight"
 )
 
 // IsRegistrationEnabled 检查是否开放注册
@@ -1216,4 +1219,100 @@ func mergePlatformQuotaDefaults(dst, src *DefaultPlatformQuotaSetting) {
 	if src.MonthlyLimitUSD != nil {
 		dst.MonthlyLimitUSD = src.MonthlyLimitUSD
 	}
+}
+
+// cachedGatewayRequestAttemptBudgetLimits 缓存 gateway 统一重试预算配置（C-8，进程内缓存，60s TTL）。
+type cachedGatewayRequestAttemptBudgetLimits struct {
+	maxSends  int
+	window    time.Duration
+	expiresAt int64 // unix nano
+}
+
+var gatewayRequestAttemptBudgetLimitsCache atomic.Value // *cachedGatewayRequestAttemptBudgetLimits
+var gatewayRequestAttemptBudgetLimitsSF singleflight.Group
+
+const gatewayRequestAttemptBudgetLimitsCacheTTL = 60 * time.Second
+const gatewayRequestAttemptBudgetLimitsErrorTTL = 5 * time.Second
+const gatewayRequestAttemptBudgetLimitsDBTimeout = 5 * time.Second
+
+// GatewayRequestAttemptBudgetLimits 读取 C-8 的 gateway 统一重试预算配置：
+// maxSends = gateway_max_attempts_per_request（默认 16），window = gateway_request_budget_seconds（默认 600s）。
+//
+// nil-safe + fail-safe：s/settingRepo 为 nil、键缺省、解析失败、值非正，一律回退默认值。
+// 非正值回退而不是原样返回，是因为 S1 的 fail-closed 语义下 window=0 等于拒绝所有发送；
+// 网关因此始终拿到一套可用预算，不会被配置事故配成全量拒绝。
+func (s *SettingService) GatewayRequestAttemptBudgetLimits(ctx context.Context) (maxSends int, window time.Duration) {
+	defaultMaxSends, defaultWindowSeconds := defaultGatewayRequestAttemptBudgetLimits()
+	defaultWindow := time.Duration(defaultWindowSeconds) * time.Second
+	if s == nil || s.settingRepo == nil {
+		return defaultMaxSends, defaultWindow
+	}
+	if cached, ok := gatewayRequestAttemptBudgetLimitsCache.Load().(*cachedGatewayRequestAttemptBudgetLimits); ok {
+		if cached != nil && cached.maxSends > 0 && cached.window > 0 && time.Now().UnixNano() < cached.expiresAt {
+			return cached.maxSends, cached.window
+		}
+	}
+
+	result, err, _ := gatewayRequestAttemptBudgetLimitsSF.Do(SettingKeyGatewayMaxAttemptsPerRequest, func() (any, error) {
+		if cached, ok := gatewayRequestAttemptBudgetLimitsCache.Load().(*cachedGatewayRequestAttemptBudgetLimits); ok {
+			if cached != nil && cached.maxSends > 0 && cached.window > 0 && time.Now().UnixNano() < cached.expiresAt {
+				return cached, nil
+			}
+		}
+
+		dbCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), gatewayRequestAttemptBudgetLimitsDBTimeout)
+		defer cancel()
+
+		values, err := s.settingRepo.GetMultiple(dbCtx, []string{
+			SettingKeyGatewayMaxAttemptsPerRequest,
+			SettingKeyGatewayRequestBudgetSeconds,
+		})
+		if err != nil {
+			slog.Warn("failed to get gateway request attempt budget limits, falling back to defaults", "error", err)
+			entry := &cachedGatewayRequestAttemptBudgetLimits{
+				maxSends:  defaultMaxSends,
+				window:    defaultWindow,
+				expiresAt: time.Now().Add(gatewayRequestAttemptBudgetLimitsErrorTTL).UnixNano(),
+			}
+			gatewayRequestAttemptBudgetLimitsCache.Store(entry)
+			return entry, nil
+		}
+
+		resolvedMaxSends := defaultMaxSends
+		if raw := strings.TrimSpace(values[SettingKeyGatewayMaxAttemptsPerRequest]); raw != "" {
+			if v, err := strconv.Atoi(raw); err != nil {
+				slog.Warn("invalid gateway_max_attempts_per_request, falling back to default", "value", raw, "error", err)
+			} else if v <= 0 {
+				slog.Warn("non-positive gateway_max_attempts_per_request, falling back to default", "value", v)
+			} else {
+				resolvedMaxSends = v
+			}
+		}
+
+		resolvedWindow := defaultWindow
+		if raw := strings.TrimSpace(values[SettingKeyGatewayRequestBudgetSeconds]); raw != "" {
+			if v, err := strconv.Atoi(raw); err != nil {
+				slog.Warn("invalid gateway_request_budget_seconds, falling back to default", "value", raw, "error", err)
+			} else if v <= 0 {
+				slog.Warn("non-positive gateway_request_budget_seconds, falling back to default", "value", v)
+			} else {
+				resolvedWindow = time.Duration(v) * time.Second
+			}
+		}
+
+		entry := &cachedGatewayRequestAttemptBudgetLimits{
+			maxSends:  resolvedMaxSends,
+			window:    resolvedWindow,
+			expiresAt: time.Now().Add(gatewayRequestAttemptBudgetLimitsCacheTTL).UnixNano(),
+		}
+		gatewayRequestAttemptBudgetLimitsCache.Store(entry)
+		return entry, nil
+	})
+	if err != nil {
+		return defaultMaxSends, defaultWindow
+	}
+	if entry, ok := result.(*cachedGatewayRequestAttemptBudgetLimits); ok && entry != nil && entry.maxSends > 0 && entry.window > 0 {
+		return entry.maxSends, entry.window
+	}
+	return defaultMaxSends, defaultWindow
 }
