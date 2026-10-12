@@ -137,8 +137,19 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 ) (*OpenAIForwardResult, error) {
 	requestedModel := reqModel
 	upstreamPassthroughModel := ""
+	// 冻结优先：先取锁定计费的冻结上游模型；compact 兜底只在无冻结时现场解析，
+	// 避免请求中途配置变化让 body 模型偏离冻结事实（破坏后续冻结断言与用量核对）。
+	frozenModel, hasFrozenModel, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenErr != nil {
+		return nil, frozenErr
+	}
 	if isOpenAIResponsesCompactPath(c) {
-		compactMappedModel := s.resolveOpenAICompactFallbackModel(account, reqModel)
+		compactMappedModel := ""
+		if hasFrozenModel {
+			compactMappedModel = frozenModel
+		} else {
+			compactMappedModel = s.resolveOpenAICompactFallbackModel(account, reqModel)
+		}
 		if compactMappedModel != "" && compactMappedModel != reqModel {
 			nextBody, setErr := sjson.SetBytes(body, "model", compactMappedModel)
 			if setErr != nil {
@@ -255,10 +266,8 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 
 	// The prepared ordinary Responses snapshot already preserves passthrough
 	// identity semantics; never reapply a live normal account mapping here.
-	frozenModel, hasFrozenModel, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
-	if frozenErr != nil {
-		return nil, frozenErr
-	}
+	// frozenModel / hasFrozenModel 已在函数开头取得（冻结优先），这里兜底覆盖
+	// 非 compact 路径与 normalize 之后可能被改写的 body 模型。
 	if hasFrozenModel {
 		nextBody, setErr := sjson.SetBytes(body, "model", frozenModel)
 		if setErr != nil {
@@ -423,9 +432,12 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 				continue
 			}
 			upstreamMsg := sanitizeUpstreamErrorMessage(strings.TrimSpace(extractUpstreamErrorMessage(probeBody)))
+			// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：冻结表已按
+			// compact 口径固定上游模型，现场切换会偏离冻结事实（下一轮断言也会拒绝）。
+			// 模型不可用时应走跨账号 failover 并按新账号重绑冻结模型。
 			if retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
 				c, account, requestedModel, body, resp.StatusCode, upstreamMsg, probeBody, compactModelFallbackRetried,
-			); retry {
+			); retry && !hasFrozenModel {
 				s.appendOpenAICompactFallbackRetryOps(c, account, resp, probeBody, upstreamMsg, true)
 				fromModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 				body = retryBody
@@ -467,9 +479,11 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		if reqStream {
 			result, handleErr := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
 			if handleErr != nil {
+				// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：
+				// 冻结表已按 compact 口径固定上游模型，现场切换会偏离冻结事实。
 				if retryBody, fallbackModel, retry := s.applyOpenAIPassthroughCompactFallbackFromSignal(
 					c, account, requestedModel, body, handleErr, compactModelFallbackRetried, resp,
-				); retry {
+				); retry && !hasFrozenModel {
 					body = retryBody
 					upstreamPassthroughModel = fallbackModel
 					compactModelFallbackRetried = true
@@ -494,9 +508,11 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		} else {
 			result, handleErr := s.handleNonStreamingResponsePassthrough(ctx, resp, c, account, reqModel, upstreamPassthroughModel)
 			if handleErr != nil {
+				// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：
+				// 冻结表已按 compact 口径固定上游模型，现场切换会偏离冻结事实。
 				if retryBody, fallbackModel, retry := s.applyOpenAIPassthroughCompactFallbackFromSignal(
 					c, account, requestedModel, body, handleErr, compactModelFallbackRetried, resp,
-				); retry {
+				); retry && !hasFrozenModel {
 					body = retryBody
 					upstreamPassthroughModel = fallbackModel
 					compactModelFallbackRetried = true

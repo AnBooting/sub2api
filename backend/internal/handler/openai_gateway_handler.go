@@ -568,15 +568,19 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		}
 	}
 
-	// First consumer slice: ordinary OpenAI Responses text only. Compact, explicit
-	// media and non-OpenAI protocol adapters retain their existing paths.
-	lockedText := !legacyCompact && !imageIntent && openAICompatibleRequestPlatform(c.Request.Context(), apiKey) == service.PlatformOpenAI
+	// Locked-pricing consumer slice: ordinary OpenAI Responses text plus legacy
+	// /compact requests. Explicit media and non-OpenAI protocol adapters retain
+	// their existing paths.
+	lockedText := !imageIntent && openAICompatibleRequestPlatform(c.Request.Context(), apiKey) == service.PlatformOpenAI
 	var requestBilling *service.RequestBillingContext
 	if lockedText {
 		if !h.validateFunctionCallOutputRequest(c, body, reqLog) {
 			return
 		}
 		priceRequest := tokenInflightEstimate(reqModel, body)
+		// /compact 请求的账号上游模型按 compact 链解析，与调度准入同口径，
+		// 冻结表才能与实际转发模型一致。
+		priceRequest.RequireCompact = legacyCompact
 		prepared, request, priceErr := h.gatewayService.PrepareRequestBilling(c.Request.Context(), apiKey, priceRequest)
 		if priceErr == nil {
 			priceErr = h.gatewayService.ValidateRequestPricing(prepared, apiKey, priceRequest)
