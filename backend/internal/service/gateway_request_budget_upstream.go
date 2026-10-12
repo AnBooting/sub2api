@@ -117,7 +117,8 @@ var requestAttemptBudgetFailoverBody = []byte(`{"error":{"type":"api_error","cod
 // 503 + NextAccountStop（ShouldRetryNextAccount() 返回 false，不重试、不换号）。
 // Reason 让 handler 复用既有耗尽出口，错误码用 C-7 既有的 no_available_group。
 func NewRequestAttemptBudgetFailoverError() *UpstreamFailoverError {
-	return &UpstreamFailoverError{
+	// TS-02 S5：预算耗尽属于本站策略终止（fail_policy），不是可换号的账号/传输故障。
+	failoverErr := &UpstreamFailoverError{
 		StatusCode:        http.StatusServiceUnavailable,
 		ResponseBody:      requestAttemptBudgetFailoverBody,
 		NextAccountAction: NextAccountStop,
@@ -125,4 +126,7 @@ func NewRequestAttemptBudgetFailoverError() *UpstreamFailoverError {
 		ClientStatusCode:  http.StatusServiceUnavailable,
 		ClientMessage:     requestAttemptBudgetClientMessage,
 	}
+	failoverErr.FailureClass = failoverErr.Classify()
+	logGatewayFailureClass(failoverErr, "gateway.request_attempt_budget_exhausted")
+	return failoverErr
 }

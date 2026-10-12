@@ -702,6 +702,15 @@ type UpstreamFailoverError struct {
 	NextAccountAction        NextAccountAction
 	ClientStatusCode         int
 	ClientMessage            string
+
+	// FailureClass 是 TS-02 S5（C-5）的故障五分类。字段追加在结构体末尾，保持
+	// 既有 composite literal 的源码兼容（全部具名字段，且无按位置初始化）。
+	//
+	// 语义约束：本字段只作记录 / 结构化日志 / S6 组循环输入，**不参与任何分支
+	// 判断**；重试与换号决策仍完全由 ShouldRetryNextAccount() 决定。零值表示
+	// 出口未显式设置，读取方应使用 Classify()（按现有字段动态推导），不要直接
+	// 比较本字段。
+	FailureClass FailureClass
 }
 
 func (e *UpstreamFailoverError) Error() string {

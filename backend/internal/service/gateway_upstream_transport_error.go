@@ -72,10 +72,15 @@ func (s *GatewayService) handleUpstreamTransportError(ctx context.Context, c *gi
 		s.tempUnscheduleTransportError(ctx, account, safeErr)
 	}
 
-	return &UpstreamFailoverError{
+	// TS-02 S5：出口统一记录 C-5 分类。只写字段与结构化日志，不改变重试语义
+	// （ShouldRetryNextAccount 仍为 true，行为与分类前完全一致）。
+	failoverErr := &UpstreamFailoverError{
 		StatusCode:   http.StatusBadGateway,
 		ResponseBody: gatewayTransportFailoverBody,
 	}
+	failoverErr.FailureClass = failoverErr.Classify()
+	logGatewayFailureClass(failoverErr, "gateway.upstream_transport_error", zap.Int64("account_id", account.ID))
+	return failoverErr
 }
 
 // tempUnscheduleTransportError marks an account temporarily unschedulable
