@@ -111,6 +111,34 @@ func (p *LockedRequestPricing) EffectiveMultiplier() float64 {
 	}
 	return p.multiplier
 }
+
+// BaseMultiplier 返回冻结 bundle 的基础费率倍率（不含高峰因子），与 legacy
+// 按次媒体/搜索/音频的口径一致（这些维度不叠加高峰因子）。
+func (p *LockedRequestPricing) BaseMultiplier() float64 {
+	if p == nil || p.candidate == nil {
+		return 0
+	}
+	return p.candidate.multiplier
+}
+
+// Mode 返回冻结解析结果的计费模式（token/per_request/image/video）。
+// 按次计数维度据此判断该走冻结按次卡还是 token 计费。
+func (p *LockedRequestPricing) Mode() BillingMode {
+	if p == nil || p.resolved == nil {
+		return ""
+	}
+	return p.resolved.Mode
+}
+
+// FrozenBilling 返回请求冻结时点的计费服务快照，仅供锁价消费者做纯算术计费
+// （WebSearch/Search/Audio 等按次公式）。快照在请求建立时克隆，不随实时目录
+// 或分组变更；调用方不得用它做任何仓储回源取价。
+func (p *LockedRequestPricing) FrozenBilling() *BillingService {
+	if p == nil || p.request == nil {
+		return nil
+	}
+	return p.request.billing
+}
 func (p *LockedRequestPricing) Period() DeepSeekPricingPeriod {
 	if p == nil || p.request == nil {
 		return DeepSeekPricingPeriod{}

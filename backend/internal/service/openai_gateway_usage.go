@@ -209,15 +209,6 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		if !known || facts.accountID != account.ID {
 			return fmt.Errorf("%w: missing actual account execution facts", ErrModelPricingUnavailable)
 		}
-		// 按次计数类仍拒绝，等待专用媒体锁价消费者；图片 token 维度通过
-		// CostInput.Tokens 按 token 计费，由 computeTokenCost 做图文分价（图片输入价缺失时回退文本 input 价）。
-		if result.ImageCount > 0 ||
-			result.VideoCount > 0 ||
-			result.AudioUsage != nil ||
-			result.WebSearchCalls > 0 ||
-			result.SearchCount > 0 {
-			return fmt.Errorf("%w: non-text usage requires its dedicated locked pricing consumer", ErrModelPricingUnavailable)
-		}
 		expected, _, modelErr := frozenGatewayRequestAccountModel(ctx, account.ID)
 		if modelErr != nil {
 			return modelErr
@@ -240,20 +231,24 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		if quoteErr != nil {
 			return quoteErr
 		}
+		// 按次计数类（image/video/audio/web_search/search）不再整笔拒绝：由锁价消费者
+		// 按冻结快照分派计价。价格、层级与倍率全部取自冻结 bundle（冻结分组快照 +
+		// 冻结解析结果 + 冻结计费服务快照），严禁 apiKeyWithFreshGroupMediaPricing
+		// 之类的记账时刻回源取价；冻结快照缺少该维度价格时 fail-closed。
+		group := requestPricing.candidates[facts.groupID].group
+		baseMultiplier = quote.BaseMultiplier()
 		costInput := CostInput{SelectedAccountID: account.ID, Tokens: tokens, ServiceTier: serviceTier, ReasoningEffort: optionalStringValue(result.ReasoningEffort)}
-		cost, err = quote.Calculate(costInput)
+		cost, err = calculateLockedRequestUsageCost(quote, group, result, costInput)
 		if err != nil {
 			return err
 		} // no live fallback or missing-price zero-cost log
 		multiplier = quote.EffectiveMultiplier()
-		baseMultiplier = requestPricing.candidates[facts.groupID].multiplier
 		imageMultiplier, videoMultiplier = baseMultiplier, baseMultiplier
 		pricingAt = requestPricing.StartedAt()
 		billingModels = []string{scope.BillingModel}
-		group := requestPricing.candidates[facts.groupID].group
 		if group != nil && group.FreeOpenAIFast && billingAccount.IsOpenAI() && groupSupportsOpenAIFast(group.Platform) && (normalizeBillingServiceTier(serviceTier) == "priority" || normalizeBillingServiceTier(serviceTier) == "fast") {
 			costInput.ServiceTier = ""
-			standard, standardErr := quote.Calculate(costInput)
+			standard, standardErr := calculateLockedRequestUsageCost(quote, group, result, costInput)
 			if standardErr != nil {
 				return standardErr
 			}
@@ -606,6 +601,133 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+// calculateLockedRequestUsageCost 是请求锁价消费者的用量计价分派：token 维度走
+// 冻结 quote（LockedRequestPricing.Calculate），按次计数维度按 legacy
+// calculateOpenAIRecordUsageCost 的口径映射到冻结按次卡或冻结分组标量价。
+//
+// 冻结边界：只读冻结 bundle——frozenGroup 是请求建立时克隆的分组快照，quote 内的
+// 解析结果/倍率/计费服务同为冻结快照。此处不得调用 apiKeyWithFreshGroupMediaPricing
+// 之类的记账时刻回源取价；冻结快照缺少该维度所需价格时返回
+// ErrModelPricingUnavailable（fail-closed），绝不零价落账（显式零价仍按零价计）。
+//
+// 分派顺序与 legacy 一致：WebSearchCalls（独占）→ 视频 → 音频 → 图片 → token
+// （SearchCount 为叠加附加费，不替代 token 费）。token 计费模式下 legacy 同样不做
+// 按次图片/视频计费（见 calculateOpenAIRecordUsageCost 的模式判断），此处保持相同口径，
+// 因此不得重复计费同一用量。
+func calculateLockedRequestUsageCost(
+	quote *LockedRequestPricing,
+	frozenGroup *Group,
+	result *OpenAIForwardResult,
+	input CostInput,
+) (*CostBreakdown, error) {
+	if quote == nil {
+		return nil, fmt.Errorf("%w: frozen request pricing quote is missing", ErrModelPricingUnavailable)
+	}
+	frozenBilling := quote.FrozenBilling()
+	if frozenBilling == nil {
+		return nil, fmt.Errorf("%w: frozen billing snapshot is missing", ErrModelPricingUnavailable)
+	}
+	baseMultiplier := quote.BaseMultiplier()
+	mode := quote.Mode()
+
+	// Codex alpha/search 网页搜索：legacy 为独占按次口径（上游不返回 token 字段），
+	// 单价取冻结分组覆盖价，未配置时沿用 0.01 默认价。
+	if result != nil && result.WebSearchCalls > 0 {
+		var price *float64
+		if frozenGroup != nil {
+			price = frozenGroup.WebSearchPricePerCall
+		}
+		return frozenBilling.CalculateWebSearchCost(result.WebSearchCalls, price, baseMultiplier), nil
+	}
+
+	// 视频：VideoCount 即权威（isGrokVideoUsageResult）。冻结卡非 token 模式时按
+	// legacy 的 Grok/视频口径映射为「次数 × 时长」与分辨率层级；token 模式保持
+	// token 计费（legacy 同口径）。
+	if isGrokVideoUsageResult(result, nil) && mode != BillingModeToken {
+		videoCount := result.VideoCount
+		if videoCount <= 0 {
+			videoCount = 1
+		}
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
+		units := float64(videoCount)
+		if mode == BillingModeVideo {
+			// 视频卡按秒计价：UsageUnits = 条数 × 秒数。
+			units = float64(videoCount * durationSeconds)
+		}
+		input.RequestCount = videoCount
+		input.UsageUnits = units
+		input.SizeTier = NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
+		cost, err := quote.Calculate(input)
+		if err != nil {
+			return nil, err
+		}
+		cost.BillingMode = string(BillingModeVideo)
+		return cost, nil
+	}
+
+	// 音频：冻结卡为 per_request 时按 UsageUnits + 模式层级计费；否则沿用 legacy
+	// 的冻结分组标量价（realtime/tts/stt，未配置时用内置默认价）。未知模式无价可循，
+	// fail-closed 而不是零价落账。
+	if result != nil && result.AudioUsage != nil {
+		if mode == BillingModePerRequest {
+			input.UsageUnits = result.AudioUsage.DurationOrUnits
+			input.SizeTier = result.AudioUsage.Mode
+			return quote.Calculate(input)
+		}
+		switch strings.ToLower(strings.TrimSpace(result.AudioUsage.Mode)) {
+		case "realtime", "tts", "stt":
+		default:
+			return nil, fmt.Errorf("%w: unknown audio billing mode %q", ErrModelPricingUnavailable, result.AudioUsage.Mode)
+		}
+		return frozenBilling.CalculateAudioCost(
+			result.AudioUsage.Mode,
+			result.AudioUsage.DurationOrUnits,
+			lockedGroupAudioPriceConfig(frozenGroup),
+			baseMultiplier,
+		), nil
+	}
+
+	// 图片按次：冻结卡非 token 模式时按 legacy 的「次数 + 尺寸层级」口径计费
+	// （层级判定口径见 NormalizeImageBillingTierOrDefault）；token 模式保持 token
+	// 计费（含 ImageInputTokens/ImageOutputTokens/ImageCacheReadTokens 图文分价）。
+	if result != nil && result.ImageCount > 0 && mode != BillingModeToken {
+		input.RequestCount = result.ImageCount
+		input.SizeTier = NormalizeImageBillingTierOrDefault(result.ImageSize)
+		return quote.Calculate(input)
+	}
+
+	// token 计费；SearchCount 与其相加（legacy 的叠加口径，不替换 token 费）。
+	cost, err := quote.Calculate(input)
+	if err != nil {
+		return nil, err
+	}
+	if result != nil && result.SearchCount > 0 {
+		var price *float64
+		if frozenGroup != nil {
+			price = frozenGroup.GetSearchPricePer1k()
+		}
+		searchCost := frozenBilling.CalculateSearchCost(result.SearchCount, price, baseMultiplier)
+		if searchCost != nil && (searchCost.TotalCost != 0 || searchCost.ActualCost != 0) {
+			cost.TotalCost += searchCost.TotalCost
+			cost.ActualCost += searchCost.ActualCost
+		}
+	}
+	return cost, nil
+}
+
+// lockedGroupAudioPriceConfig 从冻结分组快照取音频标量价（realtime/tts/stt）。
+// 与 legacy 的 groupAudioPriceConfigFromAPIKey 同字段，但只读冻结快照，不回源。
+func lockedGroupAudioPriceConfig(frozenGroup *Group) *audioPriceConfig {
+	if frozenGroup == nil {
+		return nil
+	}
+	return &audioPriceConfig{
+		RealtimePerMin: frozenGroup.AudioRealtimePricePerMin,
+		TTSPerMChars:   frozenGroup.AudioTTSPricePerMillionChars,
+		STTPerHour:     frozenGroup.AudioSTTPricePerHour,
+	}
 }
 
 // hasIdentifiedOpenAIResponsePricing 判断上游自报的响应模型是否可以作为计费基准，
