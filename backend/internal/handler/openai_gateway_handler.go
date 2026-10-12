@@ -131,6 +131,29 @@ func openAIWSIngressEndedByClient(err error) bool {
 	return errors.Is(err, context.Canceled)
 }
 
+// backfillWSLockedUpstreamModel 修补 WS 出站模型的空串洞：passthrough ingress 在
+// 请求模型与出站模型相同（身份映射）时把 result.UpstreamModel 置空，而锁价消费
+// 侧要求该字段精确等于冻结表里的账号上游模型，否则整笔用量按缺价失败（不落账）。
+//
+// 回填值只取冻结 bundle 中该账号的模型，绝不取实时映射；实际出站模型由
+// relay 已在 payload 中写死，冻结表与实际转发同源（HTTP 与 WS 共用
+// resolveOpenAIAccountUpstreamModelForRequest）。若结果里已有非空值则原样保留，
+// 让消费侧按"实际模型偏离冻结值"fail-closed。
+func backfillWSLockedUpstreamModel(ctx context.Context, result *service.OpenAIForwardResult, groupID, accountID int64) {
+	if result == nil || strings.TrimSpace(result.UpstreamModel) != "" {
+		return
+	}
+	request := service.GatewayRequestBillingFromContext(ctx)
+	if request == nil {
+		return
+	}
+	frozen, err := request.UpstreamModelFor(groupID, accountID)
+	if err != nil || strings.TrimSpace(frozen) == "" {
+		return
+	}
+	result.UpstreamModel = frozen
+}
+
 func openAIWSTurnBillingModel(result *service.OpenAIForwardResult, mapping service.ChannelMappingResult, requestedModel, upstreamModel string) string {
 	billingModel := ""
 	if result != nil {
@@ -2308,6 +2331,139 @@ func (k *openAIWSTurnBillingAPIKeys) forTurn(turn int, conn *service.APIKey) *se
 	return conn
 }
 
+// openAIWSTurnBillingCtx 按 turn 号保存该 turn 的计费父亲 ctx（携带本 turn 冻结
+// 的锁价 bundle、本 turn 预算与利润门）。
+//
+// 为什么需要独立槽位：用量落账是异步 worker，AfterTurn 的 parent 决定 worker 继承
+// 哪一份 bundle。连接级 ctx 只有首 turn 的 bundle；turn≥2 在 BeforeTurn 重冻后必须
+// 用本 turn 的 ctx，否则 turn2 会按 turn1 的价（甚至 turn1 的账号事实）落账。
+//
+// 与 openAIWSTurnBillingAPIKeys 同构：turn 在连接内串行推进，只保留当前与上一个
+// turn，使"下一 turn 的 BeforeTurn 先于上一 turn 的 AfterTurn"时上一 turn 仍取到
+// 自己的 ctx。非锁价 turn 存入的 ctx 不含 bundle，行为与旧的连接级 parent 等价。
+type openAIWSTurnBillingCtx struct {
+	mu sync.Mutex
+	// ctxs 按 turn 号保存；缺失时回退连接级 ctx。
+	ctxs map[int]context.Context
+}
+
+func (c *openAIWSTurnBillingCtx) set(turn int, ctx context.Context) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.ctxs == nil {
+		c.ctxs = make(map[int]context.Context, 2)
+	}
+	for t := range c.ctxs {
+		if t < turn-1 {
+			delete(c.ctxs, t)
+		}
+	}
+	c.ctxs[turn] = ctx
+}
+
+func (c *openAIWSTurnBillingCtx) forTurn(turn int, fallback context.Context) context.Context {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if ctx := c.ctxs[turn]; ctx != nil {
+		return ctx
+	}
+	return fallback
+}
+
+// openAIWSTurnRefreezeKey 构造用于本 turn 强制重冻的 API Key：分组链里指向本 turn
+// 计费分组的链接换成刷新后的分组快照，其余链接保持建连快照。
+//
+// prepareRequestBilling 从 key.Groups 的 link.Group 克隆候选分组快照，而
+// refreshOpenAIWSTurnBillingAPIKey 只替换 key.Group（不只是 Groups）。若直接拿
+// turn key 重冻，链上仍是建连时的旧分组指针，冻结价会停留在建连时刻——与本
+// turn 的分组调价、利润门和最终计费分组都不一致。
+func openAIWSTurnRefreezeKey(turnKey *service.APIKey) *service.APIKey {
+	if turnKey == nil || turnKey.Group == nil {
+		return turnKey
+	}
+	turnGroup := turnKey.Group
+	turnKeyCopy := *turnKey
+	if turnKey.GroupID == nil || len(turnKey.Groups) == 0 {
+		return &turnKeyCopy
+	}
+	links := make([]service.APIKeyGroupLink, len(turnKey.Groups))
+	copy(links, turnKey.Groups)
+	for i := range links {
+		if links[i].GroupID == *turnKey.GroupID {
+			links[i].Group = turnGroup
+		}
+	}
+	turnKeyCopy.Groups = links
+	return &turnKeyCopy
+}
+
+// openAIWSTurnRequestModels 按 turn 号保存该 turn 客户端请求的原始模型。
+//
+// BeforeRequest 在 BeforeTurn 之前执行并已解析出本 turn 的模型（含 session.update
+// 轮换后的会话模型），而 MapRequestModel 在 BeforeTurn 之后才执行；turn 级重冻结
+// 必须以"本 turn 请求模型"为输入，因此这里显式在两者之间传递。只保留当前与上一个
+// turn，与 openAIWSTurnBillingAPIKeys 同样的窗口语义。
+type openAIWSTurnRequestModels struct {
+	mu     sync.Mutex
+	models map[int]string
+}
+
+func (m *openAIWSTurnRequestModels) set(turn int, model string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.models == nil {
+		m.models = make(map[int]string, 2)
+	}
+	for t := range m.models {
+		if t < turn-1 {
+			delete(m.models, t)
+		}
+	}
+	m.models[turn] = strings.TrimSpace(model)
+}
+
+func (m *openAIWSTurnRequestModels) forTurn(turn int, fallback string) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if model := strings.TrimSpace(m.models[turn]); model != "" {
+		return model
+	}
+	return fallback
+}
+
+// openAIWSTurnImageIntents 按 turn 号保存该 turn 是否为显式生图意图。
+//
+// 显式生图回合不进入文本锁价（与 HTTP lockedText 同口径），需在 BeforeTurn 里把
+// 连接级冻结 bundle 剥离后回退 legacy 按次计费；意图在 BeforeRequest 解析（payload
+// 只在那一层可得），BeforeTurn 再读取。窗口语义与其它 turn 槽位一致。
+type openAIWSTurnImageIntents struct {
+	mu      sync.Mutex
+	intents map[int]bool
+}
+
+func (m *openAIWSTurnImageIntents) set(turn int, imageIntent bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.intents == nil {
+		m.intents = make(map[int]bool, 2)
+	}
+	for t := range m.intents {
+		if t < turn-1 {
+			delete(m.intents, t)
+		}
+	}
+	m.intents[turn] = imageIntent
+}
+
+func (m *openAIWSTurnImageIntents) forTurn(turn int, fallback bool) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if intent, ok := m.intents[turn]; ok {
+		return intent
+	}
+	return fallback
+}
+
 // refreshOpenAIWSTurnBillingAPIKey 返回本 turn 计费用的 API Key：分组取当前认证
 // 快照，其余字段与建连快照共享。不满足采用条件时原样返回建连快照。
 func refreshOpenAIWSTurnBillingAPIKey(ctx context.Context, lookup openAIWSTurnAPIKeyLookup, conn *service.APIKey) *service.APIKey {
@@ -2935,11 +3091,47 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		requiredCapability = service.OpenAIEndpointCapabilityResponses
 	}
 
+	// C1 锁价消费切片（WS /responses 文本回合）：与 HTTP Responses 文本入口同
+	// 口径（lockedText = 非生图意图 + OpenAI 平台），在选号循环之前冻结首个 turn
+	// 的价格。冻结失败必须在上游连接建立之前终止——WS 没有 HTTP 状态码，契约
+	// 即"不建上游连接、不产生用量记录"，以 WS policy violation 关闭连接返回。
+	// 显式生图意图回合不锁价（与 HTTP 一致），连接中途出现的生图回合由 turn 级
+	// 检测回退 legacy 计费。
+	wsLockedPricing := !imageIntent && requestPlatform == service.PlatformOpenAI
+	// 与 HTTP 锁价路径同口径：无分组遗留 Key 用零分组作用域，账号事实的
+	// groupID 必须与冻结候选表键一致。
+	wsBillingGroupID := int64(0)
+	if apiKey.GroupID != nil {
+		wsBillingGroupID = *apiKey.GroupID
+	}
+	if wsLockedPricing {
+		// 冻结口径与 HTTP 锁价路径一致：composite 分组在 HTTP 侧由中间件先把请求
+		// body 改写成路由解析出的上游模型，再进入 OpenAI handler 冻结；WS 保留客户端
+		// 模型在帧内（响应身份与用量口径），因此这里显式取"路由后模型"作为定价请求
+		// 模型，否则冻结的账号→上游模型表会与实际出站模型不一致而拒绝落账。
+		priceRequest := tokenInflightEstimate(wsRouteModel, firstMessage)
+		priceRequest.RequireWSIngressModel = true
+		prepared, _, priceErr := h.gatewayService.PrepareRequestBilling(ctx, apiKey, priceRequest)
+		if priceErr == nil {
+			priceErr = h.gatewayService.ValidateRequestPricing(prepared, apiKey, priceRequest)
+		}
+		if priceErr != nil {
+			reqLog.Warn("openai.websocket_pricing_rejected",
+				zap.String("model", wsRouteModel),
+				zap.Error(priceErr),
+			)
+			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "request pricing unavailable")
+			return
+		}
+		ctx = prepared
+	}
+
 	// 分组利润控制：WS 桥按连接装配定价上下文并装门（选号与抢槽共用该
 	// ctx）。连接内不重选号，但每个 turn 开始经 BeforeTurn 重新冻结 pricingAt
 	// 并按最新门复核当前账号（准入与计费同源），峰前建连保活不能让后续 turn
 	// 继续按建连时刻的谷价计费。生图意图只影响能力路由与图片计费，不关门。
-	// 建连时刻只用于选号/准入，不作为任何 turn 的计费定价时刻。
+	// 已冻结 bundle 时 WithOpenAIRequestPricingContext 取 bundle 的 startedAt，
+	// 使首 turn 的利润门与计费同源。
 	wsPricingCtx, _ := h.gatewayService.WithOpenAIRequestPricingContext(ctx, apiKey.GroupID)
 	ctx = wsPricingCtx
 
@@ -3050,6 +3242,26 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		}
 		// 准入完成：门并入连接 ctx，turn 级复核与 failover 重选共用。
 		ctx = admissionCtx
+		// 锁价：把本 attempt 实际选中的账号绑定到已冻结 bundle。绑定失败
+		// （账号不在冻结候选表内、或该账号的冻结模型无价）必须在上游写入前
+		// 停止，换号重选；不得带着未绑定的 bundle 继续。
+		if wsLockedPricing {
+			boundCtx, bindErr := service.WithGatewayRequestBillingAccount(ctx, wsBillingGroupID, account.ID)
+			if bindErr != nil {
+				reqLog.Warn("openai.websocket_pricing_account_bind_failed",
+					zap.Int64("account_id", account.ID),
+					zap.Error(bindErr),
+				)
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+					accountReleaseFunc = nil
+				}
+				currentAccountRelease = nil
+				failedAccountIDs[account.ID] = struct{}{}
+				continue
+			}
+			ctx = boundCtx
+		}
 		// Account selection starts a fresh upstream attempt. Clear any model
 		// captured by the previous failover account before credential lookup.
 		setOpsSelectedAccount(c, account.ID, account.Platform)
@@ -3111,6 +3323,11 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		// 后续 turn 的计费分组同样在 BeforeTurn 经认证缓存重取，使分组调价对
 		// 已打开的连接生效。
 		var turnBillingAPIKeys openAIWSTurnBillingAPIKeys
+		// 锁价 turn 的每-turn ctx 槽位与请求模型槽位（见各自类型注释）。
+		var turnBillingCtxs openAIWSTurnBillingCtx
+		var turnRequestModels openAIWSTurnRequestModels
+		// 每 turn 的显式生图意图：生图 turn 按设计回退 legacy 计费（见 BeforeTurn）。
+		var turnImageIntents openAIWSTurnImageIntents
 		// Passthrough ingress does not invoke BeforeTurn for the first frame.
 		if err := checkSimpleModeTurnBilling(); err != nil {
 			closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, "billing check failed")
@@ -3147,6 +3364,19 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if model == "" {
 					model = reqModel
 				}
+				// turn 级重冻结在 BeforeTurn 执行，早于 MapRequestModel；把本 turn
+				// 实际请求模型交给它，避免用连接级首帧模型重冻后续 turn。
+				// composite 分组连接内不允许换公共模型，定价模型恒为建连时解析出的
+				// 路由模型（与 HTTP 中间件改写后的 body model 同口径）。
+				pricingModel := model
+				if apiKey.Group != nil && apiKey.Group.Platform == service.PlatformComposite {
+					pricingModel = wsRouteModel
+				}
+				turnRequestModels.set(turn, pricingModel)
+				// 本 turn 是否为显式生图意图（与握手同口径：只看 tools/意图声明，不
+				// 看响应里的 ImageCount）。生图 turn 不锁价：不重冻、不绑账号，并把
+				// 连接级 bundle 剥离后回退 legacy 按次计费。
+				turnImageIntents.set(turn, service.IsExplicitImageGenerationIntent("/v1/responses", model, payload))
 				// 分组级模型白名单：后续 turn 同样校验客户端模型（省略 model 时
 				// 沿用会话实际生效模型，含 session.update 轮换后的模型），不通过
 				// 则关闭整条连接，与推理强度 deny 一致。实际生效模型始终参与校验；
@@ -3164,9 +3394,13 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				}
 				return nil
 			},
-			TurnContext: func(int) context.Context {
+			TurnContext: func(turn int) context.Context {
 				_, turnCtx := currentTurnBudgetState()
-				return turnCtx
+				// 锁价 turn 必须让转发侧的预算查询拿到"本 turn 预算 + 本 turn 冻结
+				// bundle + 账号事实"同一份 ctx；两个槽位不能互相覆盖（预算槽位是
+				// 连接级链，锁价槽位按 turn 记录，这里以 turn 槽位为准并在缺失时
+				// 回退预算 ctx）。
+				return turnBillingCtxs.forTurn(turn, turnCtx)
 			},
 			MapRequestModel: func(turn int, originalModel string) (string, error) {
 				model := strings.TrimSpace(originalModel)
@@ -3211,11 +3445,81 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					}
 					setTurnBudget(service.NewRequestAttemptBudget(time.Now(), maxAttemptSends, budgetWindow, time.Time{}))
 				}
+				// 本 turn 的预算 ctx（后续 turn 已在上面重建，首轮用握手套装的预算）。
+				_, turnBudgetCtx := currentTurnBudgetState()
+				// 本 turn 生效的计费 API Key/分组：后续 turn 经认证缓存重取（分组调价
+				// 对已打开连接生效）。锁价 turn 用它作为重冻的候选分组来源，使冻结分组
+				// 与本 turn 实际计费分组同一份快照。
+				turnBillingBase := turnBillingAPIKeys.begin(turnBudgetCtx, h.apiKeyService, turn, apiKey)
+				turnBillingKey := turnBillingAPIKeys.forTurn(turn, apiKey)
+				turnCtxBase := turnBillingBase
+				// 锁价只覆盖文本回合：本 turn 显式声明生图工具时按设计回退 legacy
+				// 按次计费（与 HTTP lockedText = !imageIntent && openai 同口径）。
+				// 必须剥离连接级 bundle——否则该 turn 会继承建连时的文本冻结价，
+				// 既可能缺 image 价被拒绝，也会给按次计费错误的 token 口径。
+				turnLockedPricing := wsLockedPricing && !turnImageIntents.forTurn(turn, imageIntent)
+				if !turnLockedPricing {
+					turnCtxBase = service.WithoutGatewayRequestBilling(turnBillingBase)
+				}
+				if turnLockedPricing {
+					// 锁价契约：计费分组必须与冻结候选分组一致，否则拒绝而不是
+					// 静默按其中一个计价。分组刷新只在同 Key 同分组时被采纳
+					// （refreshOpenAIWSTurnBillingAPIKey），此断言是防御式兜底。
+					if turnBillingKey != nil && turnBillingKey.GroupID != nil && *turnBillingKey.GroupID != wsBillingGroupID {
+						reqLog.Warn("openai.websocket_locked_pricing_group_mismatch",
+							zap.Int("turn", turn),
+							zap.Int64("turn_group_id", *turnBillingKey.GroupID),
+							zap.Int64("frozen_group_id", wsBillingGroupID),
+						)
+						return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "request pricing unavailable", nil)
+					}
+					if turn > 1 {
+						// 每个 turn 是独立计费单元：按本 turn 的实际请求模型强制重冻
+						// （先剥离旧 bundle），并重新绑定当前账号到新 bundle。
+						turnModel := turnRequestModels.forTurn(turn, reqModel)
+						priceRequest := service.InflightEstimateRequest{
+							Model: turnModel,
+							Kind:  service.InflightEstimateToken,
+							// 与握手冻结同口径：账号上游模型按本账号实际会走的 WS
+							// ingress 适配器解析，否则 passthrough 连接会因冻结模型
+							// 与实际出站模型不一致而整笔拒绝落账。
+							RequireWSIngressModel: true,
+						}
+						// 候选分组必须取自本 turn 刷新后的分组快照：分组调价对已打开
+						// 连接生效是既有契约，重冻不能把价钉回建连时刻。
+						refreezeKey := openAIWSTurnRefreezeKey(turnBillingKey)
+						refrozenCtx, _, freezeErr := h.gatewayService.RefreezeRequestBilling(turnBillingBase, refreezeKey, priceRequest)
+						if freezeErr == nil {
+							freezeErr = h.gatewayService.ValidateRequestPricing(refrozenCtx, refreezeKey, priceRequest)
+						}
+						if freezeErr != nil {
+							reqLog.Warn("openai.websocket_turn_pricing_rejected",
+								zap.Int("turn", turn),
+								zap.String("model", turnModel),
+								zap.Error(freezeErr),
+							)
+							return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "request pricing unavailable", nil)
+						}
+						boundCtx, bindErr := service.WithGatewayRequestBillingAccount(refrozenCtx, wsBillingGroupID, account.ID) // 冻结候选分组即本 turn 分组
+						if bindErr != nil {
+							reqLog.Warn("openai.websocket_turn_pricing_bind_failed",
+								zap.Int("turn", turn),
+								zap.Int64("account_id", account.ID),
+								zap.Error(bindErr),
+							)
+							return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, "request pricing unavailable", nil)
+						}
+						turnCtxBase = boundCtx
+					} else {
+						// 首 turn 已在握手冻结并绑定；这里只把它并入本 turn 的预算 ctx，
+						// 使 TurnContext/AfterTurn 拿到"预算 + bundle + 账号事实"同一份 ctx。
+						turnCtxBase = service.TransferGatewayRequestPricingContext(turnBillingBase, ctx)
+					}
+				}
 				// 长连接跨峰谷/倍率刷新防护：每个 turn 按当前时刻重装门并复核
 				// 当前账号，越线即要求客户端重连重选（连接绑定单一上游账号，
 				// 无法中途换号）。本 turn 的准入与计费共用同一 pricingAt。
-				turnBillingCtx := turnBillingAPIKeys.begin(ctx, h.apiKeyService, turn, apiKey)
-				turnCtx, turnAt := h.gatewayService.WithOpenAITurnPricingContext(turnBillingCtx, apiKey.GroupID)
+				turnCtx, turnAt := h.gatewayService.WithOpenAITurnPricingContext(turnCtxBase, apiKey.GroupID)
 				if _, vetoed, reason := h.gatewayService.ProfitControlVetoLatest(turnCtx, account); vetoed {
 					reqLog.Info("openai.websocket_turn_profit_vetoed",
 						zap.Int("turn", turn),
@@ -3224,6 +3528,7 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusTryAgainLater, "account is no longer eligible for this connection, please reconnect", nil)
 				}
 				turnPricing.freeze(turnAt)
+				turnBillingCtxs.set(turn, turnCtx)
 				if turn == 1 {
 					return nil
 				}
@@ -3333,7 +3638,16 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				turnRecordPricingAt := turnPricing.currentOr(turnStart)
 				turnBillingAPIKey := turnBillingAPIKeys.forTurn(turn, apiKey)
 				cyberBlocked := service.GetOpsCyberPolicy(c) != nil
-				h.submitOpenAIUsageRecordTask(ctx, result, func(taskCtx context.Context) {
+				// 用量落账的 parent 必须是本 turn 的 ctx：锁价 bundle 与账号事实按
+				// turn 冻结，只有 turn 级 parent 才能让 worker 继承本 turn 的价。
+				turnUsageCtx := turnBillingCtxs.forTurn(turn, ctx)
+				// 锁价 turn：补齐 passthrough 身份映射留下的空出站模型，再交给
+				// RecordUsage 的锁价消费者。必须用本 turn 的 ctx——连接级 ctx 绑的是
+				// turn 1 的 bundle，turn>=2 换模型时会回填成上一 turn 的模型，消费侧
+				// 等值校验失败即整笔不落账（served-but-unbilled）。图生等非锁价 turn
+				// 的本 turn ctx 已剥离 bundle，这里是 no-op。
+				backfillWSLockedUpstreamModel(turnUsageCtx, result, wsBillingGroupID, account.ID)
+				h.submitOpenAIUsageRecordTask(turnUsageCtx, result, func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 						Result:             result,
 						APIKey:             turnBillingAPIKey,

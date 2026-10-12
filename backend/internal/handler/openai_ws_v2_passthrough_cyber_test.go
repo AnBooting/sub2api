@@ -77,10 +77,16 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string, sett
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, 2)}
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	// 锁价切片：冻结表需要调度快照（账号→上游模型）与定价解析器；认证后的
+	// apiKey.Group 由中间件挂载，见下方 router.Use。
+	billingSvc := service.NewBillingService(cfg, nil)
+	schedulerSvc := service.NewSchedulerSnapshotService(
+		&fakeSchedulerCache{accounts: []*service.Account{&account}}, nil, nil, nil, cfg,
+	)
 	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, nil, nil,
-		service.NewBillingService(cfg, nil), nil, billingCacheSvc, nil, &service.DeferredService{},
-		nil, nil, nil, nil, nil, settingSvc, nil,
+		accountRepo, usageRepo, nil, nil, nil, nil, gatewayCache, cfg, schedulerSvc, nil,
+		billingSvc, nil, billingCacheSvc, nil, &service.DeferredService{},
+		nil, nil, service.NewModelPricingResolver(nil, billingSvc), nil, nil, settingSvc, nil,
 	)
 	concurrencyCache := &concurrencyCacheMock{
 		acquireUserSlotFn:    func(context.Context, int64, int, string) (bool, error) { return true, nil },
@@ -101,6 +107,12 @@ func newOpenAIWSPassthroughHandlerHarness(t *testing.T, upstreamURL string, sett
 		Key:     "sk-handler-cyber-test",
 		GroupID: &groupID,
 		User:    &service.User{ID: 1751, Status: service.StatusActive},
+		// 认证中间件生产的快照必然带分组；锁价候选分组来自它。分组定价是
+		// "测试 fixture 定价"（非产品价）：gpt-5.1 无内置可识别价，锁价准入会拒绝。
+		Group: &service.Group{
+			ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive, RateMultiplier: 1,
+			ModelPricing: []service.ChannelModelPricing{wsFixtureTokenPricing([]string{"gpt-5.1"}, 1e-6, 2e-6)},
+		},
 	}
 	handlerDone := make(chan struct{})
 	router := gin.New()

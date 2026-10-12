@@ -1518,6 +1518,12 @@ func TestOpenAIResponsesWebSocket_PassthroughTracksModelPerTurn(t *testing.T) {
 			"sol-channel":   "gpt-5.6-sol",
 			"terra-channel": "gpt-5.6-terra",
 		},
+		// 测试 fixture 定价（非产品价）：渠道映射后的别名在内置价表中不可识别，
+		// 锁价准入会拒绝。补价后 turn1:turn2 仍为 2.5 倍差异（sol 5e-6 vs terra 2e-6）。
+		channelModelPricing: []service.ChannelModelPricing{
+			wsFixtureTokenPricing([]string{"sol-channel"}, 5e-6, 30e-6),
+			wsFixtureTokenPricing([]string{"terra-channel"}, 2e-6, 12e-6),
+		},
 	})
 
 	require.Len(t, got.upstreamPayloads, 2)
@@ -1939,14 +1945,23 @@ type openAIResponsesWSUsageLogCase struct {
 	firstPayload           string
 	// midPayload 在首个 turn 完成后发送（如 session.update），上游桩会为它
 	// 回一个 response.completed，客户端按普通事件读取。
-	midPayload                string
-	secondPayload             string
-	userAgent                 *string
-	ingressMode               string
-	channelMapping            map[string]string
-	billingModelSource        string
-	accountModelMapping       map[string]any
+	midPayload          string
+	secondPayload       string
+	userAgent           *string
+	ingressMode         string
+	channelMapping      map[string]string
+	billingModelSource  string
+	accountModelMapping map[string]any
+	// channelModelPricing 是"测试 fixture 定价"，不是产品价：锁价切片要求分组/渠道
+	// 存在确定性客户价（缺价必须拒绝），部分既有用例的模型名（渠道映射后的别名等）
+	// 在内置价表中不可识别，需要在渠道上补一条定价才能到达被测行为。只补价，
+	// 不改任何既有断言的倍率/金额语义。
+	channelModelPricing       []service.ChannelModelPricing
 	afterFirstUpstreamRequest func(channelSvc *service.ChannelService) error
+	// accountPassthroughFlag 在账号 extra 上显式写 openai_passthrough=true。
+	// 保持默认 false 以复现"WS passthrough ingress + 账号未标 passthrough +
+	// 非空 model_mapping"的配置组合：冻结口径必须按 ingress 谓词判定。
+	accountPassthroughFlag bool
 	// group 覆盖 apiKey.Group（分组级模型白名单测试用）；nil 保持原有无分组行为。
 	group *service.Group
 	// apiKeyService 非 nil 时模拟 API Key 认证中间件：连接认证快照经它按
@@ -2596,6 +2611,11 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	// 锁价冻结表按调度快照解析账号→上游模型，缺快照会在上游前拒绝（与 WS usage
+	// harness 同口径）。
+	schedulerSvc := service.NewSchedulerSnapshotService(
+		&fakeSchedulerCache{accounts: []*service.Account{&accounts[0], &accounts[1]}}, nil, nil, nil, cfg,
+	)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		nil,
@@ -2605,7 +2625,7 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		nil,
 		nil,
 		cfg,
-		nil,
+		schedulerSvc,
 		nil,
 		service.NewBillingService(cfg, nil),
 		rateLimitSvc,
@@ -2641,7 +2661,9 @@ func TestOpenAIResponsesWebSocket_FailoverOnUpstreamUsageLimitEvent(t *testing.T
 		ID:      1802,
 		GroupID: &groupID,
 		User:    &service.User{ID: 1702, Status: service.StatusActive},
-		Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+		// 测试 fixture 定价（非产品价）：gpt-5.1 无内置可识别价，锁价准入会拒绝。
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive,
+			ModelPricing: []service.ChannelModelPricing{wsFixtureTokenPricing([]string{"gpt-5.1"}, 1e-6, 2e-6)}},
 	}
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
@@ -2804,8 +2826,12 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 	accountRepo := &openAIWSFailoverHandlerAccountRepoStub{accounts: accounts}
 	rateLimitSvc := service.NewRateLimitService(accountRepo, nil, cfg, nil, nil)
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
+	// 锁价冻结表按调度快照解析账号→上游模型，缺快照会在上游前拒绝。
+	schedulerSvc := service.NewSchedulerSnapshotService(
+		&fakeSchedulerCache{accounts: []*service.Account{&accounts[0], &accounts[1]}}, nil, nil, nil, cfg,
+	)
 	gatewaySvc := service.NewOpenAIGatewayService(
-		accountRepo, nil, nil, nil, nil, nil, nil, cfg, nil, nil,
+		accountRepo, nil, nil, nil, nil, nil, nil, cfg, schedulerSvc, nil,
 		service.NewBillingService(cfg, nil), rateLimitSvc, billingCacheSvc,
 		nil, &service.DeferredService{}, nil, nil, nil, nil, nil, nil, nil,
 	)
@@ -2827,7 +2853,9 @@ func TestOpenAIResponsesWebSocket_FirstOutputTimeoutWithoutDownstreamReusesClien
 		ID:      1812,
 		GroupID: &groupID,
 		User:    &service.User{ID: 1712, Status: service.StatusActive},
-		Group:   &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive},
+		// 测试 fixture 定价（非产品价）：gpt-5.1 无内置可识别价，锁价准入会拒绝。
+		Group: &service.Group{ID: groupID, Platform: service.PlatformOpenAI, Status: service.StatusActive,
+			ModelPricing: []service.ChannelModelPricing{wsFixtureTokenPricing([]string{"gpt-5.1"}, 1e-6, 2e-6)}},
 	}
 	handlerDone := make(chan struct{})
 	router := gin.New()
@@ -2994,6 +3022,12 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	if strings.TrimSpace(tc.ingressMode) != "" {
 		account.Extra["openai_apikey_responses_websockets_v2_mode"] = tc.ingressMode
 	}
+	// 用例可显式模拟"WS passthrough ingress + 账号未标 passthrough + 非空
+	// model_mapping"的生产风险组合；默认仍按该组合的真实默认值（账号不额外标记），
+	// 冻结口径由 RequireWSIngressModel 与 ingress 谓词对齐，不依赖账号标记。
+	if tc.accountPassthroughFlag {
+		account.Extra["openai_passthrough"] = true
+	}
 
 	cfg := &config.Config{}
 	cfg.RunMode = config.RunModeSimple
@@ -3011,7 +3045,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	accountRepo := &openAIWSUsageHandlerAccountRepoStub{account: account}
 	usageRepo := &openAIWSUsageHandlerUsageLogRepoStub{created: make(chan *service.UsageLog, turnCount)}
 
-	if len(tc.channelMapping) > 0 {
+	if len(tc.channelMapping) > 0 || len(tc.channelModelPricing) > 0 {
 		channelSvc = service.NewChannelService(&openAIWSUsageHandlerChannelRepoStub{
 			channels: []service.Channel{{
 				ID:                 7701,
@@ -3020,6 +3054,7 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 				GroupIDs:           []int64{groupID},
 				ModelMapping:       map[string]map[string]string{service.PlatformOpenAI: tc.channelMapping},
 				BillingModelSource: tc.billingModelSource,
+				ModelPricing:       tc.channelModelPricing,
 			}},
 			groupPlatforms: map[int64]string{groupID: service.PlatformOpenAI},
 		}, nil, nil, nil, nil)
@@ -3032,6 +3067,16 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 	}
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, keyRepo, nil, nil, cfg, nil)
 	t.Cleanup(billingCacheSvc.Stop)
+	// C1 锁价：冻结表按调度快照解析账号→上游模型，缺快照会让账号绑定失败；
+	// 定价解析器与转发共用同一渠道/计费服务，冻结模型才与实际出站同源。
+	billingSvc := service.NewBillingService(cfg, nil)
+	schedulerSvc := service.NewSchedulerSnapshotService(
+		&fakeSchedulerCache{accounts: []*service.Account{&account}},
+		nil,
+		nil,
+		nil,
+		cfg,
+	)
 	gatewaySvc := service.NewOpenAIGatewayService(
 		accountRepo,
 		usageRepo,
@@ -3041,16 +3086,16 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		nil,
 		nil,
 		cfg,
+		schedulerSvc,
 		nil,
-		nil,
-		service.NewBillingService(cfg, nil),
+		billingSvc,
 		nil,
 		billingCacheSvc,
 		&compositeWSHTTPUpstream{},
 		&service.DeferredService{},
 		nil,
 		nil,
-		nil,
+		service.NewModelPricingResolver(channelSvc, billingSvc),
 		channelSvc,
 		nil,
 		nil,
@@ -3078,6 +3123,20 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 		ID:      1801,
 		GroupID: &groupID,
 		User:    &service.User{ID: 1701, Status: service.StatusActive},
+	}
+	// 真实入口的分组由认证中间件挂载；锁价冻结表以 apiKey.Group 为候选分组
+	// 快照来源，缺分组快照会在准入阶段 fail-closed。这里补一个最小 OpenAI
+	// 分组（无渠道/分组定价 → 走内置兜底价），与生产认证后的形态一致。
+	apiKey.Group = &service.Group{
+		ID:             groupID,
+		Platform:       service.PlatformOpenAI,
+		Status:         service.StatusActive,
+		RateMultiplier: 1,
+		// 测试 fixture 定价（非产品价）：gpt-5.1 不在内置可识别价表内，锁价准入
+		// 会在上游前拒绝。仅补齐该用例族的定价，倍率/金额断言语义不变。
+		ModelPricing: []service.ChannelModelPricing{
+			wsFixtureTokenPricing([]string{"gpt-5.1"}, 1e-6, 2e-6),
+		},
 	}
 	if tc.apiKeyService != nil {
 		h.apiKeyService = tc.apiKeyService
@@ -3242,6 +3301,22 @@ func runOpenAIResponsesWebSocketUsageLogCase(t *testing.T, tc openAIResponsesWSU
 
 func testStringPtr(v string) *string {
 	return &v
+}
+
+// wsFixtureTokenPricing 构造一条完整四维（input/output/cache_read/cache_write）
+// 的测试 fixture 定价。锁价准入要求四维存在且显式（显式 0 也算已定价），缺任一项
+// 都会在上游请求前拒绝，因此夹具必须给出全部维度。
+func wsFixtureTokenPricing(models []string, input, output float64) service.ChannelModelPricing {
+	zero := 0.0
+	return service.ChannelModelPricing{
+		Platform:        service.PlatformOpenAI,
+		Models:          models,
+		BillingMode:     service.BillingModeToken,
+		InputPrice:      &input,
+		OutputPrice:     &output,
+		CacheReadPrice:  &zero,
+		CacheWritePrice: &zero,
+	}
 }
 
 func TestOpenAIForwardErrorAlreadyCommunicated(t *testing.T) {

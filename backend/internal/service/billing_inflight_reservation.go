@@ -316,6 +316,10 @@ type InflightEstimateRequest struct {
 	BodyBytes      int
 	MaxTokens      int
 	Kind           InflightEstimateKind
+	// RequireWSIngressModel 为 true 时，账号→上游模型按"本账号实际会走的 WS ingress
+	// 适配器"口径解析：passthrough ingress 只替换认证、不套用账号 model_mapping，
+	// 而 ctx_pool ingress 会套。HTTP 单请求恒为 false（沿用 HTTP 转发口径）。
+	RequireWSIngressModel bool
 	// Units 按次/按张数量（<=0 视为 1）。
 	Units int
 	// SearchCalls 叠加的搜索次数（按分组 search_price_per_1k 计）。
@@ -750,6 +754,20 @@ func (s *OpenAIGatewayService) PrepareRequestBilling(ctx context.Context, key *A
 	return s.inflightEstimateDeps(req).prepareRequestBilling(ctx, key, req)
 }
 
+// RefreezeRequestBilling 是长连接按 turn 强制重冻的入口：先逻辑剥离 ctx 上已
+// 存在的冻结 bundle，再走同一套 prepareRequestBilling 冻结流程。
+//
+// prepareRequestBilling 对已有 bundle 的幂等复用是 HTTP 单请求 failover 的既有
+// 契约（同一逻辑请求重入必须复用同一份价），这里不能改动它。WS 每个 turn 是
+// 独立计费单元，且允许连接内换模型/换分组，必须产出新的 bundle 与新的
+// startedAt；因此由调用方显式重置后再冻结。
+func (s *OpenAIGatewayService) RefreezeRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps(req).prepareRequestBilling(withoutGatewayRequestBilling(ctx), key, req)
+}
+
 func (s *OpenAIGatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
 	if s == nil {
 		return nil
@@ -777,10 +795,19 @@ func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest)
 			return NormalizeOpenAICompatiblePlatform(platform), false, true
 		}
 		requireCompact := req.RequireCompact
+		requireWSIngressModel := req.RequireWSIngressModel
+		wsIngressDefaultMode := ""
+		if s.cfg != nil {
+			wsIngressDefaultMode = s.cfg.Gateway.OpenAIWS.IngressModeDefault
+		}
 		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
 		// 冻结表中的账号上游模型必须与调度准入、实际转发同口径：
-		// /compact 请求按 compact 链解析，其余请求按普通链解析。
+		// /compact 请求按 compact 链解析；WS 请求按本账号实际会走的 ingress 适配器
+		// 解析（passthrough 不套账号映射）；其余按普通 HTTP 链解析。
 		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(account *Account, model string) string {
+			if requireWSIngressModel {
+				return resolveOpenAIAccountWSIngressUpstreamModel(account, model, wsIngressDefaultMode)
+			}
 			return resolveOpenAIAccountUpstreamModelForRequest(account, model, requireCompact)
 		})
 	}
