@@ -3593,9 +3593,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				if result == nil {
 					return
 				}
-				// 锁价 turn：先补齐 passthrough 身份映射留下的空出站模型，再交给
-				// RecordUsage 的锁价消费者；非锁价 turn 的 ctx 无 bundle，是 no-op。
-				backfillWSLockedUpstreamModel(ctx, result, wsBillingGroupID, account.ID)
 				result.BillingModel = openAIWSTurnBillingModel(result, turnMapping, turnRequestedModel, turnUpstreamModel)
 				reqLog.Debug("openai.websocket_turn_billing",
 					zap.Int("turn", turn),
@@ -3622,6 +3619,12 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				// 用量落账的 parent 必须是本 turn 的 ctx：锁价 bundle 与账号事实按
 				// turn 冻结，只有 turn 级 parent 才能让 worker 继承本 turn 的价。
 				turnUsageCtx := turnBillingCtxs.forTurn(turn, ctx)
+				// 锁价 turn：补齐 passthrough 身份映射留下的空出站模型，再交给
+				// RecordUsage 的锁价消费者。必须用本 turn 的 ctx——连接级 ctx 绑的是
+				// turn 1 的 bundle，turn>=2 换模型时会回填成上一 turn 的模型，消费侧
+				// 等值校验失败即整笔不落账（served-but-unbilled）。图生等非锁价 turn
+				// 的本 turn ctx 已剥离 bundle，这里是 no-op。
+				backfillWSLockedUpstreamModel(turnUsageCtx, result, wsBillingGroupID, account.ID)
 				h.submitOpenAIUsageRecordTask(turnUsageCtx, result, func(taskCtx context.Context) {
 					if err := h.gatewayService.RecordUsage(taskCtx, &service.OpenAIRecordUsageInput{
 						Result:             result,

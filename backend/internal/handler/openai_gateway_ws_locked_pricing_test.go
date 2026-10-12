@@ -108,11 +108,45 @@ func TestOpenAIResponsesWebSocket_LockedPricingImageTurnFallsBackToLegacy(t *tes
 	// 关键回归信号：无客户价的生图 turn 仍到达上游。若该 turn 沿用连接级文本
 	// 锁价（未剥离 bundle），它会在上游前以 "request pricing unavailable" 关闭。
 	require.Len(t, got.upstreamPayloads, 2, "生图 turn 必须放行到上游（不得被文本锁价拒绝）")
+	require.Equal(t, "ws-locked-image-model", gjson.GetBytes(got.upstreamPayloads[1], "model").String())
 	require.Len(t, got.logs, 2, "两个 turn 都必须落账")
 	require.Greater(t, got.logs[0].TotalCost, 0.0, "文本 turn 必须按锁价正常计价")
 	require.NotNil(t, got.logs[1].BillingMode)
 	require.Equal(t, string(service.BillingModeToken), *got.logs[1].BillingMode,
 		"生图 turn 走 legacy 分支（不是锁价 token 消费者）")
+	// 复审 F2：图生 turn 的 bundle 已被剥离，回填必须是 no-op（明确 nil）。若仍用
+	// 连接级 ctx，这里会被写成 turn1 的模型，usage 记录的 UpstreamModel 失真。
+	require.Nil(t, got.logs[1].UpstreamModel,
+		"图生 turn 不得被上一文本 turn 的冻结模型污染")
+}
+
+// TestOpenAIResponsesWebSocket_LockedPricingBackfillsTurnModelForIdentityMapping
+// 锁定复审 F1（High，计费丢失）：passthrough ingress + 无渠道映射（身份映射，
+// result.UpstreamModel 为空串）+ turn>=2 换模型。
+//
+// 回填必须使用本 turn 的 ctx：连接级 ctx 在握手时绑的是 turn 1 的 bundle，若用它
+// 回填，turn2 会被写成 turn1 的模型；而实际出站是 turn2 的模型，消费侧等值校验
+// 失败导致该 turn 整笔不落账不扣费（served-but-unbilled）。
+func TestOpenAIResponsesWebSocket_LockedPricingBackfillsTurnModelForIdentityMapping(t *testing.T) {
+	const firstModel, secondModel = "gpt-5.4", "gpt-5.5"
+	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+		firstPayload:  `{"type":"response.create","model":"` + firstModel + `","stream":false}`,
+		secondPayload: `{"type":"response.create","model":"` + secondModel + `","stream":false}`,
+		// 无 channelMapping、无 accountModelMapping：两 turn 均为身份映射，
+		// 出站模型等于请求模型，passthrough 适配器留下空串 UpstreamModel。
+		ingressMode: service.OpenAIWSIngressModePassthrough,
+	})
+
+	require.Len(t, got.upstreamPayloads, 2)
+	require.Equal(t, firstModel, gjson.GetBytes(got.upstreamPayloads[0], "model").String())
+	require.Equal(t, secondModel, gjson.GetBytes(got.upstreamPayloads[1], "model").String())
+	// 关键：两个 turn 都必须落账；turn2 命中连接级 bundle 时会整笔丢失。
+	require.Len(t, got.logs, 2, "身份映射下的每个 turn 都必须落账一次")
+	require.NotNil(t, got.logs[1].UpstreamModel)
+	require.Equal(t, secondModel, *got.logs[1].UpstreamModel,
+		"turn2 必须回填本 turn 的模型，而不是 turn1 的模型")
+	require.Greater(t, got.logs[0].TotalCost, 0.0)
+	require.Greater(t, got.logs[1].TotalCost, 0.0)
 }
 
 // TestOpenAIResponsesWebSocket_LockedPricingRejectsUnpricedModelOnLaterTurn 锁定
