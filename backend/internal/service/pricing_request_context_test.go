@@ -74,6 +74,44 @@ func TestRequestBillingContextOwnsCandidatesRatesAndReturnedValues(t *testing.T)
 	require.Equal(t, originalID, same.RequestID())
 }
 
+// TestRefreezeRequestBillingProducesANewBundle 锁定 WS 每 turn 强制重冻语义：
+// 已有 bundle 时 PrepareRequestBilling 幂等复用（HTTP failover 契约），而
+// RefreezeRequestBilling 必须产出新的 bundle、新的 requestID 与新的定价时刻，
+// 且新 bundle 的请求模型取自本次 turn 的模型。
+func TestRefreezeRequestBillingProducesANewBundle(t *testing.T) {
+	billing := newTestBillingService()
+	one, zero := 1e-6, 0.0
+	group := &Group{ID: 1, RateMultiplier: 2, ModelPricing: []ChannelModelPricing{
+		{Models: []string{"first-model"}, InputPrice: &one, OutputPrice: &one, CacheReadPrice: &zero, CacheWritePrice: &zero},
+		{Models: []string{"second-model"}, InputPrice: &one, OutputPrice: &one, CacheReadPrice: &zero, CacheWritePrice: &zero},
+	}}
+	key := &APIKey{GroupID: requestPricingTestInt64(1), Group: group}
+	svc := &OpenAIGatewayService{billingService: billing}
+
+	ctx, first, err := svc.PrepareRequestBilling(context.Background(), key, InflightEstimateRequest{Model: "first-model"})
+	require.NoError(t, err)
+	require.NotNil(t, first)
+
+	_, reused, err := svc.PrepareRequestBilling(ctx, key, InflightEstimateRequest{Model: "second-model"})
+	require.NoError(t, err)
+	require.Same(t, first, reused, "single-request freeze stays idempotent for HTTP failover")
+
+	// 与幂等复用同一输入，但强制重冻必须换出一份新 bundle。
+	refrozenCtx, second, err := svc.RefreezeRequestBilling(withoutGatewayRequestBilling(ctx), key, InflightEstimateRequest{Model: "second-model"})
+	require.NoError(t, err)
+	require.NotNil(t, second)
+	require.NotSame(t, first, second)
+	require.NotEqual(t, first.RequestID(), second.RequestID())
+	require.Same(t, second, GatewayRequestBillingFromContext(refrozenCtx), "重冻后的 ctx 必须携带新 bundle")
+	require.Same(t, first, GatewayRequestBillingFromContext(ctx), "旧 ctx 的 bundle 不得被改写")
+
+	scope, err := second.ScopeFor(1, "", "")
+	require.NoError(t, err)
+	require.Equal(t, "second-model", scope.BillingModel, "重冻后的 bundle 必须按本 turn 模型取价")
+	_, staleErr := first.ScopeFor(1, "", "")
+	require.NoError(t, staleErr, "旧 bundle 仍保持可用，只是不再被连接使用")
+}
+
 func TestRequestBillingContextFreezesFullNativeTierCalendarAndCatalog(t *testing.T) {
 	billing := newNativeBillingTest(t)
 	key := &APIKey{}
@@ -194,6 +232,37 @@ func TestRequestBillingContextUnknownAndResponseModelFailClosed(t *testing.T) {
 	require.ErrorIs(t, quote.Availability(), ErrModelPricingUnavailable)
 	_, err = quote.Calculate(CostInput{RateMultiplier: 0})
 	require.ErrorIs(t, err, ErrModelPricingUnavailable)
+}
+
+// TestGatewayRequestPricingAccountSwitchIsFailClosed 锁定 recon §1.4-4：failover
+// 换账号后，若实际账号与冻结执行事实不一致，账号模型解析必须报错（不能静默回退
+// 到身份映射或零价），且换号必须重新绑定到新账号的冻结映射。
+func TestGatewayRequestPricingAccountSwitchIsFailClosed(t *testing.T) {
+	billing := newTestBillingService()
+	one, zero := 1e-6, 0.0
+	group := &Group{ID: 1, RateMultiplier: 1, ModelPricing: []ChannelModelPricing{{Models: []string{"model"}, InputPrice: &one, OutputPrice: &one, CacheReadPrice: &zero, CacheWritePrice: &zero}}}
+	deps := inflightEstimateDeps{billing: billing, accountMappingSnapshot: func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
+		return map[int64]requestAccountMapping{11: {Model: "model-account-11"}, 12: {Model: "model-account-12"}}, nil
+	}}
+	ctx, request, err := deps.prepareRequestBilling(context.Background(), &APIKey{GroupID: requestPricingTestInt64(1), Group: group}, InflightEstimateRequest{Model: "model"})
+	require.NoError(t, err)
+	bound, err := WithGatewayRequestBillingAccount(ctx, 1, 11)
+	require.NoError(t, err)
+	model, _, err := frozenGatewayRequestAccountModel(bound, 11)
+	require.NoError(t, err)
+	require.Equal(t, "model-account-11", model)
+	// 冻结执行事实是账号 11：按账号 12 结算必须 fail-closed，绝不静默用 12 的映射。
+	_, _, err = frozenGatewayRequestAccountModel(bound, 12)
+	require.ErrorIs(t, err, ErrModelPricingUnavailable)
+	// 换号后重新绑定新账号：解析出的是新账号自己的冻结映射。
+	rebound, err := WithGatewayRequestBillingAccount(bound, 1, 12)
+	require.NoError(t, err)
+	model, _, err = frozenGatewayRequestAccountModel(rebound, 12)
+	require.NoError(t, err)
+	require.Equal(t, "model-account-12", model)
+	_, _, err = frozenGatewayRequestAccountModel(rebound, 11)
+	require.ErrorIs(t, err, ErrModelPricingUnavailable)
+	require.NotNil(t, request)
 }
 
 func TestRequestBillingContextMappingSnapshotErrorsAreNotIdentity(t *testing.T) {
