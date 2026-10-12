@@ -1691,13 +1691,13 @@ func (h *OpenAIGatewayHandler) anthropicErrorResponse(c *gin.Context, status int
 // anthropicErrorResponseWithCode is anthropicErrorResponse plus an optional
 // protocol-level error code (C-7 / TS-02 budget exits use no_available_group).
 func (h *OpenAIGatewayHandler) anthropicErrorResponseWithCode(c *gin.Context, status int, errType, code, message string) {
+	errorObject := gin.H{"type": errType, "message": message}
+	if code != "" {
+		errorObject["code"] = code
+	}
 	c.JSON(status, gin.H{
-		"type": "error",
-		"error": gin.H{
-			"type":    errType,
-			"code":    code,
-			"message": message,
-		},
+		"type":  "error",
+		"error": errorObject,
 	})
 }
 
@@ -1729,6 +1729,9 @@ func (h *OpenAIGatewayHandler) handleAnthropicFailoverExhausted(c *gin.Context, 
 	}
 	if failoverErr != nil && failoverErr.Reason == service.RequestAttemptBudgetReason {
 		if streamStarted {
+			// Anthropic SSE error 帧协议只承载 {type,error:{type,message}}；
+			// C-7 code=no_available_group 只写非流式响应。流内已在消息文案
+			// 表达预算耗尽，不再向 SSE error 帧外扩 code 字段。
 			h.anthropicStreamingAwareError(c, http.StatusServiceUnavailable, "api_error", strings.TrimSpace(failoverErr.ClientMessage), streamStarted)
 		} else {
 			h.anthropicErrorResponseWithCode(c, http.StatusServiceUnavailable, "api_error", requestAttemptBudgetExhaustedCode, strings.TrimSpace(failoverErr.ClientMessage))

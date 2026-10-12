@@ -404,12 +404,12 @@ func (h *GatewayHandler) chatCompletionsErrorResponse(c *gin.Context, status int
 // chatCompletionsErrorResponseWithCode is chatCompletionsErrorResponse plus an
 // optional protocol-level error code (C-7 / TS-02 budget exits use no_available_group).
 func (h *GatewayHandler) chatCompletionsErrorResponseWithCode(c *gin.Context, status int, errType, code, message string) {
+	errorObject := gin.H{"type": errType, "message": message}
+	if code != "" {
+		errorObject["code"] = code
+	}
 	c.JSON(status, gin.H{
-		"error": gin.H{
-			"type":    errType,
-			"code":    code,
-			"message": message,
-		},
+		"error": errorObject,
 	})
 }
 
