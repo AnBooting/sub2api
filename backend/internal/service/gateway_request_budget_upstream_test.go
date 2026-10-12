@@ -263,6 +263,23 @@ func TestAllowUpstreamSendRejectsWhenBudgetExhausted(t *testing.T) {
 	require.Equal(t, 1, budget.Used(), "被拒的尝试不计数")
 }
 
+// TestRequestAttemptBudgetDefaultCap16WithNoAvailableGroup 16 次真实上游发送
+// 触顶后第 17 次必须拒绝，耗尽出口必须是 503 + no_available_group。
+func TestRequestAttemptBudgetDefaultCap16WithNoAvailableGroup(t *testing.T) {
+	budget := NewRequestAttemptBudget(time.Now(), DefaultRequestAttemptBudgetSends, DefaultRequestAttemptBudgetWindow, time.Time{})
+	ctx := WithRequestAttemptBudget(context.Background(), budget)
+	for i := 0; i < DefaultRequestAttemptBudgetSends; i++ {
+		require.NoErrorf(t, allowUpstreamSend(ctx), "第 %d 次发送必须放行", i+1)
+	}
+	require.Equal(t, DefaultRequestAttemptBudgetSends, budget.Used())
+	require.ErrorIs(t, allowUpstreamSend(ctx), ErrRequestAttemptBudgetExhausted)
+	require.Equal(t, DefaultRequestAttemptBudgetSends, budget.Used(), "被拒的尝试不计数")
+
+	failoverErr := NewRequestAttemptBudgetFailoverError()
+	require.Equal(t, http.StatusServiceUnavailable, failoverErr.ClientStatusCode)
+	require.JSONEq(t, `{"error":{"type":"api_error","code":"no_available_group","message":"Service temporarily unavailable: request attempt budget exhausted"}}`, string(failoverErr.ResponseBody))
+}
+
 // TestNewRequestAttemptBudgetFailoverErrorIsTerminating 预算拒绝转成的 failover
 // 错误必须是终止型：503 + NextAccountStop（不重试、不换号），Reason 供耗尽出口识别。
 func TestNewRequestAttemptBudgetFailoverErrorIsTerminating(t *testing.T) {

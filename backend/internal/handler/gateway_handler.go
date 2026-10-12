@@ -334,6 +334,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 判断是否真的绑定了粘性会话：有 sessionKey 且已经绑定到某个账号
 	hasBoundSession := sessionKey != "" && sessionBoundAccountID > 0
 
+	// TS-02 S3b：本请求在平台分支与 Messages 普通分支共用同一个单逻辑请求预算，
+	// 因此放在两个 failover 循环前统一挂载。clientDeadline 本期不读，传零值；
+	// 预算耗尽由 HandleFailoverError / HandleSelectionExhausted 统一走
+	// 503 + no_available_group。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, _ := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
+
 	if platform == service.PlatformGemini {
 		fs := NewFailoverState(h.maxAccountSwitchesGemini, hasBoundSession)
 

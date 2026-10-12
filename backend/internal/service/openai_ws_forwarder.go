@@ -266,7 +266,11 @@ type OpenAIWSIngressHooks struct {
 	// MapRequestModel resolves the current turn's client model to the model
 	// that must be written into the upstream response.create frame.
 	MapRequestModel func(turn int, originalModel string) (string, error)
-	AfterTurn       func(turn int, result *OpenAIForwardResult, turnErr error)
+	// TurnContext returns the context that should be used for this turn's
+	// real upstream sends. It lets handlers mount a fresh request attempt
+	// budget per WebSocket turn; nil means use the connection context.
+	TurnContext func(turn int) context.Context
+	AfterTurn   func(turn int, result *OpenAIForwardResult, turnErr error)
 }
 
 func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {

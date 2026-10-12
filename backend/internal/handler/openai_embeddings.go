@@ -134,6 +134,13 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	embPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(embPricingCtx)
 
+	// TS-02 S3b：文本类 Embeddings 在 failover 循环前挂载单逻辑请求预算。
+	// clientDeadline 本期不读，传零值；预算耗尽复用 handleFailoverExhausted
+	// 的 503 + no_available_group 出口。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, _ := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
+
 	for {
 		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			c.Request.Context(),

@@ -174,6 +174,13 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	ccPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(ccPricingCtx)
 
+	// TS-02 S3b：OpenAI Chat Completions 文本入口在 failover 循环前挂载单逻辑
+	// 请求预算。clientDeadline 本期不读，传零值；预算耗尽在下方同账号重试/换号
+	// 分支复用 503 + no_available_group 出口。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, requestBudget := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
+
 	for {
 		if failoverClientGone(c) {
 			return
@@ -354,8 +361,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
 						if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
+							// TS-02 S3b：预算耗尽则不再重试，复用耗尽出口
+							// （503 / no_available_group）。本次 failover 的真实上游错误
+							// 已在上面上报；这里只终止下一次尝试，不产生新的账号切换。
+							if requestBudget.Exhausted() {
+								h.handleFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), streamStarted)
+								return
+							}
 							sameAccountRetryCount[account.ID]++
-							retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
+							retryDelay := clampFailoverDelayToBudget(c.Request.Context(), sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID]))
 							reqLog.Warn("openai_chat_completions.pool_mode_same_account_retry",
 								zap.Int64("account_id", account.ID),
 								zap.Int("upstream_status", failoverErr.StatusCode),
@@ -370,6 +384,13 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 							}
 							continue
 						}
+					}
+					// TS-02 S3b：预算耗尽则不再换号，复用耗尽出口
+					// （503 / no_available_group）。放在 RecordOpenAIAccountSwitch 之前：
+					// 被预算挡下的尝试不产生账号切换。
+					if requestBudget.Exhausted() {
+						h.handleFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), streamStarted)
+						return
 					}
 					h.gatewayService.RecordOpenAIAccountSwitch()
 					failedAccountIDs[account.ID] = struct{}{}

@@ -30,6 +30,11 @@ type budgetHookWiringCase struct {
 // budgetHookWiringTable 是 S2 发送点白名单（行号基准 23a4e24b8）。
 // OpenAI 家族走唯一汇聚点 doOpenAIUpstream 的 allowUpstreamSend，其余走
 // sendUpstreamWithBudget；profile 参数保持原样。
+//
+// TS-02 S3b：文本类 embedding/alpha-search 也经 doOpenAIUpstream 发送，
+// 因此自动被 allowUpstreamSend 计数，无需新增白名单条目；媒体
+// openai_images.go / grok_media.go、codex 元数据 openai_codex_models_handler.go
+// 与 count_tokens 仍刻意不挂预算（见排除清单与下方隐式依赖注释）。
 var budgetHookWiringTable = []budgetHookWiringCase{
 	{"openai_plugin_transport.go", budgetHookAllowMarker, 1},
 	{"gateway_forward.go", budgetHookSendMarker, 4},
@@ -44,10 +49,16 @@ var budgetHookWiringTable = []budgetHookWiringCase{
 	{"antigravity_gateway_gemini.go", budgetHookSendMarker, 1},
 	{"antigravity_gateway_retry.go", budgetHookSendMarker, 3},
 	{"antigravity_gateway_upstream.go", budgetHookSendMarker, 1},
+	{"openai_ws_forwarder_ingress.go", budgetHookAllowMarker, 1},
+	{"openai_ws_turn_budget_frame_conn.go", budgetHookAllowMarker, 1},
 }
 
 // budgetHookExcludedFiles 是明确不接线的探测/额度/目录/账号测试类文件；
 // account_test_service*.go 由 glob 覆盖。
+//
+// TS-02 S3b：媒体、codex 元数据与 count_tokens 同样登记为不消耗预算。
+// openai_images.go / grok_media.go 属于 PRD-06 图片/视频副作用路径；
+// openai_codex_models_handler.go 只下发模型元数据，不执行推理。
 //
 // 只列本包（internal/service）内的文件：claude_usage_service.go 在
 // internal/repository/ 下，不属于本包扫描范围，故不在此列。

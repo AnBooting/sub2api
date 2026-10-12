@@ -180,6 +180,14 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	}
 	sessionHash := h.gatewayService.GenerateSessionHash(parsedReq)
 
+	// TS-02 S3b：Responses 文本入口在 failover 循环前挂载单逻辑请求预算。
+	// clientDeadline 本期不读，传零值；预算耗尽由 HandleSelectionExhausted /
+	// HandleFailoverError 统一走 503 + no_available_group。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(requestCtx)
+	budgetCtx, _ := service.EnsureRequestAttemptBudget(requestCtx, maxAttemptSends, budgetWindow, time.Time{})
+	requestCtx = budgetCtx
+	c.Request = c.Request.WithContext(requestCtx)
+
 	// 3. Account selection + failover loop
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 

@@ -1375,6 +1375,13 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	msgPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(msgPricingCtx)
 
+	// TS-02 S3b：OpenAI Messages 文本入口在 failover 循环前挂载单逻辑请求预算。
+	// clientDeadline 本期不读，传零值；预算耗尽在下方同账号重试/换号分支复用
+	// 503 + no_available_group 出口。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, requestBudget := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
+
 	for {
 		if failoverClientGone(c) {
 			return
@@ -1562,8 +1569,15 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 					if failoverErr.RetryableOnSameAccount {
 						retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
 						if sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
+							// TS-02 S3b：预算耗尽则不再重试，复用耗尽出口
+							// （503 / no_available_group）。本次 failover 的真实上游错误
+							// 已在上面上报；这里只终止下一次尝试，不产生新的账号切换。
+							if requestBudget.Exhausted() {
+								h.handleAnthropicFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), streamStarted)
+								return
+							}
 							sameAccountRetryCount[account.ID]++
-							retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
+							retryDelay := clampFailoverDelayToBudget(c.Request.Context(), sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID]))
 							reqLog.Warn("openai_messages.pool_mode_same_account_retry",
 								zap.Int64("account_id", account.ID),
 								zap.Int("upstream_status", failoverErr.StatusCode),
@@ -1578,6 +1592,13 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 							}
 							continue
 						}
+					}
+					// TS-02 S3b：预算耗尽则不再换号，复用耗尽出口
+					// （503 / no_available_group）。放在 RecordOpenAIAccountSwitch 之前：
+					// 被预算挡下的尝试不产生账号切换。
+					if requestBudget.Exhausted() {
+						h.handleAnthropicFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), streamStarted)
+						return
 					}
 					h.gatewayService.RecordOpenAIAccountSwitch()
 					failedAccountIDs[account.ID] = struct{}{}
@@ -2689,6 +2710,31 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	channelMappingWS, _ := h.gatewayService.ResolveChannelMappingAndRestrict(ctx, apiKey.GroupID, wsRouteModel)
 	wsForwardModel := openAIChannelForwardModel(channelMappingWS, wsRouteModel)
 
+	// TS-02 S3b：Responses WebSocket 的预算按 turn 独立（连接内 turn 不是
+	// C-6 的逻辑请求）。握手第一 turn 在这里创建；后续 turn 由 BeforeTurn
+	// 强制重建新预算。连接内已有 5s WS 重连预算，与 600s turn 预算取小。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(ctx)
+	if h.cfg != nil && h.cfg.Gateway.OpenAIWS.RetryTotalBudgetMS > 0 {
+		if wsRetryWindow := time.Duration(h.cfg.Gateway.OpenAIWS.RetryTotalBudgetMS) * time.Millisecond; wsRetryWindow < budgetWindow {
+			budgetWindow = wsRetryWindow
+		}
+	}
+	budgetCtx, firstTurnBudget := service.EnsureRequestAttemptBudget(ctx, maxAttemptSends, budgetWindow, time.Time{})
+	var turnBudgetMu sync.Mutex
+	currentTurnBudgetCtx := budgetCtx
+	currentTurnBudget := firstTurnBudget
+	setTurnBudget := func(budget *service.RequestAttemptBudget) {
+		turnBudgetMu.Lock()
+		defer turnBudgetMu.Unlock()
+		currentTurnBudget = budget
+		currentTurnBudgetCtx = service.WithRequestAttemptBudget(currentTurnBudgetCtx, budget)
+	}
+	currentTurnBudgetState := func() (*service.RequestAttemptBudget, context.Context) {
+		turnBudgetMu.Lock()
+		defer turnBudgetMu.Unlock()
+		return currentTurnBudget, currentTurnBudgetCtx
+	}
+
 	var currentUserRelease func()
 	var currentAccountRelease func()
 	releaseAccountSlot := func() {
@@ -2791,12 +2837,16 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		if account == nil || failoverErr == nil || failoverErr.StatusCode != http.StatusTooManyRequests || failoverErr.SameAccountRetryDeadline.IsZero() {
 			return false
 		}
+		if turnBudget, _ := currentTurnBudgetState(); turnBudget.Exhausted() {
+			return false
+		}
 		retryLimit := effectiveSameAccountRetryLimit(failoverErr, account)
 		if !sameAccountRetryAllowed(failoverErr, sameAccountRetryCount[account.ID], retryLimit) {
 			return false
 		}
 		sameAccountRetryCount[account.ID]++
-		retryDelay := sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID])
+		_, turnCtx := currentTurnBudgetState()
+		retryDelay := clampFailoverDelayToBudget(turnCtx, sameAccountRetryDelayFor(failoverErr, sameAccountRetryCount[account.ID]))
 		reqLog.Warn("openai.websocket.same_account_retry",
 			zap.Int64("account_id", account.ID),
 			zap.Int("upstream_status", failoverErr.StatusCode),
@@ -2812,6 +2862,12 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 	}
 	handleWSFailover := func(account *service.Account, failoverErr *service.UpstreamFailoverError) bool {
 		if ctx.Err() != nil {
+			return false
+		}
+		// TS-02 S3b：预算耗尽不再重试/换号，复用 WS failover 耗尽出口。
+		// 预算拒绝不产生账号健康或调度失败上报，因此检查必须在上报之前。
+		if turnBudget, _ := currentTurnBudgetState(); turnBudget.Exhausted() {
+			closeOpenAIWSFailoverExhausted(c, wsConn, service.NewRequestAttemptBudgetFailoverError())
 			return false
 		}
 		if failoverErr.ShouldReportAccountScheduleFailure() {
@@ -3086,6 +3142,10 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				}
 				return nil
 			},
+			TurnContext: func(int) context.Context {
+				_, turnCtx := currentTurnBudgetState()
+				return turnCtx
+			},
 			MapRequestModel: func(turn int, originalModel string) (string, error) {
 				model := strings.TrimSpace(originalModel)
 				if model == "" {
@@ -3116,6 +3176,18 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				// turn==1 的会话屏蔽已由握手层检查覆盖；连接内 flag 只拦截后续 turn。
 				if cyberBlockedThisConn && !h.cyberPolicyLogOnly(c, apiKey) {
 					return service.NewOpenAIWSClientCloseError(coderws.StatusPolicyViolation, cyberSessionBlockedClientMsg, nil)
+				}
+				// TS-02 S3b：后续 turn 强制重建独立请求预算，避免 turn1 耗尽
+				// 影响 turn2 之后的发送。首轮预算在握手路径挂载，这里不重建。
+				// 连接内已有 5s WS 重连预算，与 600s turn 预算取小。
+				if turn > 1 {
+					maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(ctx)
+					if h.cfg != nil && h.cfg.Gateway.OpenAIWS.RetryTotalBudgetMS > 0 {
+						if wsRetryWindow := time.Duration(h.cfg.Gateway.OpenAIWS.RetryTotalBudgetMS) * time.Millisecond; wsRetryWindow < budgetWindow {
+							budgetWindow = wsRetryWindow
+						}
+					}
+					setTurnBudget(service.NewRequestAttemptBudget(time.Now(), maxAttemptSends, budgetWindow, time.Time{}))
 				}
 				// 长连接跨峰谷/倍率刷新防护：每个 turn 按当前时刻重装门并复核
 				// 当前账号，越线即要求客户端重连重选（连接绑定单一上游账号，
