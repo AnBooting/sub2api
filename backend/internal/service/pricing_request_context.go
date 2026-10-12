@@ -149,6 +149,18 @@ func (p *LockedRequestPricing) Period() DeepSeekPricingPeriod {
 	return p.request.billing.deepSeekPricingPeriodAt(p.request.startedAt)
 }
 func (p *LockedRequestPricing) Calculate(input CostInput) (*CostBreakdown, error) {
+	return p.calculate(input, false, 0)
+}
+
+// CalculateWithRate 与 Calculate 同体，只把倍率替换为调用方给定的值：用于 legacy
+// 的 imageMultiplier/videoMultiplier 口径（分组独立倍率 ImageRateIndependent /
+// VideoRateIndependent），避免按次媒体丢掉分组独立倍率。rate 必须由冻结快照算出，
+// 不得由调用方传入实时分组值。
+func (p *LockedRequestPricing) CalculateWithRate(input CostInput, rate float64) (*CostBreakdown, error) {
+	return p.calculate(input, true, rate)
+}
+
+func (p *LockedRequestPricing) calculate(input CostInput, overrideRate bool, rate float64) (*CostBreakdown, error) {
 	if err := p.Availability(); err != nil {
 		return nil, err
 	}
@@ -162,6 +174,9 @@ func (p *LockedRequestPricing) Calculate(input CostInput) (*CostBreakdown, error
 	input.Group = p.candidate.group
 	input.PricingAt = p.request.startedAt
 	input.RateMultiplier = p.multiplier
+	if overrideRate {
+		input.RateMultiplier = rate
+	}
 	input.Resolver = p.request.resolver
 	input.Resolved = p.resolved
 	// Caller-supplied live account switches cannot replace request-start rules.

@@ -133,6 +133,88 @@ func (f *lockedMediaFixture) recordWithoutBundle(t *testing.T, result *OpenAIFor
 	})
 }
 
+// TestLockedMediaImageIndependentRate 分组开启图片独立倍率时，按次图片用
+// Group.ImageRateMultiplier 而非基础倍率（对齐 legacy 的 imageMultiplier 口径；
+// 契约参照 gateway_image_reasoning_pricing_test.go 的 independent 分支）。
+func TestLockedMediaImageIndependentRate(t *testing.T) {
+	price := 0.5
+	group := &Group{
+		ID: lockedMediaGroupID, Platform: PlatformOpenAI, Status: StatusActive,
+		RateMultiplier: 0.5, ImageRateIndependent: true, ImageRateMultiplier: 0.25,
+		ModelPricing: []ChannelModelPricing{{
+			Models: []string{"client-model"}, BillingMode: BillingModeImage, PerRequestPrice: &price,
+		}},
+	}
+	f := newLockedMediaFixture(t, group, "client-model")
+	// 冻结后改实时独立倍率：锁价仍用冻结的 0.25。
+	group.ImageRateMultiplier = 9.0
+
+	result := &OpenAIForwardResult{
+		RequestID: "resp_locked_image_independent", Model: "client-model", UpstreamModel: "client-model",
+		ImageCount: 2, ImageSize: "4K",
+	}
+	require.NoError(t, f.record(t, result))
+	// TotalCost = 0.5×2 = 1.0；实扣 = TotalCost × ImageRateMultiplier(0.25) = 0.25。
+	require.InDelta(t, 1.0, f.usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 0.25, f.usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, 0.25, f.billingRepo.lastCmd.BalanceCost, 1e-12)
+	require.InDelta(t, 0.25, f.usageRepo.lastLog.RateMultiplier, 1e-12, "usage_logs.RateMultiplier 与实扣一致")
+}
+
+// TestLockedMediaVideoIndependentRate 分组开启视频独立倍率时，视频用
+// Group.VideoRateMultiplier（对齐 legacy 的 videoMultiplier 口径）。
+func TestLockedMediaVideoIndependentRate(t *testing.T) {
+	group := &Group{
+		ID: lockedMediaGroupID, Platform: PlatformOpenAI, Status: StatusActive,
+		RateMultiplier: 0.5, VideoRateIndependent: true, VideoRateMultiplier: 0.10,
+		ModelPricing: []ChannelModelPricing{{
+			Models: []string{"grok-imagine-video"}, BillingMode: BillingModeVideo,
+			Intervals: []PricingInterval{{TierLabel: "720p", PerRequestPrice: lockedMediaFloatPtr(0.07)}},
+		}},
+	}
+	f := newLockedMediaFixture(t, group, "grok-imagine-video")
+	result := &OpenAIForwardResult{
+		RequestID: "resp_locked_video_independent", Model: "grok-imagine-video", UpstreamModel: "grok-imagine-video",
+		VideoCount: 2, VideoResolution: "720p", VideoDurationSeconds: 5,
+	}
+	require.NoError(t, f.record(t, result))
+	// TotalCost = 0.07×5×2 = 0.7；实扣 = 0.7 × VideoRateMultiplier(0.10) = 0.07。
+	require.InDelta(t, 0.7, f.usageRepo.lastLog.TotalCost, 1e-12)
+	require.InDelta(t, 0.07, f.usageRepo.lastLog.ActualCost, 1e-12)
+	require.InDelta(t, 0.07, f.billingRepo.lastCmd.BalanceCost, 1e-12)
+	require.InDelta(t, 0.10, f.usageRepo.lastLog.RateMultiplier, 1e-12)
+}
+
+// TestLockedMediaVideoPrefersFrozenCardOverGroupScalar 固定锁价路径与 legacy 的
+// 有意差异：分组按次卡模式不是 video 时，legacy 会先用分组标量视频价
+// （video_price_*）再退默认视频价；锁价路径只用冻结按次卡，绝不回落默认价。
+func TestLockedMediaVideoPrefersFrozenCardOverGroupScalar(t *testing.T) {
+	price := 0.5
+	group := &Group{
+		ID: lockedMediaGroupID, Platform: PlatformOpenAI, Status: StatusActive,
+		RateMultiplier: lockedMediaRateMultiplier,
+		ModelPricing: []ChannelModelPricing{{
+			Models: []string{"grok-imagine-video"}, BillingMode: BillingModePerRequest, PerRequestPrice: &price,
+		}},
+		VideoPrice720P: lockedMediaFloatPtr(0.07),
+	}
+	f := newLockedMediaFixture(t, group, "grok-imagine-video")
+	result := &OpenAIForwardResult{
+		RequestID: "resp_locked_video_card_over_scalar", Model: "grok-imagine-video", UpstreamModel: "grok-imagine-video",
+		VideoCount: 1, VideoResolution: "720p", VideoDurationSeconds: 5,
+	}
+	require.NoError(t, f.record(t, result))
+	// 锁价：冻结按次卡 0.5 × 1 次 × 1.5 = 0.75。
+	require.InDelta(t, 0.75, f.billingRepo.lastCmd.BalanceCost, 1e-12)
+	// legacy 会走标量视频价 0.07×5s×1×1.5 = 0.525；锁价有意不复刻该回落。
+	scalarDelta := f.billingRepo.lastCmd.BalanceCost - 0.525
+	if scalarDelta < 0 {
+		scalarDelta = -scalarDelta
+	}
+	require.Greater(t, scalarDelta, 1e-9, "锁价按冻结卡计费，不回落到分组标量视频价")
+	require.InDelta(t, 0.5, f.usageRepo.lastLog.TotalCost, 1e-12)
+}
+
 // TestLockedMediaImageCountUsesFrozenCard WS 图生 turn 形态：ImageCount>0 不再整笔失败，
 // 按冻结按次卡（次数 + 尺寸层级）只扣一次；冻结后改实时分组价不影响计费。
 func TestLockedMediaImageCountUsesFrozenCard(t *testing.T) {
