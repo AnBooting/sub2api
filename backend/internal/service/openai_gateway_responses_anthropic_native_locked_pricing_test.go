@@ -32,20 +32,31 @@ func (r *nativeLockedBillingRepo) Apply(_ context.Context, cmd *UsageBillingComm
 	r.balance -= cmd.BalanceCost
 	return &UsageBillingApplyResult{Applied: true, NewBalance: nativeLockedFloat64Ptr(r.balance)}, nil
 }
-func (r *nativeLockedBillingRepo) ReserveBatchImageBalance(context.Context, *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) { return &BatchImageBalanceHoldResult{}, nil }
-func (r *nativeLockedBillingRepo) CaptureBatchImageBalance(context.Context, *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) { return &BatchImageBalanceHoldResult{}, nil }
-func (r *nativeLockedBillingRepo) ReleaseBatchImageBalance(context.Context, *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) { return &BatchImageBalanceHoldResult{}, nil }
+func (r *nativeLockedBillingRepo) ReserveBatchImageBalance(context.Context, *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
+	return &BatchImageBalanceHoldResult{}, nil
+}
+func (r *nativeLockedBillingRepo) CaptureBatchImageBalance(context.Context, *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
+	return &BatchImageBalanceHoldResult{}, nil
+}
+func (r *nativeLockedBillingRepo) ReleaseBatchImageBalance(context.Context, *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
+	return &BatchImageBalanceHoldResult{}, nil
+}
 
 type nativeLockedLogs struct {
 	UsageLogRepository
 	mu   sync.Mutex
 	rows []*UsageLog
 }
-func (r *nativeLockedLogs) Create(_ context.Context, row *UsageLog) (bool, error) { r.mu.Lock(); defer r.mu.Unlock(); r.rows = append(r.rows, row); return true, nil }
+
+func (r *nativeLockedLogs) Create(_ context.Context, row *UsageLog) (bool, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.rows = append(r.rows, row)
+	return true, nil
+}
 
 func nativeLockedFloat64Ptr(v float64) *float64 { return &v }
-func nativeLockedInt64Ptr(v int64) *int64 { return &v }
-
+func nativeLockedInt64Ptr(v int64) *int64       { return &v }
 
 func newNativeAnthropicLockedContextFor(t *testing.T, pricing *BillingService, group *Group, account *Account, key *APIKey, requested, frozen string) context.Context {
 	t.Helper()
@@ -71,7 +82,6 @@ func newNativeAnthropicLockedCNYContext(t *testing.T, pricing *BillingService, g
 	return newNativeAnthropicLockedContextFor(t, pricing, group, account, key, "glm-test", "glm-test")
 }
 
-
 func withNativeLockedRequestContext(parent context.Context, body string) *gin.Context {
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)
@@ -90,25 +100,9 @@ func nativeAnthropicLockedResponse(stream bool, model string) *http.Response {
 		Body:   io.NopCloser(strings.NewReader(strings.ReplaceAll(miniAnthropicSSEStream(), "glm-4.7", model)))}
 }
 
-func forwardNativeAnthropicLocked(t *testing.T, svc *OpenAIGatewayService, account *Account, stream bool) (*OpenAIForwardResult, *httpUpstreamRecorder) {
-	t.Helper()
-	rec := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(rec)
-	body := "{\"model\":\"client-model\",\"input\":\"hello\",\"stream\":" + map[bool]string{true: "true", false: "false"}[stream] + "}"
-	c.Request = httptest.NewRequest(http.MethodPost, "/openai/v1/responses", strings.NewReader(body))
-	c.Request.Header.Set("Content-Type", "application/json")
-	upstream := &httpUpstreamRecorder{resp: nativeAnthropicLockedResponse(stream, "vendor/kimi-moonlight")}
-	svc.httpUpstream = upstream
-	result, err := svc.forwardResponsesViaNativeAnthropic(c.Request.Context(), c, account, []byte(body), "")
-	require.NoError(t, err)
-	require.NotNil(t, result)
-	return result, upstream
-}
-
 func lockedRecordInput(result *OpenAIForwardResult, key *APIKey, account *Account) *OpenAIRecordUsageInput {
 	return &OpenAIRecordUsageInput{Result: result, APIKey: key, User: key.User, Account: account, InboundEndpoint: "/v1/responses", UpstreamEndpoint: "/v1/messages"}
 }
-
 
 // recon §3.4-1: 冻结 bundle + anthropic 协议账号。出站模型必须等于冻结上游模型，
 // 计费按冻结价，且同一请求只扣一次。
@@ -134,7 +128,6 @@ func TestNativeAnthropicLockedFrozenBundleBillsOnce(t *testing.T) {
 	require.Equal(t, request.RequestID(), ledger.commands[0].RequestID)
 }
 
-
 // recon §3.4-2: 冻结 bundle + native CNY 卡。四维检查豁免，按原生卡计价。
 func TestNativeAnthropicLockedNativeCNYCardBilled(t *testing.T) {
 	svc, ledger, logs, group, account, key := newNativeAnthropicLockedFixture(t, true)
@@ -152,12 +145,15 @@ func TestNativeAnthropicLockedNativeCNYCardBilled(t *testing.T) {
 	// mini SSE usage: 10 input / 5 output, native fixture for glm-test is CNY 2/3 per M.
 	require.InDelta(t, (10*2+5*3)/1e6, ledger.commands[0].BalanceCost, 1e-12)
 	require.Len(t, logs.rows, 1)
+	request := GatewayRequestBillingFromContext(ctx)
+	require.NotNil(t, request)
+	require.Equal(t, request.RequestID(), ledger.commands[0].RequestID)
 }
 
 // recon §3.4-3: bundle 缺该账号时 WithGatewayRequestBillingAccount 必须 fail-closed，
 // 不落零成本账。
 func TestNativeAnthropicLockedMissingAccountMappingFailsClosed(t *testing.T) {
-	svc, ledger, _, group, account, key := newNativeAnthropicLockedFixture(t, false)
+	svc, ledger, logs, group, account, key := newNativeAnthropicLockedFixture(t, false)
 	deps := inflightEstimateDeps{
 		billing:  svc.billingService,
 		resolver: NewModelPricingResolver(nil, svc.billingService),
@@ -169,15 +165,26 @@ func TestNativeAnthropicLockedMissingAccountMappingFailsClosed(t *testing.T) {
 	require.NoError(t, err)
 	_, err = WithGatewayRequestBillingAccount(ctx, group.ID, account.ID)
 	require.ErrorIs(t, err, ErrModelPricingUnavailable)
-	require.Empty(t, ledger.commands)
-}
 
+	result := &OpenAIForwardResult{
+		RequestID:     "unbound-native-anthropic",
+		BillingModel:  "vendor/kimi-moonlight",
+		UpstreamModel: "vendor/kimi-moonlight",
+		Usage:         OpenAIUsage{InputTokens: 10, OutputTokens: 5},
+	}
+	err = svc.RecordUsage(ctx, lockedRecordInput(result, key, account))
+	require.ErrorIs(t, err, ErrModelPricingUnavailable)
+	require.Empty(t, ledger.commands)
+	require.Empty(t, logs.rows)
+}
 
 // recon §3.4-4: 流式/非流式两条结果构造的 BillingModel/UpstreamModel 与冻结值一致。
 func TestNativeAnthropicLockedResultModelsMatchFrozenValue(t *testing.T) {
 	for _, stream := range []bool{false, true} {
 		name := "buffered"
-		if stream { name = "streaming" }
+		if stream {
+			name = "streaming"
+		}
 		t.Run(name, func(t *testing.T) {
 			svc, ledger, logs, group, account, key := newNativeAnthropicLockedFixture(t, false)
 			ctx := newNativeAnthropicLockedRegularContext(t, svc.billingService, group, account, key)
@@ -196,6 +203,9 @@ func TestNativeAnthropicLockedResultModelsMatchFrozenValue(t *testing.T) {
 			require.NoError(t, svc.RecordUsage(ctx, lockedRecordInput(result, key, account)))
 			require.Len(t, ledger.commands, 1)
 			require.Len(t, logs.rows, 1)
+			request := GatewayRequestBillingFromContext(ctx)
+			require.NotNil(t, request)
+			require.Equal(t, request.RequestID(), ledger.commands[0].RequestID)
 		})
 	}
 }
@@ -216,10 +226,13 @@ func TestNativeAnthropicUnfrozenLegacyBehaviorUnchanged(t *testing.T) {
 	// while the model mapping helper normalizes the actual CN upstream name.
 	require.NotEqual(t, "vendor/kimi-moonlight", result.BillingModel)
 	require.Equal(t, result.UpstreamModel, result.BillingModel)
-	// Legacy RecordUsage must succeed without a locked request bundle.
-	err = svc.RecordUsage(context.Background(), lockedRecordInput(result, key, account))
-	require.NoError(t, err)
+	// No frozen bundle: legacy RecordUsage must succeed without a locked request bundle.
+	require.NoError(t, svc.RecordUsage(context.Background(), lockedRecordInput(result, key, account)))
 	require.Len(t, ledger.commands, 1)
+	require.Equal(t, "client-model", result.UpstreamModel)
+	require.Equal(t, "client-model", result.BillingModel)
+	require.Equal(t, ledger.commands[0].Model, "client-model")
+	require.InDelta(t, 0.00002, ledger.commands[0].BalanceCost, 1e-12)
 }
 
 func newNativeAnthropicLockedFixture(t *testing.T, nativeCNY bool) (*OpenAIGatewayService, *nativeLockedBillingRepo, *nativeLockedLogs, *Group, *Account, *APIKey) {
