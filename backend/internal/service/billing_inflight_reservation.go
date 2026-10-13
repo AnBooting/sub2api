@@ -681,7 +681,9 @@ func (s *GatewayService) inflightEstimateDeps() inflightEstimateDeps {
 			return platform, forced, err == nil
 		}
 		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
-		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor)
+		// 共享网关（/v1/messages 及后续 Chat Completions / Gemini 入口）的账号→上游模型
+		// 链必须与 GatewayService.Forward 同源，否则实际成功的请求会在落账时模型核对失败。
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, resolveGatewayRequestAccountUpstreamModel)
 	}
 	return d
 }
@@ -745,6 +747,17 @@ func (s *GatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey,
 		return ctx, nil, ErrModelPricingUnavailable
 	}
 	return s.inflightEstimateDeps().prepareRequestBilling(ctx, key, req)
+}
+
+// RefreezeRequestBilling 是共享网关显式换分组/换请求模型的强制重冻入口（Messages 的
+// prompt-too-long fallback 分组）：先逻辑剥离 ctx 上的旧 bundle 再冻结，避免
+// prepareRequestBilling 的幂等复用把新分组的账号映射/价格绑到旧 bundle 上。
+// 单请求内的 failover 重试仍走 PrepareRequestBilling 的幂等语义，不得改用本函数。
+func (s *GatewayService) RefreezeRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(withoutGatewayRequestBilling(ctx), key, req)
 }
 
 func (s *OpenAIGatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {

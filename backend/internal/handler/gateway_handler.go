@@ -187,7 +187,8 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	}
 	reqLog = reqLog.With(zap.String("model", reqModel), zap.Bool("stream", reqStream))
 
-	// 解析渠道级模型映射
+	// 解析渠道级模型映射（live 结果仅用于锁价未生效的旧行为；锁价激活时下面会用
+	// 请求建立时冻结的映射覆盖它）。
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
 
 	// 设置 max_tokens=1 + haiku 探测请求标识到 context 中
@@ -226,6 +227,25 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	if rejectSystemOneOnlyPlatform(c, apiKey, h.errorResponse) {
 		return
 	}
+
+	// C-1 请求锁价（共享入口切片 / Anthropic Messages 参考入口）。
+	// 位置在"参数/平台/协议"拒绝之后：这些拒绝属于请求本身不合法或该平台不支持本协议，
+	// 必须先于定价判定返回，不能被 pricing_unavailable 抢先覆盖。
+	//   - 仅非 composite 分组启用；composite/HA 的成员分组绑定属 S5 边界，本切片跳过；
+	//   - warmup / intercept / max_tokens=1+haiku 探测不进入锁价：这些分支（见本文件
+	//     "检查请求拦截" 的两处调用点）在选号/Forward 之前就 sendMockInterceptStream /
+	//     sendMockInterceptResponse 直接返回 mock，不产生上游发送与扣费，因此把它们
+	//     排除在锁价外并不违反"缺价不得在上游前放行"；
+	//   - 其余请求的缺价模型在上游请求前即 503 pricing_unavailable。
+	lockedMessagesBilling := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+	if lockedMessagesBilling && detectInterceptType(body, reqModel, parsedReq.MaxTokens, isClaudeCodeClient) != InterceptTypeNone {
+		lockedMessagesBilling = false
+	}
+	lockedBilling, lockedOK := prepareSharedGatewayLockedBilling(c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedMessagesBilling)
+	if !lockedOK {
+		return
+	}
+	channelMapping = lockedBilling.apply(channelMapping)
 
 	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolAnthropicMessages, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.anthropicSecurityAuditError(c, decision)
@@ -491,6 +511,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				if err := h.gatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, sessionKey, account.ID); err != nil {
 					reqLog.Warn("gateway.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
+			}
+			// C-1 锁价绑定：账号终检之后、Forward 之前把实际执行账号写入冻结 bundle。
+			// 绑定失败（账号不在冻结映射表内/冻结价缺失）即 503，不转发、不扣费。
+			if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedBilling, derefGroupID(apiKey.GroupID), account.ID, reqModel, reqLog); !bound {
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				status, code, message, _ := billingErrorDetails(bindErr)
+				h.handleStreamingAwareError(c, status, code, message, streamStarted)
+				return
 			}
 			// 账号槽位/等待计数需要在超时或断开时安全回收
 			accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
@@ -842,6 +872,16 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					reqLog.Warn("gateway.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 				}
 			}
+			// C-1 锁价绑定：账号终检之后、Forward 之前把实际执行账号写入冻结 bundle。
+			// 绑定失败（账号不在冻结映射表内/冻结价缺失）即 503，不转发、不扣费。
+			if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedBilling, derefGroupID(currentAPIKey.GroupID), account.ID, reqModel, reqLog); !bound {
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				status, code, message, _ := billingErrorDetails(bindErr)
+				h.handleStreamingAwareError(c, status, code, message, streamStarted)
+				return
+			}
 			// 账号槽位/等待计数需要在超时或断开时安全回收
 			accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
 
@@ -1047,6 +1087,18 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 						// 兜底重试按"直接请求兜底分组"处理：清除强制平台，允许按分组平台调度
 						ctx := context.WithValue(c.Request.Context(), ctxkey.ForcePlatform, "")
 						c.Request = c.Request.WithContext(ctx)
+						// C-1：fallback 是**另一个分组**，旧 bundle 不含该分组的候选价/账号映射，
+						// 必须对新分组重新冻结（不回退旧 bundle）；重冻失败即 503，不进上游。
+						// 锁价未生效（composite/warmup 等）时保持 active=false 跳过，避免给
+						// 本机拦截路径强行套上锁价。
+						if lockedBilling.active {
+							refrozen, refreezeOK := refreezeSharedGatewayLockedBilling(c, h.gatewayService, fallbackAPIKey, reqModel, body, reqLog)
+							if !refreezeOK {
+								return
+							}
+							lockedBilling = refrozen
+							channelMapping = lockedBilling.apply(channelMapping)
+						}
 						currentAPIKey = fallbackAPIKey
 						currentSubscription = nil
 						fallbackUsed = true
