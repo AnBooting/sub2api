@@ -33,6 +33,25 @@ func TestFinancialEligibilityRecheckDoesNotCountRPM(t *testing.T) {
 	require.EqualValues(t, 1, atomic.LoadInt32(&rpm.userGroupCalls))
 }
 
+func TestDestinationGroupRPMDoesNotReuseEntryOverrideOrCountGlobal(t *testing.T) {
+	zero, targetLimit := 0, 1
+	rpm := &userRPMCacheStub{userGroupCounts: []int{1, 2}}
+	repo := &rpmOverrideRepoStub{override: &targetLimit}
+	svc := newBillingServiceForRPM(t, rpm, repo)
+	user := &User{ID: 1, RPMLimit: 10, UserGroupRPMOverride: &zero}
+	ctx := context.Background()
+	require.NoError(t, svc.checkRPM(ctx, user, &Group{ID: 2, RPMLimit: 10}))
+	require.NoError(t, svc.CheckGroupRPMEligibility(ctx, user, &Group{ID: 3, RPMLimit: 10}))
+	require.ErrorIs(t, svc.CheckGroupRPMEligibility(ctx, user, &Group{ID: 3, RPMLimit: 10}), ErrGroupRPMExceeded)
+	require.EqualValues(t, 1, atomic.LoadInt32(&rpm.userCalls))
+	require.EqualValues(t, 2, atomic.LoadInt32(&rpm.userGroupCalls))
+	require.EqualValues(t, 2, atomic.LoadInt32(&repo.calls))
+	require.Same(t, &zero, user.UserGroupRPMOverride)
+	svc.cfg.RunMode = config.RunModeSimple
+	require.NoError(t, svc.CheckGroupRPMEligibility(ctx, user, &Group{ID: 3, RPMLimit: 10}))
+	require.EqualValues(t, 2, atomic.LoadInt32(&rpm.userGroupCalls))
+}
+
 func TestFinancialEligibilityRecheckPreservesSimpleModeWindows(t *testing.T) {
 	now := time.Now()
 	rpm := &userRPMCacheStub{}

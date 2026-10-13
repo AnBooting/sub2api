@@ -831,7 +831,45 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 	if s == nil || s.userRPMCache == nil || user == nil {
 		return nil
 	}
+	if err := s.checkGroupRPM(ctx, user, group); err != nil {
+		return err
+	}
 
+	// ── 第二层：用户级全局硬上限（始终生效） ──
+	if user.RPMLimit > 0 {
+		count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
+		if err != nil {
+			logger.LegacyPrintf(
+				"service.billing_cache",
+				"Warning: rpm increment (user) failed for user=%d: %v",
+				user.ID, err,
+			)
+			return nil // fail-open
+		}
+		if count > user.RPMLimit {
+			return ErrUserRPMExceeded
+		}
+	}
+
+	return nil
+}
+
+// CheckGroupRPMEligibility counts only the destination group during group failover.
+// Global user RPM was counted at request admission and must not be incremented again.
+func (s *BillingCacheService) CheckGroupRPMEligibility(ctx context.Context, user *User, group *Group) error {
+	if s == nil || user == nil || (s.cfg != nil && s.cfg.RunMode == config.RunModeSimple) {
+		return nil
+	}
+	executionUser := *user
+	// A cached override belongs to the entry group, not the destination group.
+	executionUser.UserGroupRPMOverride = nil
+	return s.checkGroupRPM(ctx, &executionUser, group)
+}
+
+func (s *BillingCacheService) checkGroupRPM(ctx context.Context, user *User, group *Group) error {
+	if s == nil || s.userRPMCache == nil || user == nil {
+		return nil
+	}
 	// ── 第一层：分组级检查（override 或 group.rpm_limit） ──
 	if group != nil {
 		// 解析 override：优先从 auth cache snapshot，nil 时回退 DB。
@@ -880,22 +918,6 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 			} else if count > group.RPMLimit {
 				return ErrGroupRPMExceeded
 			}
-		}
-	}
-
-	// ── 第二层：用户级全局硬上限（始终生效） ──
-	if user.RPMLimit > 0 {
-		count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
-		if err != nil {
-			logger.LegacyPrintf(
-				"service.billing_cache",
-				"Warning: rpm increment (user) failed for user=%d: %v",
-				user.ID, err,
-			)
-			return nil // fail-open
-		}
-		if count > user.RPMLimit {
-			return ErrUserRPMExceeded
 		}
 	}
 
