@@ -114,6 +114,22 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
+	// C-1 请求锁价（共享入口切片 / 非 OpenAI 平台的 Chat Completions）。
+	// 位置在"参数/协议/平台"拒绝之后，与 Messages 参考入口一致：
+	//   - 仅非 composite 分组启用（composite/HA 的成员分组绑定属 S5 边界）；
+	//   - 本入口没有 warmup/intercept/mock 本机分支（全量走真实上游），因此只排除
+	//     composite，不做额外的 mock 豁免；
+	//   - 其余请求的缺价模型在上游请求前即 503 pricing_unavailable；
+	//   - 渠道映射以请求建立时冻结的 bundle 为准，覆盖上面解析出的 live 映射。
+	lockedCCBilling := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+	lockedCC, lockedCCOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedCCBilling, false, writeOpenAIGatewayLockedBillingError,
+	)
+	if !lockedCCOK {
+		return
+	}
+	channelMapping = lockedCC.apply(channelMapping)
+
 	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIChat, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.openAISecurityAuditError(c, decision)
 		return
@@ -288,6 +304,18 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			}
 			fs.FailedAccountIDs[account.ID] = struct{}{}
 			continue
+		}
+
+		// C-1 锁价绑定：账号终检与平台一致性过滤之后、Forward 之前，把实际执行账号
+		// 写入冻结 bundle。绑定失败（账号不在冻结映射表内/冻结价缺失）即 503，不转发、
+		// 不扣费；failover 换号后重新绑定，价格仍取自同一份请求级 bundle。
+		if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedCC, derefGroupID(apiKey.GroupID), account.ID, reqModel, reqLog); !bound {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			status, code, message, _ := billingErrorDetails(bindErr)
+			h.chatCompletionsErrorResponse(c, status, code, message)
+			return
 		}
 
 		// 5. Forward request

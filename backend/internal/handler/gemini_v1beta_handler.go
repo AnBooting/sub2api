@@ -350,9 +350,25 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		return
 	}
 
-	// 解析渠道级模型映射
+	// 解析渠道级模型映射（live 结果仅用于锁价未生效的旧行为；锁价激活时用请求建立时
+	// 冻结的映射覆盖它）。
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
 	reqModel := modelName // 保存映射前的原始模型名
+
+	// C-1 请求锁价（共享入口切片 / Gemini 原生入口）。位置在 URL/action/body 与协议
+	// 校验之后、选号之前：
+	//   - 冻结用映射前的客户端模型（reqModel），成功后其 MappingFor 结果覆盖 live mapping；
+	//   - 仅非 composite 分组启用（composite/HA 的成员分组绑定属 S5 边界）；
+	//   - 本入口没有 warmup/intercept/mock 本机分支，因此只排除 composite；
+	//   - 缺价模型在上游请求前即 503 pricing_unavailable（Gemini 错误形状）。
+	lockedGeminiEligible := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+	lockedGemini, lockedGeminiOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedGeminiEligible, false, writeGoogleGatewayLockedBillingError,
+	)
+	if !lockedGeminiOK {
+		return
+	}
+	channelMapping = lockedGemini.apply(channelMapping)
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel
 	}
@@ -655,6 +671,17 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			if err := h.gatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, sessionKey, account.ID); err != nil {
 				reqLog.Warn("gemini.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}
+		}
+		// C-1 锁价绑定：账号终检（含 sticky/digest/failover 后的最终账号）之后、
+		// Forward 之前把实际执行账号写入冻结 bundle。绑定失败即 503，不转发、不扣费；
+		// 换号后重新绑定，价格仍取自同一份请求级 bundle。
+		if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedGemini, derefGroupID(apiKey.GroupID), account.ID, reqModel, reqLog); !bound {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			status, _, message, _ := billingErrorDetails(bindErr)
+			googleError(c, status, message)
+			return
 		}
 		// 账号槽位/等待计数需要在超时或断开时安全回收
 		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)

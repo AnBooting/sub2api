@@ -1,11 +1,27 @@
 package handler
 
 import (
+	"context"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
+
+// gatewayLockedBillingPricing 是各网关 service 在锁价准入上的公共表面：
+// GatewayService（共享入口）与 OpenAIGatewayService（OpenAI 分支）方法签名一致，
+// 由本文件统一驱动 Prepare+Validate，避免三个入口各写一遍准入。
+type gatewayLockedBillingPricing interface {
+	PrepareRequestBilling(context.Context, *service.APIKey, service.InflightEstimateRequest) (context.Context, *service.RequestBillingContext, error)
+	ValidateRequestPricing(context.Context, *service.APIKey, service.InflightEstimateRequest) error
+}
+
+// gatewayLockedBillingErrorWriter 把准入失败映射成某个协议的 error 体。默认是
+// Gateway/OpenAI 形状（writeSharedGatewayLockedBillingError）；Gemini 原生入口用
+// google 形状的变体，但 error 内仍保留 pricing_unavailable 这一 type 语义。
+type gatewayLockedBillingErrorWriter func(c *gin.Context, reqLog *zap.Logger, event, model string, err error) bool
 
 // gatewayLockedBilling 是共享网关入口（Anthropic /v1/messages，以及后续 Chat
 // Completions / Gemini 切片）的锁价准入结果。
@@ -51,6 +67,31 @@ func prepareSharedGatewayLockedBilling(
 	eligible bool,
 	deferPricingValidation bool,
 ) (gatewayLockedBilling, bool) {
+	return prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, gatewayService, apiKey, model, body, reqLog, eligible, deferPricingValidation,
+		writeSharedGatewayLockedBillingError,
+	)
+}
+
+// prepareSharedGatewayLockedBillingWithErrorWriter 是 prepareSharedGatewayLockedBilling
+// 的协议错误体参数化版本：准入语义完全相同，只有缺价/映射失败的响应形状由
+// writeError 决定（Gemini 原生入口需要 google 形状），准入对象放宽到
+// gatewayLockedBillingPricing 接口以便 OpenAI 兼容分支复用同一份 Prepare+Validate。
+// 既有 prepareSharedGatewayLockedBilling 的签名与语义保持不变。
+func prepareSharedGatewayLockedBillingWithErrorWriter(
+	c *gin.Context,
+	gatewayService gatewayLockedBillingPricing,
+	apiKey *service.APIKey,
+	model string,
+	body []byte,
+	reqLog *zap.Logger,
+	eligible bool,
+	deferPricingValidation bool,
+	writeError gatewayLockedBillingErrorWriter,
+) (gatewayLockedBilling, bool) {
+	if writeError == nil {
+		writeError = writeSharedGatewayLockedBillingError
+	}
 	if !eligible || c == nil || c.Request == nil || gatewayService == nil || apiKey == nil {
 		return gatewayLockedBilling{}, true
 	}
@@ -60,7 +101,14 @@ func prepareSharedGatewayLockedBilling(
 		priceErr = gatewayService.ValidateRequestPricing(prepared, apiKey, priceRequest)
 	}
 	if priceErr != nil {
-		return gatewayLockedBilling{}, writeSharedGatewayLockedBillingError(c, reqLog, "gateway.locked_pricing_rejected", model, priceErr)
+		// 客户端已断开的请求不进锁价判定：冻结过程会因 ctx 取消失败，把它当成
+		// pricing_unavailable/billing_error 会掩盖既有的 499 归类（并给已断开的
+		// 调用方写一个 4xx/5xx 响应体）。保持 inactive 交给各入口既有的
+		// failoverClientGone 终止路径，与"不产生上游发送与扣费"的分支同口径。
+		if c.Request.Context().Err() != nil {
+			return gatewayLockedBilling{}, true
+		}
+		return gatewayLockedBilling{}, writeError(c, reqLog, "gateway.locked_pricing_rejected", model, priceErr)
 	}
 	groupID := int64(0)
 	if apiKey.GroupID != nil {
@@ -68,7 +116,10 @@ func prepareSharedGatewayLockedBilling(
 	}
 	mapping, mappingErr := requestBilling.MappingFor(groupID)
 	if mappingErr != nil {
-		return gatewayLockedBilling{}, writeSharedGatewayLockedBillingError(c, reqLog, "gateway.locked_pricing_mapping_rejected", model, mappingErr)
+		if c.Request.Context().Err() != nil {
+			return gatewayLockedBilling{}, true
+		}
+		return gatewayLockedBilling{}, writeError(c, reqLog, "gateway.locked_pricing_mapping_rejected", model, mappingErr)
 	}
 	c.Request = c.Request.WithContext(prepared)
 	locked := gatewayLockedBilling{active: true, mapping: mapping, groupID: groupID}
@@ -90,6 +141,53 @@ func (l gatewayLockedBilling) ensurePriceValidation(c *gin.Context, reqLog *zap.
 		return writeSharedGatewayLockedBillingError(c, reqLog, "gateway.locked_pricing_deferred_rejected", model, err)
 	}
 	return true
+}
+
+// writeOpenAIGatewayLockedBillingError 是 OpenAI 兼容协议入口（共享 Chat
+// Completions / OpenAI Chat Completions）的锁价失败响应：错误体现在 error.type 上，
+// 与 chatCompletionsErrorResponse 同形状，不额外加顶层 type 字段。
+func writeOpenAIGatewayLockedBillingError(c *gin.Context, reqLog *zap.Logger, event, model string, err error) bool {
+	if reqLog != nil {
+		reqLog.Warn(event, zap.String("model", model), zap.Error(err))
+	}
+	status, code, message, _ := billingErrorDetails(err)
+	c.JSON(status, gin.H{
+		"error": gin.H{"type": code, "message": message},
+	})
+	return false
+}
+
+// writeResponsesGatewayLockedBillingError 是共享 /v1/responses 入口的锁价失败响应：
+// 与 responsesErrorResponse 的 error 体一致（code + message），并额外暴露 type，
+// 让共享入口的 pricing_unavailable 语义在各协议下都可被统一识别。
+func writeResponsesGatewayLockedBillingError(c *gin.Context, reqLog *zap.Logger, event, model string, err error) bool {
+	if reqLog != nil {
+		reqLog.Warn(event, zap.String("model", model), zap.Error(err))
+	}
+	status, code, message, _ := billingErrorDetails(err)
+	c.JSON(status, gin.H{
+		"error": gin.H{"type": code, "code": code, "message": message},
+	})
+	return false
+}
+
+// writeGoogleGatewayLockedBillingError 是 Gemini 原生入口的锁价失败响应：
+// 顶层形状沿用 googleError（error.code/message/status），同时在 error 内保留
+// pricing_unavailable 这一业务 type，便于调用方与既有共享入口统一识别。
+func writeGoogleGatewayLockedBillingError(c *gin.Context, reqLog *zap.Logger, event, model string, err error) bool {
+	if reqLog != nil {
+		reqLog.Warn(event, zap.String("model", model), zap.Error(err))
+	}
+	status, code, message, _ := billingErrorDetails(err)
+	c.JSON(status, gin.H{
+		"error": gin.H{
+			"code":    status,
+			"message": message,
+			"status":  googleapi.HTTPStatusToGoogleStatus(status),
+			"type":    code,
+		},
+	})
+	return false
 }
 
 // refreezeSharedGatewayLockedBilling 为"同请求内显式切换分组"重新冻结定价与映射。
