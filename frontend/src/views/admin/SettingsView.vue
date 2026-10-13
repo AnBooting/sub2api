@@ -5270,6 +5270,65 @@
                   </label>
                 </div>
               </div>
+
+              <!-- 统一重试预算（C-8）：单请求上游发送次数与总耗时预算 -->
+              <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.scheduling.requestBudgetTitle") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.scheduling.requestBudgetDescription") }}
+                  </p>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      for="gateway-max-attempts-per-request"
+                    >
+                      {{ t("admin.settings.scheduling.maxAttemptsPerRequest") }}
+                    </label>
+                    <input
+                      id="gateway-max-attempts-per-request"
+                      v-model.number="form.gateway_max_attempts_per_request"
+                      class="input w-full"
+                      data-testid="gateway-max-attempts-per-request"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="16"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.scheduling.maxAttemptsPerRequestHint") }}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      for="gateway-request-budget-seconds"
+                    >
+                      {{ t("admin.settings.scheduling.requestBudgetSeconds") }}
+                    </label>
+                    <input
+                      id="gateway-request-budget-seconds"
+                      v-model.number="form.gateway_request_budget_seconds"
+                      class="input w-full"
+                      data-testid="gateway-request-budget-seconds"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="600"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.scheduling.requestBudgetSecondsHint") }}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -9801,6 +9860,9 @@ const form = reactive<SettingsForm>({
   default_balance: 0,
   default_platform_quotas: normalizePlatformQuotasMap() as DefaultPlatformQuotasMap,
   account_scheduling_thresholds: normalizeAccountSchedulingThresholdsMap(),
+  // gateway 统一重试预算（C-8）：默认值与后端 defaultGatewayRequestAttemptBudgetLimits 一致
+  gateway_max_attempts_per_request: 16,
+  gateway_request_budget_seconds: 600,
   affiliate_rebate_rate: 20,
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
@@ -11469,6 +11531,22 @@ async function saveSettings() {
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
 
+    // gateway 统一重试预算（C-8）：后端对显式提供的值要求 > 0，前端先拦下空值/小数/非正数，
+    // 避免整次保存被 400 拒绝。后端未设置范围上限，这里只校验下界与整数。
+    const gatewayMaxAttempts = Number(form.gateway_max_attempts_per_request);
+    const gatewayBudgetSeconds = Number(form.gateway_request_budget_seconds);
+    if (
+      !Number.isInteger(gatewayMaxAttempts) ||
+      gatewayMaxAttempts <= 0 ||
+      !Number.isInteger(gatewayBudgetSeconds) ||
+      gatewayBudgetSeconds <= 0
+    ) {
+      appStore.showError(t("admin.settings.scheduling.requestBudgetInvalid"));
+      return;
+    }
+    form.gateway_max_attempts_per_request = gatewayMaxAttempts;
+    form.gateway_request_budget_seconds = gatewayBudgetSeconds;
+
     const oauthSchedulingRate = form.openai_oauth_scheduling_rate_multiplier;
     if (
       oauthSchedulingRate !== "" &&
@@ -11774,6 +11852,8 @@ async function saveSettings() {
         form.openai_advanced_scheduler_weight_previous_response.trim(),
       openai_advanced_scheduler_weight_session_sticky:
         form.openai_advanced_scheduler_weight_session_sticky.trim(),
+      gateway_max_attempts_per_request: gatewayMaxAttempts,
+      gateway_request_budget_seconds: gatewayBudgetSeconds,
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:

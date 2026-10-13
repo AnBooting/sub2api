@@ -457,7 +457,14 @@ export default {
         accountSchedulingThresholdsDescription: '当账号当前原生用量窗口（OpenAI Codex/Anthropic 会话，或 Grok 请求/Token 利用率）达到该百分比时，Sub2API 会临时将其移出调度，直到窗口重置。填 100 表示禁用。',
         accountSchedulingThresholdsGlobalHint: '系统级默认值，作用于该平台全部账号。可在账号编辑页对单个账号覆盖。',
         accountSchedulingThresholdsDisabledHint: '100 表示禁用该平台自动停调；1–99 表示达到该利用率后暂停调度。',
-        accountSchedulingThresholdsRangeHint: '整数 1–100（百分比）。仅 OpenAI / Anthropic / Grok。'
+        accountSchedulingThresholdsRangeHint: '整数 1–100（百分比）。仅 OpenAI / Anthropic / Grok。',
+        requestBudgetTitle: '统一重试预算',
+        requestBudgetDescription: '同一逻辑请求在内部换号、换组时共用的上游发送上限与总耗时预算。仅统计真实上游推理发送，选号与预检不计入。',
+        maxAttemptsPerRequest: '单请求最大尝试次数',
+        maxAttemptsPerRequestHint: '默认 16。必须为大于 0 的整数，且与下方时间预算同时生效，任一耗尽即停止重试。',
+        requestBudgetSeconds: '单请求时间预算（秒）',
+        requestBudgetSecondsHint: '默认 600 秒。必须为大于 0 的整数，超时后不再发起新的上游尝试。',
+        requestBudgetInvalid: '单请求最大尝试次数与时间预算都必须是大于 0 的整数。'
       },
       upstreamBillingProbe: {
         title: '上游倍率自动探测',
