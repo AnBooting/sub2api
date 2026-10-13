@@ -257,6 +257,9 @@ type CreateGroupRequest struct {
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
 	// Anthropic/OpenAI 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// 分组级调度策略覆盖（C-4）：inherit（默认）/stable/balanced/latency；
+	// 非法值由 service 层拒绝，不静默回落。
+	SchedulingStrategy string `json:"scheduling_strategy" binding:"omitempty,oneof=inherit stable balanced latency"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -332,6 +335,8 @@ type UpdateGroupRequest struct {
 	MaxReasoningEffortOverLimit *string `json:"max_reasoning_effort_over_limit"`
 	// nil 不修改，空数组清空，非空数组替换。
 	ReasoningEffortMappings *[]service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// 分组级调度策略覆盖（C-4）；nil 不修改，非法值由 service 层拒绝。
+	SchedulingStrategy *string `json:"scheduling_strategy" binding:"omitempty,oneof=inherit stable balanced latency"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -743,6 +748,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		SchedulingStrategy:              req.SchedulingStrategy,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
@@ -889,6 +895,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		SchedulingStrategy:              req.SchedulingStrategy,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {

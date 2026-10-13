@@ -751,6 +751,12 @@ const SettingKeyGatewayMaxAttemptsPerRequest = "gateway_max_attempts_per_request
 // SettingKeyGatewayRequestBudgetSeconds —— 系统全局：单逻辑请求总尝试预算秒数（C-8，默认 600）。
 const SettingKeyGatewayRequestBudgetSeconds = "gateway_request_budget_seconds"
 
+// SettingKeySchedulingStrategy —— 系统全局：默认调度策略（C-4/C-8，默认 balanced）。
+// C-8 文档键名为 scheduling.strategy；本仓库既有先例（gateway.max_attempts_per_request →
+// gateway_max_attempts_per_request）把 dotted 文档键落到下划线 settings 键，管理 API
+// 扁平字段同为 scheduling_strategy。取值 stable/balanced/latency，非法值由管理 API 拒绝。
+const SettingKeySchedulingStrategy = "scheduling_strategy"
+
 // SettingKeyAuthSourcePlatformQuotas 返回某 auth source 的 platform quota JSON key。
 // 形如 auth_source_default_{source}_platform_quotas
 func SettingKeyAuthSourcePlatformQuotas(source string) string {

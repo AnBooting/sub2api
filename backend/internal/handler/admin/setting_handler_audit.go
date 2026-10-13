@@ -625,6 +625,9 @@ func diffSettings(before *service.SystemSettings, after *service.SystemSettings,
 	if before.GatewayRequestBudgetSeconds != after.GatewayRequestBudgetSeconds {
 		changed = append(changed, service.SettingKeyGatewayRequestBudgetSeconds)
 	}
+	if before.SchedulingStrategy != after.SchedulingStrategy {
+		changed = append(changed, service.SettingKeySchedulingStrategy)
+	}
 	changed = appendAuthSourceDefaultChanges(changed, beforeAuthSourceDefaults, afterAuthSourceDefaults)
 	return changed
 }

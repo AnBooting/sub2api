@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 25 // v25: full role chain and configuration revision; older snapshots must refetch
+const apiKeyAuthSnapshotVersion = 26 // v26: group scheduling_strategy override (C-4); older snapshots must refetch
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -448,6 +448,7 @@ func apiKeyAuthSnapshotFromGroup(source *Group) *APIKeyAuthGroupSnapshot {
 		ProfitControlEnabled:            group.ProfitControlEnabled,
 		ProfitMinMargin:                 group.ProfitMinMargin,
 		ProfitSafetyBuffer:              group.ProfitSafetyBuffer,
+		SchedulingStrategy:              group.SchedulingStrategy,
 	}
 }
 
@@ -513,6 +514,7 @@ func apiKeyAuthGroupFromSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		ProfitControlEnabled:            snapshot.ProfitControlEnabled,
 		ProfitMinMargin:                 snapshot.ProfitMinMargin,
 		ProfitSafetyBuffer:              snapshot.ProfitSafetyBuffer,
+		SchedulingStrategy:              snapshot.SchedulingStrategy,
 	})
 }
 

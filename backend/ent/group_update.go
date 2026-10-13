@@ -1219,6 +1219,20 @@ func (_u *GroupUpdate) AddProfitSafetyBuffer(v float64) *GroupUpdate {
 	return _u
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (_u *GroupUpdate) SetSchedulingStrategy(v string) *GroupUpdate {
+	_u.mutation.SetSchedulingStrategy(v)
+	return _u
+}
+
+// SetNillableSchedulingStrategy sets the "scheduling_strategy" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSchedulingStrategy(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetSchedulingStrategy(*v)
+	}
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdate) AddAPIKeyIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1583,6 +1597,11 @@ func (_u *GroupUpdate) check() error {
 	if v, ok := _u.mutation.MaxReasoningEffortOverLimit(); ok {
 		if err := group.MaxReasoningEffortOverLimitValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SchedulingStrategy(); ok {
+		if err := group.SchedulingStrategyValidator(v); err != nil {
+			return &ValidationError{Name: "scheduling_strategy", err: fmt.Errorf(`ent: validator failed for field "Group.scheduling_strategy": %w`, err)}
 		}
 	}
 	return nil
@@ -1953,6 +1972,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
 		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.SchedulingStrategy(); ok {
+		_spec.SetField(group.FieldSchedulingStrategy, field.TypeString, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -3494,6 +3516,20 @@ func (_u *GroupUpdateOne) AddProfitSafetyBuffer(v float64) *GroupUpdateOne {
 	return _u
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (_u *GroupUpdateOne) SetSchedulingStrategy(v string) *GroupUpdateOne {
+	_u.mutation.SetSchedulingStrategy(v)
+	return _u
+}
+
+// SetNillableSchedulingStrategy sets the "scheduling_strategy" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSchedulingStrategy(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSchedulingStrategy(*v)
+	}
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdateOne) AddAPIKeyIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -3871,6 +3907,11 @@ func (_u *GroupUpdateOne) check() error {
 	if v, ok := _u.mutation.MaxReasoningEffortOverLimit(); ok {
 		if err := group.MaxReasoningEffortOverLimitValidator(v); err != nil {
 			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.SchedulingStrategy(); ok {
+		if err := group.SchedulingStrategyValidator(v); err != nil {
+			return &ValidationError{Name: "scheduling_strategy", err: fmt.Errorf(`ent: validator failed for field "Group.scheduling_strategy": %w`, err)}
 		}
 	}
 	return nil
@@ -4258,6 +4299,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
 		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
+	}
+	if value, ok := _u.mutation.SchedulingStrategy(); ok {
+		_spec.SetField(group.FieldSchedulingStrategy, field.TypeString, value)
 	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{

@@ -148,6 +148,8 @@ const (
 	FieldProfitMinMargin = "profit_min_margin"
 	// FieldProfitSafetyBuffer holds the string denoting the profit_safety_buffer field in the database.
 	FieldProfitSafetyBuffer = "profit_safety_buffer"
+	// FieldSchedulingStrategy holds the string denoting the scheduling_strategy field in the database.
+	FieldSchedulingStrategy = "scheduling_strategy"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
 	// EdgeAPIKeyLinks holds the string denoting the api_key_links edge name in mutations.
@@ -298,6 +300,7 @@ var Columns = []string{
 	FieldProfitControlEnabled,
 	FieldProfitMinMargin,
 	FieldProfitSafetyBuffer,
+	FieldSchedulingStrategy,
 }
 
 var (
@@ -443,6 +446,10 @@ var (
 	DefaultProfitMinMargin float64
 	// DefaultProfitSafetyBuffer holds the default value on creation for the "profit_safety_buffer" field.
 	DefaultProfitSafetyBuffer float64
+	// DefaultSchedulingStrategy holds the default value on creation for the "scheduling_strategy" field.
+	DefaultSchedulingStrategy string
+	// SchedulingStrategyValidator is a validator for the "scheduling_strategy" field. It is called by the builders before save.
+	SchedulingStrategyValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the Group queries.
@@ -741,6 +748,11 @@ func ByProfitMinMargin(opts ...sql.OrderTermOption) OrderOption {
 // ByProfitSafetyBuffer orders the results by the profit_safety_buffer field.
 func ByProfitSafetyBuffer(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProfitSafetyBuffer, opts...).ToFunc()
+}
+
+// BySchedulingStrategy orders the results by the scheduling_strategy field.
+func BySchedulingStrategy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSchedulingStrategy, opts...).ToFunc()
 }
 
 // ByAPIKeysCount orders the results by api_keys count.

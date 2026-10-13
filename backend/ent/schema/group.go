@@ -303,6 +303,13 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(0).
 			Comment("安全缓冲，小数；与 margin 相加后从下游倍率中扣除，默认 0"),
+
+		// 分组级调度策略覆盖（added by migration 245，C-4）：
+		// inherit（默认，随全局 scheduling.strategy）或 stable/balanced/latency。
+		field.String("scheduling_strategy").
+			MaxLen(20).
+			Default(domain.SchedulingStrategyInherit).
+			Comment("分组调度策略覆盖：inherit/stable/balanced/latency；inherit 表示随全局策略"),
 	}
 }
 

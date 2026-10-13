@@ -413,6 +413,17 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_MAX_REASONING_EFFORT_OVER_LIMIT", "%v", err)
 	}
+	// 调度策略（C-4）：空值表示未配置，落库默认 inherit（随全局）。
+	// 非法值直接拒绝，不静默回落（与「存储层默认 inherit」区分开：前者是缺省，后者是脏输入）。
+	schedulingStrategy := SchedulingStrategyInherit
+	if strings.TrimSpace(input.SchedulingStrategy) != "" {
+		parsed, ok := ParseGroupSchedulingStrategy(input.SchedulingStrategy)
+		if !ok {
+			return nil, infraerrors.New(http.StatusBadRequest, "INVALID_SCHEDULING_STRATEGY",
+				"group scheduling_strategy must be one of inherit, stable, balanced, latency")
+		}
+		schedulingStrategy = parsed
+	}
 	reasoningEffortMappings, err := NormalizeReasoningEffortMappings(platform, input.ReasoningEffortMappings)
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
@@ -624,6 +635,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MaxReasoningEffort:          maxReasoningEffort,
 		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
 		ReasoningEffortMappings:     reasoningEffortMappings,
+		SchedulingStrategy:          schedulingStrategy,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)
@@ -1039,6 +1051,18 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
 		}
 		group.ReasoningEffortMappings = reasoningEffortMappings
+	}
+	// 调度策略（C-4）：nil 不修改；显式空串按 inherit（随全局）处理，
+	// 非法值拒绝。存量脏值在更新时归一化为 inherit，不静默当成某个具体策略。
+	if input.SchedulingStrategy != nil {
+		parsed, ok := ParseGroupSchedulingStrategy(*input.SchedulingStrategy)
+		if !ok {
+			return nil, infraerrors.New(http.StatusBadRequest, "INVALID_SCHEDULING_STRATEGY",
+				"group scheduling_strategy must be one of inherit, stable, balanced, latency")
+		}
+		group.SchedulingStrategy = parsed
+	} else if _, ok := ParseGroupSchedulingStrategy(group.SchedulingStrategy); !ok {
+		group.SchedulingStrategy = SchedulingStrategyInherit
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)

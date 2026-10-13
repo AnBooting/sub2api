@@ -154,7 +154,8 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 		SetPeakRateMultiplier(groupIn.PeakRateMultiplier).
 		SetProfitControlEnabled(groupIn.ProfitControlEnabled).
 		SetProfitMinMargin(groupIn.ProfitMinMargin).
-		SetProfitSafetyBuffer(groupIn.ProfitSafetyBuffer)
+		SetProfitSafetyBuffer(groupIn.ProfitSafetyBuffer).
+		SetSchedulingStrategy(normalizeGroupSchedulingStrategyForPersistence(groupIn.SchedulingStrategy))
 	if groupIn.DuplicateOperationID != "" {
 		builder = builder.SetDuplicateOperationID(groupIn.DuplicateOperationID)
 	}
@@ -175,6 +176,16 @@ func createGroupRecord(ctx context.Context, client *dbent.Client, groupIn *servi
 	groupIn.CreatedAt = created.CreatedAt
 	groupIn.UpdatedAt = created.UpdatedAt
 	return nil
+}
+
+// normalizeGroupSchedulingStrategyForPersistence 保证入库值落在 C-4 值域内：
+// 空值与非法存量值一律落 inherit（随全局），与 DB 默认值和 CHECK 约束一致。
+// 管理 API 在入口已拒绝非法值，这里是仓储层的最后一道防线。
+func normalizeGroupSchedulingStrategyForPersistence(raw string) string {
+	if value, ok := service.ParseGroupSchedulingStrategy(raw); ok {
+		return value
+	}
+	return service.SchedulingStrategyInherit
 }
 
 func (r *groupRepository) FindByDuplicateOperationID(ctx context.Context, operationID string) (*service.Group, error) {
@@ -334,7 +345,8 @@ func (r *groupRepository) Update(ctx context.Context, groupIn *service.Group) er
 		SetPeakRateMultiplier(groupIn.PeakRateMultiplier).
 		SetProfitControlEnabled(groupIn.ProfitControlEnabled).
 		SetProfitMinMargin(groupIn.ProfitMinMargin).
-		SetProfitSafetyBuffer(groupIn.ProfitSafetyBuffer)
+		SetProfitSafetyBuffer(groupIn.ProfitSafetyBuffer).
+		SetSchedulingStrategy(normalizeGroupSchedulingStrategyForPersistence(groupIn.SchedulingStrategy))
 
 	// 显式处理可空字段：nil 需要 clear，非 nil 需要 set。
 	if groupIn.DailyLimitUSD != nil {

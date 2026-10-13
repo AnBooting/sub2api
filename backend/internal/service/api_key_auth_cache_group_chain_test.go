@@ -29,7 +29,7 @@ func TestAPIKeyGroupChainAuthSnapshotAllRolesVersionAndIsolation(t *testing.T) {
 	key.User.BalanceNotifyExtraEmails = []NotifyEmailEntry{{Email: "owned@example.test", Verified: true}}
 	svc := &APIKeyService{userGroupRateRepo: &chainRPMOverrideRepositoryStub{value: &rpm}}
 	snapshot := svc.snapshotFromAPIKey(context.Background(), key)
-	require.Equal(t, 25, snapshot.Version)
+	require.Equal(t, apiKeyAuthSnapshotVersion, snapshot.Version)
 	require.Equal(t, int64(5), snapshot.GroupChainRevision)
 	require.Len(t, snapshot.Groups, 2)
 	// The source objects, one auth request and the next auth request must not alias.

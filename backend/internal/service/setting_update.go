@@ -570,6 +570,18 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		updates[SettingKeyGatewayRequestBudgetSeconds] = strconv.Itoa(settings.GatewayRequestBudgetSeconds)
 	}
 
+	// 调度策略（C-4/C-8）。service 层的 SystemSettings 是普通结构体，空字符串表示
+	// 「调用方未提供」（见 OmittedSettingKeys 的既有约定），因此空值只跳过写入、不报错；
+	// 「显式传非法值必须 400」放在 handler 层，那里的指针能区分「未提供」与「显式空串」。
+	if raw := strings.TrimSpace(settings.SchedulingStrategy); raw != "" {
+		strategy, ok := ParseSchedulingStrategy(raw)
+		if !ok {
+			return nil, infraerrors.BadRequest("INVALID_SCHEDULING_STRATEGY",
+				"scheduling_strategy must be one of stable, balanced, latency")
+		}
+		updates[SettingKeySchedulingStrategy] = string(strategy)
+	}
+
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
 
 	return updates, nil
@@ -829,6 +841,18 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		// Partial/omitted payload: clear cache so the next hot-path read reloads from DB.
 		gatewayRequestAttemptBudgetLimitsCache.Store(&cachedGatewayRequestAttemptBudgetLimits{})
 	}
+	// 调度策略（C-4/C-8）：写透缓存，与 gateway 重试预算同一模式。
+	schedulingStrategySF.Forget(SettingKeySchedulingStrategy)
+	if strategy, ok := ParseSchedulingStrategy(settings.SchedulingStrategy); ok {
+		schedulingStrategyCache.Store(&cachedSchedulingStrategy{
+			strategy:  strategy,
+			expiresAt: time.Now().Add(schedulingStrategyCacheTTL).UnixNano(),
+		})
+	} else {
+		// Partial/omitted payload: clear cache so the next read reloads from DB.
+		schedulingStrategyCache.Store(&cachedSchedulingStrategy{})
+	}
+
 	if s.cfg != nil {
 		s.cfg.SetForwardedClientIPSettings(settings.APIKeyACLTrustForwardedIP, settings.ForwardedClientIPHeaders)
 	}

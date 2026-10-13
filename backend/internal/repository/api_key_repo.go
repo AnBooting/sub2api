@@ -253,6 +253,9 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldProfitControlEnabled,
 				group.FieldProfitMinMargin,
 				group.FieldProfitSafetyBuffer,
+				// 分组调度策略（C-4）：认证快照需要它来解析有效策略，
+				// 漏选会让调度读不到分组覆盖值。
+				group.FieldSchedulingStrategy,
 			)
 		}).
 		WithGroupLinks(loadAPIKeyGroupLinks).
@@ -1169,6 +1172,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		ProfitControlEnabled:            g.ProfitControlEnabled,
 		ProfitMinMargin:                 g.ProfitMinMargin,
 		ProfitSafetyBuffer:              g.ProfitSafetyBuffer,
+		SchedulingStrategy:              g.SchedulingStrategy,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}
