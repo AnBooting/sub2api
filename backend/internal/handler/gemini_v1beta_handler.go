@@ -361,6 +361,17 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	//   - 仅非 composite 分组启用（composite/HA 的成员分组绑定属 S5 边界）；
 	//   - 本入口没有 warmup/intercept/mock 本机分支，因此只排除 composite；
 	//   - 缺价模型在上游请求前即 503 pricing_unavailable（Gemini 错误形状）。
+	// F6 修复：Gemini 原生出站按 generationConfig.thinkingConfig 选档位变体
+	// （antigravity_gateway_gemini.go:91 的 getMappedModelForThinkingLevel +
+	// geminiThinkingLevelFromBody），冻结侧必须拿到同一档位，否则 thinkingLevel=low 时
+	// 冻结值会停在默认 high、实际出站是 low → 等值核对失败 → 用户 200 但整笔零计费。
+	// 偏好必须在下面冻结调用之前写入 ctx。
+	{
+		thinkingEnabled, thinkingLevel := service.GeminiThinkingPreferenceFromBody(body)
+		c.Request = c.Request.WithContext(service.WithGatewayRequestThinkingPreference(
+			c.Request.Context(), thinkingEnabled, thinkingLevel))
+	}
+
 	lockedGeminiEligible := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
 	lockedGemini, lockedGeminiOK := prepareSharedGatewayLockedBillingWithErrorWriter(
 		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedGeminiEligible, false, writeGoogleGatewayLockedBillingError,

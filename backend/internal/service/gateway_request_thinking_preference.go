@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 
+	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
 	"github.com/tidwall/gjson"
 )
 
@@ -71,6 +73,70 @@ func ClaudeThinkingPreferenceFromBody(body []byte) (bool, string) {
 	// 出站却没有，消费侧等值核对失败——又回到"200 但零计费"。宁可少认，也不能错认。
 	enabled := thinkingType == "enabled" || thinkingType == "adaptive"
 	return enabled, claudeThinkingLevelFromBudget(thinkingType, thinking.Get("budget_tokens"))
+}
+
+// ChatCompletionsThinkingPreferenceFromBody 从 Chat Completions 原始请求体推导 thinking 偏好。
+//
+// 走的是与出站**完全相同的转换链**（ChatCompletionsToResponses → ResponsesToAnthropicRequest），
+// 因此档位口径与 antigravity_gateway_compat.go:215-227 逐字同源；自己另写一套
+// reasoning_effort→档位 的映射迟早会与转换链分叉，重新引入 200 但零计费。
+func ChatCompletionsThinkingPreferenceFromBody(body []byte) (bool, string) {
+	var request apicompat.ChatCompletionsRequest
+	if json.Unmarshal(body, &request) != nil {
+		return false, ""
+	}
+	responsesRequest, err := apicompat.ChatCompletionsToResponses(&request)
+	if err != nil {
+		return false, ""
+	}
+	return claudeThinkingPreferenceFromResponsesRequest(responsesRequest)
+}
+
+// ResponsesThinkingPreferenceFromBody 从 Responses 原始请求体推导 thinking 偏好（同一转换链）。
+func ResponsesThinkingPreferenceFromBody(body []byte) (bool, string) {
+	var request apicompat.ResponsesRequest
+	if json.Unmarshal(body, &request) != nil {
+		return false, ""
+	}
+	return claudeThinkingPreferenceFromResponsesRequest(&request)
+}
+
+// claudeThinkingPreferenceFromResponsesRequest 把 Responses 请求转换为 Claude 协议后推导偏好；
+// 转换失败时返回"未开启思考"（此时出站也会因转换失败而不发上游，不会产生错价）。
+func claudeThinkingPreferenceFromResponsesRequest(request *apicompat.ResponsesRequest) (bool, string) {
+	if request == nil {
+		return false, ""
+	}
+	claudeRequest, err := apicompat.ResponsesToAnthropicRequest(request)
+	if err != nil || claudeRequest == nil {
+		return false, ""
+	}
+	claudeBody, err := json.Marshal(claudeRequest)
+	if err != nil {
+		return false, ""
+	}
+	return ClaudeThinkingPreferenceFromBody(claudeBody)
+}
+
+// ClaudeThinkingPreferenceFromConvertedBody 从"已转换为 Claude 协议"的请求体推导 thinking 偏好。
+//
+// Antigravity 兼容链路（Chat Completions / Responses 经 ForwardAsChatCompletions /
+// ForwardAsResponses）在出站时用的是转换后的 claudeBody 里的 thinking 字段来选模型
+// （antigravity_gateway_compat.go:215-227），因此冻结侧必须用**同一份** claudeBody 推导，
+// 而不是原始请求体：原始体里是 reasoning_effort / reasoning.effort，只有转换后才会变成
+// thinking.type/budget_tokens，两者档位口径不同。
+func ClaudeThinkingPreferenceFromConvertedBody(claudeBody []byte) (bool, string) {
+	return ClaudeThinkingPreferenceFromBody(claudeBody)
+}
+
+// GeminiThinkingPreferenceFromBody 从 Gemini 原生请求体推导 thinking 偏好。
+//
+// Gemini 原生出站路径（antigravity_gateway_gemini.go:91 的 ForwardGemini）只按档位挑
+// -low/-medium/-high 变体，**不会**再套 applyThinkingModelSuffix 的 -thinking 后缀，因此
+// enabled 恒为 false：多套一次后缀就会让冻结值与实际出站不一致，又变成 200 但零计费。
+// 档位直接复用 geminiThinkingLevelFromBody，保证与出站同源。
+func GeminiThinkingPreferenceFromBody(body []byte) (bool, string) {
+	return false, geminiThinkingLevelFromBody(body)
 }
 
 // claudeThinkingLevelFromBudget 复刻 geminiThinkingLevelFromClaudeThinking 的档位推导：

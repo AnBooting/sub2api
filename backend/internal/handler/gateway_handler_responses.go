@@ -125,6 +125,16 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	//     composite；
 	//   - 其余请求的缺价模型在上游请求前即 503 pricing_unavailable；
 	//   - 渠道映射以请求建立时冻结的 bundle 为准，覆盖上面解析出的 live 映射。
+	// F7 修复：Antigravity 兼容出站按转换后的 Claude thinking 选档位变体
+	// （antigravity_gateway_compat.go:215-227），冻结侧必须拿到同一档位，否则
+	// reasoning.effort=medium + 裸 gemini 名时冻结值停在默认 high、实际出站是 medium
+	// → 等值核对失败 → 用户 200 但整笔零计费。走与出站相同的转换链推导，保证同源。
+	{
+		thinkingEnabled, thinkingLevel := service.ResponsesThinkingPreferenceFromBody(body)
+		c.Request = c.Request.WithContext(service.WithGatewayRequestThinkingPreference(
+			c.Request.Context(), thinkingEnabled, thinkingLevel))
+	}
+
 	lockedResponsesEligible := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
 	lockedResponses, lockedResponsesOK := prepareSharedGatewayLockedBillingWithErrorWriter(
 		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedResponsesEligible, false, writeResponsesGatewayLockedBillingError,
