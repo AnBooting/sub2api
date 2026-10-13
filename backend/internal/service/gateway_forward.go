@@ -138,7 +138,16 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 
 	// Web Search 模拟：纯 web_search 请求时，直接调用搜索 API 构造响应
 	if account != nil && s.shouldEmulateWebSearch(ctx, account, parsed.GroupID, parsed.Body.Bytes()) {
-		return s.handleWebSearchEmulation(ctx, c, account, parsed)
+		result, err := s.handleWebSearchEmulation(ctx, c, account, parsed)
+		if err == nil && c != nil && c.Request != nil {
+			// 本机合成响应：不发上游，因此没有"实际出站模型"这回事，该分支的
+			// ForwardResult 故意不设 UpstreamModel。若继续留在锁价链上，消费侧的等值
+			// 核对会拿空串与冻结模型比较而 fail-closed——用户拿到 200 却零计费。
+			// 这里显式剥离本次请求的冻结 bundle，让用量落账走 legacy 分支
+			// （与 WS 中途生图回合回退 legacy 按次计费同语义）。
+			c.Request = c.Request.WithContext(WithoutGatewayRequestBilling(c.Request.Context()))
+		}
+		return result, err
 	}
 
 	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {

@@ -32,6 +32,12 @@ func resolveGatewayRequestAccountUpstreamModel(ctx context.Context, account *Acc
 			return resolved
 		}
 		return mappedOrRequested(account, requestedModel)
+	case account.Platform == PlatformAntigravity && account.Type == AccountTypeUpstream:
+		// Antigravity 上游透传账号（AccountTypeUpstream）走 ForwardUpstream：只换认证头，
+		// 不做任何账号映射/thinking 后缀改写，出站模型就是请求模型本身
+		// （antigravity_gateway_upstream.go 的 originalModel）。注意这与同平台的 OAuth /
+		// APIKey 分支口径**不同**，不能套用 mapAntigravityModel。
+		return requestedModel
 	case account.Platform == PlatformAntigravity:
 		return resolveAntigravityAccountUpstreamModel(ctx, account, requestedModel)
 	case account.Type == AccountTypeAPIKey:
