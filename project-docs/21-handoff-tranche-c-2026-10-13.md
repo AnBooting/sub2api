@@ -1,7 +1,8 @@
 # 交接文档：Tranche C 会话快照（2026-10-13，停止点）
 
 > 本文件是当前会话的收尾快照，供下一会话无痕继续。事实以 Git、源码与 F:\sub2--evidence\trancheC\ 原始日志为准。
-> 集成分支：F:\sub2--wt--ts02-policy @ 989821397（feat/TS-02-policy-retry-budget），所有改动已提交本地，未 push、未合并 develop、未部署。
+> 集成分支：F:\sub2--wt--ts02-policy @ 4bd24ace8（feat/TS-02-policy-retry-budget），所有改动已提交本地，未 push、未合并 develop、未部署。
+> 该提交上的最终 gate：gofmt 空、go build 0、go vet -tags=unit 0、go test -p 2 -tags=unit ./... 0（零 FAIL）。证据 F:\sub2--evidence\trancheC\final2-fullunit.log。
 
 ## 1. 本轮完成并已提交
 
@@ -10,7 +11,7 @@
 | feat/FE-budget-settings (F:/sub2--wt--fe-budget) | 53cbfb4aa | 管理页补 gateway_max_attempts_per_request / gateway_request_budget_seconds + zh/en i18n | 已提交 |
 | feat/S8-scheduling-strategy (F:/sub2--wt--s8) | 96976cc42 + fa072c1ff | C-4 三策略配置骨架 + 迁移 245 + 缓存版本 25→26 | **已独立复审 Approve** |
 | feat/C1-shared-lock (F:/sub2--wt--c1-shared) | c977cd8f9 → 7aaaa8292 → 1efafa82c | Anthropic Messages 共享入口锁价；F1-F5 全修 | **已独立复审 Approve**（1efafa82c） |
-| feat/C1-shared-lock-cc-gemini (F:/sub2--wt--c1-cc-gemini) | 87906721a + bca4734de | ChatCompletions(两分支)/Gemini/Responses 锁价 + F6/F7 thinking 同源修复 | 已提交（C1 复审后 bca4734de 尚未二审） |
+| feat/C1-shared-lock-cc-gemini (F:/sub2--wt--c1-cc-gemini) | 87906721a + bca4734de + 40c65bbb8 | ChatCompletions(两分支)/Gemini/Responses 锁价 + F6/F7 thinking 同源修复 + 去死代码 | 已提交（**独立复审仍未完成**，见下） |
 
 集成分支 989821397 已含上述四分支，且：gofmt 空、go build ./... 0、go vet -tags=unit ./... 0、go test -p 2 -tags=unit ./... 0（零 FAIL）。证据：F:\sub2--evidence\trancheC\final-*.log。
 
