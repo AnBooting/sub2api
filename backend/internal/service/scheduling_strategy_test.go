@@ -263,15 +263,24 @@ func TestSchedulingStrategyProfiles_CoverAllStrategies(t *testing.T) {
 	balanced := SchedulingStrategyProfileFor(SchedulingStrategyBalanced)
 	latency := SchedulingStrategyProfileFor(SchedulingStrategyLatency)
 
-	// 稳定优先必须比响应速度优先更保守：更长粘性、更长等待、更少错误容忍。
+	// 稳定优先必须比响应速度优先更保守：更长粘性、更长等待、更多错误容忍。
 	require.Greater(t, stable.StickyReuseTTL, latency.StickyReuseTTL)
 	require.Greater(t, stable.StickyWait, latency.StickyWait)
-	require.Less(t, stable.ErrorToleranceAttempts, latency.ErrorToleranceAttempts)
+	// ErrorToleranceAttempts 的方向：容忍多 = 晚换号 = 稳定优先，容忍少 = 早换号 =
+	// 响应速度优先。因此 stable 最高、latency 最低（方向写反会把三档倒置）。
+	require.Greater(t, stable.ErrorToleranceAttempts, latency.ErrorToleranceAttempts)
 	require.False(t, stable.SwitchBackAfterRecovery)
 
-	// balanced 位于两端之间。
+	// balanced 位于两端之间（三档单调：stable > balanced > latency）。
 	require.Less(t, balanced.StickyWait, stable.StickyWait)
 	require.Greater(t, balanced.StickyWait, latency.StickyWait)
+	require.Less(t, balanced.ErrorToleranceAttempts, stable.ErrorToleranceAttempts)
+	require.Greater(t, balanced.ErrorToleranceAttempts, latency.ErrorToleranceAttempts)
+
+	// 钉死三档具体数值，防止方向再次被反转。
+	require.Equal(t, 3, stable.ErrorToleranceAttempts)
+	require.Equal(t, 2, balanced.ErrorToleranceAttempts)
+	require.Equal(t, 1, latency.ErrorToleranceAttempts)
 
 	// 未知策略按默认表项返回完整参数，绝不产生零值。
 	fallback := SchedulingStrategyProfileFor(SchedulingStrategy("turbo"))

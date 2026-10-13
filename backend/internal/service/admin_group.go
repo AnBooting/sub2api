@@ -1052,8 +1052,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 		}
 		group.ReasoningEffortMappings = reasoningEffortMappings
 	}
-	// 调度策略（C-4）：nil 不修改；显式空串按 inherit（随全局）处理，
-	// 非法值拒绝。存量脏值在更新时归一化为 inherit，不静默当成某个具体策略。
+	// 调度策略（C-4）：nil 表示未提供该字段，保持原值不动；显式空串与其它非法值一律
+	// 400 拒绝（不静默当成 inherit，避免运维以为「清空」已生效）；值大小写/首尾空白
+	// 由 ParseGroupSchedulingStrategy 归一。存量脏值在更新时收敛为 inherit，
+	// 不静默当成某个具体策略。
 	if input.SchedulingStrategy != nil {
 		parsed, ok := ParseGroupSchedulingStrategy(*input.SchedulingStrategy)
 		if !ok {

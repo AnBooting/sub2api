@@ -42,9 +42,10 @@ const DefaultSchedulingStrategy = SchedulingStrategyBalanced
 //   - StickyReuseTTL：会话已建立的亲和账号冷却后仍优先复用的时窗。
 //   - StickyWait：亲和账号满载/限流时，等待其释放容量的上限；到期即按现有
 //     调度逻辑换号。等待期间仍受并发硬上限约束，不构成额外并发额度。
-//   - ErrorToleranceAttempts：同一账号允许的连续可重试错误次数，达到即切换；
-//     它只影响「何时换号」，不改变 C-5 分类，也不豁免 C-5 的 fail_client/
-//     fail_policy/fail_uncertain 不重试约束。
+//   - ErrorToleranceAttempts：同一账号允许的连续可重试错误次数，达到即切换。
+//     容忍多 = 晚换号 = 稳定优先（stable 最高），容忍少 = 早换号 = 响应速度优先
+//     （latency 最低），balanced 居中。它只影响「何时换号」，不改变 C-5 分类，
+//     也不豁免 C-5 的 fail_client/fail_policy/fail_uncertain 不重试约束。
 //   - SwitchBackAfterRecovery：原优先账号恢复健康后，新请求是否回切原账号。
 type SchedulingStrategyProfile struct {
 	Strategy SchedulingStrategy
@@ -60,10 +61,14 @@ type SchedulingStrategyProfile struct {
 // 映射表常量：stable / balanced / latency 的三档取值。
 //
 // 刻意用命名常量而非散落字面量，便于评审核对且避免后续接线时复制出第二套口径。
+//
+// ErrorToleranceAttempts 的方向：语义是「同一账号允许的连续可重试错误次数，达到即切换」，
+// 因此容忍越多 → 越晚换号 → 越稳定（stable 最高），容忍越少 → 越早换号 → 响应越快
+// （latency 最低）。方向写反会把三档策略的稳定性倒置，评审核对时优先看这一组。
 const (
 	schedulingStableStickyReuseTTL = 30 * time.Minute
 	schedulingStableStickyWait     = 30 * time.Second
-	schedulingStableErrorTolerance = 1
+	schedulingStableErrorTolerance = 3
 
 	schedulingBalancedStickyReuseTTL = 10 * time.Minute
 	schedulingBalancedStickyWait     = 10 * time.Second
@@ -71,7 +76,7 @@ const (
 
 	schedulingLatencyStickyReuseTTL = 2 * time.Minute
 	schedulingLatencyStickyWait     = 2 * time.Second
-	schedulingLatencyErrorTolerance = 3
+	schedulingLatencyErrorTolerance = 1
 )
 
 // schedulingStrategyProfiles 是策略到参数的唯一映射表。刻意不导出：表内容属于评审
