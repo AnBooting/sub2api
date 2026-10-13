@@ -26,7 +26,7 @@
 
 1) **对 bca4734de 做独立复审**（当前只有 Lead 亲验，未被 reviewer-c1-shared 终审）。重点：F6/F7 的冻结侧是否与出站逐字同源；为何 Gemini 原生 handler 级回归用例未合并；以及既有断言是否被改动。
 2) 补 F6 的 Gemini 原生 handler 级回归用例（当前是 TODO）。
-3) 将 bca4734de 合入集成分支后重跑最终全量 gate（当前集成分支只到 989821397，尚未包含 bca4734de 之后的 F6/F7 提交——注意：我已把 bca4734de 合并进 ts02-policy？请核对：上面 merge 记录 feature/C1-shared-lock-cc-gemini => 0，最后提交 989821397 就是 merge。因此集成分支已含 bca4734de，不需再合。但上述最终 gate 是在 989821397 上跑的，已包含。）
+3) 集成分支 989821397 已包含 bca4734de（`git merge-base --is-ancestor bca4734de HEAD` = 0），无需再合；最终全量 gate 就是在 989821397 上跑的。
 4) 之后推进 S6 组循环（依赖 C1 四入口，现已全部就绪）→ S7 C-6 落库 → S9 HA。
 5) integration/E2E 仍需本机 PostgreSQL + Redis（当前无 Docker/PG/Redis，未跑 go test -tags=integration）。
 
