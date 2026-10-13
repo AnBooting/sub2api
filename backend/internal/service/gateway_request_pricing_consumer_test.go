@@ -23,7 +23,7 @@ func TestOpenAIRequestAccountSnapshotUsesActualProtocolModels(t *testing.T) {
 			account := Account{ID: 11, Platform: PlatformOpenAI, Type: test.kind, Credentials: map[string]any{"model_mapping": map[string]any{"gpt-5.5": test.mapped}}, Extra: map[string]any{"openai_passthrough": test.pass, "openai_long_context_billing_enabled": true}}
 			list := func(context.Context, *int64, string, bool) ([]Account, error) { return []Account{account}, nil }
 			platform := func(context.Context, *APIKey, string) (string, bool, bool) { return PlatformOpenAI, false, true }
-			actual := requestAccountMappingsFromSnapshot(list, platform, func(account *Account, model string) string {
+			actual := requestAccountMappingsFromSnapshot(list, platform, func(_ context.Context, account *Account, model string) string {
 				return resolveOpenAIAccountUpstreamModelForRequest(account, model, false)
 			})
 			result, err := actual(context.Background(), &APIKey{}, "gpt-5.5")

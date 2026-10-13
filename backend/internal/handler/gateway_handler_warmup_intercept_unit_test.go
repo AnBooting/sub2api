@@ -162,6 +162,12 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
 	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
 
+	// 请求锁价在准入阶段就需要计费/定价依赖（生产恒有）。这里给一组最小实现，
+	// 使 warmup/intercept 形状的请求也能完成冻结——否则测试会因为"无法冻结定价"
+	// 而在到达 mock 拦截前 503，掩盖真正要验证的拦截行为。
+	pricingCfg := &config.Config{}
+	billingSvc := service.NewBillingService(pricingCfg, nil)
+
 	gwSvc := service.NewGatewayService(
 		nil, // accountRepo (not used: scheduler snapshot hit)
 		&fakeGroupRepo{group: group},
@@ -171,10 +177,10 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 		nil, // userSubRepo
 		nil, // userGroupRateRepo
 		nil, // cache (disable sticky)
-		nil, // cfg
+		pricingCfg,
 		schedulerSnapshot,
 		nil, // concurrencyService (disable load-aware; tryAcquire always acquired)
-		nil, // billingService
+		billingSvc,
 		nil, // rateLimitService
 		nil, // billingCacheService
 		nil, // identityService
@@ -187,7 +193,7 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 		nil, // settingService
 		nil, // tlsFPProfileService
 		nil, // channelService
-		nil, // resolver
+		service.NewModelPricingResolver(nil, billingSvc),
 		nil, // compositeResolver
 		nil, // balanceNotifyService
 		nil, // userPlatformQuotaRepo

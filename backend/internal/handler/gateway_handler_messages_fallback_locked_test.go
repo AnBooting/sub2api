@@ -52,6 +52,18 @@ func (u *messagesPromptTooLongUpstream) calledAccounts() []int64 {
 // 主分组账号返回 prompt too long 后切到 fallback 分组，最终计费使用 fallback 分组
 // 重新冻结的价格，而不是旧 bundle 的主分组价，也不是记录时刻的 live 价。
 func TestMessagesLockedPricingFallbackRebillsAtFallbackGroupPrice(t *testing.T) {
+	runMessagesFallbackRebill(t, false)
+}
+
+// TestMessagesLockedPricingFallbackWithPopulatedGroupChain 锁定 F2 回归：生产认证仓储
+// 会把 group_id 落成一条 normal link，APIKey.Groups 恒非空。此时 key 上的分组链若不
+// 一起重写，重冻出来的候选仍是原分组，fallback 请求会在准入阶段 503。
+func TestMessagesLockedPricingFallbackWithPopulatedGroupChain(t *testing.T) {
+	runMessagesFallbackRebill(t, true)
+}
+
+func runMessagesFallbackRebill(t *testing.T, groupsPopulated bool) {
+	t.Helper()
 	gin.SetMode(gin.TestMode)
 	const (
 		primaryGroupID  = int64(7500)
@@ -110,6 +122,12 @@ func TestMessagesLockedPricingFallbackRebillsAtFallbackGroupPrice(t *testing.T) 
 	}
 	key := &service.APIKey{ID: 7520, UserID: 7530, GroupID: messagesLockedInt64(primaryGroupID), Group: primary, Status: service.StatusActive,
 		User: &service.User{ID: 7530, Status: service.StatusActive, Concurrency: 10, Balance: 100}}
+	if groupsPopulated {
+		// 复刻生产 API Key 形态：仓储把 group_id 落成一条指向原分组的 normal link。
+		key.Groups = []service.APIKeyGroupLink{
+			{GroupID: primaryGroupID, Role: service.APIKeyGroupRoleNormal, Position: 0, Group: primary},
+		}
+	}
 
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)

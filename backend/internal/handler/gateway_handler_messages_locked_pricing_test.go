@@ -245,7 +245,7 @@ func TestMessagesLockedPricingBindingFailureRejectsBeforeForward(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("")).WithContext(prepared)
-	locked, ok := prepareSharedGatewayLockedBilling(c, f.handler.gatewayService, f.key, "client-model", []byte(messagesLockedBody(false)), nil, true)
+	locked, ok := prepareSharedGatewayLockedBilling(c, f.handler.gatewayService, f.key, "client-model", []byte(messagesLockedBody(false)), nil, true, false)
 	require.True(t, ok)
 	require.True(t, locked.active)
 
@@ -281,7 +281,7 @@ func TestMessagesLockedPricingFallbackRefreezeUsesNewGroupBundle(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/v1/messages", strings.NewReader("")).WithContext(context.Background())
-	initial, ok := prepareSharedGatewayLockedBilling(c, f.handler.gatewayService, f.key, "client-model", body, nil, true)
+	initial, ok := prepareSharedGatewayLockedBilling(c, f.handler.gatewayService, f.key, "client-model", body, nil, true, false)
 	require.True(t, ok)
 	require.True(t, initial.active)
 	oldBundle := service.GatewayRequestBillingFromContext(c.Request.Context())

@@ -232,16 +232,27 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	// 位置在"参数/平台/协议"拒绝之后：这些拒绝属于请求本身不合法或该平台不支持本协议，
 	// 必须先于定价判定返回，不能被 pricing_unavailable 抢先覆盖。
 	//   - 仅非 composite 分组启用；composite/HA 的成员分组绑定属 S5 边界，本切片跳过；
-	//   - warmup / intercept / max_tokens=1+haiku 探测不进入锁价：这些分支（见本文件
-	//     "检查请求拦截" 的两处调用点）在选号/Forward 之前就 sendMockInterceptStream /
-	//     sendMockInterceptResponse 直接返回 mock，不产生上游发送与扣费，因此把它们
-	//     排除在锁价外并不违反"缺价不得在上游前放行"；
 	//   - 其余请求的缺价模型在上游请求前即 503 pricing_unavailable。
+	//
+	// 冻结前必须先写入请求体的 thinking 偏好：Antigravity 的实际出站模型会按 thinking
+	// 开关追加 -thinking 后缀（裸 gemini-* 名还会按档位选变体），冻结侧拿不到 body，
+	// 只能从 ctx 读。缺了这一步会让实际成功的请求在落账时模型核对失败（200 但零计费）。
+	thinkingEnabled, thinkingLevel := service.ClaudeThinkingPreferenceFromBody(body)
+	c.Request = c.Request.WithContext(service.WithGatewayRequestThinkingPreference(
+		c.Request.Context(), thinkingEnabled, thinkingLevel))
+
 	lockedMessagesBilling := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
-	if lockedMessagesBilling && detectInterceptType(body, reqModel, parsedReq.MaxTokens, isClaudeCodeClient) != InterceptTypeNone {
+	// Gemini 平台分组走本文件下方的独立转发分支：它会用 geminiCompatService.Forward /
+	// ForwardGemini 产出带 ImageCount 的媒体结果，而本切片的锁价消费者只覆盖纯 token
+	// 形态。媒体计费属另一个切片，因此这里把该分支整体留在旧行为；否则图片结果会在
+	// 消费侧 fail-closed（用户已收到图片却零计费），或更糟地按 token 价错价。
+	if messagePlatformResolvesToGemini(c, apiKey) {
 		lockedMessagesBilling = false
 	}
-	lockedBilling, lockedOK := prepareSharedGatewayLockedBilling(c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedMessagesBilling)
+	// 命中 mock 形状时只延迟价格预检，不跳过冻结：是否真的 mock 取决于选中账号的
+	// IsInterceptWarmupEnabled()，在账号确定前无法判断。见 ensurePriceValidation。
+	mayInterceptLocally := detectInterceptType(body, reqModel, parsedReq.MaxTokens, isClaudeCodeClient) != InterceptTypeNone
+	lockedBilling, lockedOK := prepareSharedGatewayLockedBilling(c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedMessagesBilling, mayInterceptLocally)
 	if !lockedOK {
 		return
 	}
@@ -433,6 +444,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					}
 					return
 				}
+			}
+			// C-1：该账号不会走 mock，本请求确实要发上游，因此现在必须完成被延迟的价格
+			// 预检——缺价在这里 503，绝不放行到 Forward（"缺价不得在上游前放行"红线）。
+			if !lockedBilling.ensurePriceValidation(c, reqLog, reqModel) {
+				if selection.Acquired && selection.ReleaseFunc != nil {
+					selection.ReleaseFunc()
+				}
+				return
 			}
 
 			// 3. 获取账号并发槽位
@@ -788,6 +807,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 					}
 					return
 				}
+			}
+			// C-1：该账号不会走 mock，本请求确实要发上游，因此现在必须完成被延迟的价格
+			// 预检——缺价在这里 503，绝不放行到 Forward（"缺价不得在上游前放行"红线）。
+			if !lockedBilling.ensurePriceValidation(c, reqLog, reqModel) {
+				if selection.Acquired && selection.ReleaseFunc != nil {
+					selection.ReleaseFunc()
+				}
+				return
 			}
 
 			// 3. 获取账号并发槽位
@@ -1627,6 +1654,16 @@ func (h *GatewayHandler) AntigravityModels(c *gin.Context) {
 	})
 }
 
+// cloneAPIKeyWithGroup 返回"把请求直接指向另一个分组"的 API Key 副本。
+//
+// 必须同时重写 Groups：生产认证仓储会把 group_id 落成一条 normal link，因此
+// APIKey.Groups 恒非空；而定价冻结在 len(Groups)>0 时只用链上的分组做候选，不再用
+// GroupID 兜底（pricing_request_context.go 的 links 解析）。只改 GroupID/Group 会让
+// 重冻出来的候选仍是原分组，随后按新分组绑定/校验就会失败
+// （"requested group is not a frozen candidate"）。
+//
+// 语义上这就是"直接请求目标分组"：链收敛为一条 normal link，与
+// NormalAPIKeyGroupLinks 的规范形态一致；HA 链不在本切片启用（S9），一并丢弃。
 func cloneAPIKeyWithGroup(apiKey *service.APIKey, group *service.Group) *service.APIKey {
 	if apiKey == nil || group == nil {
 		return apiKey
@@ -1635,6 +1672,11 @@ func cloneAPIKeyWithGroup(apiKey *service.APIKey, group *service.Group) *service
 	groupID := group.ID
 	cloned.GroupID = &groupID
 	cloned.Group = group
+	links := service.NormalAPIKeyGroupLinks(&groupID)
+	if len(links) > 0 {
+		links[0].Group = group
+	}
+	cloned.Groups = links
 	return &cloned
 }
 

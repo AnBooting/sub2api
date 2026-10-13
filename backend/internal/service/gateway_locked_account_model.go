@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -15,10 +16,10 @@ import (
 // 成 Bedrock model id。任一处口径不一致都会让实际成功的请求在落账时被 fail-closed
 // 拒绝（用户拿到响应但计费为零），这比提前拒绝更糟。
 //
-// 已知边界：Antigravity 账号在 /v1/messages 上还会按请求体的 thinking 预算挑选
-// gemini thinking 变体，冻结入口拿不到该请求体信号，只能按无偏好档位解析。若实际
-// 出站模型与冻结值不同，消费侧仍会 fail-closed 拒绝，不会错价。
-func resolveGatewayRequestAccountUpstreamModel(account *Account, requestedModel string) string {
+// Antigravity 还必须带上请求体的 thinking 偏好：出站侧（antigravity_gateway_claude.go）
+// 会对 claude-sonnet-4-5 追加 -thinking 后缀，裸 gemini-* 名还会按档位选 low/medium/high
+// 变体。偏好由调用方在冻结前写入 ctx（WithGatewayRequestThinkingPreference）。
+func resolveGatewayRequestAccountUpstreamModel(ctx context.Context, account *Account, requestedModel string) string {
 	requestedModel = strings.TrimSpace(requestedModel)
 	if account == nil {
 		return requestedModel
@@ -32,10 +33,7 @@ func resolveGatewayRequestAccountUpstreamModel(account *Account, requestedModel 
 		}
 		return mappedOrRequested(account, requestedModel)
 	case account.Platform == PlatformAntigravity:
-		if mapped := mapAntigravityModel(account, requestedModel); mapped != "" {
-			return applyThinkingModelSuffix(mapped, false)
-		}
-		return applyThinkingModelSuffix(mappedOrRequested(account, requestedModel), false)
+		return resolveAntigravityAccountUpstreamModel(ctx, account, requestedModel)
 	case account.Type == AccountTypeAPIKey:
 		return mappedOrRequested(account, requestedModel)
 	case account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount:
@@ -48,6 +46,33 @@ func resolveGatewayRequestAccountUpstreamModel(account *Account, requestedModel 
 	default:
 		return mappedOrRequested(account, requestedModel)
 	}
+}
+
+// resolveAntigravityAccountUpstreamModel 与 AntigravityGatewayService.Forward 的
+// /v1/messages（Claude 协议）出站模型链同源：
+//
+//	getMappedModelForThinkingLevel(account, model, level) -> applyThinkingModelSuffix(mapped, enabled)
+//
+// thinking 偏好来自冻结前写入 ctx 的请求体信号；ctx 未携带时按"未开启思考"解析，
+// 与不带 thinking 字段的请求一致。
+func resolveAntigravityAccountUpstreamModel(ctx context.Context, account *Account, requestedModel string) string {
+	enabled, level := gatewayRequestThinkingPreferenceFromContext(ctx)
+	mapped := resolveAntigravityMappedModelForThinkingLevel(account, requestedModel, level)
+	if mapped == "" {
+		mapped = mappedOrRequested(account, requestedModel)
+	}
+	return applyThinkingModelSuffix(mapped, enabled)
+}
+
+// resolveAntigravityMappedModelForThinkingLevel 是 getMappedModelForThinkingLevel 的
+// 包级等价实现：先尝试把裸 gemini-* 名解析到上游目录里真实存在的档位变体，未命中时
+// 回退常规账号映射。该函数不依赖 AntigravityGatewayService 实例（冻结路径在
+// GatewayService 上，拿不到 Antigravity 服务），但两者共用同一组底层解析原语。
+func resolveAntigravityMappedModelForThinkingLevel(account *Account, requestedModel string, thinkingLevel string) string {
+	if mapped, ok := resolveGeminiThinkingVariantForLevel(account, requestedModel, thinkingLevel); ok {
+		return mapped
+	}
+	return mapAntigravityModel(account, requestedModel)
 }
 
 func mappedOrRequested(account *Account, requestedModel string) string {

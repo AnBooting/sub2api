@@ -1,6 +1,7 @@
 package handler
 
 import (
+	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -16,13 +17,17 @@ type gatewayLockedBilling struct {
 	mapping service.ChannelMappingResult
 	// groupID 是冻结候选分组的键，绑定/消费事实与该键一致。
 	groupID int64
+	// deferredValidate 在"可能被本机 mock 拦截"的请求形状上延迟价格预检：只有确认
+	// 该账号不会走 mock（即真的要发上游）时才执行。返回非 nil 表示缺价，调用方必须
+	// 503 且不得 Forward。非延迟路径恒为 nil。
+	deferredValidate func() error
 }
 
 // prepareSharedGatewayLockedBilling 冻结一次共享网关请求的定价与渠道映射。
 //
 // 语义（与 OpenAI Responses 的 lockedText 准入同源）：
-//   - eligible=false（composite / 本机 mock 拦截等不产生上游发送与扣费的转发分支）
-//     时返回 active=false，调用方保持旧 live 行为；
+//   - eligible=false（composite 等不纳入本切片的分组）时返回 active=false，
+//     调用方保持旧 live 行为；
 //   - 其余分组的缺价模型必须在上游请求前拒绝（ErrModelPricingUnavailable →
 //     503 pricing_unavailable），不是零价放行、也不回落兜底价；
 //   - 失败时本函数已经写好错误响应并返回 ok=false，调用方直接 return。
@@ -30,6 +35,12 @@ type gatewayLockedBilling struct {
 // apiKey/model/body 由调用方给出（body 用于 token 估算），因此后续 Chat
 // Completions / Gemini 入口可复用同一 helper，无需复制 Prepare+Validate+
 // MappingFor+错误映射。
+//
+// deferPricingValidation 用于"可能被本机 mock 拦截"的请求形状（warmup / SUGGESTION
+// MODE / max_tokens=1+haiku 探测）：是否 mock 由**选中账号的开关**决定，而不是请求
+// 形状决定，所以这类请求仍然要冻结。账号未开拦截时它会照常发上游，缺价必须在发上游前
+// 拒绝（红线）；账号确实会 mock 时不产生上游发送与扣费，缺价不应把它误拦。因此把价格
+// 预检推迟到"确认不会 mock"之后再执行（见 lockedBilling.ensurePriceValidation）。
 func prepareSharedGatewayLockedBilling(
 	c *gin.Context,
 	gatewayService *service.GatewayService,
@@ -38,13 +49,14 @@ func prepareSharedGatewayLockedBilling(
 	body []byte,
 	reqLog *zap.Logger,
 	eligible bool,
+	deferPricingValidation bool,
 ) (gatewayLockedBilling, bool) {
 	if !eligible || c == nil || c.Request == nil || gatewayService == nil || apiKey == nil {
 		return gatewayLockedBilling{}, true
 	}
 	priceRequest := tokenInflightEstimate(model, body)
 	prepared, requestBilling, priceErr := gatewayService.PrepareRequestBilling(c.Request.Context(), apiKey, priceRequest)
-	if priceErr == nil {
+	if priceErr == nil && !deferPricingValidation {
 		priceErr = gatewayService.ValidateRequestPricing(prepared, apiKey, priceRequest)
 	}
 	if priceErr != nil {
@@ -59,7 +71,25 @@ func prepareSharedGatewayLockedBilling(
 		return gatewayLockedBilling{}, writeSharedGatewayLockedBillingError(c, reqLog, "gateway.locked_pricing_mapping_rejected", model, mappingErr)
 	}
 	c.Request = c.Request.WithContext(prepared)
-	return gatewayLockedBilling{active: true, mapping: mapping, groupID: groupID}, true
+	locked := gatewayLockedBilling{active: true, mapping: mapping, groupID: groupID}
+	if deferPricingValidation {
+		locked.deferredValidate = func() error {
+			return gatewayService.ValidateRequestPricing(c.Request.Context(), apiKey, priceRequest)
+		}
+	}
+	return locked, true
+}
+
+// ensurePriceValidation 执行被延迟的价格预检。返回 ok=false 时本函数已经写好 503
+// 错误响应，调用方必须直接 return 且不得 Forward。defensive：非延迟路径（nil）恒 ok。
+func (l gatewayLockedBilling) ensurePriceValidation(c *gin.Context, reqLog *zap.Logger, model string) bool {
+	if l.deferredValidate == nil {
+		return true
+	}
+	if err := l.deferredValidate(); err != nil {
+		return writeSharedGatewayLockedBillingError(c, reqLog, "gateway.locked_pricing_deferred_rejected", model, err)
+	}
+	return true
 }
 
 // refreezeSharedGatewayLockedBilling 为"同请求内显式切换分组"重新冻结定价与映射。
@@ -143,6 +173,24 @@ func bindSharedGatewayLockedBillingAccount(
 	}
 	c.Request = c.Request.WithContext(bound)
 	return true, nil
+}
+
+// messagePlatformResolvesToGemini 判断本次 /v1/messages 是否会走 Gemini 平台转发分支。
+//
+// 判定与 GatewayHandler.Messages 内部选择分支的优先级一致：强制平台（/antigravity
+// 等路由）> composite 解析出的目标平台 > 分组平台。
+func messagePlatformResolvesToGemini(c *gin.Context, apiKey *service.APIKey) bool {
+	if c != nil && c.Request != nil {
+		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok && platform == service.PlatformGemini {
+			return true
+		}
+	}
+	if c != nil {
+		if forcePlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && forcePlatform == service.PlatformGemini {
+			return true
+		}
+	}
+	return apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGemini
 }
 
 // apply 在锁价激活时用冻结映射覆盖 live 渠道映射。

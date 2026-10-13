@@ -817,7 +817,7 @@ func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest)
 		// 冻结表中的账号上游模型必须与调度准入、实际转发同口径：
 		// /compact 请求按 compact 链解析；WS 请求按本账号实际会走的 ingress 适配器
 		// 解析（passthrough 不套账号映射）；其余按普通 HTTP 链解析。
-		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(account *Account, model string) string {
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(_ context.Context, account *Account, model string) string {
 			if requireWSIngressModel {
 				return resolveOpenAIAccountWSIngressUpstreamModel(account, model, wsIngressDefaultMode)
 			}

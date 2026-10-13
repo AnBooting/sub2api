@@ -13,7 +13,7 @@ type requestAccountMapping struct {
 
 // Only account ids and resolved model strings cross this boundary. Account
 // credentials remain in the existing scheduler snapshot, never in billing.
-func requestAccountMappingsFromSnapshot(list inflightSnapshotLister, platformFor func(context.Context, *APIKey, string) (string, bool, bool), actualModelResolver ...func(*Account, string) string) func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
+func requestAccountMappingsFromSnapshot(list inflightSnapshotLister, platformFor func(context.Context, *APIKey, string) (string, bool, bool), actualModelResolver ...func(context.Context, *Account, string) string) func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
 	return func(ctx context.Context, key *APIKey, model string) (map[int64]requestAccountMapping, error) {
 		platform, forced, ok := platformFor(ctx, key, model)
 		if !ok || platform == "" {
@@ -27,7 +27,9 @@ func requestAccountMappingsFromSnapshot(list inflightSnapshotLister, platformFor
 		for i := range accounts {
 			mapped := model
 			if len(actualModelResolver) > 0 {
-				mapped = actualModelResolver[0](&accounts[i], model)
+				// ctx 携带请求级偏好（如 Antigravity thinking 档位），解析器必须能看到它，
+				// 否则冻结模型会与真实出站模型不一致。
+				mapped = actualModelResolver[0](ctx, &accounts[i], model)
 			} else if resolved, matched := accounts[i].ResolveMappedModel(model); matched {
 				mapped = resolved
 			}
