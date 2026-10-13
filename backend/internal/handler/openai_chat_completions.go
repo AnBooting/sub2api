@@ -114,8 +114,28 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		return
 	}
 
-	// 解析渠道级模型映射
+	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
+
+	// 解析渠道级模型映射。限制检查（ResolveChannelMappingAndRestrict）继续保留；
+	// 锁价激活时随后用请求建立时冻结的 bundle 覆盖它，与 Responses 参考实现同口径。
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, reqModel)
+
+	// C-1 请求锁价（共享入口切片 / OpenAI 兼容分支）。位置在协议/平台/参数拒绝之后、
+	// 选号之前：
+	//   - 口径与 OpenAI Responses 参考入口一致：仅 PlatformOpenAI（普通 OpenAI
+	//     文本请求）进入锁价；grok/国产等其它 OpenAI 兼容平台保持既有行为；
+	//   - composite/HA 的成员分组绑定属 S5 边界，同样不进入锁价；
+	//   - 缺价模型在上游请求前即 503 pricing_unavailable；
+	//   - 与既有 WithOpenAIRequestPricingContext 共存：后者的 pricingAt/profit gate 在
+	//     bundle 已存在时会自动取 bundle.StartedAt()，不会覆盖锁价时刻。
+	lockedOAIEligible := requestPlatform == service.PlatformOpenAI
+	lockedOAI, lockedOAIOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedOAIEligible, false, writeOpenAIGatewayLockedBillingError,
+	)
+	if !lockedOAIOK {
+		return
+	}
+	channelMapping = lockedOAI.apply(channelMapping)
 	forwardModel := openAIChannelForwardModel(channelMapping, reqModel)
 
 	if h.errorPassthroughService != nil {
@@ -123,7 +143,6 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	}
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
 
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 	routingStart := time.Now()
@@ -239,6 +258,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		reqLog.Debug("openai_chat_completions.account_selected", zap.Int64("account_id", account.ID), zap.String("account_name", account.Name))
 		_ = scheduleDecision
 		setOpsSelectedAccount(c, account.ID, account.Platform)
+
+		// C-1 锁价绑定：账号选定后、取槽与 Forward 之前把实际执行账号写入冻结
+		// bundle。绑定失败（账号不在冻结映射表内/冻结价缺失）即 503，不转发、不扣费；
+		// failover 换号后重新绑定，价格仍取自同一份请求级 bundle。
+		if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedOAI, derefGroupID(apiKey.GroupID), account.ID, reqModel, reqLog); !bound {
+			status, code, message, _ := billingErrorDetails(bindErr)
+			h.handleStreamingAwareError(c, status, code, message, streamStarted)
+			return
+		}
 
 		accountReleaseFunc, slotResult := h.acquireResponsesAccountSlot(c, apiKey.GroupID, sessionHash, selection, reqStream, &streamStarted, reqLog)
 		if slotResult == openAISlotAcquireProfitVetoed {

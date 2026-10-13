@@ -45,7 +45,11 @@ func newGeminiClientCancelFixture(t *testing.T) *geminiClientCancelFixture {
 	t.Helper()
 	groupID := int64(9200)
 	accountID := int64(9201)
-	group := &service.Group{ID: groupID, Hydrated: true, Platform: service.PlatformGemini, Status: service.StatusActive}
+	// 价格夹具：本入口现在会做请求锁价准入，缺价会在上游前 503；
+	// 本用例考的是客户端取消语义，因此补齐显式四维价（模型走账号映射）。
+	input, output, zero := 1e-6, 2e-6, 0.0
+	group := &service.Group{ID: groupID, Hydrated: true, Platform: service.PlatformGemini, Status: service.StatusActive,
+		ModelPricing: []service.ChannelModelPricing{{Models: []string{"gemini-2.5-flash"}, InputPrice: &input, OutputPrice: &output, CacheReadPrice: &zero, CacheWritePrice: &zero}}}
 	account := &service.Account{
 		ID:            accountID,
 		Platform:      service.PlatformGemini,

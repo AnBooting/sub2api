@@ -118,6 +118,35 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		return
 	}
 
+	// C-1 请求锁价（共享入口切片 / Anthropic 平台上的 /v1/responses）。
+	// 位置在"协议/平台/参数"拒绝之后，与 Messages 参考入口一致：
+	//   - 仅非 composite 分组启用（composite/HA 的成员分组绑定属 S5 边界）；
+	//   - 本入口没有 warmup/intercept/mock 本机分支（全量走真实上游），因此只排除
+	//     composite；
+	//   - 其余请求的缺价模型在上游请求前即 503 pricing_unavailable；
+	//   - 渠道映射以请求建立时冻结的 bundle 为准，覆盖上面解析出的 live 映射。
+	// F7 修复：Antigravity 兼容出站按转换后的 Claude thinking 选档位变体
+	// （antigravity_gateway_compat.go:215-227），冻结侧必须拿到同一档位，否则
+	// reasoning.effort=medium + 裸 gemini 名时冻结值停在默认 high、实际出站是 medium
+	// → 等值核对失败 → 用户 200 但整笔零计费。走与出站相同的转换链推导，保证同源。
+	{
+		thinkingEnabled, thinkingLevel := service.ResponsesThinkingPreferenceFromBody(body)
+		c.Request = c.Request.WithContext(service.WithGatewayRequestThinkingPreference(
+			c.Request.Context(), thinkingEnabled, thinkingLevel))
+	}
+
+	lockedResponsesEligible := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+	lockedResponses, lockedResponsesOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedResponsesEligible, false, writeResponsesGatewayLockedBillingError,
+	)
+	if !lockedResponsesOK {
+		return
+	}
+	channelMapping = lockedResponses.apply(channelMapping)
+	// 锁价 helper 把 bundle 写进 c.Request 的 context；本入口后续以 requestCtx 变量
+	// 传递上下文，必须同步，否则冻结 bundle 不会进入选号/Forward/worker。
+	requestCtx = c.Request.Context()
+
 	if decision := h.checkSecurityAudit(c, reqLog, apiKey, subject, service.ContentModerationProtocolOpenAIResponses, reqModel, body); decision != nil && !decision.AllowNextStage {
 		h.responsesSecurityAuditError(c, decision)
 		return
@@ -279,6 +308,20 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				reqLog.Warn("gateway.responses.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}
 		}
+		// C-1 锁价绑定：账号终检之后、Forward 之前把实际执行账号写入冻结 bundle。
+		// 绑定失败（账号不在冻结映射表内/冻结价缺失）即 503，不转发、不扣费；
+		// failover 换号后重新绑定，价格仍取自同一份请求级 bundle。
+		if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedResponses, derefGroupID(apiKey.GroupID), account.ID, reqModel, reqLog); !bound {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			status, code, message, _ := billingErrorDetails(bindErr)
+			h.responsesErrorResponse(c, status, code, message)
+			return
+		}
+		// 绑定同样只写 c.Request；本入口 Forward/worker 走 requestCtx 变量，必须再同步
+		// 一次，否则冻结的账号执行事实传不到转发与计费消费层。
+		requestCtx = c.Request.Context()
 		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
 
 		// 5. Forward request
