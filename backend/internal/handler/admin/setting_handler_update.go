@@ -386,6 +386,10 @@ type UpdateSettingsRequest struct {
 	GatewayMaxAttemptsPerRequest *int `json:"gateway_max_attempts_per_request"`
 	GatewayRequestBudgetSeconds  *int `json:"gateway_request_budget_seconds"`
 
+	// 全局调度策略（C-4/C-8，指针以区分"未提供"：nil = 保持现值）。
+	// 显式传空串或非 stable/balanced/latency 一律 400，不静默回落。
+	SchedulingStrategy *string `json:"scheduling_strategy"`
+
 	// auth-source 层 platform quota 覆盖（override 语义：nil = 不修改，non-nil = 整体覆盖该 source 的 quota 配置）。
 	AuthSourceEmailPlatformQuotas    map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_email_platform_quotas"`
 	AuthSourceLinuxDoPlatformQuotas  map[string]*service.DefaultPlatformQuotaSetting `json:"auth_source_default_linuxdo_platform_quotas"`
@@ -1543,6 +1547,20 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 		return
 	}
 
+	// 调度策略（C-4/C-8）：显式提供时只接受 stable/balanced/latency。
+	// 非法值拒绝而不是回落默认，避免站长以为设置已生效。
+	if req.SchedulingStrategy != nil {
+		strategy, ok := service.ParseSchedulingStrategy(*req.SchedulingStrategy)
+		if !ok {
+			response.ErrorWithDetails(c, http.StatusBadRequest,
+				"scheduling_strategy must be one of stable, balanced, latency",
+				"INVALID_SCHEDULING_STRATEGY", nil)
+			return
+		}
+		normalized := string(strategy)
+		req.SchedulingStrategy = &normalized
+	}
+
 	settings := &service.SystemSettings{
 		// 系统全局 platform quota 默认值（整体替换语义）
 		DefaultPlatformQuotas:       req.DefaultPlatformQuotas,
@@ -2072,6 +2090,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			return previousSettings.GatewayRequestBudgetSeconds
 		}(),
+		SchedulingStrategy: func() string {
+			if req.SchedulingStrategy != nil {
+				return *req.SchedulingStrategy
+			}
+			return previousSettings.SchedulingStrategy
+		}(),
 	}
 
 	// req.AuthSourceXxxPlatformQuotas 为 nil 表示本次请求未包含该 source 的 quota 配置（保留 previousAuthSourceDefaults 中的值）；
@@ -2494,6 +2518,7 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 
 		GatewayMaxAttemptsPerRequest: updatedSettings.GatewayMaxAttemptsPerRequest,
 		GatewayRequestBudgetSeconds:  updatedSettings.GatewayRequestBudgetSeconds,
+		SchedulingStrategy:           updatedSettings.SchedulingStrategy,
 	}
 	if fastPolicy, err := h.settingService.GetOpenAIFastPolicySettings(c.Request.Context()); err != nil {
 		slog.Error("openai_fast_policy_settings_get_failed", "error", err)

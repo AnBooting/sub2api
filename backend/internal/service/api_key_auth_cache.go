@@ -150,6 +150,11 @@ type APIKeyAuthGroupSnapshot struct {
 	ProfitControlEnabled bool    `json:"profit_control_enabled"`
 	ProfitMinMargin      float64 `json:"profit_min_margin"`
 	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
+
+	// SchedulingStrategy 分组级调度策略覆盖（C-4）：inherit 或 stable/balanced/latency。
+	// 与利润控制字段同理，调度路径从认证中间件放入 ctx 的 Group 直接读取本快照，
+	// 漏掉本字段会让分组覆盖静默失效（GetByKeyForAuth 投影与快照版本必须同步）。
+	SchedulingStrategy string `json:"scheduling_strategy,omitempty"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存

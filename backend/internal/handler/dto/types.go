@@ -181,6 +181,10 @@ type AdminGroup struct {
 	ProfitSafetyBuffer   float64                       `json:"profit_safety_buffer"`
 	ModelPricing         []service.ChannelModelPricing `json:"model_pricing"`
 
+	// SchedulingStrategy 分组级调度策略覆盖（C-4）：inherit（默认，随全局）
+	// 或 stable/balanced/latency。仅管理端可见，普通用户接口不暴露调度策略。
+	SchedulingStrategy string `json:"scheduling_strategy"`
+
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`

@@ -270,6 +270,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky:         "",
 
 		SettingKeyAllowUserViewErrorRequests: "false",
+
+		// 调度策略（C-4/C-8）：默认 balanced。
+		SettingKeySchedulingStrategy: DefaultSchedulingStrategySetting(),
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -1015,6 +1018,16 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 				"value", v, "default", result.GatewayRequestBudgetSeconds)
 		default:
 			result.GatewayRequestBudgetSeconds = v
+		}
+	}
+
+	// 调度策略（C-4/C-8）：缺省/非法存量值一律回落默认 balanced。
+	// 非法值不静默变成某个具体策略，只回落到 C-4 明文默认值。
+	result.SchedulingStrategy = string(NormalizeSchedulingStrategy(settings[SettingKeySchedulingStrategy]))
+	if raw := strings.TrimSpace(settings[SettingKeySchedulingStrategy]); raw != "" {
+		if _, ok := ParseSchedulingStrategy(raw); !ok {
+			slog.Warn("[Setting] parseSettings: invalid scheduling_strategy, using default",
+				"value", raw, "default", DefaultSchedulingStrategy)
 		}
 	}
 

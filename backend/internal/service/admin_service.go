@@ -310,6 +310,8 @@ type CreateGroupInput struct {
 	ProfitControlEnabled bool
 	ProfitMinMargin      *float64
 	ProfitSafetyBuffer   *float64
+	// 分组级调度策略覆盖（C-4）：inherit（默认）/stable/balanced/latency。
+	SchedulingStrategy string
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
 	CopyAccountsFromGroupIDs []int64
 }
@@ -391,6 +393,9 @@ type UpdateGroupInput struct {
 	ProfitControlEnabled *bool
 	ProfitMinMargin      *float64
 	ProfitSafetyBuffer   *float64
+	// 分组级调度策略覆盖（C-4）：nil 表示未提供不改动；显式值必须是
+	// inherit/stable/balanced/latency，非法值由 service 层拒绝。
+	SchedulingStrategy *string
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64
 }
