@@ -230,6 +230,17 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.upstreamBillingProbe.intervalHint": "范围 5–1440 分钟。",
     "admin.settings.upstreamBillingProbe.saved": "上游倍率自动探测设置已保存",
     "admin.settings.upstreamBillingProbe.saveFailed": "保存上游倍率自动探测设置失败",
+    "admin.settings.scheduling.requestBudgetTitle": "统一重试预算",
+    "admin.settings.scheduling.requestBudgetDescription":
+      "同一逻辑请求在内部换号、换组时共用的上游发送上限与总耗时预算。仅统计真实上游推理发送，选号与预检不计入。",
+    "admin.settings.scheduling.maxAttemptsPerRequest": "单请求最大尝试次数",
+    "admin.settings.scheduling.maxAttemptsPerRequestHint":
+      "默认 16。必须为大于 0 的整数，且与下方时间预算同时生效，任一耗尽即停止重试。",
+    "admin.settings.scheduling.requestBudgetSeconds": "单请求时间预算（秒）",
+    "admin.settings.scheduling.requestBudgetSecondsHint":
+      "默认 600 秒。必须为大于 0 的整数，超时后不再发起新的上游尝试。",
+    "admin.settings.scheduling.requestBudgetInvalid":
+      "单请求最大尝试次数与时间预算都必须是大于 0 的整数。",
     "admin.settings.openaiFastPolicy.summaryTargetModels": "目标模型",
     "admin.settings.openaiFastPolicy.summaryAllModels": "全部模型",
     "admin.settings.openaiFastPolicy.summaryOtherModels": "其他模型",
@@ -465,6 +476,8 @@ const baseSettingsResponse = {
   min_claude_code_version: "",
   max_claude_code_version: "",
   allow_ungrouped_key_scheduling: false,
+  gateway_max_attempts_per_request: 16,
+  gateway_request_budget_seconds: 600,
   openai_ttft_mode: "semantic",
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
@@ -563,6 +576,8 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
+        // 该面板自行 useAppStore()，测试环境没有 pinia 实例；本文件不覆盖它的行为。
+        PricingSettingsPanel: true,
       },
     },
   });
@@ -1315,6 +1330,57 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("loads and submits the gateway unified retry budget settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      gateway_max_attempts_per_request: 32,
+      gateway_request_budget_seconds: 900,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const maxAttemptsInput = wrapper.get<HTMLInputElement>(
+      '[data-testid="gateway-max-attempts-per-request"]',
+    );
+    const budgetSecondsInput = wrapper.get<HTMLInputElement>(
+      '[data-testid="gateway-request-budget-seconds"]',
+    );
+    expect(maxAttemptsInput.element.value).toBe("32");
+    expect(budgetSecondsInput.element.value).toBe("900");
+    expect(maxAttemptsInput.attributes("min")).toBe("1");
+
+    await maxAttemptsInput.setValue("8");
+    await budgetSecondsInput.setValue("300");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gateway_max_attempts_per_request: 8,
+        gateway_request_budget_seconds: 300,
+      }),
+    );
+  });
+
+  it("rejects a non-positive gateway retry budget before saving", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const budgetSecondsInput = wrapper.get<HTMLInputElement>(
+      '[data-testid="gateway-request-budget-seconds"]',
+    );
+    await budgetSecondsInput.setValue("0");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith(
+      "单请求最大尝试次数与时间预算都必须是大于 0 的整数。",
+    );
+  });
+
   it("updates provider enablement immediately and reloads providers", async () => {
     const provider = {
       id: 7,
@@ -1365,6 +1431,7 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          PricingSettingsPanel: true,
         },
       },
     });
@@ -1711,6 +1778,7 @@ describe("admin SettingsView payment visible method controls", () => {
           ProxySelector: true,
           ImageUpload: ImageUploadStub,
           BackupSettings: true,
+          PricingSettingsPanel: true,
         },
       },
     });

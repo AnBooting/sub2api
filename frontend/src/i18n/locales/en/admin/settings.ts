@@ -464,7 +464,14 @@ export default {
         accountSchedulingThresholdsDescription: 'When an account\'s current native usage window (OpenAI Codex/Anthropic session, or Grok request/token utilization) reaches this percent, Sub2API temporarily removes it from scheduling until the window resets. Use 100 to disable.',
         accountSchedulingThresholdsGlobalHint: 'System-wide default for every account on that platform. Individual accounts can still override this in the account editor.',
         accountSchedulingThresholdsDisabledHint: '100 disables platform auto-pause. Values 1–99 pause scheduling once utilization reaches that percent.',
-        accountSchedulingThresholdsRangeHint: 'Integer 1–100 (percent). OpenAI/Anthropic/Grok only.'
+        accountSchedulingThresholdsRangeHint: 'Integer 1–100 (percent). OpenAI/Anthropic/Grok only.',
+        requestBudgetTitle: 'Unified Retry Budget',
+        requestBudgetDescription: 'Upstream send cap and total time budget shared by every in-request account or group switch. Only real upstream inference sends count; selection and pre-checks do not.',
+        maxAttemptsPerRequest: 'Max attempts per request',
+        maxAttemptsPerRequestHint: 'Default 16. Must be an integer greater than 0. It applies together with the time budget below; whichever is exhausted first stops retrying.',
+        requestBudgetSeconds: 'Request time budget (seconds)',
+        requestBudgetSecondsHint: 'Default 600 seconds. Must be an integer greater than 0. Once exceeded, no further upstream attempt is started.',
+        requestBudgetInvalid: 'Max attempts per request and the request time budget must both be integers greater than 0.'
       },
       upstreamBillingProbe: {
         title: 'Upstream Rate Auto Detection',
