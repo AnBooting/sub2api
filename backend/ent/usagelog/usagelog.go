@@ -3,6 +3,7 @@
 package usagelog
 
 import (
+	"fmt"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
@@ -42,6 +43,14 @@ const (
 	FieldBillingMode = "billing_mode"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
+	// FieldRequestedGroupID holds the string denoting the requested_group_id field in the database.
+	FieldRequestedGroupID = "requested_group_id"
+	// FieldServedGroupID holds the string denoting the served_group_id field in the database.
+	FieldServedGroupID = "served_group_id"
+	// FieldFailover holds the string denoting the failover field in the database.
+	FieldFailover = "failover"
+	// FieldAttemptCount holds the string denoting the attempt_count field in the database.
+	FieldAttemptCount = "attempt_count"
 	// FieldSubscriptionID holds the string denoting the subscription_id field in the database.
 	FieldSubscriptionID = "subscription_id"
 	// FieldInputTokens holds the string denoting the input_tokens field in the database.
@@ -176,6 +185,10 @@ var Columns = []string{
 	FieldBillingTier,
 	FieldBillingMode,
 	FieldGroupID,
+	FieldRequestedGroupID,
+	FieldServedGroupID,
+	FieldFailover,
+	FieldAttemptCount,
 	FieldSubscriptionID,
 	FieldInputTokens,
 	FieldOutputTokens,
@@ -239,6 +252,8 @@ var (
 	BillingTierValidator func(string) error
 	// BillingModeValidator is a validator for the "billing_mode" field. It is called by the builders before save.
 	BillingModeValidator func(string) error
+	// AttemptCountValidator is a validator for the "attempt_count" field. It is called by the builders before save.
+	AttemptCountValidator func(int) error
 	// DefaultInputTokens holds the default value on creation for the "input_tokens" field.
 	DefaultInputTokens int
 	// DefaultOutputTokens holds the default value on creation for the "output_tokens" field.
@@ -294,6 +309,31 @@ var (
 	// DefaultCreatedAt holds the default value on creation for the "created_at" field.
 	DefaultCreatedAt func() time.Time
 )
+
+// Failover defines the type for the "failover" enum field.
+type Failover string
+
+// Failover values.
+const (
+	FailoverNone    Failover = "none"
+	FailoverAccount Failover = "account"
+	FailoverGroup   Failover = "group"
+	FailoverHa      Failover = "ha"
+)
+
+func (f Failover) String() string {
+	return string(f)
+}
+
+// FailoverValidator is a validator for the "failover" field enum values. It is called by the builders before save.
+func FailoverValidator(f Failover) error {
+	switch f {
+	case FailoverNone, FailoverAccount, FailoverGroup, FailoverHa:
+		return nil
+	default:
+		return fmt.Errorf("usagelog: invalid enum value for failover field: %q", f)
+	}
+}
 
 // OrderOption defines the ordering options for the UsageLog queries.
 type OrderOption func(*sql.Selector)
@@ -371,6 +411,26 @@ func ByBillingMode(opts ...sql.OrderTermOption) OrderOption {
 // ByGroupID orders the results by the group_id field.
 func ByGroupID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldGroupID, opts...).ToFunc()
+}
+
+// ByRequestedGroupID orders the results by the requested_group_id field.
+func ByRequestedGroupID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRequestedGroupID, opts...).ToFunc()
+}
+
+// ByServedGroupID orders the results by the served_group_id field.
+func ByServedGroupID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldServedGroupID, opts...).ToFunc()
+}
+
+// ByFailover orders the results by the failover field.
+func ByFailover(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldFailover, opts...).ToFunc()
+}
+
+// ByAttemptCount orders the results by the attempt_count field.
+func ByAttemptCount(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAttemptCount, opts...).ToFunc()
 }
 
 // BySubscriptionID orders the results by the subscription_id field.

@@ -132,6 +132,10 @@ type Group struct {
 	ProfitMinMargin      float64 // 最低毛利率，小数存储（0.30=30%）
 	ProfitSafetyBuffer   float64 // 安全缓冲，小数，与 margin 相加后从 D 中扣除
 
+	// SchedulingStrategy 分组级调度策略覆盖（C-4）：inherit（默认，随全局）
+	// 或 stable/balanced/latency。只决定调度策略名，不改并发硬上限与 C-5 分类。
+	SchedulingStrategy string
+
 	CreatedAt time.Time
 	UpdatedAt time.Time
 

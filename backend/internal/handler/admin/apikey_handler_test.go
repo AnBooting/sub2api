@@ -231,6 +231,37 @@ func TestAdminAPIKeyHandler_UpdateGroup_NegativeGroupID(t *testing.T) {
 	require.Contains(t, rec.Body.String(), "INVALID_GROUP_ID")
 }
 
+func TestAdminAPIKeyHandler_ChainPresenceCASAndHABoundary(t *testing.T) {
+	for _, tc := range []struct {
+		body   string
+		status int
+	}{
+		{`{"groups":null}`, 400},
+		{`{"group_id":null,"groups":[],"expected_group_chain_revision":0}`, 400},
+		{`{"group_id":2,"groups":[{"group_id":2,"role":"normal","position":0}],"expected_group_chain_revision":0}`, 400},
+		{`{"groups":[]}`, 409},
+		{`{"groups":[],"expected_group_chain_revision":1,"reset_rate_limit_usage":true}`, 409},
+		{`{"groups":[{"group_id":2,"role":"ha","position":0}],"expected_group_chain_revision":0}`, 400},
+		{`{"groups":[],"expected_group_chain_revision":0}`, 200},
+		{`{"group_id":null}`, 200},
+	} {
+		svc := newStubAdminService()
+		svc.apiKeys[0].Usage5h = 7
+		router := setupAPIKeyHandler(svc)
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/api/v1/admin/api-keys/10", bytes.NewBufferString(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		require.Equal(t, tc.status, rec.Code, tc.body)
+		if tc.status == 409 {
+			require.Equal(t, float64(7), svc.apiKeys[0].Usage5h, "conflict must not partially reset usage")
+		}
+		if tc.status == 200 {
+			require.Contains(t, rec.Body.String(), "group_chain_revision")
+		}
+	}
+}
+
 // failingUpdateGroupService overrides AdminUpdateAPIKeyGroupID to return an error.
 type failingUpdateGroupService struct {
 	*stubAdminService

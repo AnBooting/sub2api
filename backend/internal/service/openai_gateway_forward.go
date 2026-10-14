@@ -80,8 +80,16 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 	} else if toolSchemaSanitized {
 		body = sanitizedToolBody
 	}
+	frozenModel, hasFrozenModel, frozenModelErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenModelErr != nil {
+		return nil, frozenModelErr
+	}
 	if account.IsOpenAIOAuthLike() {
-		reasoningBody, reasoningChanged, reasoningErr := normalizeOpenAIResponsesReasoningMode(body, account.GetMappedModel(gjson.GetBytes(body, "model").String()))
+		reasoningModel := frozenModel
+		if !hasFrozenModel {
+			reasoningModel = account.GetMappedModel(gjson.GetBytes(body, "model").String())
+		}
+		reasoningBody, reasoningChanged, reasoningErr := normalizeOpenAIResponsesReasoningMode(body, reasoningModel)
 		if reasoningErr != nil {
 			return nil, fmt.Errorf("normalize OpenAI Responses reasoning.mode: %w", reasoningErr)
 		}
@@ -179,7 +187,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	// 上游协议统一由 resolveUpstreamProtocol 判定（按模型分流时带上游模型目录）。OpenAI API Key 账号只会落到
 	// Responses / Chat Completions，上面的归一化对两条路径都生效。
-	routingModel := upstreamRoutingModel(account, body, "")
+	routingModel := frozenModel
+	if !hasFrozenModel {
+		routingModel = upstreamRoutingModel(account, body, "")
+	}
 	if account.IsOpenCodeGo() && IsOpenCodeUnsupportedModel(routingModel) {
 		return nil, writeOpenCodeUnsupportedModelError(c, false, routingModel)
 	}
@@ -269,7 +280,10 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			}
 		}
 		// 透传分支只需要轻量提取字段，避免热路径全量 Unmarshal。
-		mappedModel := account.GetMappedModel(reqModel)
+		mappedModel := frozenModel
+		if !hasFrozenModel {
+			mappedModel = account.GetMappedModel(reqModel)
+		}
 		reasoningEffort := extractOpenAIReasoningEffortFromBody(body, mappedModel)
 		// 国产模型默认 effort 补充：也要用 mappedModel 判定是否是 passback-required 上游。
 		reasoningEffort = ApplyThinkingEnabledFallback(reasoningEffort, body, mappedModel)
@@ -372,8 +386,13 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 
 	isCompactRequest := compactPath
 	requestedModel := reqModel
-	billingModel, upstreamModel := resolveOpenAIForwardMappedModels(account, requestedModel, isCompactRequest)
-	if isCompactRequest {
+	billingModel, upstreamModel := frozenModel, frozenModel
+	if !hasFrozenModel {
+		billingModel, upstreamModel = resolveOpenAIForwardMappedModels(account, requestedModel, isCompactRequest)
+	}
+	// 冻结优先：存在冻结模型时不再现场解析 compact 兜底（调度链冻结表里已经是
+	// compact 口径），避免请求中途配置变化让实际转发模型偏离冻结事实。
+	if isCompactRequest && !hasFrozenModel {
 		if compactModel := s.resolveOpenAICompactFallbackModel(account, requestedModel); compactModel != "" {
 			upstreamModel = compactModel
 		}
@@ -1147,9 +1166,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 				logger.LegacyPrintf("service.openai_gateway", "[OpenAI] Retrying non-WSv2 request after %s (account: %s)", reason, account.Name)
 				continue
 			}
+			// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：冻结表已按
+			// compact 口径固定上游模型，现场切换会偏离冻结事实（用量核对会拒绝）。
+			// 模型不可用时应走跨账号 failover 并按新账号重绑冻结模型。
 			if retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
 				c, account, requestedModel, body, resp.StatusCode, upstreamMsg, respBody, compactModelFallbackRetried,
-			); retry {
+			); retry && !hasFrozenModel {
 				s.appendOpenAICompactFallbackRetryOps(c, account, resp, respBody, upstreamMsg, false)
 				fromModel := strings.TrimSpace(gjson.GetBytes(body, "model").String())
 				body = retryBody
@@ -1225,9 +1247,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			streamResult, err := s.handleStreamingResponseWithReasoning(ctx, resp, c, account, startTime, originalModel, upstreamModel, reasoningEffortValue)
 			if err != nil {
 				if signal, ok := asOpenAICompactFallbackSignal(err); ok {
+					// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：
+					// 冻结表已按 compact 口径固定上游模型，现场切换会偏离冻结事实。
+					// 模型不可用时应走跨账号 failover 并按新账号重绑冻结模型。
 					if retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
 						c, account, requestedModel, body, http.StatusBadRequest, signal.message, signal.payload, compactModelFallbackRetried,
-					); retry {
+					); retry && !hasFrozenModel {
 						s.appendOpenAICompactFallbackRetryOps(c, account, resp, signal.payload, signal.message, false)
 						body = retryBody
 						requestView = newOpenAIRequestView(body)
@@ -1272,9 +1297,12 @@ func (s *OpenAIGatewayService) Forward(ctx context.Context, c *gin.Context, acco
 			nonStreamResult, err := s.handleNonStreamingResponse(ctx, resp, c, account, originalModel, upstreamModel)
 			if err != nil {
 				if signal, ok := asOpenAICompactFallbackSignal(err); ok {
+					// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：
+					// 冻结表已按 compact 口径固定上游模型，现场切换会偏离冻结事实。
+					// 模型不可用时应走跨账号 failover 并按新账号重绑冻结模型。
 					if retryBody, fallbackModel, retry := s.prepareOpenAICompactFallbackRetry(
 						c, account, requestedModel, body, http.StatusBadRequest, signal.message, signal.payload, compactModelFallbackRetried,
-					); retry {
+					); retry && !hasFrozenModel {
 						s.appendOpenAICompactFallbackRetryOps(c, account, resp, signal.payload, signal.message, false)
 						body = retryBody
 						requestView = newOpenAIRequestView(body)

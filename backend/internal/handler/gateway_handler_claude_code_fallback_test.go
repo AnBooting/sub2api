@@ -109,9 +109,13 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 			{name: "without fallback group", hasFallback: false},
 		} {
 			t.Run(ep.name+"/"+tc.name, func(t *testing.T) {
+				// 该分组会被入口的请求锁价准入读取；补齐显式四维价，让用例继续考
+				// "Claude Code only 无 fallback 拒绝 / 有 fallback 进入选号"这一语义。
+				input, output, zero := 1e-6, 2e-6, 0.0
 				primary := &service.Group{
 					ID: primaryGroupID, Hydrated: true, Platform: service.PlatformAnthropic,
 					Status: service.StatusActive, ClaudeCodeOnly: true,
+					ModelPricing: []service.ChannelModelPricing{{Models: []string{"claude-sonnet-4-5"}, InputPrice: &input, OutputPrice: &output, CacheReadPrice: &zero, CacheWritePrice: &zero}},
 				}
 				if tc.hasFallback {
 					fallbackID := fallbackGroupID
@@ -126,15 +130,21 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 					newAccount(primaryAccountID, primaryGroupID),
 					newAccount(fallbackAccountID, fallbackGroupID),
 				}}}
+				cfg := &config.Config{RunMode: config.RunModeSimple}
+				cfg.Default.RateMultiplier = 1
+				billing := service.NewBillingService(cfg, nil)
+				channels := service.NewChannelService(&openAIWSUsageHandlerChannelRepoStub{groupPlatforms: map[int64]string{
+					primaryGroupID: service.PlatformAnthropic, fallbackGroupID: service.PlatformAnthropic,
+				}}, nil, nil, nil, nil)
 				gatewayService := service.NewGatewayService(
 					nil, &groupMapRepo{fakeGroupRepo: &fakeGroupRepo{}, groups: map[int64]*service.Group{
 						primaryGroupID:  primary,
 						fallbackGroupID: fallback,
-					}}, nil, nil, nil, nil, nil, nil, nil,
+					}}, nil, nil, nil, nil, nil, nil, cfg,
 					service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil),
-					nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil,
+					nil, billing, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, nil, channels,
+					service.NewModelPricingResolver(channels, billing), nil, nil, nil,
 				)
-				cfg := &config.Config{RunMode: config.RunModeSimple}
 				billingCacheService := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)
 				t.Cleanup(billingCacheService.Stop)
 				h := &GatewayHandler{
@@ -174,7 +184,11 @@ func TestGatewayOpenAICompatibleHandlersClaudeCodeOnlyFallback(t *testing.T) {
 				require.Equal(t, fallbackAccountID, selected)
 				queried := schedulerCache.queriedGroupIDs()
 				require.Contains(t, queried, fallbackGroupID)
-				require.NotContains(t, queried, primaryGroupID)
+				// 锁价冻结会为自己的候选分组读一次调度快照（这是冻结账号→上游模型
+				// 映射所必需的只读查询，不等于选中该分组），因此这里断言最后一次
+				// 调度查询落在 fallback，实际选中的账号也来自 fallback（见上一条）。
+				require.Equal(t, fallbackGroupID, queried[len(queried)-1],
+					"account selection must run on the fallback group")
 			})
 		}
 	}

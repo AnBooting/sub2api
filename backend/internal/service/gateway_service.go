@@ -702,6 +702,15 @@ type UpstreamFailoverError struct {
 	NextAccountAction        NextAccountAction
 	ClientStatusCode         int
 	ClientMessage            string
+
+	// FailureClass 是 TS-02 S5（C-5）的故障五分类。字段追加在结构体末尾，保持
+	// 既有 composite literal 的源码兼容（全部具名字段，且无按位置初始化）。
+	//
+	// 语义约束：本字段只作记录 / 结构化日志 / S6 组循环输入，**不参与任何分支
+	// 判断**；重试与换号决策仍完全由 ShouldRetryNextAccount() 决定。零值表示
+	// 出口未显式设置，读取方应使用 Classify()（按现有字段动态推导），不要直接
+	// 比较本字段。
+	FailureClass FailureClass
 }
 
 func (e *UpstreamFailoverError) Error() string {
@@ -722,8 +731,11 @@ func (e *UpstreamFailoverError) IsCredentialFailure() bool {
 // ShouldReportAccountScheduleFailure prevents provider- and request-scoped
 // credential failures from being misattributed to the selected account. Legacy
 // and inference failures retain their existing scheduler-health behavior.
+//
+// TS-02 S3b：预算耗尽发生在本站发送前，不归因到所选账号，也不得触发账号
+// 健康/调度失败上报或 API Key 健康度熔断。
 func (e *UpstreamFailoverError) ShouldReportAccountScheduleFailure() bool {
-	if e == nil {
+	if e == nil || e.Reason == RequestAttemptBudgetReason {
 		return false
 	}
 	return !e.IsCredentialFailure() || e.Scope == GatewayFailureScopeAccount
@@ -1352,7 +1364,7 @@ func (s *GatewayService) DoGrokNativeResponsesJSON(ctx context.Context, account 
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	resp, err := s.httpUpstream.Do(upstreamReq, proxyURL, account.ID, account.Concurrency)
+	resp, err := sendUpstreamWithBudget(s.httpUpstream, upstreamReq, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
 		return nil, &UpstreamFailoverError{StatusCode: http.StatusBadGateway, Reason: GatewayFailureReason("grok_search_transport")}
 	}

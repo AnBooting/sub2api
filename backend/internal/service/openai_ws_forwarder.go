@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/tidwall/gjson"
 	"math/rand"
 	"strings"
 	"time"
@@ -94,6 +95,44 @@ type openAIWSIngressTurnError struct {
 	stage           string
 	cause           error
 	wroteDownstream bool
+}
+
+// OpenAIWSNativeResume carries only a retry-safe native turn, never a first-frame fallback.
+type OpenAIWSNativeResume struct {
+	LogicalTurnID    int
+	CanonicalPayload []byte
+	Context          context.Context
+	OriginalModel    string
+}
+type openAIWSNativeResumeError struct {
+	cause  error
+	resume OpenAIWSNativeResume
+}
+
+func (e *openAIWSNativeResumeError) Error() string { return e.cause.Error() }
+func (e *openAIWSNativeResumeError) Unwrap() error { return e.cause }
+func OpenAIWSNativeResumeFromError(err error) (OpenAIWSNativeResume, bool) {
+	var e *openAIWSNativeResumeError
+	if !errors.As(err, &e) || e == nil {
+		return OpenAIWSNativeResume{}, false
+	}
+	v := e.resume
+	v.CanonicalPayload = append([]byte(nil), v.CanonicalPayload...)
+	return v, true
+}
+func newOpenAIWSNativeResumeError(err error, turn int, payload []byte, ctx context.Context, model string) error {
+	var visible *openAIWSIngressTurnError
+	if errors.As(err, &visible) && visible.wroteDownstream {
+		return err
+	}
+	var failover *UpstreamFailoverError
+	if !errors.As(err, &failover) || !failover.ShouldRetryNextAccount() {
+		return err
+	}
+	if gjson.GetBytes(payload, "previous_response_id").String() != "" || openAIWSRawPayloadHasToolCallOutput(payload) {
+		return err
+	}
+	return &openAIWSNativeResumeError{cause: err, resume: OpenAIWSNativeResume{LogicalTurnID: turn, CanonicalPayload: append([]byte(nil), payload...), Context: ctx, OriginalModel: model}}
 }
 
 type openAIWSCurrentTurnFailoverError struct {
@@ -243,6 +282,8 @@ func (e *OpenAIWSClientCloseError) Reason() string {
 
 // OpenAIWSIngressHooks 定义入站 WS 每个 turn 的生命周期回调。
 type OpenAIWSIngressHooks struct {
+	// LogicalTurnOffset maps local turn 1 to a resumed logical turn. Zero preserves existing callbacks.
+	LogicalTurnOffset int
 	// ClientLifecycleContext is the request context before an ingress lease
 	// adds its independent cancellation signal. Downstream writes bind to it
 	// so shutdown and disconnect cancellation remain direct during lease loss.
@@ -266,9 +307,42 @@ type OpenAIWSIngressHooks struct {
 	// MapRequestModel resolves the current turn's client model to the model
 	// that must be written into the upstream response.create frame.
 	MapRequestModel func(turn int, originalModel string) (string, error)
-	AfterTurn       func(turn int, result *OpenAIForwardResult, turnErr error)
+	// TurnContext returns the context that should be used for this turn's
+	// real upstream sends. It lets handlers mount a fresh request attempt
+	// budget per WebSocket turn; nil means use the connection context.
+	TurnContext func(turn int) context.Context
+	AfterTurn   func(turn int, result *OpenAIForwardResult, turnErr error)
 }
 
+// WithLogicalTurnOffset adapts callbacks, not wire state or retry counters.
+// The returned copy clears its offset so nested ingress cannot apply it twice.
+func (h *OpenAIWSIngressHooks) WithLogicalTurnOffset() *OpenAIWSIngressHooks {
+	if h == nil || h.LogicalTurnOffset <= 0 {
+		return h
+	}
+	out := *h
+	offset := h.LogicalTurnOffset
+	out.LogicalTurnOffset = 0
+	if h.TurnStarted != nil {
+		out.TurnStarted = func(t int, at time.Time) { h.TurnStarted(t+offset, at) }
+	}
+	if h.BeforeTurn != nil {
+		out.BeforeTurn = func(t int) error { return h.BeforeTurn(t + offset) }
+	}
+	if h.BeforeRequest != nil {
+		out.BeforeRequest = func(t int, p []byte, m string) error { return h.BeforeRequest(t+offset, p, m) }
+	}
+	if h.MapRequestModel != nil {
+		out.MapRequestModel = func(t int, m string) (string, error) { return h.MapRequestModel(t+offset, m) }
+	}
+	if h.TurnContext != nil {
+		out.TurnContext = func(t int) context.Context { return h.TurnContext(t + offset) }
+	}
+	if h.AfterTurn != nil {
+		out.AfterTurn = func(t int, r *OpenAIForwardResult, e error) { h.AfterTurn(t+offset, r, e) }
+	}
+	return &out
+}
 func (s *OpenAIGatewayService) getOpenAIWSConnPool() *openAIWSConnPool {
 	if s == nil {
 		return nil

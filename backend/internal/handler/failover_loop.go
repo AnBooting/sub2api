@@ -76,6 +76,35 @@ func sameAccountRetryDelayFor(failoverErr *service.UpstreamFailoverError, retryC
 	return delay
 }
 
+// clampFailoverDelayToBudget 把退避等待钳到请求预算的剩余时间（TS-02 S3）。
+//
+// 必须显式判 nil：Remaining() 对 nil 预算返回 0，写成 min 会把无预算请求的退避
+// 全压成 0（反而放大上游压力），所以只在预算非 nil 且剩余时间更短时才缩短。
+func clampFailoverDelayToBudget(ctx context.Context, delay time.Duration) time.Duration {
+	if budget := service.RequestAttemptBudgetFromContext(ctx); budget != nil && budget.Remaining() < delay {
+		return budget.Remaining()
+	}
+	return delay
+}
+
+// requestAttemptBudgetExhausted 报告单逻辑请求预算是否已用尽（TS-02 S3），
+// 并在耗尽时记一条带 used/max/deadline 的 WARN。nil 预算（未接线入口）返回 false：
+// 无预算 = 不限制，既有行为不变。
+func requestAttemptBudgetExhausted(ctx context.Context, stage string) bool {
+	budget := service.RequestAttemptBudgetFromContext(ctx)
+	if budget == nil || !budget.Exhausted() {
+		return false
+	}
+	logger.FromContext(ctx).Warn("gateway.request_attempt_budget_exhausted",
+		zap.String("stage", stage),
+		zap.Int("budget_used", budget.Used()),
+		zap.Int("budget_max", budget.MaxSends()),
+		zap.String("budget_deadline", budget.Deadline().Format(time.RFC3339Nano)),
+		zap.String("budget_remaining", budget.Remaining().String()),
+	)
+	return true
+}
+
 func sameAccountRetryAllowed(failoverErr *service.UpstreamFailoverError, retryCount, retryLimit int) bool {
 	if failoverErr == nil || !failoverErr.RetryableOnSameAccount {
 		return false
@@ -203,6 +232,14 @@ func (s *FailoverState) HandleFailoverError(
 	if ctx != nil && ctx.Err() != nil {
 		return FailoverCanceled
 	}
+	// TS-02 S3：预算已耗尽时不再重试、不再换号，直接按耗尽终止。
+	// 原较小限制优先：预算只是二级上限，MaxSwitches / retryLimit 仍各自生效。
+	// LastFailoverErr 必须指向预算错误本身，避免出口拿到上一次真实上游错误，
+	// 被通用 writer 误写 Ops 上游错误/错误状态码。
+	if requestAttemptBudgetExhausted(ctx, "handle_failover_error") {
+		s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
+		return FailoverExhausted
+	}
 	s.LastFailoverErr = failoverErr
 	if failoverErr == nil || !failoverErr.ShouldRetryNextAccount() {
 		return FailoverExhausted
@@ -219,7 +256,8 @@ func (s *FailoverState) HandleFailoverError(
 	// 重试次数上限 retryLimit 由调用方传入（账号级 pool_mode_retry_count 配置）。
 	if sameAccountRetry {
 		s.SameAccountRetryCount[accountID]++
-		retryDelay := sameAccountRetryDelayFor(failoverErr, s.SameAccountRetryCount[accountID])
+		// TS-02 S3：退避钳到预算剩余时间（nil 预算不钳）。
+		retryDelay := clampFailoverDelayToBudget(ctx, sameAccountRetryDelayFor(failoverErr, s.SameAccountRetryCount[accountID]))
 		logger.FromContext(ctx).Warn("gateway.failover_same_account_retry",
 			zap.Int64("account_id", accountID),
 			zap.Int("upstream_status", failoverErr.StatusCode),
@@ -229,6 +267,12 @@ func (s *FailoverState) HandleFailoverError(
 		)
 		if !sleepWithContext(ctx, retryDelay) {
 			return FailoverCanceled
+		}
+		// 退避期间预算可能刚好用尽：返回 Continue 前复查，避免用已耗尽的预算
+		// 发起下一次真实上游发送（钳制后的等待正好吃掉剩余预算时必命中）。
+		if requestAttemptBudgetExhausted(ctx, "handle_failover_error_same_account_after_backoff") {
+			s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
+			return FailoverExhausted
 		}
 		return FailoverContinue
 	}
@@ -255,12 +299,19 @@ func (s *FailoverState) HandleFailoverError(
 		zap.Int("max_switches", s.MaxSwitches),
 	)
 
-	// Antigravity 平台换号线性递增延时
+	// Antigravity 平台换号线性递增延时（TS-02 S3：同样钳到预算剩余时间）
 	if platform == service.PlatformAntigravity {
-		delay := time.Duration(s.SwitchCount-1) * time.Second
+		delay := clampFailoverDelayToBudget(ctx, time.Duration(s.SwitchCount-1)*time.Second)
 		if !sleepWithContext(ctx, delay) {
 			return FailoverCanceled
 		}
+	}
+
+	// 退避期间预算可能刚好用尽：返回 Continue 前再确认一次，避免用已耗尽的
+	// 预算启动下一次真实上游发送。
+	if requestAttemptBudgetExhausted(ctx, "handle_failover_error_after_backoff") {
+		s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
+		return FailoverExhausted
 	}
 
 	return FailoverContinue
@@ -280,6 +331,12 @@ func (s *FailoverState) HandleSelectionExhausted(ctx context.Context) FailoverAc
 		return FailoverCanceled
 	}
 
+	// TS-02 S3：预算已耗尽时不再退避重选，直接按耗尽终止。
+	if requestAttemptBudgetExhausted(ctx, "handle_selection_exhausted") {
+		s.LastFailoverErr = service.NewRequestAttemptBudgetFailoverError()
+		return FailoverExhausted
+	}
+
 	if s.LastFailoverErr != nil &&
 		s.LastFailoverErr.StatusCode == http.StatusServiceUnavailable &&
 		s.SwitchCount <= s.MaxSwitches {
@@ -295,12 +352,13 @@ func (s *FailoverState) HandleSelectionExhausted(ctx context.Context) FailoverAc
 			return FailoverExhausted
 		}
 
+		backoffDelay := clampFailoverDelayToBudget(ctx, singleAccountBackoffDelay)
 		logger.FromContext(ctx).Warn("gateway.failover_single_account_backoff",
-			zap.Duration("backoff_delay", singleAccountBackoffDelay),
+			zap.Duration("backoff_delay", backoffDelay),
 			zap.Int("switch_count", s.SwitchCount),
 			zap.Int("max_switches", s.MaxSwitches),
 		)
-		if !sleepWithContext(ctx, singleAccountBackoffDelay) {
+		if !sleepWithContext(ctx, backoffDelay) {
 			return FailoverCanceled
 		}
 		logger.FromContext(ctx).Warn("gateway.failover_single_account_retry",

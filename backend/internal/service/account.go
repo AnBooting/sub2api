@@ -166,6 +166,15 @@ func (a *Account) BillingRateMultiplier() float64 {
 	return *a.RateMultiplier
 }
 
+// HasAvailableConcurrency is a snapshot hint; atomic slot acquisition remains
+// authoritative. Waiting requests and the legacy load factor are not capacity.
+// Non-positive concurrency preserves the unlimited-account contract.
+func (a *Account) HasAvailableConcurrency(load *AccountLoadInfo) bool {
+	return a != nil && (a.Concurrency <= 0 || load == nil || load.CurrentConcurrency < a.Concurrency)
+}
+
+// EffectiveLoadFactor preserves the legacy configuration contract. It must not
+// be used as a physical concurrency limit or the denominator of active load.
 func (a *Account) EffectiveLoadFactor() int {
 	if a == nil {
 		return 1

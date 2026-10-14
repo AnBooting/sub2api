@@ -200,7 +200,7 @@ func (s *GatewayService) executeBedrockUpstream(
 			return nil, err
 		}
 
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, nil)
+		resp, err = sendUpstreamWithBudget(s.httpUpstream, upstreamReq, proxyURL, account.ID, account.Concurrency, nil)
 		if err != nil {
 			if resp != nil && resp.Body != nil {
 				_ = resp.Body.Close()
@@ -217,7 +217,8 @@ func (s *GatewayService) executeBedrockUpstream(
 					break
 				}
 
-				delay := retryBackoffDelay(attempt)
+				// TS-02 S3b：先钳到请求预算剩余时间，再受既有总耗时上限约束。
+				delay := retryBackoffDelayWithBudget(ctx, attempt)
 				remaining := maxRetryElapsed - elapsed
 				if delay > remaining {
 					delay = remaining

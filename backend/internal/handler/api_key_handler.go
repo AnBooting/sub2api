@@ -3,6 +3,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"math"
 	"strconv"
@@ -32,13 +33,16 @@ func NewAPIKeyHandler(apiKeyService *service.APIKeyService) *APIKeyHandler {
 
 // CreateAPIKeyRequest represents the create API key request payload
 type CreateAPIKeyRequest struct {
-	Name          string   `json:"name" binding:"required"`
-	GroupID       *int64   `json:"group_id"`        // nullable
-	CustomKey     *string  `json:"custom_key"`      // 可选的自定义key
-	IPWhitelist   []string `json:"ip_whitelist"`    // IP 白名单
-	IPBlacklist   []string `json:"ip_blacklist"`    // IP 黑名单
-	Quota         *float64 `json:"quota"`           // 配额限制 (USD)
-	ExpiresInDays *int     `json:"expires_in_days"` // 过期天数
+	Name            string                     `json:"name" binding:"required"`
+	GroupID         *int64                     `json:"group_id"` // nullable
+	GroupIDProvided bool                       `json:"-"`
+	Groups          *[]service.APIKeyGroupLink `json:"groups"`
+	GroupsNull      bool                       `json:"-"`
+	CustomKey       *string                    `json:"custom_key"`      // 可选的自定义key
+	IPWhitelist     []string                   `json:"ip_whitelist"`    // IP 白名单
+	IPBlacklist     []string                   `json:"ip_blacklist"`    // IP 黑名单
+	Quota           *float64                   `json:"quota"`           // 配额限制 (USD)
+	ExpiresInDays   *int                       `json:"expires_in_days"` // 过期天数
 
 	// Rate limit fields (0 = unlimited)
 	RateLimit5h *float64 `json:"rate_limit_5h"`
@@ -48,20 +52,44 @@ type CreateAPIKeyRequest struct {
 
 // UpdateAPIKeyRequest represents the update API key request payload
 type UpdateAPIKeyRequest struct {
-	Name        string    `json:"name"`
-	GroupID     *int64    `json:"group_id"`
-	Status      string    `json:"status" binding:"omitempty,oneof=active inactive"`
-	IPWhitelist *[]string `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
-	IPBlacklist *[]string `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
-	Quota       *float64  `json:"quota"`        // 配额限制 (USD), 0=无限制
-	ExpiresAt   *string   `json:"expires_at"`   // 过期时间 (ISO 8601)
-	ResetQuota  *bool     `json:"reset_quota"`  // 重置已用配额
+	Name                       string                     `json:"name"`
+	GroupID                    *int64                     `json:"group_id"`
+	GroupIDProvided            bool                       `json:"-"`
+	Groups                     *[]service.APIKeyGroupLink `json:"groups"`
+	GroupsNull                 bool                       `json:"-"`
+	ExpectedGroupChainRevision *int64                     `json:"expected_group_chain_revision"`
+	Status                     string                     `json:"status" binding:"omitempty,oneof=active inactive"`
+	IPWhitelist                *[]string                  `json:"ip_whitelist"` // IP 白名单（nil 不修改，空数组清空）
+	IPBlacklist                *[]string                  `json:"ip_blacklist"` // IP 黑名单（nil 不修改，空数组清空）
+	Quota                      *float64                   `json:"quota"`        // 配额限制 (USD), 0=无限制
+	ExpiresAt                  *string                    `json:"expires_at"`   // 过期时间 (ISO 8601)
+	ResetQuota                 *bool                      `json:"reset_quota"`  // 重置已用配额
 
 	// Rate limit fields (nil = no change, 0 = unlimited)
 	RateLimit5h         *float64 `json:"rate_limit_5h"`
 	RateLimit1d         *float64 `json:"rate_limit_1d"`
 	RateLimit7d         *float64 `json:"rate_limit_7d"`
 	ResetRateLimitUsage *bool    `json:"reset_rate_limit_usage"` // 重置限速用量
+}
+
+func (r *CreateAPIKeyRequest) UnmarshalJSON(data []byte) error {
+	type plain CreateAPIKeyRequest
+	if err := json.Unmarshal(data, (*plain)(r)); err != nil {
+		return err
+	}
+	var err error
+	r.GroupIDProvided, r.GroupsNull, err = service.APIKeyGroupChainPresence(data)
+	return err
+}
+
+func (r *UpdateAPIKeyRequest) UnmarshalJSON(data []byte) error {
+	type plain UpdateAPIKeyRequest
+	if err := json.Unmarshal(data, (*plain)(r)); err != nil {
+		return err
+	}
+	var err error
+	r.GroupIDProvided, r.GroupsNull, err = service.APIKeyGroupChainPresence(data)
+	return err
 }
 
 func validAPIKeyLimit(v float64) bool { return !math.IsNaN(v) && !math.IsInf(v, 0) && v >= 0 }
@@ -196,13 +224,22 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// Validate presence before idempotency replay can return a cached success.
+	if err := service.ValidateAPIKeyGroupChainInput(req.GroupID, req.GroupIDProvided, req.Groups, req.GroupsNull, false, true, nil); err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+
 	svcReq := service.CreateAPIKeyRequest{
-		Name:          req.Name,
-		GroupID:       req.GroupID,
-		CustomKey:     req.CustomKey,
-		IPWhitelist:   req.IPWhitelist,
-		IPBlacklist:   req.IPBlacklist,
-		ExpiresInDays: req.ExpiresInDays,
+		Name:            req.Name,
+		GroupID:         req.GroupID,
+		GroupIDProvided: req.GroupIDProvided,
+		Groups:          req.Groups,
+		GroupsNull:      req.GroupsNull,
+		CustomKey:       req.CustomKey,
+		IPWhitelist:     req.IPWhitelist,
+		IPBlacklist:     req.IPBlacklist,
+		ExpiresInDays:   req.ExpiresInDays,
 	}
 	if req.Quota != nil {
 		svcReq.Quota = *req.Quota
@@ -265,6 +302,10 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 		svcReq.Name = &req.Name
 	}
 	svcReq.GroupID = req.GroupID
+	svcReq.GroupIDProvided = req.GroupIDProvided
+	svcReq.Groups = req.Groups
+	svcReq.GroupsNull = req.GroupsNull
+	svcReq.ExpectedGroupChainRevision = req.ExpectedGroupChainRevision
 	if req.Status != "" {
 		svcReq.Status = &req.Status
 	}

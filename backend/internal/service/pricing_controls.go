@@ -13,15 +13,18 @@ var ErrPricingPullDisabled = errors.New("remote model pricing pull is disabled")
 
 // PricingControls is persisted before use, including before startup fetches.
 type PricingControls struct {
-	RemoteEnabled    bool `json:"remote_enabled"`
-	NativeCNYEnabled bool `json:"native_cny_enabled"`
+	RemoteEnabled    bool                `json:"remote_enabled"`
+	NativeCNYEnabled bool                `json:"native_cny_enabled"`
+	DeepSeekHolidays map[string][]string `json:"deepseek_holidays"`
 }
 
 func (s *PricingService) controlsLocked() PricingControls {
 	if s.controls != nil {
-		return *s.controls
+		clone := *s.controls
+		clone.DeepSeekHolidays = cloneDeepSeekHolidays(clone.DeepSeekHolidays)
+		return clone
 	}
-	c := PricingControls{RemoteEnabled: true}
+	c := PricingControls{RemoteEnabled: true, DeepSeekHolidays: map[string][]string{}}
 	if s.cfg != nil {
 		if s.cfg.Pricing.RemoteEnabled != nil {
 			c.RemoteEnabled = *s.cfg.Pricing.RemoteEnabled
@@ -61,7 +64,9 @@ func (s *PricingService) GetPricingControlStatus() map[string]any {
 	defer s.mu.RUnlock()
 	return map[string]any{
 		"remote_enabled": controls.RemoteEnabled, "native_cny_enabled": controls.NativeCNYEnabled,
-		"usd_model_count": len(s.pricingData), "usd_last_updated": s.lastUpdated,
+		"deepseek_holidays":              controls.DeepSeekHolidays,
+		"deepseek_calendar_year_missing": chooseDeepSeekPricingPeriod(time.Now(), controls.DeepSeekHolidays).CalendarYearMissing,
+		"usd_model_count":                len(s.pricingData), "usd_last_updated": s.lastUpdated,
 		"cny_model_count": len(s.nativeCNYCards), "cny_last_updated": s.nativeCNYUpdated, "cny_error": s.nativeCNYError,
 	}
 }
@@ -79,6 +84,10 @@ func (s *PricingService) loadControls(ctx context.Context) error {
 		if err := json.Unmarshal([]byte(raw), &controls); err != nil {
 			return err
 		}
+		if err := validateDeepSeekHolidays(controls.DeepSeekHolidays); err != nil {
+			return err
+		}
+		controls.DeepSeekHolidays = cloneDeepSeekHolidays(controls.DeepSeekHolidays)
 		s.controls = &controls
 	} else {
 		// Persist configuration defaults so checkout and public settings share
@@ -95,8 +104,20 @@ func (s *PricingService) loadControls(ctx context.Context) error {
 }
 
 func (s *PricingService) UpdateControls(ctx context.Context, controls PricingControls) error {
+	if err := validateDeepSeekHolidays(controls.DeepSeekHolidays); err != nil {
+		return err
+	}
+	if controls.DeepSeekHolidays != nil {
+		controls.DeepSeekHolidays = cloneDeepSeekHolidays(controls.DeepSeekHolidays)
+	}
 	s.controlsMu.Lock()
 	defer s.controlsMu.Unlock()
+	// nil means the caller omitted the calendar. Preserve the latest version
+	// inside the same serialized write that persists switches and publishes memory.
+	// A non-nil empty map is an explicit clear. Never merge a handler snapshot.
+	if controls.DeepSeekHolidays == nil {
+		controls.DeepSeekHolidays = s.controlsLocked().DeepSeekHolidays
+	}
 	if s.settingsRepo != nil {
 		body, err := json.Marshal(controls)
 		if err != nil {

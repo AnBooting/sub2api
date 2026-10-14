@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqljson"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
@@ -97,6 +98,27 @@ func (_u *APIKeyUpdate) SetNillableName(v *string) *APIKeyUpdate {
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (_u *APIKeyUpdate) SetGroupChainRevision(v int64) *APIKeyUpdate {
+	_u.mutation.ResetGroupChainRevision()
+	_u.mutation.SetGroupChainRevision(v)
+	return _u
+}
+
+// SetNillableGroupChainRevision sets the "group_chain_revision" field if the given value is not nil.
+func (_u *APIKeyUpdate) SetNillableGroupChainRevision(v *int64) *APIKeyUpdate {
+	if v != nil {
+		_u.SetGroupChainRevision(*v)
+	}
+	return _u
+}
+
+// AddGroupChainRevision adds value to the "group_chain_revision" field.
+func (_u *APIKeyUpdate) AddGroupChainRevision(v int64) *APIKeyUpdate {
+	_u.mutation.AddGroupChainRevision(v)
 	return _u
 }
 
@@ -463,6 +485,21 @@ func (_u *APIKeyUpdate) AddUsageLogs(v ...*UsageLog) *APIKeyUpdate {
 	return _u.AddUsageLogIDs(ids...)
 }
 
+// AddGroupLinkIDs adds the "group_links" edge to the APIKeyGroupLink entity by IDs.
+func (_u *APIKeyUpdate) AddGroupLinkIDs(ids ...int64) *APIKeyUpdate {
+	_u.mutation.AddGroupLinkIDs(ids...)
+	return _u
+}
+
+// AddGroupLinks adds the "group_links" edges to the APIKeyGroupLink entity.
+func (_u *APIKeyUpdate) AddGroupLinks(v ...*APIKeyGroupLink) *APIKeyUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddGroupLinkIDs(ids...)
+}
+
 // Mutation returns the APIKeyMutation object of the builder.
 func (_u *APIKeyUpdate) Mutation() *APIKeyMutation {
 	return _u.mutation
@@ -499,6 +536,27 @@ func (_u *APIKeyUpdate) RemoveUsageLogs(v ...*UsageLog) *APIKeyUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveUsageLogIDs(ids...)
+}
+
+// ClearGroupLinks clears all "group_links" edges to the APIKeyGroupLink entity.
+func (_u *APIKeyUpdate) ClearGroupLinks() *APIKeyUpdate {
+	_u.mutation.ClearGroupLinks()
+	return _u
+}
+
+// RemoveGroupLinkIDs removes the "group_links" edge to APIKeyGroupLink entities by IDs.
+func (_u *APIKeyUpdate) RemoveGroupLinkIDs(ids ...int64) *APIKeyUpdate {
+	_u.mutation.RemoveGroupLinkIDs(ids...)
+	return _u
+}
+
+// RemoveGroupLinks removes "group_links" edges to APIKeyGroupLink entities.
+func (_u *APIKeyUpdate) RemoveGroupLinks(v ...*APIKeyGroupLink) *APIKeyUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveGroupLinkIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -555,6 +613,11 @@ func (_u *APIKeyUpdate) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "APIKey.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupChainRevision(); ok {
+		if err := apikey.GroupChainRevisionValidator(v); err != nil {
+			return &ValidationError{Name: "group_chain_revision", err: fmt.Errorf(`ent: validator failed for field "APIKey.group_chain_revision": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := apikey.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "APIKey.status": %w`, err)}
@@ -592,6 +655,12 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(apikey.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupChainRevision(); ok {
+		_spec.SetField(apikey.FieldGroupChainRevision, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGroupChainRevision(); ok {
+		_spec.AddField(apikey.FieldGroupChainRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
@@ -799,6 +868,51 @@ func (_u *APIKeyUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 		}
 		_spec.Edges.Add = append(_spec.Edges.Add, edge)
 	}
+	if _u.mutation.GroupLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedGroupLinksIDs(); len(nodes) > 0 && !_u.mutation.GroupLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.GroupLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
 	if _node, err = sqlgraph.UpdateNodes(ctx, _u.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
 			err = &NotFoundError{apikey.Label}
@@ -884,6 +998,27 @@ func (_u *APIKeyUpdateOne) SetNillableName(v *string) *APIKeyUpdateOne {
 	if v != nil {
 		_u.SetName(*v)
 	}
+	return _u
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (_u *APIKeyUpdateOne) SetGroupChainRevision(v int64) *APIKeyUpdateOne {
+	_u.mutation.ResetGroupChainRevision()
+	_u.mutation.SetGroupChainRevision(v)
+	return _u
+}
+
+// SetNillableGroupChainRevision sets the "group_chain_revision" field if the given value is not nil.
+func (_u *APIKeyUpdateOne) SetNillableGroupChainRevision(v *int64) *APIKeyUpdateOne {
+	if v != nil {
+		_u.SetGroupChainRevision(*v)
+	}
+	return _u
+}
+
+// AddGroupChainRevision adds value to the "group_chain_revision" field.
+func (_u *APIKeyUpdateOne) AddGroupChainRevision(v int64) *APIKeyUpdateOne {
+	_u.mutation.AddGroupChainRevision(v)
 	return _u
 }
 
@@ -1250,6 +1385,21 @@ func (_u *APIKeyUpdateOne) AddUsageLogs(v ...*UsageLog) *APIKeyUpdateOne {
 	return _u.AddUsageLogIDs(ids...)
 }
 
+// AddGroupLinkIDs adds the "group_links" edge to the APIKeyGroupLink entity by IDs.
+func (_u *APIKeyUpdateOne) AddGroupLinkIDs(ids ...int64) *APIKeyUpdateOne {
+	_u.mutation.AddGroupLinkIDs(ids...)
+	return _u
+}
+
+// AddGroupLinks adds the "group_links" edges to the APIKeyGroupLink entity.
+func (_u *APIKeyUpdateOne) AddGroupLinks(v ...*APIKeyGroupLink) *APIKeyUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddGroupLinkIDs(ids...)
+}
+
 // Mutation returns the APIKeyMutation object of the builder.
 func (_u *APIKeyUpdateOne) Mutation() *APIKeyMutation {
 	return _u.mutation
@@ -1286,6 +1436,27 @@ func (_u *APIKeyUpdateOne) RemoveUsageLogs(v ...*UsageLog) *APIKeyUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveUsageLogIDs(ids...)
+}
+
+// ClearGroupLinks clears all "group_links" edges to the APIKeyGroupLink entity.
+func (_u *APIKeyUpdateOne) ClearGroupLinks() *APIKeyUpdateOne {
+	_u.mutation.ClearGroupLinks()
+	return _u
+}
+
+// RemoveGroupLinkIDs removes the "group_links" edge to APIKeyGroupLink entities by IDs.
+func (_u *APIKeyUpdateOne) RemoveGroupLinkIDs(ids ...int64) *APIKeyUpdateOne {
+	_u.mutation.RemoveGroupLinkIDs(ids...)
+	return _u
+}
+
+// RemoveGroupLinks removes "group_links" edges to APIKeyGroupLink entities.
+func (_u *APIKeyUpdateOne) RemoveGroupLinks(v ...*APIKeyGroupLink) *APIKeyUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveGroupLinkIDs(ids...)
 }
 
 // Where appends a list predicates to the APIKeyUpdate builder.
@@ -1355,6 +1526,11 @@ func (_u *APIKeyUpdateOne) check() error {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "APIKey.name": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.GroupChainRevision(); ok {
+		if err := apikey.GroupChainRevisionValidator(v); err != nil {
+			return &ValidationError{Name: "group_chain_revision", err: fmt.Errorf(`ent: validator failed for field "APIKey.group_chain_revision": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.Status(); ok {
 		if err := apikey.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "APIKey.status": %w`, err)}
@@ -1409,6 +1585,12 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 	}
 	if value, ok := _u.mutation.Name(); ok {
 		_spec.SetField(apikey.FieldName, field.TypeString, value)
+	}
+	if value, ok := _u.mutation.GroupChainRevision(); ok {
+		_spec.SetField(apikey.FieldGroupChainRevision, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedGroupChainRevision(); ok {
+		_spec.AddField(apikey.FieldGroupChainRevision, field.TypeInt64, value)
 	}
 	if value, ok := _u.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
@@ -1609,6 +1791,51 @@ func (_u *APIKeyUpdateOne) sqlSave(ctx context.Context) (_node *APIKey, err erro
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.GroupLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedGroupLinksIDs(); len(nodes) > 0 && !_u.mutation.GroupLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.GroupLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

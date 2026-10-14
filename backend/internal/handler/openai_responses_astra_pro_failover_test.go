@@ -80,6 +80,7 @@ func (u *astraProCapturedUpstream) snapshot() ([]string, []int64, [][]byte) {
 func newAstraProFailoverContext(t *testing.T, body string) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 	groupID := int64(3132)
+	inputPrice, outputPrice, cachePrice := 1e-6, 2e-6, 0.0
 	req := httptest.NewRequest(http.MethodPost, "/v1/responses", bytes.NewReader([]byte(body)))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
@@ -89,8 +90,9 @@ func newAstraProFailoverContext(t *testing.T, body string) (*gin.Context, *httpt
 		ID:      99,
 		GroupID: &groupID,
 		Group: &service.Group{
-			ID:       groupID,
-			Platform: service.PlatformOpenAI,
+			ID:           groupID,
+			Platform:     service.PlatformOpenAI,
+			ModelPricing: []service.ChannelModelPricing{{Models: []string{"gpt-6-astra"}, InputPrice: &inputPrice, OutputPrice: &outputPrice, CacheReadPrice: &cachePrice, CacheWritePrice: &cachePrice}},
 		},
 		User: &service.User{ID: 100},
 	})

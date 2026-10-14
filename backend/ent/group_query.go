@@ -16,6 +16,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/accountgroup"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
@@ -33,6 +34,7 @@ type GroupQuery struct {
 	inters                []Interceptor
 	predicates            []predicate.Group
 	withAPIKeys           *APIKeyQuery
+	withAPIKeyLinks       *APIKeyGroupLinkQuery
 	withRedeemCodes       *RedeemCodeQuery
 	withSubscriptions     *UserSubscriptionQuery
 	withUsageLogs         *UsageLogQuery
@@ -92,6 +94,28 @@ func (_q *GroupQuery) QueryAPIKeys() *APIKeyQuery {
 			sqlgraph.From(group.Table, group.FieldID, selector),
 			sqlgraph.To(apikey.Table, apikey.FieldID),
 			sqlgraph.Edge(sqlgraph.O2M, false, group.APIKeysTable, group.APIKeysColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryAPIKeyLinks chains the current query on the "api_key_links" edge.
+func (_q *GroupQuery) QueryAPIKeyLinks() *APIKeyGroupLinkQuery {
+	query := (&APIKeyGroupLinkClient{config: _q.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := _q.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := _q.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(group.Table, group.FieldID, selector),
+			sqlgraph.To(apikeygrouplink.Table, apikeygrouplink.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, group.APIKeyLinksTable, group.APIKeyLinksColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -446,6 +470,7 @@ func (_q *GroupQuery) Clone() *GroupQuery {
 		inters:                append([]Interceptor{}, _q.inters...),
 		predicates:            append([]predicate.Group{}, _q.predicates...),
 		withAPIKeys:           _q.withAPIKeys.Clone(),
+		withAPIKeyLinks:       _q.withAPIKeyLinks.Clone(),
 		withRedeemCodes:       _q.withRedeemCodes.Clone(),
 		withSubscriptions:     _q.withSubscriptions.Clone(),
 		withUsageLogs:         _q.withUsageLogs.Clone(),
@@ -467,6 +492,17 @@ func (_q *GroupQuery) WithAPIKeys(opts ...func(*APIKeyQuery)) *GroupQuery {
 		opt(query)
 	}
 	_q.withAPIKeys = query
+	return _q
+}
+
+// WithAPIKeyLinks tells the query-builder to eager-load the nodes that are connected to
+// the "api_key_links" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *GroupQuery) WithAPIKeyLinks(opts ...func(*APIKeyGroupLinkQuery)) *GroupQuery {
+	query := (&APIKeyGroupLinkClient{config: _q.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	_q.withAPIKeyLinks = query
 	return _q
 }
 
@@ -625,8 +661,9 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 	var (
 		nodes       = []*Group{}
 		_spec       = _q.querySpec()
-		loadedTypes = [8]bool{
+		loadedTypes = [9]bool{
 			_q.withAPIKeys != nil,
+			_q.withAPIKeyLinks != nil,
 			_q.withRedeemCodes != nil,
 			_q.withSubscriptions != nil,
 			_q.withUsageLogs != nil,
@@ -661,6 +698,13 @@ func (_q *GroupQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*Group,
 		if err := _q.loadAPIKeys(ctx, query, nodes,
 			func(n *Group) { n.Edges.APIKeys = []*APIKey{} },
 			func(n *Group, e *APIKey) { n.Edges.APIKeys = append(n.Edges.APIKeys, e) }); err != nil {
+			return nil, err
+		}
+	}
+	if query := _q.withAPIKeyLinks; query != nil {
+		if err := _q.loadAPIKeyLinks(ctx, query, nodes,
+			func(n *Group) { n.Edges.APIKeyLinks = []*APIKeyGroupLink{} },
+			func(n *Group, e *APIKeyGroupLink) { n.Edges.APIKeyLinks = append(n.Edges.APIKeyLinks, e) }); err != nil {
 			return nil, err
 		}
 	}
@@ -744,6 +788,36 @@ func (_q *GroupQuery) loadAPIKeys(ctx context.Context, query *APIKeyQuery, nodes
 		node, ok := nodeids[*fk]
 		if !ok {
 			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, *fk, n.ID)
+		}
+		assign(node, n)
+	}
+	return nil
+}
+func (_q *GroupQuery) loadAPIKeyLinks(ctx context.Context, query *APIKeyGroupLinkQuery, nodes []*Group, init func(*Group), assign func(*Group, *APIKeyGroupLink)) error {
+	fks := make([]driver.Value, 0, len(nodes))
+	nodeids := make(map[int64]*Group)
+	for i := range nodes {
+		fks = append(fks, nodes[i].ID)
+		nodeids[nodes[i].ID] = nodes[i]
+		if init != nil {
+			init(nodes[i])
+		}
+	}
+	if len(query.ctx.Fields) > 0 {
+		query.ctx.AppendFieldOnce(apikeygrouplink.FieldGroupID)
+	}
+	query.Where(predicate.APIKeyGroupLink(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(group.APIKeyLinksColumn), fks...))
+	}))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		fk := n.GroupID
+		node, ok := nodeids[fk]
+		if !ok {
+			return fmt.Errorf(`unexpected referenced foreign-key "group_id" returned %v for node %v`, fk, n.ID)
 		}
 		assign(node, n)
 	}

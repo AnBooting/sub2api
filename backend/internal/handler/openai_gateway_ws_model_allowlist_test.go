@@ -85,12 +85,14 @@ func TestOpenAIResponsesWebSocket_SubsequentTurnOmittedModelUsesSessionModel(t *
 	}
 }
 
-// 白名单关闭：不受任何影响。
+// 白名单关闭：不受任何影响。请求模型刻意不在名单内（名单只列 gpt-5.5），
+// 证明关闭时名单不参与判定。模型必须是已定价模型：本切片接入锁价后，未定价模型
+// 一律在上游请求前拒绝，这是独立于白名单的硬约束。
 func TestOpenAIResponsesWebSocket_DisabledAllowlistDoesNotInterfere(t *testing.T) {
 	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
-		firstPayload:  `{"type":"response.create","model":"gpt-4.1","stream":false}`,
+		firstPayload:  `{"type":"response.create","model":"gpt-5.4","stream":false}`,
 		secondPayload: `{"type":"response.create","model":"gpt-5.4","stream":false}`,
-		group:         wsAllowlistGroup(false, "gpt-5.4"),
+		group:         wsAllowlistGroup(false, "gpt-5.5"),
 	})
 	if len(got.clientEvents) != 2 {
 		t.Fatalf("expected two completed events, got %d", len(got.clientEvents))

@@ -27,6 +27,8 @@ const (
 	FieldKey = "key"
 	// FieldName holds the string denoting the name field in the database.
 	FieldName = "name"
+	// FieldGroupChainRevision holds the string denoting the group_chain_revision field in the database.
+	FieldGroupChainRevision = "group_chain_revision"
 	// FieldGroupID holds the string denoting the group_id field in the database.
 	FieldGroupID = "group_id"
 	// FieldStatus holds the string denoting the status field in the database.
@@ -67,6 +69,8 @@ const (
 	EdgeGroup = "group"
 	// EdgeUsageLogs holds the string denoting the usage_logs edge name in mutations.
 	EdgeUsageLogs = "usage_logs"
+	// EdgeGroupLinks holds the string denoting the group_links edge name in mutations.
+	EdgeGroupLinks = "group_links"
 	// Table holds the table name of the apikey in the database.
 	Table = "api_keys"
 	// UserTable is the table that holds the user relation/edge.
@@ -90,6 +94,13 @@ const (
 	UsageLogsInverseTable = "usage_logs"
 	// UsageLogsColumn is the table column denoting the usage_logs relation/edge.
 	UsageLogsColumn = "api_key_id"
+	// GroupLinksTable is the table that holds the group_links relation/edge.
+	GroupLinksTable = "api_key_group_links"
+	// GroupLinksInverseTable is the table name for the APIKeyGroupLink entity.
+	// It exists in this package in order to avoid circular dependency with the "apikeygrouplink" package.
+	GroupLinksInverseTable = "api_key_group_links"
+	// GroupLinksColumn is the table column denoting the group_links relation/edge.
+	GroupLinksColumn = "api_key_id"
 )
 
 // Columns holds all SQL columns for apikey fields.
@@ -101,6 +112,7 @@ var Columns = []string{
 	FieldUserID,
 	FieldKey,
 	FieldName,
+	FieldGroupChainRevision,
 	FieldGroupID,
 	FieldStatus,
 	FieldLastUsedAt,
@@ -148,6 +160,10 @@ var (
 	KeyValidator func(string) error
 	// NameValidator is a validator for the "name" field. It is called by the builders before save.
 	NameValidator func(string) error
+	// DefaultGroupChainRevision holds the default value on creation for the "group_chain_revision" field.
+	DefaultGroupChainRevision int64
+	// GroupChainRevisionValidator is a validator for the "group_chain_revision" field. It is called by the builders before save.
+	GroupChainRevisionValidator func(int64) error
 	// DefaultStatus holds the default value on creation for the "status" field.
 	DefaultStatus string
 	// StatusValidator is a validator for the "status" field. It is called by the builders before save.
@@ -206,6 +222,11 @@ func ByKey(opts ...sql.OrderTermOption) OrderOption {
 // ByName orders the results by the name field.
 func ByName(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldName, opts...).ToFunc()
+}
+
+// ByGroupChainRevision orders the results by the group_chain_revision field.
+func ByGroupChainRevision(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldGroupChainRevision, opts...).ToFunc()
 }
 
 // ByGroupID orders the results by the group_id field.
@@ -310,6 +331,20 @@ func ByUsageLogs(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newUsageLogsStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByGroupLinksCount orders the results by group_links count.
+func ByGroupLinksCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newGroupLinksStep(), opts...)
+	}
+}
+
+// ByGroupLinks orders the results by group_links terms.
+func ByGroupLinks(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newGroupLinksStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newUserStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -329,5 +364,12 @@ func newUsageLogsStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(UsageLogsInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, UsageLogsTable, UsageLogsColumn),
+	)
+}
+func newGroupLinksStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(GroupLinksInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, GroupLinksTable, GroupLinksColumn),
 	)
 }

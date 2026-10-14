@@ -1441,8 +1441,9 @@ func TestOpenAISelectAccountWithLoadAwareness_AllFullWaitPlan(t *testing.T) {
 	}
 	cache := &stubGatewayCache{}
 	concurrencyCache := stubConcurrencyCache{
+		acquireResults: map[int64]bool{1: false},
 		loadMap: map[int64]*AccountLoadInfo{
-			1: {AccountID: 1, LoadRate: 100},
+			1: {AccountID: 1, CurrentConcurrency: 1, LoadRate: 100},
 		},
 	}
 
@@ -1459,6 +1460,9 @@ func TestOpenAISelectAccountWithLoadAwareness_AllFullWaitPlan(t *testing.T) {
 	if selection == nil || selection.WaitPlan == nil {
 		t.Fatalf("expected wait plan")
 	}
+	require.False(t, selection.Acquired)
+	require.Equal(t, int64(1), selection.WaitPlan.AccountID)
+	require.Equal(t, 1, selection.WaitPlan.MaxConcurrency)
 }
 
 func TestOpenAISelectAccountWithLoadAwareness_LoadBatchErrorNoAcquire(t *testing.T) {

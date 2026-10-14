@@ -76,18 +76,12 @@ func (u *User) IsActive() bool {
 	return u.Status == StatusActive
 }
 
-// CanBindGroup checks whether a user can bind to a given group.
-// For standard groups:
-//   - Public groups (non-exclusive): bindable by every user, unless the user has
-//     RestrictPublicGroups set, in which case the group must be in AllowedGroups
-//   - Exclusive groups: only users with the group in AllowedGroups can bind
+// CanBindGroup checks binding permission. C3 public groups ignore the legacy
+// RestrictPublicGroups flag; exclusive groups still require an explicit grant.
 func (u *User) CanBindGroup(groupID int64, isExclusive bool) bool {
-	// 公开分组（非专属）：默认所有用户都可以绑定；仅当该用户开启了公开分组
-	// 限制时，才需要落在 AllowedGroups 中。
-	if !isExclusive && !u.RestrictPublicGroups {
+	if !isExclusive {
 		return true
 	}
-	// 专属分组，以及受限用户的公开分组：需要在 AllowedGroups 中
 	for _, id := range u.AllowedGroups {
 		if id == groupID {
 			return true

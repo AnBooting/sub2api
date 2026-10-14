@@ -604,7 +604,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			WaitPlan: &AccountWaitPlan{
 				AccountID:      accountID,
 				MaxConcurrency: account.Concurrency,
-				Timeout:        cfg.StickySessionWaitTimeout,
+				Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
 		}), false, nil
@@ -1341,7 +1341,7 @@ func (s *defaultOpenAIAccountScheduler) tryFallbackToWeightedSticky(
 				WaitPlan: &AccountWaitPlan{
 					AccountID:      account.ID,
 					MaxConcurrency: account.Concurrency,
-					Timeout:        cfg.StickySessionWaitTimeout,
+					Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
 					MaxWaiting:     cfg.StickySessionMaxWaiting,
 				},
 			}), nil
@@ -1479,7 +1479,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		filtered = append(filtered, account)
 		loadReq = append(loadReq, AccountWithConcurrency{
 			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
+			MaxConcurrency: account.Concurrency,
 		})
 	}
 	if len(filtered) == 0 {
@@ -1659,7 +1659,7 @@ func buildOpenAIAccountLoadRequest(accounts []*Account) []AccountWithConcurrency
 		}
 		loadReq = append(loadReq, AccountWithConcurrency{
 			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
+			MaxConcurrency: account.Concurrency,
 		})
 	}
 	return loadReq
@@ -1727,7 +1727,7 @@ func (s *defaultOpenAIAccountScheduler) finishLoadBalanceSelectionFallback(
 				WaitPlan: &AccountWaitPlan{
 					AccountID:      fresh.ID,
 					MaxConcurrency: fresh.Concurrency,
-					Timeout:        cfg.FallbackWaitTimeout,
+					Timeout:        clampAccountWaitTimeout(ctx, cfg.FallbackWaitTimeout),
 					MaxWaiting:     cfg.FallbackMaxWaiting,
 				},
 			}), candidateCount, topK, loadSkew, nil

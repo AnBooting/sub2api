@@ -47,6 +47,8 @@ type NativeCNYCard struct {
 	Provider  string          `json:"provider"`
 	Source    string          `json:"source"`
 	FetchedAt time.Time       `json:"fetched_at"`
+	deepSeek  bool
+	holidays  map[string][]string
 }
 
 func nativeModelKey(name string) string {
@@ -93,6 +95,9 @@ func validNativeRates(r NativeRates, complete bool) bool {
 	return true
 }
 func validNativeCard(c *NativeCNYCard) bool {
+	if c == nil {
+		return false
+	}
 	if !validNativeRates(c.NativeRates, true) {
 		return false
 	}
@@ -108,6 +113,9 @@ func validNativeCard(c *NativeCNYCard) bool {
 		return false
 	}
 	if c.Schedule != nil {
+		if !validNativeScheduleWindows(c.Schedule) {
+			return false
+		}
 		if _, err := time.LoadLocation(c.Schedule.Timezone); err != nil {
 			return false
 		}
@@ -270,34 +278,25 @@ func nativeMinute(clock string) (int, bool) {
 }
 func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 	rates, tiers := c.NativeRates, c.Tiers
-	if c.Schedule != nil {
+	period := chooseDeepSeekPricingPeriod(at, c.holidays)
+	if c.deepSeek {
+		warnMissingDeepSeekCalendar(period, at)
+	}
+	matchedWindow := false
+	if c.Schedule != nil && (!c.deepSeek || period.Label == "peak") {
 		loc, _ := time.LoadLocation(c.Schedule.Timezone)
 		now := at.In(loc)
-		minute := now.Hour()*60 + now.Minute()
 		for _, w := range c.Schedule.Windows {
-			day := false
-			for _, d := range w.Weekdays {
-				if d == int(now.Weekday()) {
-					day = true
+			if nativeWindowMatches(w, int(now.Weekday()), now.Hour()*60+now.Minute()) {
+				if c.deepSeek {
+					rates = scaleNativeRates(rates, period.multiplier())
+					tiers = scaleNativeTiers(tiers, period.multiplier())
 				}
-			}
-			if !day {
-				continue
-			}
-			matched := false
-			for _, hours := range w.HourRanges {
-				parts := strings.Split(hours, "-")
-				start, _ := nativeMinute(parts[0])
-				end, _ := nativeMinute(parts[1])
-				if (start < end && minute >= start && minute < end) || (start > end && (minute >= start || minute < end)) {
-					matched = true
-				}
-			}
-			if matched {
 				rates = mergeNativeRates(rates, w.NativeRates)
 				if len(w.Tiers) > 0 {
 					tiers = w.Tiers
 				}
+				matchedWindow = true
 				break
 			}
 		}
@@ -308,6 +307,11 @@ func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 		if contextTokens > tier.Tier.Size {
 			rates = mergeNativeRates(rates, tier.NativeRates)
 		}
+	}
+	// Absolute native peak windows already contain the peak price. If the
+	// source only supplies base rates, apply the approved 2x policy once.
+	if c.deepSeek && !matchedWindow {
+		rates = scaleNativeRates(rates, period.multiplier())
 	}
 	return rates
 }
@@ -451,9 +455,16 @@ func (s *PricingService) nativePricingAt(model string, at time.Time) (*ModelPric
 	s.mu.RLock()
 	card := s.nativeCNYCards[nativeModelKey(model)]
 	s.mu.RUnlock()
-	if card == nil {
-		return nil, fmt.Errorf("%w: no original CNY price for %s", ErrModelPricingUnavailable, model)
+	if !validNativeCard(card) {
+		return nil, fmt.Errorf("%w: no valid original CNY price for %s", ErrModelPricingUnavailable, model)
 	}
+	// The calendar belongs to this resolved card, not to mutable live controls.
+	clone := *card
+	clone.deepSeek = isDeepSeekModel(model)
+	if clone.deepSeek {
+		clone.holidays = s.GetControls().DeepSeekHolidays
+	}
+	card = &clone
 	rates := card.ratesAt(0, at)
 	p := &ModelPricing{Currency: "CNY", PricingSource: card.Source, NativeCard: card, NativePricingAt: at, CacheCreationPriceExplicit: true}
 	applyNativeRates(p, rates)
@@ -475,7 +486,13 @@ func applyNativeRates(p *ModelPricing, r NativeRates) {
 	p.ImageCacheReadPricePerToken = 0
 }
 func resolveNativeTokenPricing(p *ModelPricing, tokens UsageTokens, at time.Time) (*ModelPricing, error) {
-	if p.NativeCard == nil {
+	if p == nil {
+		return nil, ErrModelPricingUnavailable
+	}
+	if p.tokenPricingError != nil {
+		return nil, p.tokenPricingError
+	}
+	if p.NativeCard == nil || p.manualTokenPricing {
 		return p, nil
 	}
 	if at.IsZero() {

@@ -733,6 +733,20 @@ func (s *BillingCacheService) IncrementUserPlatformQuotaUsage(userID int64, plat
 // 订阅模式：检查缓存用量未超过限额（Group限额从参数传入）
 // platform 为请求的目标平台（如 "anthropic"），传空串 "" 时跳过 user × platform quota 检查。
 func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, platform string) error {
+	if err := s.CheckFinancialEligibility(ctx, user, apiKey, group, subscription, platform); err != nil {
+		return err
+	}
+	// Simple mode historically bypasses RPM, including when key windows are enabled.
+	if s.cfg != nil && s.cfg.RunMode == config.RunModeSimple {
+		return nil
+	}
+	return s.checkRPM(ctx, user, group)
+}
+
+// CheckFinancialEligibility rechecks billing limits without counting another request
+// toward RPM. Group failover must separately enforce the destination group's RPM;
+// this method is not group authorization and does not replace subscription lookup.
+func (s *BillingCacheService) CheckFinancialEligibility(ctx context.Context, user *User, apiKey *APIKey, group *Group, subscription *UserSubscription, platform string) error {
 	// 简易模式默认跳过所有计费检查. An explicit key-window opt-in keeps
 	// balance/subscription/platform checks bypassed while enforcing the three
 	// API-key monetary windows from the database source of truth.
@@ -771,11 +785,6 @@ func (s *BillingCacheService) CheckBillingEligibility(ctx context.Context, user 
 		if err := s.checkAPIKeyRateLimits(ctx, apiKey); err != nil {
 			return err
 		}
-	}
-
-	// RPM 限流：级联回落（Override → Group → User），放在最后以避免为注定失败的请求增加计数。
-	if err := s.checkRPM(ctx, user, group); err != nil {
-		return err
 	}
 
 	return nil
@@ -822,7 +831,45 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 	if s == nil || s.userRPMCache == nil || user == nil {
 		return nil
 	}
+	if err := s.checkGroupRPM(ctx, user, group); err != nil {
+		return err
+	}
 
+	// ── 第二层：用户级全局硬上限（始终生效） ──
+	if user.RPMLimit > 0 {
+		count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
+		if err != nil {
+			logger.LegacyPrintf(
+				"service.billing_cache",
+				"Warning: rpm increment (user) failed for user=%d: %v",
+				user.ID, err,
+			)
+			return nil // fail-open
+		}
+		if count > user.RPMLimit {
+			return ErrUserRPMExceeded
+		}
+	}
+
+	return nil
+}
+
+// CheckGroupRPMEligibility counts only the destination group during group failover.
+// Global user RPM was counted at request admission and must not be incremented again.
+func (s *BillingCacheService) CheckGroupRPMEligibility(ctx context.Context, user *User, group *Group) error {
+	if s == nil || user == nil || (s.cfg != nil && s.cfg.RunMode == config.RunModeSimple) {
+		return nil
+	}
+	executionUser := *user
+	// A cached override belongs to the entry group, not the destination group.
+	executionUser.UserGroupRPMOverride = nil
+	return s.checkGroupRPM(ctx, &executionUser, group)
+}
+
+func (s *BillingCacheService) checkGroupRPM(ctx context.Context, user *User, group *Group) error {
+	if s == nil || s.userRPMCache == nil || user == nil {
+		return nil
+	}
 	// ── 第一层：分组级检查（override 或 group.rpm_limit） ──
 	if group != nil {
 		// 解析 override：优先从 auth cache snapshot，nil 时回退 DB。
@@ -871,22 +918,6 @@ func (s *BillingCacheService) checkRPM(ctx context.Context, user *User, group *G
 			} else if count > group.RPMLimit {
 				return ErrGroupRPMExceeded
 			}
-		}
-	}
-
-	// ── 第二层：用户级全局硬上限（始终生效） ──
-	if user.RPMLimit > 0 {
-		count, err := s.userRPMCache.IncrementUserRPM(ctx, user.ID)
-		if err != nil {
-			logger.LegacyPrintf(
-				"service.billing_cache",
-				"Warning: rpm increment (user) failed for user=%d: %v",
-				user.ID, err,
-			)
-			return nil // fail-open
-		}
-		if count > user.RPMLimit {
-			return ErrUserRPMExceeded
 		}
 	}
 

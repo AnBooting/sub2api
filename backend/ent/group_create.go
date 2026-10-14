@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
@@ -906,6 +907,20 @@ func (_c *GroupCreate) SetNillableProfitSafetyBuffer(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (_c *GroupCreate) SetSchedulingStrategy(v string) *GroupCreate {
+	_c.mutation.SetSchedulingStrategy(v)
+	return _c
+}
+
+// SetNillableSchedulingStrategy sets the "scheduling_strategy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSchedulingStrategy(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetSchedulingStrategy(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *GroupCreate) AddAPIKeyIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -919,6 +934,21 @@ func (_c *GroupCreate) AddAPIKeys(v ...*APIKey) *GroupCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddAPIKeyIDs(ids...)
+}
+
+// AddAPIKeyLinkIDs adds the "api_key_links" edge to the APIKeyGroupLink entity by IDs.
+func (_c *GroupCreate) AddAPIKeyLinkIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddAPIKeyLinkIDs(ids...)
+	return _c
+}
+
+// AddAPIKeyLinks adds the "api_key_links" edges to the APIKeyGroupLink entity.
+func (_c *GroupCreate) AddAPIKeyLinks(v ...*APIKeyGroupLink) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAPIKeyLinkIDs(ids...)
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
@@ -1211,6 +1241,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultProfitSafetyBuffer
 		_c.mutation.SetProfitSafetyBuffer(v)
 	}
+	if _, ok := _c.mutation.SchedulingStrategy(); !ok {
+		v := group.DefaultSchedulingStrategy
+		_c.mutation.SetSchedulingStrategy(v)
+	}
 	return nil
 }
 
@@ -1417,6 +1451,14 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ProfitSafetyBuffer(); !ok {
 		return &ValidationError{Name: "profit_safety_buffer", err: errors.New(`ent: missing required field "Group.profit_safety_buffer"`)}
+	}
+	if _, ok := _c.mutation.SchedulingStrategy(); !ok {
+		return &ValidationError{Name: "scheduling_strategy", err: errors.New(`ent: missing required field "Group.scheduling_strategy"`)}
+	}
+	if v, ok := _c.mutation.SchedulingStrategy(); ok {
+		if err := group.SchedulingStrategyValidator(v); err != nil {
+			return &ValidationError{Name: "scheduling_strategy", err: fmt.Errorf(`ent: validator failed for field "Group.scheduling_strategy": %w`, err)}
+		}
 	}
 	return nil
 }
@@ -1709,6 +1751,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 		_node.ProfitSafetyBuffer = value
 	}
+	if value, ok := _c.mutation.SchedulingStrategy(); ok {
+		_spec.SetField(group.FieldSchedulingStrategy, field.TypeString, value)
+		_node.SchedulingStrategy = value
+	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1718,6 +1764,22 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.APIKeyLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -2918,6 +2980,18 @@ func (u *GroupUpsert) UpdateProfitSafetyBuffer() *GroupUpsert {
 // AddProfitSafetyBuffer adds v to the "profit_safety_buffer" field.
 func (u *GroupUpsert) AddProfitSafetyBuffer(v float64) *GroupUpsert {
 	u.Add(group.FieldProfitSafetyBuffer, v)
+	return u
+}
+
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (u *GroupUpsert) SetSchedulingStrategy(v string) *GroupUpsert {
+	u.Set(group.FieldSchedulingStrategy, v)
+	return u
+}
+
+// UpdateSchedulingStrategy sets the "scheduling_strategy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSchedulingStrategy() *GroupUpsert {
+	u.SetExcluded(group.FieldSchedulingStrategy)
 	return u
 }
 
@@ -4198,6 +4272,20 @@ func (u *GroupUpsertOne) AddProfitSafetyBuffer(v float64) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateProfitSafetyBuffer() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateProfitSafetyBuffer()
+	})
+}
+
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (u *GroupUpsertOne) SetSchedulingStrategy(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSchedulingStrategy(v)
+	})
+}
+
+// UpdateSchedulingStrategy sets the "scheduling_strategy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSchedulingStrategy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSchedulingStrategy()
 	})
 }
 
@@ -5644,6 +5732,20 @@ func (u *GroupUpsertBulk) AddProfitSafetyBuffer(v float64) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateProfitSafetyBuffer() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateProfitSafetyBuffer()
+	})
+}
+
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (u *GroupUpsertBulk) SetSchedulingStrategy(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSchedulingStrategy(v)
+	})
+}
+
+// UpdateSchedulingStrategy sets the "scheduling_strategy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSchedulingStrategy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSchedulingStrategy()
 	})
 }
 

@@ -17,6 +17,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/ent/announcement"
 	"github.com/Wei-Shaw/sub2api/ent/announcementread"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/authidentity"
 	"github.com/Wei-Shaw/sub2api/ent/authidentitychannel"
 	"github.com/Wei-Shaw/sub2api/ent/batchimageevent"
@@ -65,6 +66,7 @@ const (
 
 	// Node types.
 	TypeAPIKey                        = "APIKey"
+	TypeAPIKeyGroupLink               = "APIKeyGroupLink"
 	TypeAccount                       = "Account"
 	TypeAccountGroup                  = "AccountGroup"
 	TypeAnnouncement                  = "Announcement"
@@ -108,51 +110,56 @@ const (
 // APIKeyMutation represents an operation that mutates the APIKey nodes in the graph.
 type APIKeyMutation struct {
 	config
-	op                 Op
-	typ                string
-	id                 *int64
-	created_at         *time.Time
-	updated_at         *time.Time
-	deleted_at         *time.Time
-	key                *string
-	name               *string
-	status             *string
-	last_used_at       *time.Time
-	ip_whitelist       *[]string
-	appendip_whitelist []string
-	ip_blacklist       *[]string
-	appendip_blacklist []string
-	quota              *float64
-	addquota           *float64
-	quota_used         *float64
-	addquota_used      *float64
-	expires_at         *time.Time
-	rate_limit_5h      *float64
-	addrate_limit_5h   *float64
-	rate_limit_1d      *float64
-	addrate_limit_1d   *float64
-	rate_limit_7d      *float64
-	addrate_limit_7d   *float64
-	usage_5h           *float64
-	addusage_5h        *float64
-	usage_1d           *float64
-	addusage_1d        *float64
-	usage_7d           *float64
-	addusage_7d        *float64
-	window_5h_start    *time.Time
-	window_1d_start    *time.Time
-	window_7d_start    *time.Time
-	clearedFields      map[string]struct{}
-	user               *int64
-	cleareduser        bool
-	group              *int64
-	clearedgroup       bool
-	usage_logs         map[int64]struct{}
-	removedusage_logs  map[int64]struct{}
-	clearedusage_logs  bool
-	done               bool
-	oldValue           func(context.Context) (*APIKey, error)
-	predicates         []predicate.APIKey
+	op                      Op
+	typ                     string
+	id                      *int64
+	created_at              *time.Time
+	updated_at              *time.Time
+	deleted_at              *time.Time
+	key                     *string
+	name                    *string
+	group_chain_revision    *int64
+	addgroup_chain_revision *int64
+	status                  *string
+	last_used_at            *time.Time
+	ip_whitelist            *[]string
+	appendip_whitelist      []string
+	ip_blacklist            *[]string
+	appendip_blacklist      []string
+	quota                   *float64
+	addquota                *float64
+	quota_used              *float64
+	addquota_used           *float64
+	expires_at              *time.Time
+	rate_limit_5h           *float64
+	addrate_limit_5h        *float64
+	rate_limit_1d           *float64
+	addrate_limit_1d        *float64
+	rate_limit_7d           *float64
+	addrate_limit_7d        *float64
+	usage_5h                *float64
+	addusage_5h             *float64
+	usage_1d                *float64
+	addusage_1d             *float64
+	usage_7d                *float64
+	addusage_7d             *float64
+	window_5h_start         *time.Time
+	window_1d_start         *time.Time
+	window_7d_start         *time.Time
+	clearedFields           map[string]struct{}
+	user                    *int64
+	cleareduser             bool
+	group                   *int64
+	clearedgroup            bool
+	usage_logs              map[int64]struct{}
+	removedusage_logs       map[int64]struct{}
+	clearedusage_logs       bool
+	group_links             map[int64]struct{}
+	removedgroup_links      map[int64]struct{}
+	clearedgroup_links      bool
+	done                    bool
+	oldValue                func(context.Context) (*APIKey, error)
+	predicates              []predicate.APIKey
 }
 
 var _ ent.Mutation = (*APIKeyMutation)(nil)
@@ -480,6 +487,62 @@ func (m *APIKeyMutation) OldName(ctx context.Context) (v string, err error) {
 // ResetName resets all changes to the "name" field.
 func (m *APIKeyMutation) ResetName() {
 	m.name = nil
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (m *APIKeyMutation) SetGroupChainRevision(i int64) {
+	m.group_chain_revision = &i
+	m.addgroup_chain_revision = nil
+}
+
+// GroupChainRevision returns the value of the "group_chain_revision" field in the mutation.
+func (m *APIKeyMutation) GroupChainRevision() (r int64, exists bool) {
+	v := m.group_chain_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupChainRevision returns the old "group_chain_revision" field's value of the APIKey entity.
+// If the APIKey object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyMutation) OldGroupChainRevision(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupChainRevision is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupChainRevision requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupChainRevision: %w", err)
+	}
+	return oldValue.GroupChainRevision, nil
+}
+
+// AddGroupChainRevision adds i to the "group_chain_revision" field.
+func (m *APIKeyMutation) AddGroupChainRevision(i int64) {
+	if m.addgroup_chain_revision != nil {
+		*m.addgroup_chain_revision += i
+	} else {
+		m.addgroup_chain_revision = &i
+	}
+}
+
+// AddedGroupChainRevision returns the value that was added to the "group_chain_revision" field in this mutation.
+func (m *APIKeyMutation) AddedGroupChainRevision() (r int64, exists bool) {
+	v := m.addgroup_chain_revision
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetGroupChainRevision resets all changes to the "group_chain_revision" field.
+func (m *APIKeyMutation) ResetGroupChainRevision() {
+	m.group_chain_revision = nil
+	m.addgroup_chain_revision = nil
 }
 
 // SetGroupID sets the "group_id" field.
@@ -1498,6 +1561,60 @@ func (m *APIKeyMutation) ResetUsageLogs() {
 	m.removedusage_logs = nil
 }
 
+// AddGroupLinkIDs adds the "group_links" edge to the APIKeyGroupLink entity by ids.
+func (m *APIKeyMutation) AddGroupLinkIDs(ids ...int64) {
+	if m.group_links == nil {
+		m.group_links = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.group_links[ids[i]] = struct{}{}
+	}
+}
+
+// ClearGroupLinks clears the "group_links" edge to the APIKeyGroupLink entity.
+func (m *APIKeyMutation) ClearGroupLinks() {
+	m.clearedgroup_links = true
+}
+
+// GroupLinksCleared reports if the "group_links" edge to the APIKeyGroupLink entity was cleared.
+func (m *APIKeyMutation) GroupLinksCleared() bool {
+	return m.clearedgroup_links
+}
+
+// RemoveGroupLinkIDs removes the "group_links" edge to the APIKeyGroupLink entity by IDs.
+func (m *APIKeyMutation) RemoveGroupLinkIDs(ids ...int64) {
+	if m.removedgroup_links == nil {
+		m.removedgroup_links = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.group_links, ids[i])
+		m.removedgroup_links[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedGroupLinks returns the removed IDs of the "group_links" edge to the APIKeyGroupLink entity.
+func (m *APIKeyMutation) RemovedGroupLinksIDs() (ids []int64) {
+	for id := range m.removedgroup_links {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// GroupLinksIDs returns the "group_links" edge IDs in the mutation.
+func (m *APIKeyMutation) GroupLinksIDs() (ids []int64) {
+	for id := range m.group_links {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetGroupLinks resets all changes to the "group_links" edge.
+func (m *APIKeyMutation) ResetGroupLinks() {
+	m.group_links = nil
+	m.clearedgroup_links = false
+	m.removedgroup_links = nil
+}
+
 // Where appends a list predicates to the APIKeyMutation builder.
 func (m *APIKeyMutation) Where(ps ...predicate.APIKey) {
 	m.predicates = append(m.predicates, ps...)
@@ -1532,7 +1649,7 @@ func (m *APIKeyMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *APIKeyMutation) Fields() []string {
-	fields := make([]string, 0, 23)
+	fields := make([]string, 0, 24)
 	if m.created_at != nil {
 		fields = append(fields, apikey.FieldCreatedAt)
 	}
@@ -1550,6 +1667,9 @@ func (m *APIKeyMutation) Fields() []string {
 	}
 	if m.name != nil {
 		fields = append(fields, apikey.FieldName)
+	}
+	if m.group_chain_revision != nil {
+		fields = append(fields, apikey.FieldGroupChainRevision)
 	}
 	if m.group != nil {
 		fields = append(fields, apikey.FieldGroupID)
@@ -1622,6 +1742,8 @@ func (m *APIKeyMutation) Field(name string) (ent.Value, bool) {
 		return m.Key()
 	case apikey.FieldName:
 		return m.Name()
+	case apikey.FieldGroupChainRevision:
+		return m.GroupChainRevision()
 	case apikey.FieldGroupID:
 		return m.GroupID()
 	case apikey.FieldStatus:
@@ -1677,6 +1799,8 @@ func (m *APIKeyMutation) OldField(ctx context.Context, name string) (ent.Value, 
 		return m.OldKey(ctx)
 	case apikey.FieldName:
 		return m.OldName(ctx)
+	case apikey.FieldGroupChainRevision:
+		return m.OldGroupChainRevision(ctx)
 	case apikey.FieldGroupID:
 		return m.OldGroupID(ctx)
 	case apikey.FieldStatus:
@@ -1761,6 +1885,13 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetName(v)
+		return nil
+	case apikey.FieldGroupChainRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupChainRevision(v)
 		return nil
 	case apikey.FieldGroupID:
 		v, ok := value.(int64)
@@ -1889,6 +2020,9 @@ func (m *APIKeyMutation) SetField(name string, value ent.Value) error {
 // this mutation.
 func (m *APIKeyMutation) AddedFields() []string {
 	var fields []string
+	if m.addgroup_chain_revision != nil {
+		fields = append(fields, apikey.FieldGroupChainRevision)
+	}
 	if m.addquota != nil {
 		fields = append(fields, apikey.FieldQuota)
 	}
@@ -1921,6 +2055,8 @@ func (m *APIKeyMutation) AddedFields() []string {
 // was not set, or was not defined in the schema.
 func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
+	case apikey.FieldGroupChainRevision:
+		return m.AddedGroupChainRevision()
 	case apikey.FieldQuota:
 		return m.AddedQuota()
 	case apikey.FieldQuotaUsed:
@@ -1946,6 +2082,13 @@ func (m *APIKeyMutation) AddedField(name string) (ent.Value, bool) {
 // type.
 func (m *APIKeyMutation) AddField(name string, value ent.Value) error {
 	switch name {
+	case apikey.FieldGroupChainRevision:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddGroupChainRevision(v)
+		return nil
 	case apikey.FieldQuota:
 		v, ok := value.(float64)
 		if !ok {
@@ -2104,6 +2247,9 @@ func (m *APIKeyMutation) ResetField(name string) error {
 	case apikey.FieldName:
 		m.ResetName()
 		return nil
+	case apikey.FieldGroupChainRevision:
+		m.ResetGroupChainRevision()
+		return nil
 	case apikey.FieldGroupID:
 		m.ResetGroupID()
 		return nil
@@ -2161,7 +2307,7 @@ func (m *APIKeyMutation) ResetField(name string) error {
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *APIKeyMutation) AddedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.user != nil {
 		edges = append(edges, apikey.EdgeUser)
 	}
@@ -2170,6 +2316,9 @@ func (m *APIKeyMutation) AddedEdges() []string {
 	}
 	if m.usage_logs != nil {
 		edges = append(edges, apikey.EdgeUsageLogs)
+	}
+	if m.group_links != nil {
+		edges = append(edges, apikey.EdgeGroupLinks)
 	}
 	return edges
 }
@@ -2192,15 +2341,24 @@ func (m *APIKeyMutation) AddedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case apikey.EdgeGroupLinks:
+		ids := make([]ent.Value, 0, len(m.group_links))
+		for id := range m.group_links {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *APIKeyMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.removedusage_logs != nil {
 		edges = append(edges, apikey.EdgeUsageLogs)
+	}
+	if m.removedgroup_links != nil {
+		edges = append(edges, apikey.EdgeGroupLinks)
 	}
 	return edges
 }
@@ -2215,13 +2373,19 @@ func (m *APIKeyMutation) RemovedIDs(name string) []ent.Value {
 			ids = append(ids, id)
 		}
 		return ids
+	case apikey.EdgeGroupLinks:
+		ids := make([]ent.Value, 0, len(m.removedgroup_links))
+		for id := range m.removedgroup_links {
+			ids = append(ids, id)
+		}
+		return ids
 	}
 	return nil
 }
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *APIKeyMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 3)
+	edges := make([]string, 0, 4)
 	if m.cleareduser {
 		edges = append(edges, apikey.EdgeUser)
 	}
@@ -2230,6 +2394,9 @@ func (m *APIKeyMutation) ClearedEdges() []string {
 	}
 	if m.clearedusage_logs {
 		edges = append(edges, apikey.EdgeUsageLogs)
+	}
+	if m.clearedgroup_links {
+		edges = append(edges, apikey.EdgeGroupLinks)
 	}
 	return edges
 }
@@ -2244,6 +2411,8 @@ func (m *APIKeyMutation) EdgeCleared(name string) bool {
 		return m.clearedgroup
 	case apikey.EdgeUsageLogs:
 		return m.clearedusage_logs
+	case apikey.EdgeGroupLinks:
+		return m.clearedgroup_links
 	}
 	return false
 }
@@ -2275,8 +2444,711 @@ func (m *APIKeyMutation) ResetEdge(name string) error {
 	case apikey.EdgeUsageLogs:
 		m.ResetUsageLogs()
 		return nil
+	case apikey.EdgeGroupLinks:
+		m.ResetGroupLinks()
+		return nil
 	}
 	return fmt.Errorf("unknown APIKey edge %s", name)
+}
+
+// APIKeyGroupLinkMutation represents an operation that mutates the APIKeyGroupLink nodes in the graph.
+type APIKeyGroupLinkMutation struct {
+	config
+	op                 Op
+	typ                string
+	id                 *int64
+	role               *apikeygrouplink.Role
+	position           *int
+	addposition        *int
+	enabled_by_user_at *time.Time
+	clearedFields      map[string]struct{}
+	api_key            *int64
+	clearedapi_key     bool
+	group              *int64
+	clearedgroup       bool
+	done               bool
+	oldValue           func(context.Context) (*APIKeyGroupLink, error)
+	predicates         []predicate.APIKeyGroupLink
+}
+
+var _ ent.Mutation = (*APIKeyGroupLinkMutation)(nil)
+
+// apikeygrouplinkOption allows management of the mutation configuration using functional options.
+type apikeygrouplinkOption func(*APIKeyGroupLinkMutation)
+
+// newAPIKeyGroupLinkMutation creates new mutation for the APIKeyGroupLink entity.
+func newAPIKeyGroupLinkMutation(c config, op Op, opts ...apikeygrouplinkOption) *APIKeyGroupLinkMutation {
+	m := &APIKeyGroupLinkMutation{
+		config:        c,
+		op:            op,
+		typ:           TypeAPIKeyGroupLink,
+		clearedFields: make(map[string]struct{}),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	return m
+}
+
+// withAPIKeyGroupLinkID sets the ID field of the mutation.
+func withAPIKeyGroupLinkID(id int64) apikeygrouplinkOption {
+	return func(m *APIKeyGroupLinkMutation) {
+		var (
+			err   error
+			once  sync.Once
+			value *APIKeyGroupLink
+		)
+		m.oldValue = func(ctx context.Context) (*APIKeyGroupLink, error) {
+			once.Do(func() {
+				if m.done {
+					err = errors.New("querying old values post mutation is not allowed")
+				} else {
+					value, err = m.Client().APIKeyGroupLink.Get(ctx, id)
+				}
+			})
+			return value, err
+		}
+		m.id = &id
+	}
+}
+
+// withAPIKeyGroupLink sets the old APIKeyGroupLink of the mutation.
+func withAPIKeyGroupLink(node *APIKeyGroupLink) apikeygrouplinkOption {
+	return func(m *APIKeyGroupLinkMutation) {
+		m.oldValue = func(context.Context) (*APIKeyGroupLink, error) {
+			return node, nil
+		}
+		m.id = &node.ID
+	}
+}
+
+// Client returns a new `ent.Client` from the mutation. If the mutation was
+// executed in a transaction (ent.Tx), a transactional client is returned.
+func (m APIKeyGroupLinkMutation) Client() *Client {
+	client := &Client{config: m.config}
+	client.init()
+	return client
+}
+
+// Tx returns an `ent.Tx` for mutations that were executed in transactions;
+// it returns an error otherwise.
+func (m APIKeyGroupLinkMutation) Tx() (*Tx, error) {
+	if _, ok := m.driver.(*txDriver); !ok {
+		return nil, errors.New("ent: mutation is not running in a transaction")
+	}
+	tx := &Tx{config: m.config}
+	tx.init()
+	return tx, nil
+}
+
+// ID returns the ID value in the mutation. Note that the ID is only available
+// if it was provided to the builder or after it was returned from the database.
+func (m *APIKeyGroupLinkMutation) ID() (id int64, exists bool) {
+	if m.id == nil {
+		return
+	}
+	return *m.id, true
+}
+
+// IDs queries the database and returns the entity ids that match the mutation's predicate.
+// That means, if the mutation is applied within a transaction with an isolation level such
+// as sql.LevelSerializable, the returned ids match the ids of the rows that will be updated
+// or updated by the mutation.
+func (m *APIKeyGroupLinkMutation) IDs(ctx context.Context) ([]int64, error) {
+	switch {
+	case m.op.Is(OpUpdateOne | OpDeleteOne):
+		id, exists := m.ID()
+		if exists {
+			return []int64{id}, nil
+		}
+		fallthrough
+	case m.op.Is(OpUpdate | OpDelete):
+		return m.Client().APIKeyGroupLink.Query().Where(m.predicates...).IDs(ctx)
+	default:
+		return nil, fmt.Errorf("IDs is not allowed on %s operations", m.op)
+	}
+}
+
+// SetAPIKeyID sets the "api_key_id" field.
+func (m *APIKeyGroupLinkMutation) SetAPIKeyID(i int64) {
+	m.api_key = &i
+}
+
+// APIKeyID returns the value of the "api_key_id" field in the mutation.
+func (m *APIKeyGroupLinkMutation) APIKeyID() (r int64, exists bool) {
+	v := m.api_key
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAPIKeyID returns the old "api_key_id" field's value of the APIKeyGroupLink entity.
+// If the APIKeyGroupLink object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyGroupLinkMutation) OldAPIKeyID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAPIKeyID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAPIKeyID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAPIKeyID: %w", err)
+	}
+	return oldValue.APIKeyID, nil
+}
+
+// ResetAPIKeyID resets all changes to the "api_key_id" field.
+func (m *APIKeyGroupLinkMutation) ResetAPIKeyID() {
+	m.api_key = nil
+}
+
+// SetGroupID sets the "group_id" field.
+func (m *APIKeyGroupLinkMutation) SetGroupID(i int64) {
+	m.group = &i
+}
+
+// GroupID returns the value of the "group_id" field in the mutation.
+func (m *APIKeyGroupLinkMutation) GroupID() (r int64, exists bool) {
+	v := m.group
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldGroupID returns the old "group_id" field's value of the APIKeyGroupLink entity.
+// If the APIKeyGroupLink object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyGroupLinkMutation) OldGroupID(ctx context.Context) (v int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldGroupID: %w", err)
+	}
+	return oldValue.GroupID, nil
+}
+
+// ResetGroupID resets all changes to the "group_id" field.
+func (m *APIKeyGroupLinkMutation) ResetGroupID() {
+	m.group = nil
+}
+
+// SetRole sets the "role" field.
+func (m *APIKeyGroupLinkMutation) SetRole(a apikeygrouplink.Role) {
+	m.role = &a
+}
+
+// Role returns the value of the "role" field in the mutation.
+func (m *APIKeyGroupLinkMutation) Role() (r apikeygrouplink.Role, exists bool) {
+	v := m.role
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRole returns the old "role" field's value of the APIKeyGroupLink entity.
+// If the APIKeyGroupLink object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyGroupLinkMutation) OldRole(ctx context.Context) (v apikeygrouplink.Role, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRole is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRole requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRole: %w", err)
+	}
+	return oldValue.Role, nil
+}
+
+// ResetRole resets all changes to the "role" field.
+func (m *APIKeyGroupLinkMutation) ResetRole() {
+	m.role = nil
+}
+
+// SetPosition sets the "position" field.
+func (m *APIKeyGroupLinkMutation) SetPosition(i int) {
+	m.position = &i
+	m.addposition = nil
+}
+
+// Position returns the value of the "position" field in the mutation.
+func (m *APIKeyGroupLinkMutation) Position() (r int, exists bool) {
+	v := m.position
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldPosition returns the old "position" field's value of the APIKeyGroupLink entity.
+// If the APIKeyGroupLink object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyGroupLinkMutation) OldPosition(ctx context.Context) (v int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldPosition is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldPosition requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldPosition: %w", err)
+	}
+	return oldValue.Position, nil
+}
+
+// AddPosition adds i to the "position" field.
+func (m *APIKeyGroupLinkMutation) AddPosition(i int) {
+	if m.addposition != nil {
+		*m.addposition += i
+	} else {
+		m.addposition = &i
+	}
+}
+
+// AddedPosition returns the value that was added to the "position" field in this mutation.
+func (m *APIKeyGroupLinkMutation) AddedPosition() (r int, exists bool) {
+	v := m.addposition
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ResetPosition resets all changes to the "position" field.
+func (m *APIKeyGroupLinkMutation) ResetPosition() {
+	m.position = nil
+	m.addposition = nil
+}
+
+// SetEnabledByUserAt sets the "enabled_by_user_at" field.
+func (m *APIKeyGroupLinkMutation) SetEnabledByUserAt(t time.Time) {
+	m.enabled_by_user_at = &t
+}
+
+// EnabledByUserAt returns the value of the "enabled_by_user_at" field in the mutation.
+func (m *APIKeyGroupLinkMutation) EnabledByUserAt() (r time.Time, exists bool) {
+	v := m.enabled_by_user_at
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldEnabledByUserAt returns the old "enabled_by_user_at" field's value of the APIKeyGroupLink entity.
+// If the APIKeyGroupLink object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *APIKeyGroupLinkMutation) OldEnabledByUserAt(ctx context.Context) (v *time.Time, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldEnabledByUserAt is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldEnabledByUserAt requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldEnabledByUserAt: %w", err)
+	}
+	return oldValue.EnabledByUserAt, nil
+}
+
+// ClearEnabledByUserAt clears the value of the "enabled_by_user_at" field.
+func (m *APIKeyGroupLinkMutation) ClearEnabledByUserAt() {
+	m.enabled_by_user_at = nil
+	m.clearedFields[apikeygrouplink.FieldEnabledByUserAt] = struct{}{}
+}
+
+// EnabledByUserAtCleared returns if the "enabled_by_user_at" field was cleared in this mutation.
+func (m *APIKeyGroupLinkMutation) EnabledByUserAtCleared() bool {
+	_, ok := m.clearedFields[apikeygrouplink.FieldEnabledByUserAt]
+	return ok
+}
+
+// ResetEnabledByUserAt resets all changes to the "enabled_by_user_at" field.
+func (m *APIKeyGroupLinkMutation) ResetEnabledByUserAt() {
+	m.enabled_by_user_at = nil
+	delete(m.clearedFields, apikeygrouplink.FieldEnabledByUserAt)
+}
+
+// ClearAPIKey clears the "api_key" edge to the APIKey entity.
+func (m *APIKeyGroupLinkMutation) ClearAPIKey() {
+	m.clearedapi_key = true
+	m.clearedFields[apikeygrouplink.FieldAPIKeyID] = struct{}{}
+}
+
+// APIKeyCleared reports if the "api_key" edge to the APIKey entity was cleared.
+func (m *APIKeyGroupLinkMutation) APIKeyCleared() bool {
+	return m.clearedapi_key
+}
+
+// APIKeyIDs returns the "api_key" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// APIKeyID instead. It exists only for internal usage by the builders.
+func (m *APIKeyGroupLinkMutation) APIKeyIDs() (ids []int64) {
+	if id := m.api_key; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetAPIKey resets all changes to the "api_key" edge.
+func (m *APIKeyGroupLinkMutation) ResetAPIKey() {
+	m.api_key = nil
+	m.clearedapi_key = false
+}
+
+// ClearGroup clears the "group" edge to the Group entity.
+func (m *APIKeyGroupLinkMutation) ClearGroup() {
+	m.clearedgroup = true
+	m.clearedFields[apikeygrouplink.FieldGroupID] = struct{}{}
+}
+
+// GroupCleared reports if the "group" edge to the Group entity was cleared.
+func (m *APIKeyGroupLinkMutation) GroupCleared() bool {
+	return m.clearedgroup
+}
+
+// GroupIDs returns the "group" edge IDs in the mutation.
+// Note that IDs always returns len(IDs) <= 1 for unique edges, and you should use
+// GroupID instead. It exists only for internal usage by the builders.
+func (m *APIKeyGroupLinkMutation) GroupIDs() (ids []int64) {
+	if id := m.group; id != nil {
+		ids = append(ids, *id)
+	}
+	return
+}
+
+// ResetGroup resets all changes to the "group" edge.
+func (m *APIKeyGroupLinkMutation) ResetGroup() {
+	m.group = nil
+	m.clearedgroup = false
+}
+
+// Where appends a list predicates to the APIKeyGroupLinkMutation builder.
+func (m *APIKeyGroupLinkMutation) Where(ps ...predicate.APIKeyGroupLink) {
+	m.predicates = append(m.predicates, ps...)
+}
+
+// WhereP appends storage-level predicates to the APIKeyGroupLinkMutation builder. Using this method,
+// users can use type-assertion to append predicates that do not depend on any generated package.
+func (m *APIKeyGroupLinkMutation) WhereP(ps ...func(*sql.Selector)) {
+	p := make([]predicate.APIKeyGroupLink, len(ps))
+	for i := range ps {
+		p[i] = ps[i]
+	}
+	m.Where(p...)
+}
+
+// Op returns the operation name.
+func (m *APIKeyGroupLinkMutation) Op() Op {
+	return m.op
+}
+
+// SetOp allows setting the mutation operation.
+func (m *APIKeyGroupLinkMutation) SetOp(op Op) {
+	m.op = op
+}
+
+// Type returns the node type of this mutation (APIKeyGroupLink).
+func (m *APIKeyGroupLinkMutation) Type() string {
+	return m.typ
+}
+
+// Fields returns all fields that were changed during this mutation. Note that in
+// order to get all numeric fields that were incremented/decremented, call
+// AddedFields().
+func (m *APIKeyGroupLinkMutation) Fields() []string {
+	fields := make([]string, 0, 5)
+	if m.api_key != nil {
+		fields = append(fields, apikeygrouplink.FieldAPIKeyID)
+	}
+	if m.group != nil {
+		fields = append(fields, apikeygrouplink.FieldGroupID)
+	}
+	if m.role != nil {
+		fields = append(fields, apikeygrouplink.FieldRole)
+	}
+	if m.position != nil {
+		fields = append(fields, apikeygrouplink.FieldPosition)
+	}
+	if m.enabled_by_user_at != nil {
+		fields = append(fields, apikeygrouplink.FieldEnabledByUserAt)
+	}
+	return fields
+}
+
+// Field returns the value of a field with the given name. The second boolean
+// return value indicates that this field was not set, or was not defined in the
+// schema.
+func (m *APIKeyGroupLinkMutation) Field(name string) (ent.Value, bool) {
+	switch name {
+	case apikeygrouplink.FieldAPIKeyID:
+		return m.APIKeyID()
+	case apikeygrouplink.FieldGroupID:
+		return m.GroupID()
+	case apikeygrouplink.FieldRole:
+		return m.Role()
+	case apikeygrouplink.FieldPosition:
+		return m.Position()
+	case apikeygrouplink.FieldEnabledByUserAt:
+		return m.EnabledByUserAt()
+	}
+	return nil, false
+}
+
+// OldField returns the old value of the field from the database. An error is
+// returned if the mutation operation is not UpdateOne, or the query to the
+// database failed.
+func (m *APIKeyGroupLinkMutation) OldField(ctx context.Context, name string) (ent.Value, error) {
+	switch name {
+	case apikeygrouplink.FieldAPIKeyID:
+		return m.OldAPIKeyID(ctx)
+	case apikeygrouplink.FieldGroupID:
+		return m.OldGroupID(ctx)
+	case apikeygrouplink.FieldRole:
+		return m.OldRole(ctx)
+	case apikeygrouplink.FieldPosition:
+		return m.OldPosition(ctx)
+	case apikeygrouplink.FieldEnabledByUserAt:
+		return m.OldEnabledByUserAt(ctx)
+	}
+	return nil, fmt.Errorf("unknown APIKeyGroupLink field %s", name)
+}
+
+// SetField sets the value of a field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *APIKeyGroupLinkMutation) SetField(name string, value ent.Value) error {
+	switch name {
+	case apikeygrouplink.FieldAPIKeyID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAPIKeyID(v)
+		return nil
+	case apikeygrouplink.FieldGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetGroupID(v)
+		return nil
+	case apikeygrouplink.FieldRole:
+		v, ok := value.(apikeygrouplink.Role)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRole(v)
+		return nil
+	case apikeygrouplink.FieldPosition:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetPosition(v)
+		return nil
+	case apikeygrouplink.FieldEnabledByUserAt:
+		v, ok := value.(time.Time)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetEnabledByUserAt(v)
+		return nil
+	}
+	return fmt.Errorf("unknown APIKeyGroupLink field %s", name)
+}
+
+// AddedFields returns all numeric fields that were incremented/decremented during
+// this mutation.
+func (m *APIKeyGroupLinkMutation) AddedFields() []string {
+	var fields []string
+	if m.addposition != nil {
+		fields = append(fields, apikeygrouplink.FieldPosition)
+	}
+	return fields
+}
+
+// AddedField returns the numeric value that was incremented/decremented on a field
+// with the given name. The second boolean return value indicates that this field
+// was not set, or was not defined in the schema.
+func (m *APIKeyGroupLinkMutation) AddedField(name string) (ent.Value, bool) {
+	switch name {
+	case apikeygrouplink.FieldPosition:
+		return m.AddedPosition()
+	}
+	return nil, false
+}
+
+// AddField adds the value to the field with the given name. It returns an error if
+// the field is not defined in the schema, or if the type mismatched the field
+// type.
+func (m *APIKeyGroupLinkMutation) AddField(name string, value ent.Value) error {
+	switch name {
+	case apikeygrouplink.FieldPosition:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddPosition(v)
+		return nil
+	}
+	return fmt.Errorf("unknown APIKeyGroupLink numeric field %s", name)
+}
+
+// ClearedFields returns all nullable fields that were cleared during this
+// mutation.
+func (m *APIKeyGroupLinkMutation) ClearedFields() []string {
+	var fields []string
+	if m.FieldCleared(apikeygrouplink.FieldEnabledByUserAt) {
+		fields = append(fields, apikeygrouplink.FieldEnabledByUserAt)
+	}
+	return fields
+}
+
+// FieldCleared returns a boolean indicating if a field with the given name was
+// cleared in this mutation.
+func (m *APIKeyGroupLinkMutation) FieldCleared(name string) bool {
+	_, ok := m.clearedFields[name]
+	return ok
+}
+
+// ClearField clears the value of the field with the given name. It returns an
+// error if the field is not defined in the schema.
+func (m *APIKeyGroupLinkMutation) ClearField(name string) error {
+	switch name {
+	case apikeygrouplink.FieldEnabledByUserAt:
+		m.ClearEnabledByUserAt()
+		return nil
+	}
+	return fmt.Errorf("unknown APIKeyGroupLink nullable field %s", name)
+}
+
+// ResetField resets all changes in the mutation for the field with the given name.
+// It returns an error if the field is not defined in the schema.
+func (m *APIKeyGroupLinkMutation) ResetField(name string) error {
+	switch name {
+	case apikeygrouplink.FieldAPIKeyID:
+		m.ResetAPIKeyID()
+		return nil
+	case apikeygrouplink.FieldGroupID:
+		m.ResetGroupID()
+		return nil
+	case apikeygrouplink.FieldRole:
+		m.ResetRole()
+		return nil
+	case apikeygrouplink.FieldPosition:
+		m.ResetPosition()
+		return nil
+	case apikeygrouplink.FieldEnabledByUserAt:
+		m.ResetEnabledByUserAt()
+		return nil
+	}
+	return fmt.Errorf("unknown APIKeyGroupLink field %s", name)
+}
+
+// AddedEdges returns all edge names that were set/added in this mutation.
+func (m *APIKeyGroupLinkMutation) AddedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.api_key != nil {
+		edges = append(edges, apikeygrouplink.EdgeAPIKey)
+	}
+	if m.group != nil {
+		edges = append(edges, apikeygrouplink.EdgeGroup)
+	}
+	return edges
+}
+
+// AddedIDs returns all IDs (to other nodes) that were added for the given edge
+// name in this mutation.
+func (m *APIKeyGroupLinkMutation) AddedIDs(name string) []ent.Value {
+	switch name {
+	case apikeygrouplink.EdgeAPIKey:
+		if id := m.api_key; id != nil {
+			return []ent.Value{*id}
+		}
+	case apikeygrouplink.EdgeGroup:
+		if id := m.group; id != nil {
+			return []ent.Value{*id}
+		}
+	}
+	return nil
+}
+
+// RemovedEdges returns all edge names that were removed in this mutation.
+func (m *APIKeyGroupLinkMutation) RemovedEdges() []string {
+	edges := make([]string, 0, 2)
+	return edges
+}
+
+// RemovedIDs returns all IDs (to other nodes) that were removed for the edge with
+// the given name in this mutation.
+func (m *APIKeyGroupLinkMutation) RemovedIDs(name string) []ent.Value {
+	return nil
+}
+
+// ClearedEdges returns all edge names that were cleared in this mutation.
+func (m *APIKeyGroupLinkMutation) ClearedEdges() []string {
+	edges := make([]string, 0, 2)
+	if m.clearedapi_key {
+		edges = append(edges, apikeygrouplink.EdgeAPIKey)
+	}
+	if m.clearedgroup {
+		edges = append(edges, apikeygrouplink.EdgeGroup)
+	}
+	return edges
+}
+
+// EdgeCleared returns a boolean which indicates if the edge with the given name
+// was cleared in this mutation.
+func (m *APIKeyGroupLinkMutation) EdgeCleared(name string) bool {
+	switch name {
+	case apikeygrouplink.EdgeAPIKey:
+		return m.clearedapi_key
+	case apikeygrouplink.EdgeGroup:
+		return m.clearedgroup
+	}
+	return false
+}
+
+// ClearEdge clears the value of the edge with the given name. It returns an error
+// if that edge is not defined in the schema.
+func (m *APIKeyGroupLinkMutation) ClearEdge(name string) error {
+	switch name {
+	case apikeygrouplink.EdgeAPIKey:
+		m.ClearAPIKey()
+		return nil
+	case apikeygrouplink.EdgeGroup:
+		m.ClearGroup()
+		return nil
+	}
+	return fmt.Errorf("unknown APIKeyGroupLink unique edge %s", name)
+}
+
+// ResetEdge resets all changes to the edge with the given name in this mutation.
+// It returns an error if the edge is not defined in the schema.
+func (m *APIKeyGroupLinkMutation) ResetEdge(name string) error {
+	switch name {
+	case apikeygrouplink.EdgeAPIKey:
+		m.ResetAPIKey()
+		return nil
+	case apikeygrouplink.EdgeGroup:
+		m.ResetGroup()
+		return nil
+	}
+	return fmt.Errorf("unknown APIKeyGroupLink edge %s", name)
 }
 
 // AccountMutation represents an operation that mutates the Account nodes in the graph.
@@ -22177,10 +23049,14 @@ type GroupMutation struct {
 	addprofit_min_margin                    *float64
 	profit_safety_buffer                    *float64
 	addprofit_safety_buffer                 *float64
+	scheduling_strategy                     *string
 	clearedFields                           map[string]struct{}
 	api_keys                                map[int64]struct{}
 	removedapi_keys                         map[int64]struct{}
 	clearedapi_keys                         bool
+	api_key_links                           map[int64]struct{}
+	removedapi_key_links                    map[int64]struct{}
+	clearedapi_key_links                    bool
 	redeem_codes                            map[int64]struct{}
 	removedredeem_codes                     map[int64]struct{}
 	clearedredeem_codes                     bool
@@ -25563,6 +26439,42 @@ func (m *GroupMutation) ResetProfitSafetyBuffer() {
 	m.addprofit_safety_buffer = nil
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (m *GroupMutation) SetSchedulingStrategy(s string) {
+	m.scheduling_strategy = &s
+}
+
+// SchedulingStrategy returns the value of the "scheduling_strategy" field in the mutation.
+func (m *GroupMutation) SchedulingStrategy() (r string, exists bool) {
+	v := m.scheduling_strategy
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldSchedulingStrategy returns the old "scheduling_strategy" field's value of the Group entity.
+// If the Group object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *GroupMutation) OldSchedulingStrategy(ctx context.Context) (v string, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldSchedulingStrategy is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldSchedulingStrategy requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldSchedulingStrategy: %w", err)
+	}
+	return oldValue.SchedulingStrategy, nil
+}
+
+// ResetSchedulingStrategy resets all changes to the "scheduling_strategy" field.
+func (m *GroupMutation) ResetSchedulingStrategy() {
+	m.scheduling_strategy = nil
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by ids.
 func (m *GroupMutation) AddAPIKeyIDs(ids ...int64) {
 	if m.api_keys == nil {
@@ -25615,6 +26527,60 @@ func (m *GroupMutation) ResetAPIKeys() {
 	m.api_keys = nil
 	m.clearedapi_keys = false
 	m.removedapi_keys = nil
+}
+
+// AddAPIKeyLinkIDs adds the "api_key_links" edge to the APIKeyGroupLink entity by ids.
+func (m *GroupMutation) AddAPIKeyLinkIDs(ids ...int64) {
+	if m.api_key_links == nil {
+		m.api_key_links = make(map[int64]struct{})
+	}
+	for i := range ids {
+		m.api_key_links[ids[i]] = struct{}{}
+	}
+}
+
+// ClearAPIKeyLinks clears the "api_key_links" edge to the APIKeyGroupLink entity.
+func (m *GroupMutation) ClearAPIKeyLinks() {
+	m.clearedapi_key_links = true
+}
+
+// APIKeyLinksCleared reports if the "api_key_links" edge to the APIKeyGroupLink entity was cleared.
+func (m *GroupMutation) APIKeyLinksCleared() bool {
+	return m.clearedapi_key_links
+}
+
+// RemoveAPIKeyLinkIDs removes the "api_key_links" edge to the APIKeyGroupLink entity by IDs.
+func (m *GroupMutation) RemoveAPIKeyLinkIDs(ids ...int64) {
+	if m.removedapi_key_links == nil {
+		m.removedapi_key_links = make(map[int64]struct{})
+	}
+	for i := range ids {
+		delete(m.api_key_links, ids[i])
+		m.removedapi_key_links[ids[i]] = struct{}{}
+	}
+}
+
+// RemovedAPIKeyLinks returns the removed IDs of the "api_key_links" edge to the APIKeyGroupLink entity.
+func (m *GroupMutation) RemovedAPIKeyLinksIDs() (ids []int64) {
+	for id := range m.removedapi_key_links {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// APIKeyLinksIDs returns the "api_key_links" edge IDs in the mutation.
+func (m *GroupMutation) APIKeyLinksIDs() (ids []int64) {
+	for id := range m.api_key_links {
+		ids = append(ids, id)
+	}
+	return
+}
+
+// ResetAPIKeyLinks resets all changes to the "api_key_links" edge.
+func (m *GroupMutation) ResetAPIKeyLinks() {
+	m.api_key_links = nil
+	m.clearedapi_key_links = false
+	m.removedapi_key_links = nil
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by ids.
@@ -25921,7 +26887,7 @@ func (m *GroupMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *GroupMutation) Fields() []string {
-	fields := make([]string, 0, 66)
+	fields := make([]string, 0, 67)
 	if m.created_at != nil {
 		fields = append(fields, group.FieldCreatedAt)
 	}
@@ -26120,6 +27086,9 @@ func (m *GroupMutation) Fields() []string {
 	if m.profit_safety_buffer != nil {
 		fields = append(fields, group.FieldProfitSafetyBuffer)
 	}
+	if m.scheduling_strategy != nil {
+		fields = append(fields, group.FieldSchedulingStrategy)
+	}
 	return fields
 }
 
@@ -26260,6 +27229,8 @@ func (m *GroupMutation) Field(name string) (ent.Value, bool) {
 		return m.ProfitMinMargin()
 	case group.FieldProfitSafetyBuffer:
 		return m.ProfitSafetyBuffer()
+	case group.FieldSchedulingStrategy:
+		return m.SchedulingStrategy()
 	}
 	return nil, false
 }
@@ -26401,6 +27372,8 @@ func (m *GroupMutation) OldField(ctx context.Context, name string) (ent.Value, e
 		return m.OldProfitMinMargin(ctx)
 	case group.FieldProfitSafetyBuffer:
 		return m.OldProfitSafetyBuffer(ctx)
+	case group.FieldSchedulingStrategy:
+		return m.OldSchedulingStrategy(ctx)
 	}
 	return nil, fmt.Errorf("unknown Group field %s", name)
 }
@@ -26871,6 +27844,13 @@ func (m *GroupMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetProfitSafetyBuffer(v)
+		return nil
+	case group.FieldSchedulingStrategy:
+		v, ok := value.(string)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetSchedulingStrategy(v)
 		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)
@@ -27581,15 +28561,21 @@ func (m *GroupMutation) ResetField(name string) error {
 	case group.FieldProfitSafetyBuffer:
 		m.ResetProfitSafetyBuffer()
 		return nil
+	case group.FieldSchedulingStrategy:
+		m.ResetSchedulingStrategy()
+		return nil
 	}
 	return fmt.Errorf("unknown Group field %s", name)
 }
 
 // AddedEdges returns all edge names that were set/added in this mutation.
 func (m *GroupMutation) AddedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.api_keys != nil {
 		edges = append(edges, group.EdgeAPIKeys)
+	}
+	if m.api_key_links != nil {
+		edges = append(edges, group.EdgeAPIKeyLinks)
 	}
 	if m.redeem_codes != nil {
 		edges = append(edges, group.EdgeRedeemCodes)
@@ -27616,6 +28602,12 @@ func (m *GroupMutation) AddedIDs(name string) []ent.Value {
 	case group.EdgeAPIKeys:
 		ids := make([]ent.Value, 0, len(m.api_keys))
 		for id := range m.api_keys {
+			ids = append(ids, id)
+		}
+		return ids
+	case group.EdgeAPIKeyLinks:
+		ids := make([]ent.Value, 0, len(m.api_key_links))
+		for id := range m.api_key_links {
 			ids = append(ids, id)
 		}
 		return ids
@@ -27655,9 +28647,12 @@ func (m *GroupMutation) AddedIDs(name string) []ent.Value {
 
 // RemovedEdges returns all edge names that were removed in this mutation.
 func (m *GroupMutation) RemovedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.removedapi_keys != nil {
 		edges = append(edges, group.EdgeAPIKeys)
+	}
+	if m.removedapi_key_links != nil {
+		edges = append(edges, group.EdgeAPIKeyLinks)
 	}
 	if m.removedredeem_codes != nil {
 		edges = append(edges, group.EdgeRedeemCodes)
@@ -27684,6 +28679,12 @@ func (m *GroupMutation) RemovedIDs(name string) []ent.Value {
 	case group.EdgeAPIKeys:
 		ids := make([]ent.Value, 0, len(m.removedapi_keys))
 		for id := range m.removedapi_keys {
+			ids = append(ids, id)
+		}
+		return ids
+	case group.EdgeAPIKeyLinks:
+		ids := make([]ent.Value, 0, len(m.removedapi_key_links))
+		for id := range m.removedapi_key_links {
 			ids = append(ids, id)
 		}
 		return ids
@@ -27723,9 +28724,12 @@ func (m *GroupMutation) RemovedIDs(name string) []ent.Value {
 
 // ClearedEdges returns all edge names that were cleared in this mutation.
 func (m *GroupMutation) ClearedEdges() []string {
-	edges := make([]string, 0, 6)
+	edges := make([]string, 0, 7)
 	if m.clearedapi_keys {
 		edges = append(edges, group.EdgeAPIKeys)
+	}
+	if m.clearedapi_key_links {
+		edges = append(edges, group.EdgeAPIKeyLinks)
 	}
 	if m.clearedredeem_codes {
 		edges = append(edges, group.EdgeRedeemCodes)
@@ -27751,6 +28755,8 @@ func (m *GroupMutation) EdgeCleared(name string) bool {
 	switch name {
 	case group.EdgeAPIKeys:
 		return m.clearedapi_keys
+	case group.EdgeAPIKeyLinks:
+		return m.clearedapi_key_links
 	case group.EdgeRedeemCodes:
 		return m.clearedredeem_codes
 	case group.EdgeSubscriptions:
@@ -27779,6 +28785,9 @@ func (m *GroupMutation) ResetEdge(name string) error {
 	switch name {
 	case group.EdgeAPIKeys:
 		m.ResetAPIKeys()
+		return nil
+	case group.EdgeAPIKeyLinks:
+		m.ResetAPIKeyLinks()
 		return nil
 	case group.EdgeRedeemCodes:
 		m.ResetRedeemCodes()
@@ -44628,6 +45637,13 @@ type UsageLogMutation struct {
 	model_mapping_chain          *string
 	billing_tier                 *string
 	billing_mode                 *string
+	requested_group_id           *int64
+	addrequested_group_id        *int64
+	served_group_id              *int64
+	addserved_group_id           *int64
+	failover                     *usagelog.Failover
+	attempt_count                *int
+	addattempt_count             *int
 	input_tokens                 *int
 	addinput_tokens              *int
 	output_tokens                *int
@@ -45436,6 +46452,265 @@ func (m *UsageLogMutation) GroupIDCleared() bool {
 func (m *UsageLogMutation) ResetGroupID() {
 	m.group = nil
 	delete(m.clearedFields, usagelog.FieldGroupID)
+}
+
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (m *UsageLogMutation) SetRequestedGroupID(i int64) {
+	m.requested_group_id = &i
+	m.addrequested_group_id = nil
+}
+
+// RequestedGroupID returns the value of the "requested_group_id" field in the mutation.
+func (m *UsageLogMutation) RequestedGroupID() (r int64, exists bool) {
+	v := m.requested_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldRequestedGroupID returns the old "requested_group_id" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldRequestedGroupID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldRequestedGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldRequestedGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldRequestedGroupID: %w", err)
+	}
+	return oldValue.RequestedGroupID, nil
+}
+
+// AddRequestedGroupID adds i to the "requested_group_id" field.
+func (m *UsageLogMutation) AddRequestedGroupID(i int64) {
+	if m.addrequested_group_id != nil {
+		*m.addrequested_group_id += i
+	} else {
+		m.addrequested_group_id = &i
+	}
+}
+
+// AddedRequestedGroupID returns the value that was added to the "requested_group_id" field in this mutation.
+func (m *UsageLogMutation) AddedRequestedGroupID() (r int64, exists bool) {
+	v := m.addrequested_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearRequestedGroupID clears the value of the "requested_group_id" field.
+func (m *UsageLogMutation) ClearRequestedGroupID() {
+	m.requested_group_id = nil
+	m.addrequested_group_id = nil
+	m.clearedFields[usagelog.FieldRequestedGroupID] = struct{}{}
+}
+
+// RequestedGroupIDCleared returns if the "requested_group_id" field was cleared in this mutation.
+func (m *UsageLogMutation) RequestedGroupIDCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldRequestedGroupID]
+	return ok
+}
+
+// ResetRequestedGroupID resets all changes to the "requested_group_id" field.
+func (m *UsageLogMutation) ResetRequestedGroupID() {
+	m.requested_group_id = nil
+	m.addrequested_group_id = nil
+	delete(m.clearedFields, usagelog.FieldRequestedGroupID)
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (m *UsageLogMutation) SetServedGroupID(i int64) {
+	m.served_group_id = &i
+	m.addserved_group_id = nil
+}
+
+// ServedGroupID returns the value of the "served_group_id" field in the mutation.
+func (m *UsageLogMutation) ServedGroupID() (r int64, exists bool) {
+	v := m.served_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldServedGroupID returns the old "served_group_id" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldServedGroupID(ctx context.Context) (v *int64, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldServedGroupID is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldServedGroupID requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldServedGroupID: %w", err)
+	}
+	return oldValue.ServedGroupID, nil
+}
+
+// AddServedGroupID adds i to the "served_group_id" field.
+func (m *UsageLogMutation) AddServedGroupID(i int64) {
+	if m.addserved_group_id != nil {
+		*m.addserved_group_id += i
+	} else {
+		m.addserved_group_id = &i
+	}
+}
+
+// AddedServedGroupID returns the value that was added to the "served_group_id" field in this mutation.
+func (m *UsageLogMutation) AddedServedGroupID() (r int64, exists bool) {
+	v := m.addserved_group_id
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearServedGroupID clears the value of the "served_group_id" field.
+func (m *UsageLogMutation) ClearServedGroupID() {
+	m.served_group_id = nil
+	m.addserved_group_id = nil
+	m.clearedFields[usagelog.FieldServedGroupID] = struct{}{}
+}
+
+// ServedGroupIDCleared returns if the "served_group_id" field was cleared in this mutation.
+func (m *UsageLogMutation) ServedGroupIDCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldServedGroupID]
+	return ok
+}
+
+// ResetServedGroupID resets all changes to the "served_group_id" field.
+func (m *UsageLogMutation) ResetServedGroupID() {
+	m.served_group_id = nil
+	m.addserved_group_id = nil
+	delete(m.clearedFields, usagelog.FieldServedGroupID)
+}
+
+// SetFailover sets the "failover" field.
+func (m *UsageLogMutation) SetFailover(u usagelog.Failover) {
+	m.failover = &u
+}
+
+// Failover returns the value of the "failover" field in the mutation.
+func (m *UsageLogMutation) Failover() (r usagelog.Failover, exists bool) {
+	v := m.failover
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldFailover returns the old "failover" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldFailover(ctx context.Context) (v *usagelog.Failover, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldFailover is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldFailover requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldFailover: %w", err)
+	}
+	return oldValue.Failover, nil
+}
+
+// ClearFailover clears the value of the "failover" field.
+func (m *UsageLogMutation) ClearFailover() {
+	m.failover = nil
+	m.clearedFields[usagelog.FieldFailover] = struct{}{}
+}
+
+// FailoverCleared returns if the "failover" field was cleared in this mutation.
+func (m *UsageLogMutation) FailoverCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldFailover]
+	return ok
+}
+
+// ResetFailover resets all changes to the "failover" field.
+func (m *UsageLogMutation) ResetFailover() {
+	m.failover = nil
+	delete(m.clearedFields, usagelog.FieldFailover)
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (m *UsageLogMutation) SetAttemptCount(i int) {
+	m.attempt_count = &i
+	m.addattempt_count = nil
+}
+
+// AttemptCount returns the value of the "attempt_count" field in the mutation.
+func (m *UsageLogMutation) AttemptCount() (r int, exists bool) {
+	v := m.attempt_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// OldAttemptCount returns the old "attempt_count" field's value of the UsageLog entity.
+// If the UsageLog object wasn't provided to the builder, the object is fetched from the database.
+// An error is returned if the mutation operation is not UpdateOne, or the database query fails.
+func (m *UsageLogMutation) OldAttemptCount(ctx context.Context) (v *int, err error) {
+	if !m.op.Is(OpUpdateOne) {
+		return v, errors.New("OldAttemptCount is only allowed on UpdateOne operations")
+	}
+	if m.id == nil || m.oldValue == nil {
+		return v, errors.New("OldAttemptCount requires an ID field in the mutation")
+	}
+	oldValue, err := m.oldValue(ctx)
+	if err != nil {
+		return v, fmt.Errorf("querying old value for OldAttemptCount: %w", err)
+	}
+	return oldValue.AttemptCount, nil
+}
+
+// AddAttemptCount adds i to the "attempt_count" field.
+func (m *UsageLogMutation) AddAttemptCount(i int) {
+	if m.addattempt_count != nil {
+		*m.addattempt_count += i
+	} else {
+		m.addattempt_count = &i
+	}
+}
+
+// AddedAttemptCount returns the value that was added to the "attempt_count" field in this mutation.
+func (m *UsageLogMutation) AddedAttemptCount() (r int, exists bool) {
+	v := m.addattempt_count
+	if v == nil {
+		return
+	}
+	return *v, true
+}
+
+// ClearAttemptCount clears the value of the "attempt_count" field.
+func (m *UsageLogMutation) ClearAttemptCount() {
+	m.attempt_count = nil
+	m.addattempt_count = nil
+	m.clearedFields[usagelog.FieldAttemptCount] = struct{}{}
+}
+
+// AttemptCountCleared returns if the "attempt_count" field was cleared in this mutation.
+func (m *UsageLogMutation) AttemptCountCleared() bool {
+	_, ok := m.clearedFields[usagelog.FieldAttemptCount]
+	return ok
+}
+
+// ResetAttemptCount resets all changes to the "attempt_count" field.
+func (m *UsageLogMutation) ResetAttemptCount() {
+	m.attempt_count = nil
+	m.addattempt_count = nil
+	delete(m.clearedFields, usagelog.FieldAttemptCount)
 }
 
 // SetSubscriptionID sets the "subscription_id" field.
@@ -47433,7 +48708,7 @@ func (m *UsageLogMutation) Type() string {
 // order to get all numeric fields that were incremented/decremented, call
 // AddedFields().
 func (m *UsageLogMutation) Fields() []string {
-	fields := make([]string, 0, 48)
+	fields := make([]string, 0, 52)
 	if m.user != nil {
 		fields = append(fields, usagelog.FieldUserID)
 	}
@@ -47475,6 +48750,18 @@ func (m *UsageLogMutation) Fields() []string {
 	}
 	if m.group != nil {
 		fields = append(fields, usagelog.FieldGroupID)
+	}
+	if m.requested_group_id != nil {
+		fields = append(fields, usagelog.FieldRequestedGroupID)
+	}
+	if m.served_group_id != nil {
+		fields = append(fields, usagelog.FieldServedGroupID)
+	}
+	if m.failover != nil {
+		fields = append(fields, usagelog.FieldFailover)
+	}
+	if m.attempt_count != nil {
+		fields = append(fields, usagelog.FieldAttemptCount)
 	}
 	if m.subscription != nil {
 		fields = append(fields, usagelog.FieldSubscriptionID)
@@ -47614,6 +48901,14 @@ func (m *UsageLogMutation) Field(name string) (ent.Value, bool) {
 		return m.BillingMode()
 	case usagelog.FieldGroupID:
 		return m.GroupID()
+	case usagelog.FieldRequestedGroupID:
+		return m.RequestedGroupID()
+	case usagelog.FieldServedGroupID:
+		return m.ServedGroupID()
+	case usagelog.FieldFailover:
+		return m.Failover()
+	case usagelog.FieldAttemptCount:
+		return m.AttemptCount()
 	case usagelog.FieldSubscriptionID:
 		return m.SubscriptionID()
 	case usagelog.FieldInputTokens:
@@ -47719,6 +49014,14 @@ func (m *UsageLogMutation) OldField(ctx context.Context, name string) (ent.Value
 		return m.OldBillingMode(ctx)
 	case usagelog.FieldGroupID:
 		return m.OldGroupID(ctx)
+	case usagelog.FieldRequestedGroupID:
+		return m.OldRequestedGroupID(ctx)
+	case usagelog.FieldServedGroupID:
+		return m.OldServedGroupID(ctx)
+	case usagelog.FieldFailover:
+		return m.OldFailover(ctx)
+	case usagelog.FieldAttemptCount:
+		return m.OldAttemptCount(ctx)
 	case usagelog.FieldSubscriptionID:
 		return m.OldSubscriptionID(ctx)
 	case usagelog.FieldInputTokens:
@@ -47893,6 +49196,34 @@ func (m *UsageLogMutation) SetField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.SetGroupID(v)
+		return nil
+	case usagelog.FieldRequestedGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetRequestedGroupID(v)
+		return nil
+	case usagelog.FieldServedGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetServedGroupID(v)
+		return nil
+	case usagelog.FieldFailover:
+		v, ok := value.(usagelog.Failover)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetFailover(v)
+		return nil
+	case usagelog.FieldAttemptCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.SetAttemptCount(v)
 		return nil
 	case usagelog.FieldSubscriptionID:
 		v, ok := value.(int64)
@@ -48143,6 +49474,15 @@ func (m *UsageLogMutation) AddedFields() []string {
 	if m.addchannel_id != nil {
 		fields = append(fields, usagelog.FieldChannelID)
 	}
+	if m.addrequested_group_id != nil {
+		fields = append(fields, usagelog.FieldRequestedGroupID)
+	}
+	if m.addserved_group_id != nil {
+		fields = append(fields, usagelog.FieldServedGroupID)
+	}
+	if m.addattempt_count != nil {
+		fields = append(fields, usagelog.FieldAttemptCount)
+	}
 	if m.addinput_tokens != nil {
 		fields = append(fields, usagelog.FieldInputTokens)
 	}
@@ -48213,6 +49553,12 @@ func (m *UsageLogMutation) AddedField(name string) (ent.Value, bool) {
 	switch name {
 	case usagelog.FieldChannelID:
 		return m.AddedChannelID()
+	case usagelog.FieldRequestedGroupID:
+		return m.AddedRequestedGroupID()
+	case usagelog.FieldServedGroupID:
+		return m.AddedServedGroupID()
+	case usagelog.FieldAttemptCount:
+		return m.AddedAttemptCount()
 	case usagelog.FieldInputTokens:
 		return m.AddedInputTokens()
 	case usagelog.FieldOutputTokens:
@@ -48268,6 +49614,27 @@ func (m *UsageLogMutation) AddField(name string, value ent.Value) error {
 			return fmt.Errorf("unexpected type %T for field %s", value, name)
 		}
 		m.AddChannelID(v)
+		return nil
+	case usagelog.FieldRequestedGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddRequestedGroupID(v)
+		return nil
+	case usagelog.FieldServedGroupID:
+		v, ok := value.(int64)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddServedGroupID(v)
+		return nil
+	case usagelog.FieldAttemptCount:
+		v, ok := value.(int)
+		if !ok {
+			return fmt.Errorf("unexpected type %T for field %s", value, name)
+		}
+		m.AddAttemptCount(v)
 		return nil
 	case usagelog.FieldInputTokens:
 		v, ok := value.(int)
@@ -48444,6 +49811,18 @@ func (m *UsageLogMutation) ClearedFields() []string {
 	if m.FieldCleared(usagelog.FieldGroupID) {
 		fields = append(fields, usagelog.FieldGroupID)
 	}
+	if m.FieldCleared(usagelog.FieldRequestedGroupID) {
+		fields = append(fields, usagelog.FieldRequestedGroupID)
+	}
+	if m.FieldCleared(usagelog.FieldServedGroupID) {
+		fields = append(fields, usagelog.FieldServedGroupID)
+	}
+	if m.FieldCleared(usagelog.FieldFailover) {
+		fields = append(fields, usagelog.FieldFailover)
+	}
+	if m.FieldCleared(usagelog.FieldAttemptCount) {
+		fields = append(fields, usagelog.FieldAttemptCount)
+	}
 	if m.FieldCleared(usagelog.FieldSubscriptionID) {
 		fields = append(fields, usagelog.FieldSubscriptionID)
 	}
@@ -48526,6 +49905,18 @@ func (m *UsageLogMutation) ClearField(name string) error {
 		return nil
 	case usagelog.FieldGroupID:
 		m.ClearGroupID()
+		return nil
+	case usagelog.FieldRequestedGroupID:
+		m.ClearRequestedGroupID()
+		return nil
+	case usagelog.FieldServedGroupID:
+		m.ClearServedGroupID()
+		return nil
+	case usagelog.FieldFailover:
+		m.ClearFailover()
+		return nil
+	case usagelog.FieldAttemptCount:
+		m.ClearAttemptCount()
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ClearSubscriptionID()
@@ -48618,6 +50009,18 @@ func (m *UsageLogMutation) ResetField(name string) error {
 		return nil
 	case usagelog.FieldGroupID:
 		m.ResetGroupID()
+		return nil
+	case usagelog.FieldRequestedGroupID:
+		m.ResetRequestedGroupID()
+		return nil
+	case usagelog.FieldServedGroupID:
+		m.ResetServedGroupID()
+		return nil
+	case usagelog.FieldFailover:
+		m.ResetFailover()
+		return nil
+	case usagelog.FieldAttemptCount:
+		m.ResetAttemptCount()
 		return nil
 	case usagelog.FieldSubscriptionID:
 		m.ResetSubscriptionID()

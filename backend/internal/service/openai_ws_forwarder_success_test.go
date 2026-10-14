@@ -1501,6 +1501,58 @@ func TestOpenAIGatewayService_Forward_WSv2_GeneratePrewarm(t *testing.T) {
 	require.False(t, gjson.Get(secondWrite, "generate").Exists())
 }
 
+func TestOpenAIGatewayService_WSv2PrewarmCountsRequestAttemptBudget(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Gateway.OpenAIWS.PrewarmGenerateEnabled = true
+	cfg.Gateway.OpenAIWS.ReadTimeoutSeconds = 5
+	cfg.Gateway.OpenAIWS.WriteTimeoutSeconds = 3
+
+	svc := &OpenAIGatewayService{
+		cfg:           cfg,
+		toolCorrector: NewCodexToolCorrector(),
+	}
+	account := &Account{
+		ID:          602,
+		Name:        "openai-prewarm-budget",
+		Platform:    PlatformOpenAI,
+		Type:        AccountTypeAPIKey,
+		Status:      StatusActive,
+		Schedulable: true,
+	}
+	conn := newOpenAIWSConn("prewarm_budget_conn", account.ID, &openAIWSBlockingConn{
+		readDelay: 100 * time.Millisecond,
+	}, nil)
+	lease := &openAIWSConnLease{
+		accountID: account.ID,
+		conn:      conn,
+	}
+	payload := map[string]any{
+		"type":  "response.create",
+		"model": "gpt-5.1",
+	}
+
+	budget := NewRequestAttemptBudget(time.Now(), 1, time.Hour, time.Time{})
+	require.NoError(t, budget.AllowSend())
+	ctx := WithRequestAttemptBudget(context.Background(), budget)
+
+	err := svc.performOpenAIWSGeneratePrewarm(
+		ctx,
+		lease,
+		OpenAIWSProtocolDecision{Transport: OpenAIUpstreamTransportResponsesWebsocketV2},
+		payload,
+		"",
+		map[string]any{"model": "gpt-5.1"},
+		account,
+		nil,
+		0,
+	)
+	require.Error(t, err)
+	var failoverErr *UpstreamFailoverError
+	require.ErrorAs(t, err, &failoverErr)
+	require.Equal(t, RequestAttemptBudgetReason, failoverErr.Reason)
+	require.Equal(t, 1, budget.Used(), "拒绝的预热发送不额外计数")
+}
+
 func TestOpenAIGatewayService_PrewarmReadHonorsParentContext(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Gateway.OpenAIWS.PrewarmGenerateEnabled = true

@@ -345,6 +345,11 @@ func ProfitSafetyBuffer(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldProfitSafetyBuffer, v))
 }
 
+// SchedulingStrategy applies equality check predicate on the "scheduling_strategy" field. It's identical to SchedulingStrategyEQ.
+func SchedulingStrategy(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSchedulingStrategy, v))
+}
+
 // CreatedAtEQ applies the EQ predicate on the "created_at" field.
 func CreatedAtEQ(v time.Time) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldCreatedAt, v))
@@ -2650,6 +2655,71 @@ func ProfitSafetyBufferLTE(v float64) predicate.Group {
 	return predicate.Group(sql.FieldLTE(FieldProfitSafetyBuffer, v))
 }
 
+// SchedulingStrategyEQ applies the EQ predicate on the "scheduling_strategy" field.
+func SchedulingStrategyEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyNEQ applies the NEQ predicate on the "scheduling_strategy" field.
+func SchedulingStrategyNEQ(v string) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyIn applies the In predicate on the "scheduling_strategy" field.
+func SchedulingStrategyIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldIn(FieldSchedulingStrategy, vs...))
+}
+
+// SchedulingStrategyNotIn applies the NotIn predicate on the "scheduling_strategy" field.
+func SchedulingStrategyNotIn(vs ...string) predicate.Group {
+	return predicate.Group(sql.FieldNotIn(FieldSchedulingStrategy, vs...))
+}
+
+// SchedulingStrategyGT applies the GT predicate on the "scheduling_strategy" field.
+func SchedulingStrategyGT(v string) predicate.Group {
+	return predicate.Group(sql.FieldGT(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyGTE applies the GTE predicate on the "scheduling_strategy" field.
+func SchedulingStrategyGTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldGTE(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyLT applies the LT predicate on the "scheduling_strategy" field.
+func SchedulingStrategyLT(v string) predicate.Group {
+	return predicate.Group(sql.FieldLT(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyLTE applies the LTE predicate on the "scheduling_strategy" field.
+func SchedulingStrategyLTE(v string) predicate.Group {
+	return predicate.Group(sql.FieldLTE(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyContains applies the Contains predicate on the "scheduling_strategy" field.
+func SchedulingStrategyContains(v string) predicate.Group {
+	return predicate.Group(sql.FieldContains(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyHasPrefix applies the HasPrefix predicate on the "scheduling_strategy" field.
+func SchedulingStrategyHasPrefix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasPrefix(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyHasSuffix applies the HasSuffix predicate on the "scheduling_strategy" field.
+func SchedulingStrategyHasSuffix(v string) predicate.Group {
+	return predicate.Group(sql.FieldHasSuffix(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyEqualFold applies the EqualFold predicate on the "scheduling_strategy" field.
+func SchedulingStrategyEqualFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldEqualFold(FieldSchedulingStrategy, v))
+}
+
+// SchedulingStrategyContainsFold applies the ContainsFold predicate on the "scheduling_strategy" field.
+func SchedulingStrategyContainsFold(v string) predicate.Group {
+	return predicate.Group(sql.FieldContainsFold(FieldSchedulingStrategy, v))
+}
+
 // HasAPIKeys applies the HasEdge predicate on the "api_keys" edge.
 func HasAPIKeys() predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {
@@ -2665,6 +2735,29 @@ func HasAPIKeys() predicate.Group {
 func HasAPIKeysWith(preds ...predicate.APIKey) predicate.Group {
 	return predicate.Group(func(s *sql.Selector) {
 		step := newAPIKeysStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasAPIKeyLinks applies the HasEdge predicate on the "api_key_links" edge.
+func HasAPIKeyLinks() predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, APIKeyLinksTable, APIKeyLinksColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasAPIKeyLinksWith applies the HasEdge predicate on the "api_key_links" edge with a given conditions (other predicates).
+func HasAPIKeyLinksWith(preds ...predicate.APIKeyGroupLink) predicate.Group {
+	return predicate.Group(func(s *sql.Selector) {
+		step := newAPIKeyLinksStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)
