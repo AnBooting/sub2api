@@ -12,6 +12,13 @@ func (h *OpenAIGatewayHandler) authorizeOpenAIResponsesGroup(c *gin.Context, ori
 }
 
 func authorizeChatExecutionGroup(c *gin.Context, keys *service.APIKeyService, subscriptions *service.SubscriptionService, original *service.APIKey, id int64, normalIDs []int64, model string, writeError func(int, string, string), chat bool) (*service.APIKey, *service.UserSubscription, bool) {
+	return authorizeChatExecutionGroupCandidate(c, keys, subscriptions, original, id, normalIDs, model, writeError, chat, false)
+}
+
+// authorizeChatExecutionGroupCandidate is the single policy surface for OpenAI-family
+// cross-family chains. isHA selects the HA authorization gate; the platform,
+// Claude-Code, model-allowlist and subscription checks are identical for both.
+func authorizeChatExecutionGroupCandidate(c *gin.Context, keys *service.APIKeyService, subscriptions *service.SubscriptionService, original *service.APIKey, id int64, ids []int64, model string, writeError func(int, string, string), chat, isHA bool) (*service.APIKey, *service.UserSubscription, bool) {
 	fail := func(err error) (*service.APIKey, *service.UserSubscription, bool) {
 		status, code, message, _ := billingErrorDetails(err)
 		writeError(status, code, message)
@@ -20,7 +27,14 @@ func authorizeChatExecutionGroup(c *gin.Context, keys *service.APIKeyService, su
 	if keys == nil {
 		return fail(service.ErrBillingServiceUnavailable)
 	}
-	key, sub, err := keys.AuthorizeNormalGroupExecution(c.Request.Context(), original.ID, original.UserID, id, normalIDs)
+	var key *service.APIKey
+	var sub *service.UserSubscription
+	var err error
+	if isHA {
+		key, sub, err = keys.AuthorizeHAGroupExecution(c.Request.Context(), original.ID, original.UserID, id, ids)
+	} else {
+		key, sub, err = keys.AuthorizeNormalGroupExecution(c.Request.Context(), original.ID, original.UserID, id, ids)
+	}
 	if err != nil {
 		return fail(err)
 	}

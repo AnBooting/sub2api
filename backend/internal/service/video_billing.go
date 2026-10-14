@@ -12,7 +12,45 @@ import (
 const (
 	VideoPriceFamilyGrokImagineVideo   = "grok-imagine-video"
 	VideoPriceFamilyGrokImagineVideo15 = "grok-imagine-video-1.5"
+	// VideoPriceFamilySeedance is the reserved price slot for Ark Seedance video.
+	// PRD-06/K-4: Seedance is sold per request or per second with an operator-set
+	// unit price. There is deliberately NO bundled default and no price source is
+	// guessed here; an operator must fill groups.video_model_prices[seedance] or
+	// the flat video_price_* columns before Seedance can be sold.
+	VideoPriceFamilySeedance = "seedance"
 )
+
+// CanonicalVideoPriceFamily maps a request model id onto the family key used in
+// groups.video_model_prices. It returns "" when no family is known, which callers
+// must treat as "no configured slot" rather than falling back to another tariff.
+func CanonicalVideoPriceFamily(model string) string {
+	if family := CanonicalGrokImagineVideoPriceFamily(model); family != "" {
+		return family
+	}
+	if canonicalSeedanceVideoPriceFamily(model) != "" {
+		return VideoPriceFamilySeedance
+	}
+	return ""
+}
+
+// canonicalSeedanceVideoPriceFamily recognizes Ark Seedance model ids (including
+// versioned/dated endpoint ids) so every Seedance variant shares one price slot.
+func canonicalSeedanceVideoPriceFamily(model string) string {
+	m := strings.ToLower(strings.TrimSpace(model))
+	if m == "" {
+		return ""
+	}
+	for _, prefix := range []string{"ark/", "volcengine/", "bytedance/", "doubao/"} {
+		if strings.HasPrefix(m, prefix) {
+			m = strings.TrimPrefix(m, prefix)
+			break
+		}
+	}
+	if strings.HasPrefix(m, "seedance") || strings.HasPrefix(m, "doubao-seedance") {
+		return VideoPriceFamilySeedance
+	}
+	return ""
+}
 
 // CanonicalGrokImagineVideoPriceFamily normalizes model aliases / preview / legacy
 // IDs onto the price-family keys stored in video_model_prices.
@@ -135,7 +173,7 @@ func LookupVideoModelPrice(prices map[string]map[string]float64, model, resoluti
 	if len(prices) == 0 {
 		return nil
 	}
-	family := CanonicalGrokImagineVideoPriceFamily(model)
+	family := CanonicalVideoPriceFamily(model)
 	if family == "" {
 		family = strings.ToLower(strings.TrimSpace(model))
 	}

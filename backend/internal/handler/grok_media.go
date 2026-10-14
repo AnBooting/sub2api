@@ -113,6 +113,15 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		}
 	}
 	requestModel := requestInfo.Model
+	// PRD-06/K-4 fail-closed: Seedance is sold per request or per second with an
+	// operator-set price. There is no bundled Seedance default and no price source
+	// is guessed, so a create request without a configured slot must not reach the
+	// upstream. Status/delete polling of already-accepted tasks stays allowed.
+	if endpoint == service.SeedanceEndpointCreate && !service.GroupHasSeedanceVideoPrice(apiKey.Group) {
+		h.errorResponse(c, http.StatusServiceUnavailable, "pricing_unavailable",
+			"Seedance price is not configured for this group")
+		return
+	}
 	routingModel := service.NormalizeGrokMediaModelForEndpoint(endpoint, requestModel, requestInfo.HasInputImage())
 	if endpoint.IsGenerationRequest() && strings.TrimSpace(requestModel) == "" {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")

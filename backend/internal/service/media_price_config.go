@@ -31,6 +31,25 @@ func apiKeyHasConfiguredVideoPrice(apiKey *APIKey, model, resolution string) boo
 	return apiKey != nil && apiKey.Group != nil && apiKey.Group.GetVideoPriceForModel(model, resolution) != nil
 }
 
+// GroupHasSeedanceVideoPrice reports whether the group carries an operator-set
+// Seedance price. PRD-06/K-4 sells Seedance per request or per second; there is no
+// bundled default and no price source is guessed, so callers must fail closed when
+// this returns false instead of charging another model's tariff.
+func GroupHasSeedanceVideoPrice(group *Group) bool {
+	if group == nil {
+		return false
+	}
+	// A per-model slot counts if ANY tier is priced; checking a single default tier
+	// would miss a group that only configured e.g. 720p.
+	prices := NormalizeVideoModelPrices(group.VideoModelPrices)
+	for _, tier := range []string{VideoBillingResolution480P, VideoBillingResolution720P, VideoBillingResolution1080P} {
+		if LookupVideoModelPrice(prices, VideoPriceFamilySeedance, tier) != nil {
+			return true
+		}
+	}
+	return group.VideoPrice480P != nil || group.VideoPrice720P != nil || group.VideoPrice1080P != nil
+}
+
 func webSearchPricePerCallFromAPIKey(apiKey *APIKey) *float64 {
 	if apiKey == nil || apiKey.Group == nil {
 		return nil

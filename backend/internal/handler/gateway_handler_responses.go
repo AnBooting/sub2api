@@ -160,10 +160,15 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestBilling := service.GatewayRequestBillingFromContext(requestCtx)
 	var normalIDs []int64
+	var haIDs []int64
 	if lockedResponses.active {
 		normalIDs = requestBilling.NormalGroupIDs()
+		// PRD-04: HA candidates are part of the same frozen bundle and are only
+		// reachable after every normal candidate is exhausted on a retryable error.
+		haIDs = requestBilling.HAGroupIDs()
 	}
-	groupChainActive := len(normalIDs) > 1
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
+	groupChainActive := groupPlan.active()
 	originalAPIKey := apiKey
 	crossResponses := chatCrossFamilyChain(apiKey)
 	groupIndex := 0
@@ -249,7 +254,13 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	sentDifferentAccount := false
 	semanticStart := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	advanceGroup := func() normalGroupAdvance {
-		if !groupChainActive || groupIndex+1 >= len(normalIDs) {
+		if !groupChainActive {
+			return normalGroupUnavailable
+		}
+		// PRD-04: entering the HA phase requires a retryable failure class. Normal
+		// chain advancement keeps its existing behaviour.
+		nextID, nextIsHA, hasNext := groupPlan.peek(fs.LastFailoverErr == nil || fs.LastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
 			return normalGroupUnavailable
 		}
 		if failoverClientGone(c) {
@@ -271,11 +282,11 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 			fs.SwitchCount++
 		}
 		pendingSwitchPermit = false
-		nextKey, nextSub, admitted := h.authorizeSharedResponsesGroup(c, originalAPIKey, normalIDs[groupIndex+1], normalIDs, body, crossResponses)
+		nextKey, nextSub, admitted := h.authorizeSharedResponsesGroupCandidate(c, originalAPIKey, nextID, nextIsHA, normalIDs, haIDs, body, crossResponses)
 		if !admitted {
 			return normalGroupTerminal
 		}
-		nextMapping, mappingErr := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		nextMapping, mappingErr := requestBilling.MappingFor(nextID)
 		if mappingErr != nil {
 			writeResponsesGatewayLockedBillingError(c, reqLog, "gateway.responses.group_mapping_rejected", reqModel, mappingErr)
 			return normalGroupTerminal
@@ -317,9 +328,10 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 			h.responsesErrorResponse(c, status, code, message)
 			return normalGroupTerminal
 		}
+		groupPlan.commit()
 		groupIndex++
 		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
-		lockedResponses.groupID, lockedResponses.mapping = normalIDs[groupIndex], nextMapping
+		lockedResponses.groupID, lockedResponses.mapping = nextID, nextMapping
 		requestCtx = c.Request.Context()
 		return normalGroupAdvanced
 	}

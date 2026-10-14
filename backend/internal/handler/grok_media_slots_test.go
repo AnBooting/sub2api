@@ -260,7 +260,12 @@ func grokMediaSlotContext(ctx context.Context, generation bool) (*gin.Context, *
 	c.Request = req
 	c.Params = gin.Params{{Key: "request_id", Value: "task"}}
 	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{ID: 20, UserID: 10, GroupID: &groupID,
-		Group: &service.Group{ID: groupID, Platform: service.PlatformGrok, AllowImageGeneration: true}, User: &service.User{ID: 10}})
+		Group: &service.Group{ID: groupID, Platform: service.PlatformGrok, AllowImageGeneration: true,
+			// PRD-06/K-4: Seedance has no bundled default, so a group must carry an
+			// operator-set Seedance slot before a create request may reach upstream.
+			VideoModelPrices: map[string]map[string]float64{
+				service.VideoPriceFamilySeedance: {service.VideoBillingResolution720P: 0.11},
+			}}, User: &service.User{ID: 10}})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 10, Concurrency: 5})
 	return c, w
 }
