@@ -84,6 +84,10 @@ const (
 	FieldVideoPrice1080p = "video_price_1080p"
 	// FieldVideoModelPrices holds the string denoting the video_model_prices field in the database.
 	FieldVideoModelPrices = "video_model_prices"
+	// FieldVideoPricePlans holds the string denoting the video_price_plans field in the database.
+	FieldVideoPricePlans = "video_price_plans"
+	// FieldAllowHighAvailability holds the string denoting the allow_high_availability field in the database.
+	FieldAllowHighAvailability = "allow_high_availability"
 	// FieldWebSearchPricePerCall holds the string denoting the web_search_price_per_call field in the database.
 	FieldWebSearchPricePerCall = "web_search_price_per_call"
 	// FieldSearchPricePer1k holds the string denoting the search_price_per_1k field in the database.
@@ -268,6 +272,8 @@ var Columns = []string{
 	FieldVideoPrice720p,
 	FieldVideoPrice1080p,
 	FieldVideoModelPrices,
+	FieldVideoPricePlans,
+	FieldAllowHighAvailability,
 	FieldWebSearchPricePerCall,
 	FieldSearchPricePer1k,
 	FieldAudioRealtimePricePerMin,
@@ -386,6 +392,8 @@ var (
 	DefaultVideoRateIndependent bool
 	// DefaultVideoRateMultiplier holds the default value on creation for the "video_rate_multiplier" field.
 	DefaultVideoRateMultiplier float64
+	// DefaultAllowHighAvailability holds the default value on creation for the "allow_high_availability" field.
+	DefaultAllowHighAvailability bool
 	// SearchPricePer1kValidator is a validator for the "search_price_per_1k" field. It is called by the builders before save.
 	SearchPricePer1kValidator func(float64) error
 	// AudioRealtimePricePerMinValidator is a validator for the "audio_realtime_price_per_min" field. It is called by the builders before save.
@@ -623,6 +631,11 @@ func ByVideoPrice720p(opts ...sql.OrderTermOption) OrderOption {
 // ByVideoPrice1080p orders the results by the video_price_1080p field.
 func ByVideoPrice1080p(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldVideoPrice1080p, opts...).ToFunc()
+}
+
+// ByAllowHighAvailability orders the results by the allow_high_availability field.
+func ByAllowHighAvailability(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllowHighAvailability, opts...).ToFunc()
 }
 
 // ByWebSearchPricePerCall orders the results by the web_search_price_per_call field.

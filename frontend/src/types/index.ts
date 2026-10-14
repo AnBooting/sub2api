@@ -547,6 +547,30 @@ export type GroupPlatform = AccountPlatform | 'composite'
 
 export type VideoModelPrices = Record<string, Record<string, number>>
 
+/**
+ * 视频计费计量模式（PRD-06 / K-4）。
+ * 不同上游官方口径不同：Ark Seedance 按 token、xAI Grok 按秒、MiniMax 按次，
+ * 所以「一个模型一种模式」必须显式声明，而不是把所有视频都当成按秒。
+ */
+export type VideoBillingMode = 'per_request' | 'per_second' | 'per_token'
+
+/** 按 token 计费时的单价分档（元/百万 token），按「输出分辨率 × 输入是否含视频」区分。 */
+export interface VideoTokenPrice {
+  with_input_video?: number
+  without_input_video?: number
+}
+
+/** 单个模型族的视频计费计划；单价全部由管理员填写，不配置即拒绝放行。 */
+export interface VideoPricePlan {
+  mode?: VideoBillingMode
+  per_request_price?: number
+  per_second_prices?: Record<string, number>
+  per_token_prices?: Record<string, VideoTokenPrice>
+}
+
+/** 模型族 -> 计费计划。 */
+export type VideoPricePlans = Record<string, VideoPricePlan>
+
 export type SubscriptionType = 'standard' | 'subscription'
 
 export interface OpenAIMessagesDispatchModelConfig {
@@ -604,6 +628,10 @@ export interface Group {
   video_price_1080p: number | null
   // Optional model-family x resolution overrides for Grok video pricing.
   video_model_prices?: VideoModelPrices
+  // 视频计费计划（PRD-06/K-4）：按模型族声明计量模式与单价。
+  video_price_plans?: VideoPricePlans
+  // HA 兜底分组标记（PRD-04）：管理员标记后，用户可在自己的 Key 上主动开启。
+  allow_high_availability?: boolean
   // Codex 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
   web_search_price_per_call: number | null
   // Grok Voice 显式定价（分组级）
@@ -840,6 +868,8 @@ export interface CreateGroupRequest {
   video_price_720p?: number | null
   video_price_1080p?: number | null
   video_model_prices?: VideoModelPrices
+  video_price_plans?: VideoPricePlans
+  allow_high_availability?: boolean
   web_search_price_per_call?: number | null
   search_price_per_1k?: number | null
   audio_realtime_price_per_min?: number | null
@@ -907,6 +937,8 @@ export interface UpdateGroupRequest {
   video_price_720p?: number | null
   video_price_1080p?: number | null
   video_model_prices?: VideoModelPrices
+  video_price_plans?: VideoPricePlans
+  allow_high_availability?: boolean
   web_search_price_per_call?: number | null
   search_price_per_1k?: number | null
   audio_realtime_price_per_min?: number | null

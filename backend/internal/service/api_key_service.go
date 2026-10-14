@@ -64,12 +64,18 @@ const (
 // 若编辑 Key 时无条件整行回写，并发累计的配额与限流计数就会被旧快照覆盖。
 // 因此调用方必须显式声明要改的列。
 type APIKeyUpdateFields struct {
-	Name                       bool
-	Status                     bool
-	Quota                      bool
-	GroupID                    bool
-	Groups                     bool
-	NormalGroupsOnly           bool
+	Name             bool
+	Status           bool
+	Quota            bool
+	GroupID          bool
+	Groups           bool
+	NormalGroupsOnly bool
+	// AllowHADeclaration 声明本次 desired 链可以包含 role=ha（管理员配置路径）：
+	// 允许 enabled_by_user_at 为空（用户尚未开启），既有授权时间戳沿用数据库值。
+	AllowHADeclaration bool
+	// AuthoritativeHAGroups 声明 desired 的 HA 集合即最终状态（用户主动开启路径）：
+	// 时间戳由服务端生成并原样保留；空时间戳仅用于关闭既有 HA 授权，不继承数据库值。
+	AuthoritativeHAGroups      bool
 	ExpectedGroupChainRevision *int64
 	ExpiresAt                  bool
 	// QuotaUsed 仅供"重置配额用量"路径声明；常规计费走 IncrementQuotaUsed。

@@ -608,6 +608,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		VideoPrice720P:                  videoPrice720P,
 		VideoPrice1080P:                 videoPrice1080P,
 		VideoModelPrices:                NormalizeVideoModelPrices(input.VideoModelPrices),
+		VideoPricePlans:                 NormalizeVideoPricePlans(input.VideoPricePlans),
 		WebSearchPricePerCall:           webSearchPricePerCall,
 		SearchPricePer1k:                searchPricePer1k,
 		AudioRealtimePricePerMin:        audioRealtimePricePerMin,
@@ -636,6 +637,8 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
 		ReasoningEffortMappings:     reasoningEffortMappings,
 		SchedulingStrategy:          schedulingStrategy,
+		// AllowHighAvailability 由管理员显式开启；默认关闭，用户仍需在自己的 Key 上主动授权。
+		AllowHighAvailability: input.AllowHighAvailability,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)
@@ -930,6 +933,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.VideoModelPrices != nil {
 		group.VideoModelPrices = NormalizeVideoModelPrices(input.VideoModelPrices)
 	}
+	// nil = leave unchanged; empty map = clear the metering plans (fail closed again).
+	if input.VideoPricePlans != nil {
+		group.VideoPricePlans = NormalizeVideoPricePlans(*input.VideoPricePlans)
+	}
 	if input.WebSearchPricePerCall != nil {
 		group.WebSearchPricePerCall = normalizePrice(input.WebSearchPricePerCall)
 	}
@@ -1051,6 +1058,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
 		}
 		group.ReasoningEffortMappings = reasoningEffortMappings
+	}
+	// AllowHighAvailability：nil 表示未提供该字段，保持原值不动；显式 false 可关闭。
+	if input.AllowHighAvailability != nil {
+		group.AllowHighAvailability = *input.AllowHighAvailability
 	}
 	// 调度策略（C-4）：nil 表示未提供该字段，保持原值不动；显式空串与其它非法值一律
 	// 400 拒绝（不静默当成 inherit，避免运维以为「清空」已生效）；值大小写/首尾空白
@@ -1460,7 +1471,9 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroups(ctx context.Context, keyID in
 	if input.ExpectedGroupChainRevision == nil {
 		return nil, ErrGroupChainConflict
 	}
-	links, err := NormalizeAPIKeyGroupLinks(input.Groups, true)
+	// 管理员路径允许保留/创建 role=ha 链接（管理员配置可作兜底的分组）；
+	// 用户路径仍是 normalOnly=true，不能自助伪造 role=ha。
+	links, err := NormalizeAPIKeyGroupLinks(input.Groups, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1493,8 +1506,10 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroups(ctx context.Context, keyID in
 			}
 			groups = append(groups, group)
 		}
-		// Reject normal IDs colliding with retained HA before granting anything.
-		if _, err := ResolveAPIKeyGroupChain(key.Groups, links, true); err != nil {
+		// 解析出最终链（normal 替换 + 保留未声明变更的 ha），普通组不得与 HA 组 ID 冲突。
+		// 授权时间戳沿用 DB；管理员不能代替用户开启。
+		resolved, err := ResolveAdminAPIKeyGroupChain(key.Groups, links)
+		if err != nil {
 			return err
 		}
 		for _, group := range groups {
@@ -1508,8 +1523,9 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroups(ctx context.Context, keyID in
 				result.GrantedGroupName = group.Name
 			}
 		}
-		key.Groups = links
-		fields := APIKeyUpdateFields{Groups: true, NormalGroupsOnly: true, ExpectedGroupChainRevision: input.ExpectedGroupChainRevision}
+		key.Groups = resolved
+		// 管理员路径允许写 role=ha，因此不再用 NormalGroupsOnly 丢弃 HA 链接。
+		fields := APIKeyUpdateFields{Groups: true, AllowHADeclaration: true, ExpectedGroupChainRevision: input.ExpectedGroupChainRevision}
 		if input.ResetRateLimitUsage {
 			key.Usage5h = 0
 			key.Usage1d = 0

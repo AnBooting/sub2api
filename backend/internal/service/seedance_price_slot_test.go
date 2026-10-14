@@ -5,6 +5,7 @@ package service
 import (
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -53,10 +54,32 @@ func TestGroupHasSeedanceVideoPriceFailsClosed(t *testing.T) {
 	}}
 	require.True(t, GroupHasSeedanceVideoPrice(perModel))
 
-	// A single configured tier is enough; a flat column also counts.
+	// A single configured tier in the Seedance slot is enough.
 	require.True(t, GroupHasSeedanceVideoPrice(&Group{VideoModelPrices: map[string]map[string]float64{
 		"seedance": {VideoBillingResolution1080P: 0.25},
 	}}))
+
+	// A metering plan is the first-class Seedance price source.
+	require.True(t, GroupHasSeedanceVideoPrice(&Group{VideoPricePlans: map[string]domain.VideoPricePlan{
+		VideoPriceFamilySeedance: {Mode: domain.VideoBillingModePerToken, PerTokenPrices: map[string]domain.VideoTokenPrice{
+			VideoBillingResolution720P: {WithoutInputVideo: ptrFloat(70)},
+		}},
+	}}))
+
+	// The flat video_price_* columns are xAI's per-second tariff and are NOT a
+	// Seedance slot: a Seedance result never reaches that settlement path (its
+	// VideoCount stays 0), so admitting them here would accept the create and then
+	// settle at zero cost. Fail closed instead.
 	flat := 0.2
-	require.True(t, GroupHasSeedanceVideoPrice(&Group{VideoPrice720P: &flat}))
+	require.False(t, GroupHasSeedanceVideoPrice(&Group{VideoPrice720P: &flat}),
+		"a flat Grok per-second tariff cannot settle a Seedance job")
+	require.False(t, GroupHasSeedanceVideoPrice(&Group{
+		VideoPrice480P: &flat, VideoPrice720P: &flat, VideoPrice1080P: &flat,
+	}), "flat columns alone must not admit Seedance")
+
+	// A plan that declares a mode but carries no price is not a configured price.
+	require.False(t, GroupHasSeedanceVideoPrice(&Group{VideoPricePlans: map[string]domain.VideoPricePlan{
+		VideoPriceFamilySeedance: {Mode: domain.VideoBillingModePerToken},
+	}}), "a plan without any priced tier is not sellable")
 }
+

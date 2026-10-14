@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -180,6 +181,18 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
+	} else if canonicalSeedanceVideoPriceFamily(result.Model) != "" || canonicalSeedanceVideoPriceFamily(result.BillingModel) != "" {
+		// PRD-06/K-4: carry the create-time "request included a video input" fact
+		// from the deferred pending snapshot into the per-token price tier. The
+		// status response cannot reveal it and the create-time context does not
+		// survive to this async billing task, so the snapshot is the only source.
+		// A miss stays false (higher-priced cell) rather than granting a discount.
+		if user != nil && apiKey != nil {
+			taskID := strings.TrimPrefix(strings.TrimSpace(result.ResponseID), "seedance:")
+			if s.GrokVideoPendingHasInputVideo(ctx, taskID, user.ID, apiKey.ID) {
+				ctx = WithVideoPlanInputVideoFact(ctx, true)
+			}
+		}
 	}
 	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(billingAccount, result))
 
@@ -859,9 +872,27 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 		//（用户专属 > 分组 rate_multiplier > 系统默认），与分组表单的价格预览承诺一致。
 		return s.billingService.CalculateWebSearchCost(result.WebSearchCalls, webSearchPricePerCallFromAPIKey(apiKey), webSearchMultiplier), nil
 	}
+	// PRD-06/K-4: Ark Seedance bills per token (or per request/second) through the
+	// operator's video price plan, not through the LLM token table. Seedance results
+	// carry token usage but no VideoCount, so they would otherwise never reach the
+	// video cost path. A configured plan therefore takes precedence here; without a
+	// plan the legacy token settlement is preserved unchanged.
+	if hasSeedanceVideoPlan(apiKey, billingModel) {
+		planCost, hasPlan := s.calculateOpenAIVideoPlanCost(ctx, apiKey, billingModel, result, videoMultiplier)
+		if hasPlan {
+			if planCost == nil {
+				return nil, fmt.Errorf("%w: video price plan is missing a usable tier for model %q", ErrModelPricingUnavailable, billingModel)
+			}
+			return planCost, nil
+		}
+	}
 	if isGrokVideoUsageResult(result, billingModels) {
 		if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
-			return s.calculateOpenAIVideoCost(ctx, billingModel, apiKey, result, videoMultiplier), nil
+			// PRD-06/K-4: a missing video tariff is an error, not a zero price. The
+			// caller's missing-pricing branch records the zero-cost row with a
+			// warning, which is the existing fail-closed contract; it never reaches
+			// getDefaultVideoPrice's image-price fallback.
+			return s.calculateOpenAIVideoCost(ctx, billingModel, apiKey, result, videoMultiplier)
 		}
 	}
 	if result != nil && result.AudioUsage != nil {
@@ -956,6 +987,19 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	tokenCost.TotalCost += searchCost.TotalCost
 	tokenCost.ActualCost += searchCost.ActualCost
 	return tokenCost, nil
+}
+
+// hasSeedanceVideoPlan reports whether the group declares a Seedance video price
+// plan for this model. It is the routing gate that lets Ark Seedance results reach
+// the plan cost path even though they carry no VideoCount.
+func hasSeedanceVideoPlan(apiKey *APIKey, billingModel string) bool {
+	if apiKey == nil || apiKey.Group == nil {
+		return false
+	}
+	if canonicalSeedanceVideoPriceFamily(billingModel) == "" {
+		return false
+	}
+	return GroupHasVideoPricePlan(apiKey.Group, billingModel)
 }
 
 func isGrokVideoBillingModel(model string) bool {
@@ -1075,13 +1119,165 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 }
 
+// ---- PRD-06/K-4 video price plans on the real billing path ----
+
+// videoBillingPlanTokenUsage reports the completion-token usage that Ark bills
+// for one video task. Ark reconciles on usage.completion_tokens (the whole
+// generation), so the value must reach the plan path. A legacy per-second caller
+// that carries no token usage must not be silently priced as zero.
+func videoBillingPlanTokenUsage(result *OpenAIForwardResult) int {
+	if result == nil {
+		return 0
+	}
+	if result.Usage.OutputTokens > 0 {
+		return result.Usage.OutputTokens
+	}
+	return 0
+}
+
+// videoPlanInputVideoCtxKey carries "the request included a video input" — the
+// second dimension of Ark's per-token price table — from the usage-record input
+// down to the plan cost calculation.
+//
+// It travels on the context because the flag is known at the media handler (from
+// the create body / pending snapshot) while the cost is computed later inside
+// RecordUsage, and OpenAIForwardResult deliberately stays outside this change.
+type videoPlanInputVideoCtxKey struct{}
+
+// WithVideoPlanInputVideoFact records whether the request carried a video input.
+// The default (absent value) is false: without proof we bill the higher
+// without-input-video cell instead of granting a discount on a guess.
+func WithVideoPlanInputVideoFact(ctx context.Context, hasInputVideo bool) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, videoPlanInputVideoCtxKey{}, hasInputVideo)
+}
+
+func videoPlanInputVideoFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	hasInputVideo, _ := ctx.Value(videoPlanInputVideoCtxKey{}).(bool)
+	return hasInputVideo
+}
+
+// calculateOpenAIVideoPlanCost prices a video result with the group's
+// video_price_plans entry when one is configured.
+//
+// Contract (TS-06):
+//   - A configured plan always wins over the legacy per-second tariff and over the
+//     bundled defaults, so an operator who moved a family to per_token/per_request
+//     is never billed by the old per-second path.
+//   - A plan whose mode is valid but whose tier/token usage is missing fails closed
+//     with ErrModelPricingUnavailable. It must NOT fall back to the per-second rate
+//     or to getDefaultVideoPrice (which ends in the image price).
+//   - No plan at all returns (nil, false): the caller keeps the existing path, which
+//     is what keeps Grok's per_second behavior unchanged.
+func (s *OpenAIGatewayService) calculateOpenAIVideoPlanCost(
+	ctx context.Context,
+	apiKey *APIKey,
+	billingModel string,
+	result *OpenAIForwardResult,
+	multiplier float64,
+) (*CostBreakdown, bool) {
+	plan := videoPlanFromAPIKey(apiKey, billingModel)
+	if plan == nil {
+		return nil, false
+	}
+	cost, err := s.billingService.CalculateVideoCostFromPlan(VideoCostInput{
+		Model:            billingModel,
+		Resolution:       result.VideoResolution,
+		VideoCount:       result.VideoCount,
+		DurationSeconds:  result.VideoDurationSeconds,
+		CompletionTokens: videoBillingPlanTokenUsage(result),
+		HasInputVideo:    videoPlanInputVideoFromContext(ctx),
+		Plan:             plan,
+		RateMultiplier:   multiplier,
+	})
+	if err != nil {
+		// Fail closed: return a nil-cost signal so the caller records an
+		// unavailable-pricing outcome instead of inventing a tariff.
+		logger.L().With(
+			zap.String("component", "service.openai_gateway"),
+			zap.String("model", billingModel),
+			zap.String("video_billing_mode", string(plan.Mode)),
+			zap.Int("video_count", result.VideoCount),
+			zap.Int("completion_tokens", result.Usage.OutputTokens),
+		).Warn("openai_usage.video_price_plan_failed_closed", zap.Error(err))
+		return nil, true
+	}
+	return cost, true
+}
+
+// seedanceHasVideoInput reports whether a Seedance create request carried a video
+// input (content[].video_url or a draft_task). It is deliberately conservative:
+// anything it cannot prove counts as "no video input", which bills the higher
+// without-input-video cell instead of granting a discount we cannot justify.
+func seedanceHasVideoInput(body []byte) bool {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return false
+	}
+	content := gjson.GetBytes(body, "content")
+	if !content.IsArray() {
+		return false
+	}
+	for _, item := range content.Array() {
+		switch strings.TrimSpace(item.Get("type").String()) {
+		case "video_url", "draft_task":
+			return true
+		}
+	}
+	return false
+}
+
+// SeedanceRequestHasVideoInput reports whether an Ark Seedance create body carried
+// a video input, for the create-time pending snapshot. Conservative: only an
+// explicit content[].video_url / draft_task counts; anything unprovable is false,
+// which bills the higher without-input-video token cell.
+func SeedanceRequestHasVideoInput(body []byte) bool {
+	return seedanceHasVideoInput(body)
+}
+
+// GetDefaultVideoPriceForModel exposes the bundled video default for diagnostics
+// and tests. It exists so callers can assert that a model without any configured
+// plan is NOT silently priced through the image fallback.
+func (s *BillingService) GetDefaultVideoPriceForModel(model, resolution string) float64 {
+	return s.getDefaultVideoPrice(model, resolution)
+}
+
+// calculateOpenAIVideoCost prices one async video result.
+//
+// It returns ErrModelPricingUnavailable (wrapped) when the result must not be
+// priced: the caller's existing missing-pricing handling records a zero-cost row
+// with a warning rather than inventing a tariff. Returning an error — instead of a
+// nil breakdown or a guessed price — is what keeps a plan-less or
+// partially-priced video out of the image-price fallback (TS-06).
 func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	ctx context.Context,
 	billingModel string,
 	apiKey *APIKey,
 	result *OpenAIForwardResult,
 	multiplier float64,
-) *CostBreakdown {
+) (*CostBreakdown, error) {
+	// PRD-06/K-4: an operator-set video price plan is the authoritative tariff for
+	// its family. It is consulted FIRST so a group that moved a model to
+	// per_token/per_request is never billed by the legacy per-second path — and so a
+	// plan whose tier is missing fails closed instead of reaching the image-price
+	// fallback at the bottom of getDefaultVideoPrice.
+	if planCost, hasPlan := s.calculateOpenAIVideoPlanCost(ctx, apiKey, billingModel, result, multiplier); hasPlan {
+		if planCost == nil {
+			return nil, fmt.Errorf("%w: video price plan is missing a usable tier for model %q", ErrModelPricingUnavailable, billingModel)
+		}
+		return planCost, nil
+	}
+	// Seedance has no bundled default price. Without a plan or an operator-set slot
+	// the request must not be priced through getDefaultVideoPrice, whose last resort
+	// is the image price (TS-06 forbids that fallback).
+	if canonicalSeedanceVideoPriceFamily(billingModel) != "" && !GroupHasSeedanceVideoPrice(apiKey.Group) {
+		return nil, fmt.Errorf("%w: no Seedance price configured for model %q", ErrModelPricingUnavailable, billingModel)
+	}
+
 	videoCount := result.VideoCount
 	if videoCount <= 0 {
 		videoCount = 1
@@ -1098,18 +1294,18 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 			ReasoningEffort: optionalStringValue(result.ReasoningEffort),
 		})
 		if err == nil {
-			return cost
+			return cost, nil
 		}
 	}
 	groupConfig := videoPriceConfigFromAPIKey(apiKey)
 	if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
+		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
 	}
 	if refreshed := s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey); refreshed != apiKey {
 		apiKey = refreshed
 		groupConfig = videoPriceConfigFromAPIKey(apiKey)
 		if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
+			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
 		}
 	}
 	if resolved != nil && resolved.Source == PricingSourceChannel &&
@@ -1135,12 +1331,20 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 		})
 		if err == nil {
 			cost.BillingMode = string(BillingModeVideo)
-			return cost
+			return cost, nil
 		}
 		logger.LegacyPrintf("service.openai_gateway", "Calculate video channel cost failed: %v", err)
 	}
 
-	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
+	// Last guard: the remaining fallback (CalculateVideoCost → getVideoUnitPrice →
+	// getDefaultVideoPrice) ends in the image price. That is acceptable only for a
+	// model with a real bundled video default (Grok). Seedance is caught above, so
+	// reaching here means no bundled video tariff exists: fail closed instead of
+	// borrowing the image tariff.
+	if _, bundled := getDefaultGrokImagineVideoPrice(billingModel, resolution); !bundled {
+		return nil, fmt.Errorf("%w: no video price configured for model %q", ErrModelPricingUnavailable, billingModel)
+	}
+	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
 }
 
 func (s *OpenAIGatewayService) apiKeyWithFreshGroupMediaPricing(ctx context.Context, apiKey *APIKey) *APIKey {

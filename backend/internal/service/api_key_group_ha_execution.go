@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -90,6 +91,11 @@ func (s *APIKeyService) AuthorizeHAGroupExecution(ctx context.Context, keyID, us
 	if !group.IsActive() {
 		return nil, nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
 	}
+	// PRD-04 §2.3/§2.6: 管理员取消该组的兜底配置后，存量用户授权也必须停止生效。
+	// 与其他授权拒绝一致地返回 ErrGroupNotAllowed，fail closed 且不新增错误面。
+	if !group.AllowHighAvailability {
+		return nil, nil, ErrGroupNotAllowed
+	}
 	var subscription *UserSubscription
 	if group.IsSubscriptionType() {
 		if s.userSubRepo == nil {
@@ -152,4 +158,123 @@ func (s *APIKeyService) AuthorizeHAGroupExecution(ctx context.Context, keyID, us
 	execution.Window1dStart = cloneGroupValuePointer(key.Window1dStart)
 	execution.Window7dStart = cloneGroupValuePointer(key.Window7dStart)
 	return &execution, subscription, nil
+}
+
+// APIKeyHAGroupEnablementResult 是用户主动开启/关闭 HA 兜底组后的状态。
+//
+// RateMultiplier 恒为服务端分组配置值（groups.rate_multiplier）：请求体里的任何倍率
+// 字段都不参与计算，用户不能为自己协商兜底倍率。
+type APIKeyHAGroupEnablementResult struct {
+	APIKey             *APIKey
+	Group              *Group
+	Enabled            bool
+	RateMultiplier     float64
+	GroupChainRevision int64
+}
+
+// haGroupScopeCompatible 判断 HA 组能否承载 Key 当前普通链的模型适用范围。
+//
+// 复用既有分组模型白名单判定（GroupModelAllowlist.Allows）：HA 组未启用白名单即不受限，
+// 直接兼容；普通组未启用白名单时其范围无法静态收窄，跳过该组（真正的逐请求能力检查
+// 由执行期 AuthorizeHAGroupExecution 与网关白名单完成）。通配条目无法枚举，跳过。
+func haGroupScopeCompatible(haGroup *Group, key *APIKey) bool {
+	if haGroup == nil || !haGroup.ModelAllowlistEnabled() {
+		return true
+	}
+	if key == nil {
+		return true
+	}
+	for _, link := range key.Groups {
+		if link.Role != APIKeyGroupRoleNormal || link.Group == nil || !link.Group.ModelAllowlistEnabled() {
+			continue
+		}
+		for _, model := range link.Group.ModelAllowlist.Models {
+			if strings.Contains(model, "*") {
+				continue
+			}
+			if !haGroup.ModelAllowlist.Allows(model) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// SetAPIKeyHAGroupEnabled 让用户在自己某个 API Key 上主动开启/关闭某个 HA 兜底组。
+//
+// 校验顺序即安全边界（任一步失败都不落库）：
+//  1. Key 归属当前登录用户，否则 403，不泄漏 Key 是否存在；
+//  2. 目标组 allow_high_availability=true 且 active，否则拒绝；
+//  3. 组模型白名单与 Key 当前适用范围匹配（复用 allowlist 判定）；
+//  4. 倍率一律读服务端分组配置，请求体携带的倍率被忽略；
+//  5. 开启写 enabled_by_user_at=now()，关闭置 NULL。
+//
+// 写入走既有 Key 行锁 + group_chain_revision CAS 事务，变更后失效该 Key 的鉴权缓存。
+func (s *APIKeyService) SetAPIKeyHAGroupEnabled(ctx context.Context, userID, keyID, groupID int64, enable bool) (*APIKeyHAGroupEnablementResult, error) {
+	if userID <= 0 || keyID <= 0 || groupID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_HA_GROUP_REQUEST", "user, key and group ids must be positive")
+	}
+	if s == nil || s.apiKeyRepo == nil || s.groupRepo == nil {
+		return nil, ErrBillingServiceUnavailable
+	}
+	repo, ok := s.apiKeyRepo.(APIKeyGroupChainTxRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("GROUP_CHAIN_TRANSACTION_UNAVAILABLE", "group chain transaction is not configured")
+	}
+
+	group, err := s.groupRepo.GetByID(ctx, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("get ha group: %w", err)
+	}
+	if group == nil || group.ID != groupID {
+		return nil, ErrGroupNotFound
+	}
+	// 只有管理员标记为可作兜底的分组才能被用户开启。
+	if !group.AllowHighAvailability {
+		return nil, infraerrors.Forbidden("HA_GROUP_NOT_CONFIGURED", "group is not configured as a high-availability fallback")
+	}
+	if !group.IsActive() {
+		return nil, infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+	}
+
+	result := &APIKeyHAGroupEnablementResult{Group: group, Enabled: enable, RateMultiplier: group.RateMultiplier}
+	err = repo.WithGroupChainTransaction(ctx, keyID, nil, func(txCtx context.Context, key *APIKey) error {
+		// ① 归属校验：非本人 Key 一律 403，且不区分「不存在」与「不属于我」。
+		if key == nil || key.ID != keyID {
+			return ErrAPIKeyNotFound
+		}
+		if key.UserID != userID {
+			return ErrInsufficientPerms
+		}
+		// ③ 组模型白名单与 Key 适用范围匹配。
+		if !haGroupScopeCompatible(group, key) {
+			return infraerrors.Forbidden("HA_GROUP_MODEL_SCOPE_MISMATCH", "group cannot serve the model scope of this api key")
+		}
+		resolved, err := ApplyUserHAEnablement(key.Groups, groupID, enable, time.Now())
+		if err != nil {
+			return err
+		}
+		key.Groups = resolved
+		key.GroupID = FirstNormalAPIKeyGroupID(resolved)
+		key.Group = nil
+		revision := key.GroupChainRevision
+		if err := s.apiKeyRepo.Update(txCtx, key, APIKeyUpdateFields{
+			Groups:                     true,
+			AuthoritativeHAGroups:      true,
+			ExpectedGroupChainRevision: &revision,
+		}); err != nil {
+			return err
+		}
+		result.APIKey = key
+		result.GroupChainRevision = key.GroupChainRevision
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	// 分组快照新增/清除 enabled_by_user_at 后必须失效鉴权缓存，否则旧快照继续生效。
+	if result.APIKey != nil {
+		s.InvalidateAuthCacheByKey(ctx, result.APIKey.Key)
+	}
+	return result, nil
 }

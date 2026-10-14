@@ -283,7 +283,18 @@ func (r *apiKeyRepository) Update(ctx context.Context, key *service.APIKey, fiel
 			desired = service.NormalAPIKeyGroupLinks(key.GroupID)
 			normalOnly = true
 		}
-		resolved, err := service.ResolveAPIKeyGroupChain(current.Groups, desired, normalOnly)
+		var resolved []service.APIKeyGroupLink
+		var err error
+		switch {
+		case fields.AuthoritativeHAGroups:
+			// 用户主动开启/关闭：desired 的 HA 集合即最终状态（时间戳由服务端生成或置空）。
+			resolved, err = service.ResolveUserAuthorizedAPIKeyGroupChain(current.Groups, desired)
+		case fields.AllowHADeclaration:
+			// 管理员配置：允许声明 role=ha，授权时间戳只沿用数据库既有值。
+			resolved, err = service.ResolveAdminAPIKeyGroupChain(current.Groups, desired)
+		default:
+			resolved, err = service.ResolveAPIKeyGroupChain(current.Groups, desired, normalOnly)
+		}
 		if err != nil {
 			return err
 		}
@@ -1135,6 +1146,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		VideoPrice720P:                  g.VideoPrice720p,
 		VideoPrice1080P:                 g.VideoPrice1080p,
 		VideoModelPrices:                service.NormalizeVideoModelPrices(g.VideoModelPrices),
+		VideoPricePlans:                 g.VideoPricePlans,
 		WebSearchPricePerCall:           g.WebSearchPricePerCall,
 		SearchPricePer1k:                g.SearchPricePer1k,
 		AudioRealtimePricePerMin:        g.AudioRealtimePricePerMin,
@@ -1173,6 +1185,7 @@ func groupEntityToService(g *dbent.Group) *service.Group {
 		ProfitMinMargin:                 g.ProfitMinMargin,
 		ProfitSafetyBuffer:              g.ProfitSafetyBuffer,
 		SchedulingStrategy:              g.SchedulingStrategy,
+		AllowHighAvailability:           g.AllowHighAvailability,
 		CreatedAt:                       g.CreatedAt,
 		UpdatedAt:                       g.UpdatedAt,
 	}

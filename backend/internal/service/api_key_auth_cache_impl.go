@@ -14,7 +14,7 @@ import (
 	"github.com/dgraph-io/ristretto"
 )
 
-const apiKeyAuthSnapshotVersion = 26 // v26: group scheduling_strategy override (C-4); older snapshots must refetch
+const apiKeyAuthSnapshotVersion = 27 // v27: group video_price_plans (PRD-06/K-4); older snapshots must refetch
 
 type apiKeyAuthCacheConfig struct {
 	l1Size        int
@@ -415,6 +415,7 @@ func apiKeyAuthSnapshotFromGroup(source *Group) *APIKeyAuthGroupSnapshot {
 		VideoPrice720P:                  group.VideoPrice720P,
 		VideoPrice1080P:                 group.VideoPrice1080P,
 		VideoModelPrices:                NormalizeVideoModelPrices(group.VideoModelPrices),
+		VideoPricePlans:                 NormalizeVideoPricePlans(group.VideoPricePlans),
 		WebSearchPricePerCall:           group.WebSearchPricePerCall,
 		SearchPricePer1k:                group.SearchPricePer1k,
 		AudioRealtimePricePerMin:        group.AudioRealtimePricePerMin,
@@ -481,6 +482,7 @@ func apiKeyAuthGroupFromSnapshot(snapshot *APIKeyAuthGroupSnapshot) *Group {
 		VideoPrice720P:                  snapshot.VideoPrice720P,
 		VideoPrice1080P:                 snapshot.VideoPrice1080P,
 		VideoModelPrices:                NormalizeVideoModelPrices(snapshot.VideoModelPrices),
+		VideoPricePlans:                 NormalizeVideoPricePlans(snapshot.VideoPricePlans),
 		WebSearchPricePerCall:           snapshot.WebSearchPricePerCall,
 		SearchPricePer1k:                snapshot.SearchPricePer1k,
 		AudioRealtimePricePerMin:        snapshot.AudioRealtimePricePerMin,

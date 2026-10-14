@@ -927,6 +927,8 @@ export default {
         rpmLimit: 'Requests Per Minute (RPM)',
         rpmLimitPlaceholder: '0 = unlimited',
         rpmLimitHint: 'Max requests per minute for each user in this group; 0 = unlimited. Once set, it takes over per-user rate limiting in this group (overrides the user-level rpm_limit fallback).',
+        allowHighAvailability: 'Usable as high-availability fallback',
+        allowHighAvailabilityHint: 'When enabled, users can opt this group in as their fallback candidate on their own API keys. It is only used after the normal group chain is exhausted with a retryable failure; billing uses this group rate multiplier (1.0 by default). Which models it may serve comes from the model allowlist.',
         maxReasoningEffort: 'Max reasoning effort',
         maxReasoningEffortUnlimited: 'Unlimited (follow request)',
         maxReasoningEffortHint: 'Limits explicit Anthropic and OpenAI reasoning effort requests. For Composite groups, it applies to the resolved target platform. Omitted effort stays omitted. The ceiling takes precedence over reasoning effort mappings.',
@@ -1095,6 +1097,17 @@ export default {
           'Videos are billed per second: per-second price × duration (1-15s, default 8s). By default the current effective group multiplier applies; independent mode uses the video multiplier instead.',
         finalPricePreview: 'Final per-second price preview',
         notConfigured: 'Not configured'
+      },
+      videoPlans: {
+        title: 'Video billing plans (per model family)',
+        description:
+          'Vendors meter differently: Ark Seedance bills per token, xAI Grok per second and MiniMax per request. Declare the metering mode and unit prices per model family. An unconfigured model is rejected rather than priced with another tariff.',
+        mode: 'Metering mode',
+        modeUnset: 'Not configured (rejected)',
+        perRequestPrice: 'Price per request',
+        perTokenHint: 'Price per token (per million tokens), tiered by output resolution and whether the request carries a video input.',
+        withoutInput: '(no video input)',
+        withInput: '(with video input)'
       },
       explicitPricing: {
         title: 'Grok Search & Voice Pricing',

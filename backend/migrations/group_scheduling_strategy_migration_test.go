@@ -34,14 +34,22 @@ func TestGroupSchedulingStrategyMigration(t *testing.T) {
 }
 
 // 迁移编号必须紧接在既有最新迁移之后，且不改写已有文件。
+//
+// 245 是 TS-02 C-4 引入该列的迁移；后续 PRD-04/PRD-06 在其之后追加了
+// 246（groups.allow_high_availability）与 247（groups.video_price_plans）。
+// 本用例因此不再断言「245 恒为最新」（新迁移合法地推进迁移头），改为断言：
+// 245 文件本身未被改写，且从 245 起编号连续、无缺号，最新迁移与磁盘一致。
 func TestSchedulingStrategyMigrationNumbering(t *testing.T) {
 	content, err := FS.ReadFile("245_group_scheduling_strategy.sql")
 	require.NoError(t, err)
 	require.NotEmpty(t, content)
+	// 245 的语义不得被后续迁移改写：仍只新增该列并保留原 CHECK 约束。
+	require.Contains(t, string(content), "scheduling_strategy VARCHAR(20) NOT NULL DEFAULT 'inherit'")
 
 	entries, err := FS.ReadDir(".")
 	require.NoError(t, err)
 
+	seen := make(map[string]bool)
 	latest := ""
 	for _, entry := range entries {
 		name := entry.Name()
@@ -51,10 +59,16 @@ func TestSchedulingStrategyMigrationNumbering(t *testing.T) {
 		if len(name) < 3 || name[:3] < "245" {
 			continue
 		}
+		seen[name[:3]] = true
 		if name > latest {
 			latest = name
 		}
 	}
-	require.Equal(t, "245_group_scheduling_strategy.sql", latest,
-		"245 必须是当前最新迁移")
+
+	// 245 之后每个编号都必须存在，防止跳号（246/247 已随 PRD-04/PRD-06 追加）。
+	require.True(t, seen["245"], "245_group_scheduling_strategy.sql 必须仍然存在")
+	require.True(t, seen["246"], "246 迁移缺失：编号必须连续")
+	require.True(t, seen["247"], "247 迁移缺失：编号必须连续")
+	require.Equal(t, "247_group_video_price_plans.sql", latest,
+		"最新迁移必须与磁盘上的最高编号一致")
 }

@@ -154,6 +154,16 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("按模型族和分辨率覆盖视频每秒价格"),
+		// 视频计费计划 (added by migration 247)：按模型族声明计量模式
+		// （per_request / per_second / per_token）与单价，替代「所有视频都按秒」的隐含假设。
+		field.JSON("video_price_plans", map[string]domain.VideoPricePlan{}).
+			Optional().
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("按模型族的视频计费计划：模式 + 单价；未配置必须 fail closed"),
+		// HA 兜底分组标记 (added by migration 246)。
+		field.Bool("allow_high_availability").
+			Default(false).
+			Comment("是否可作为用户主动开启的高可用兜底分组（PRD-04）"),
 		field.Float("web_search_price_per_call").
 			Optional().
 			Nillable().

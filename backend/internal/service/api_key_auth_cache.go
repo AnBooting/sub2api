@@ -1,6 +1,10 @@
 package service
 
-import "time"
+import (
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+)
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
@@ -90,6 +94,7 @@ type APIKeyAuthGroupSnapshot struct {
 	VideoPrice720P                  *float64                      `json:"video_price_720p,omitempty"`
 	VideoPrice1080P                 *float64                      `json:"video_price_1080p,omitempty"`
 	VideoModelPrices                map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	VideoPricePlans                 map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
 	WebSearchPricePerCall           *float64                      `json:"web_search_price_per_call,omitempty"`
 	SearchPricePer1k                *float64                      `json:"search_price_per_1k,omitempty"`
 	AudioRealtimePricePerMin        *float64                      `json:"audio_realtime_price_per_min,omitempty"`

@@ -1,5 +1,7 @@
 package service
 
+import "github.com/Wei-Shaw/sub2api/internal/domain"
+
 func imagePriceConfigFromAPIKey(apiKey *APIKey) *ImagePriceConfig {
 	if apiKey == nil || apiKey.Group == nil {
 		return nil
@@ -47,7 +49,34 @@ func GroupHasSeedanceVideoPrice(group *Group) bool {
 			return true
 		}
 	}
-	return group.VideoPrice480P != nil || group.VideoPrice720P != nil || group.VideoPrice1080P != nil
+	// PRD-06/K-4: a metering plan (per_request / per_second / per_token) is the
+	// first-class Seedance price source. A plan with a valid mode and at least one
+	// priced unit is a configured price; a plan with a mode but no prices is not.
+	//
+	// The flat video_price_* columns are deliberately NOT accepted here: they are
+	// xAI's per-second tariff, and a Seedance result never reaches that settlement
+	// path (its VideoCount stays 0, so it falls through to token billing). Accepting
+	// them would admit the create and then settle at zero cost.
+	return GroupHasVideoPricePlan(group, VideoPriceFamilySeedance)
+}
+
+// apiKeyHasConfiguredVideoPlan reports whether the group behind the API key
+// declares a usable video metering plan for the model. Callers use it to prefer
+// the plan path over the legacy per-second tariff without ever guessing a price.
+func apiKeyHasConfiguredVideoPlan(apiKey *APIKey, model string) bool {
+	if apiKey == nil || apiKey.Group == nil {
+		return false
+	}
+	return GroupHasVideoPricePlan(apiKey.Group, model)
+}
+
+// videoPlanFromAPIKey returns the group's video metering plan for the model, or
+// nil when the group declares none (fail closed at the caller).
+func videoPlanFromAPIKey(apiKey *APIKey, model string) *domain.VideoPricePlan {
+	if apiKey == nil || apiKey.Group == nil {
+		return nil
+	}
+	return VideoPricePlanForGroup(apiKey.Group, model)
 }
 
 func webSearchPricePerCallFromAPIKey(apiKey *APIKey) *float64 {

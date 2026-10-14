@@ -41,11 +41,23 @@ func (h *OpenAIGatewayHandler) SeedanceTasks(c *gin.Context) {
 // Ark reports actual completion tokens. Never infer tokens from duration or use
 // Grok's per-second video tariff. Repeated polls share the durable task dedup key.
 func prepareSeedanceCompletionBilling(ctx context.Context, h *OpenAIGatewayHandler, key *service.APIKey, subject middleware.AuthSubject, taskID string, result *service.OpenAIForwardResult) *service.OpenAIForwardResult {
-	if result == nil || result.Usage.OutputTokens <= 0 {
+	if result == nil {
 		return nil
 	}
 	pending, err := h.gatewayService.LoadGrokVideoPendingBilling(ctx, taskID, subject.UserID, key.ID)
 	if err != nil || pending == nil {
+		return nil
+	}
+	// PRD-06/K-4: only a per_token plan reconciles on usage.completion_tokens.
+	// A per_request/per_second plan is priced from the request/status facts, so a
+	// missing token figure must not drop the whole charge. With no plan configured
+	// the legacy token settlement (which does require tokens) is preserved.
+	model := firstNonEmptyString(pending.BillingModel, pending.Model, result.BillingModel, result.Model)
+	var group *service.Group
+	if key != nil {
+		group = key.Group
+	}
+	if service.SeedanceCompletionRequiresTokens(group, model) && result.Usage.OutputTokens <= 0 {
 		return nil
 	}
 	claimed, err := h.gatewayService.ClaimGrokVideoBilling(ctx, taskID, subject.UserID, key.ID)

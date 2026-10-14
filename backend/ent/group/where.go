@@ -220,6 +220,11 @@ func VideoPrice1080p(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldVideoPrice1080p, v))
 }
 
+// AllowHighAvailability applies equality check predicate on the "allow_high_availability" field. It's identical to AllowHighAvailabilityEQ.
+func AllowHighAvailability(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowHighAvailability, v))
+}
+
 // WebSearchPricePerCall applies equality check predicate on the "web_search_price_per_call" field. It's identical to WebSearchPricePerCallEQ.
 func WebSearchPricePerCall(v float64) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldWebSearchPricePerCall, v))
@@ -1818,6 +1823,26 @@ func VideoModelPricesIsNil() predicate.Group {
 // VideoModelPricesNotNil applies the NotNil predicate on the "video_model_prices" field.
 func VideoModelPricesNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldVideoModelPrices))
+}
+
+// VideoPricePlansIsNil applies the IsNil predicate on the "video_price_plans" field.
+func VideoPricePlansIsNil() predicate.Group {
+	return predicate.Group(sql.FieldIsNull(FieldVideoPricePlans))
+}
+
+// VideoPricePlansNotNil applies the NotNil predicate on the "video_price_plans" field.
+func VideoPricePlansNotNil() predicate.Group {
+	return predicate.Group(sql.FieldNotNull(FieldVideoPricePlans))
+}
+
+// AllowHighAvailabilityEQ applies the EQ predicate on the "allow_high_availability" field.
+func AllowHighAvailabilityEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldEQ(FieldAllowHighAvailability, v))
+}
+
+// AllowHighAvailabilityNEQ applies the NEQ predicate on the "allow_high_availability" field.
+func AllowHighAvailabilityNEQ(v bool) predicate.Group {
+	return predicate.Group(sql.FieldNEQ(FieldAllowHighAvailability, v))
 }
 
 // WebSearchPricePerCallEQ applies the EQ predicate on the "web_search_price_per_call" field.

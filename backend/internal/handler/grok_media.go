@@ -502,9 +502,24 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				Model:                requestModel,
 				BillingModel:         firstNonEmptyString(result.BillingModel, requestModel),
 				UpstreamModel:        result.UpstreamModel,
-				VideoResolution:      result.VideoResolution,
-				VideoDurationSeconds: result.VideoDurationSeconds,
+				// PRD-06/K-4: the create response does not echo the resolution, so fall
+				// back to the requested tier (Ark accepts the same field). Billing is
+				// tiered by resolution; empty means unknown and callers fail closed
+				// rather than assume the cheapest tier.
+				VideoResolution:      firstNonEmptyString(result.VideoResolution, service.SeedanceResolutionFromRequest(body)),
+				// Duration fallback chain: query response (handled by the caller when it
+				// merges) → create request → nothing. Ark returns duration only on the
+				// query response; snapshotting the requested value avoids inheriting
+				// Grok's 8s default for a Seedance per-second plan.
+				VideoDurationSeconds: firstNonZeroInt(result.VideoDurationSeconds, service.SeedanceDurationSecondsFromRequest(body)),
 				OriginalModel:        clientRequestedModel(c, requestModel),
+				// PRD-06/K-4: Ark's per-token price table has a second dimension —
+				// whether the request supplied a video input. The status response
+				// cannot reveal it, so snapshot it here from the create body.
+				// Conservative: only an explicit content[].video_url / draft_task
+				// counts, so an unprovable request bills the higher cell.
+				HasInputVideo: service.CanonicalVideoPriceFamily(requestModel) == service.VideoPriceFamilySeedance &&
+					service.SeedanceRequestHasVideoInput(body),
 				// Wall-clock start for usage duration_ms: create accepted → first done discovery.
 				CreatedAt: videoCreateStartedAt,
 			}
@@ -713,6 +728,17 @@ func prepareGrokVideoCompletionBilling(
 		}
 	}
 	return &merged
+}
+
+// firstNonZeroInt returns the first positive value, or 0 when none is usable.
+// Used for duration fallbacks where 0 already means "unknown".
+func firstNonZeroInt(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func firstNonEmptyString(values ...string) string {

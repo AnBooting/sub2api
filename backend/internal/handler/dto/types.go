@@ -196,6 +196,10 @@ type AdminGroup struct {
 	DefaultMappedModel          string                                   `json:"default_mapped_model"`
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelAllowlist              service.GroupModelAllowlist              `json:"model_allowlist"`
+	// HA 兜底分组标记（PRD-04/TS-04）：管理员标记后用户可在自己的 Key 上主动开启。
+	AllowHighAvailability bool `json:"allow_high_availability"`
+	// 视频计费计划（PRD-06/K-4）：按模型族声明计量模式与单价。
+	VideoPricePlans map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
 	// 固定账号获取 Codex Model Manifest 配置（仅 openai 平台使用）。
 	CodexModelsManifestConfig domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
 

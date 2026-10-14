@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -2344,6 +2345,107 @@ func (s *BillingService) CalculateVideoCost(model string, resolution string, vid
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeVideo),
 	}
+}
+
+// ---- PRD-06/K-4: video billing modes (per_request / per_second / per_token) ----
+//
+// The BillingMode enum stays at four values (token/per_request/image/video) and
+// is not extended: the three video metering modes live in the operator's video
+// price plan (domain.VideoPricePlan). This is the single dispatch entry that maps
+// a plan onto a CostBreakdown, so no caller has to re-implement the mode switch.
+
+// VideoCostInput carries the metering facts of one video result plus the
+// operator-set plan that decides how it is billed.
+type VideoCostInput struct {
+	// Model is the request/billing model used only for diagnostics.
+	Model string
+	// Resolution is the output resolution tier ("480p"/"720p"/"1080p").
+	Resolution string
+	// VideoCount is the number of generated videos; <=0 means one.
+	VideoCount int
+	// DurationSeconds is the billed duration (per_second plans).
+	DurationSeconds int
+	// CompletionTokens is usage.completion_tokens (per_token plans). Ark bills
+	// the whole generation, so this is the total for the request, not per video.
+	CompletionTokens int
+	// HasInputVideo reports whether the request carried a video input, which is
+	// the second dimension of Ark's token price table.
+	HasInputVideo bool
+	// Plan is the resolved operator plan; nil means "not priceable".
+	Plan *domain.VideoPricePlan
+	// RateMultiplier is the customer-facing rate multiplier.
+	RateMultiplier float64
+}
+
+// CalculateVideoCostFromPlan prices one video result with the metering mode
+// declared by the plan. It fails closed with ErrModelPricingUnavailable when the
+// plan is missing, declares an unsupported mode, or has no price for the exact
+// tier: a missing tier must never borrow another resolution's price, the image
+// tariff, or another model's plan.
+func (s *BillingService) CalculateVideoCostFromPlan(input VideoCostInput) (*CostBreakdown, error) {
+	plan := input.Plan
+	if plan == nil || !plan.Mode.IsValid() {
+		return nil, fmt.Errorf("%w: no video price plan configured for model %q", ErrModelPricingUnavailable, input.Model)
+	}
+	videoCount := input.VideoCount
+	if videoCount <= 0 {
+		videoCount = 1
+	}
+	rateMultiplier := input.RateMultiplier
+	if rateMultiplier < 0 {
+		rateMultiplier = 0
+	}
+
+	var totalCost float64
+	switch plan.Mode {
+	case domain.VideoBillingModePerRequest:
+		unitPrice := VideoPlanPerRequestUnitPrice(plan)
+		if unitPrice == nil {
+			return nil, fmt.Errorf("%w: per_request video price is not configured for model %q", ErrModelPricingUnavailable, input.Model)
+		}
+		totalCost = *unitPrice * float64(videoCount)
+	case domain.VideoBillingModePerSecond:
+		resolution := NormalizeVideoBillingResolutionOrDefault(input.Resolution)
+		unitPrice := VideoPlanPerSecondUnitPrice(plan, resolution)
+		if unitPrice == nil {
+			return nil, fmt.Errorf("%w: per_second video price is not configured for model %q resolution %q", ErrModelPricingUnavailable, input.Model, resolution)
+		}
+		// An unknown duration must not inherit the Grok-specific 8s default: that
+		// default belongs to xAI's API, not to a per-second plan on another vendor.
+		// Without a real duration there is nothing to reconcile, so fail closed.
+		if input.DurationSeconds <= 0 {
+			return nil, fmt.Errorf("%w: video duration is unknown for model %q and cannot be billed per second", ErrModelPricingUnavailable, input.Model)
+		}
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(input.DurationSeconds)
+		totalCost = *unitPrice * float64(durationSeconds) * float64(videoCount)
+	case domain.VideoBillingModePerToken:
+		unitPrice := VideoPlanTokenUnitPrice(plan, input.Resolution, input.HasInputVideo)
+		if unitPrice == nil {
+			return nil, fmt.Errorf("%w: per_token video price is not configured for model %q resolution %q", ErrModelPricingUnavailable, input.Model, input.Resolution)
+		}
+		if input.CompletionTokens <= 0 {
+			// Without the upstream token usage there is nothing to reconcile
+			// against; refuse rather than record a zero-cost row.
+			return nil, fmt.Errorf("%w: completion token usage is missing for model %q", ErrModelPricingUnavailable, input.Model)
+		}
+		totalCost = float64(input.CompletionTokens) / 1e6 * *unitPrice
+	default:
+		return nil, fmt.Errorf("%w: unsupported video billing mode %q", ErrModelPricingUnavailable, string(plan.Mode))
+	}
+
+	return &CostBreakdown{
+		TotalCost:   totalCost,
+		ActualCost:  totalCost * rateMultiplier,
+		BillingMode: string(BillingModeVideo),
+	}, nil
+}
+
+// CalculateVideoCostForGroup resolves the group's video price plan for the model
+// and prices the result with it. This is the group-bound form of the unified
+// dispatch entry; it fails closed when the group has no usable plan.
+func (s *BillingService) CalculateVideoCostForGroup(input VideoCostInput, group *Group) (*CostBreakdown, error) {
+	input.Plan = VideoPricePlanForGroup(group, input.Model)
+	return s.CalculateVideoCostFromPlan(input)
 }
 
 // getImageUnitPrice 获取图片单价

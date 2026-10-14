@@ -381,6 +381,13 @@ type GrokVideoPendingBilling struct {
 	VideoResolution      string `json:"video_resolution,omitempty"`
 	VideoDurationSeconds int    `json:"video_duration_seconds,omitempty"`
 	OriginalModel        string `json:"original_model,omitempty"`
+	// HasInputVideo records whether the create request carried a video input
+	// (Ark content[].video_url / draft_task). It is the second dimension of the
+	// per-token price table (PRD-06/K-4) and cannot be recovered from the status
+	// response, so it is snapshotted at create time. Absent/false is the safe
+	// default: it bills the without-input-video cell instead of granting a
+	// discount that cannot be proven.
+	HasInputVideo bool `json:"has_input_video,omitempty"`
 	// CreatedAt is when the gateway accepted the async create (RFC3339Nano UTC).
 	// duration_ms for deferred billing is measured from this instant until the
 	// first official done+video.url observation (status poll or content download),
@@ -498,6 +505,24 @@ func (s *OpenAIGatewayService) LoadGrokVideoPendingBilling(
 		return nil, err
 	}
 	return &pending, nil
+}
+
+// GrokVideoPendingHasInputVideo reports the create-time "request included a video
+// input" fact for a pending video task. A missing snapshot returns false, which is
+// the conservative (higher-priced) per-token cell rather than a discount.
+//
+// This performs its own snapshot read; callers use it on the once-per-task
+// settlement path, not per poll.
+func (s *OpenAIGatewayService) GrokVideoPendingHasInputVideo(
+	ctx context.Context,
+	requestID string,
+	userID, apiKeyID int64,
+) bool {
+	pending, err := s.LoadGrokVideoPendingBilling(ctx, requestID, userID, apiKeyID)
+	if err != nil || pending == nil {
+		return false
+	}
+	return pending.HasInputVideo
 }
 
 // ClaimGrokVideoBilling returns true once for a completed video request so status

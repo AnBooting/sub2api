@@ -23,8 +23,10 @@ func newHAExecutionFixture() *executionFixture {
 				{GroupID: 10, Role: APIKeyGroupRoleNormal},
 				{GroupID: 30, Role: APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &enabledAt},
 			}}},
-		u:   &executionUserRepo{user: &User{ID: 2, Status: StatusActive}},
-		g:   &executionGroupRepo{group: &Group{ID: 30, Status: StatusActive}},
+		u: &executionUserRepo{user: &User{ID: 2, Status: StatusActive}},
+		// PRD-04 §2.3: an executable HA group must also be admin-marked as a
+		// fallback; the execution-time recheck now enforces this invariant.
+		g:   &executionGroupRepo{group: &Group{ID: 30, Status: StatusActive, AllowHighAvailability: true}},
 		sub: &executionSubRepo{},
 	}
 	f.svc = &APIKeyService{apiKeyRepo: f.k, userRepo: f.u, groupRepo: f.g, userSubRepo: f.sub}
@@ -81,6 +83,27 @@ func TestAuthorizeHAGroupExecutionKeepsExclusiveGrantRequirement(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// PRD-04 §2.6: after the administrator unmarks a group, an existing user
+// authorization must not authorize execution anymore.
+func TestAuthorizeHAGroupExecutionRejectsUnmarkedGroupAfterAdminRevoke(t *testing.T) {
+	f := newHAExecutionFixture()
+	// 复现复审路径：管理员标记 → 用户开启 → 管理员取消标记。
+	f.g.group.AllowHighAvailability = false
+	_, _, err := f.authorizeHA([]int64{30})
+	require.Error(t, err, "revoked admin HA configuration must fail closed")
+	require.ErrorIs(t, err, ErrGroupNotAllowed)
+}
+
+// PRD-04 AC-B2: a currently marked + user-enabled group still authorizes,
+// protecting this check from accidentally rejecting active configurations.
+func TestAuthorizeHAGroupExecutionAcceptsCurrentlyMarkedGroup(t *testing.T) {
+	f := newHAExecutionFixture()
+	f.g.group.AllowHighAvailability = true
+	key, _, err := f.authorizeHA([]int64{30})
+	require.NoError(t, err)
+	require.NotNil(t, key)
+}
+
 // A revoked or inactive target must fail closed even when the user enabled it.
 func TestAuthorizeHAGroupExecutionFailsClosedOnRevokedTarget(t *testing.T) {
 	f := newHAExecutionFixture()
@@ -99,4 +122,3 @@ func TestAuthorizeHAGroupExecutionFailsClosedOnRevokedTarget(t *testing.T) {
 	require.Error(t, err)
 	require.NotErrorIs(t, err, ErrGroupNotAllowed)
 }
-

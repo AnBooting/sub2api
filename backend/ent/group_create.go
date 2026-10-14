@@ -491,6 +491,26 @@ func (_c *GroupCreate) SetVideoModelPrices(v map[string]map[string]float64) *Gro
 	return _c
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (_c *GroupCreate) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupCreate {
+	_c.mutation.SetVideoPricePlans(v)
+	return _c
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (_c *GroupCreate) SetAllowHighAvailability(v bool) *GroupCreate {
+	_c.mutation.SetAllowHighAvailability(v)
+	return _c
+}
+
+// SetNillableAllowHighAvailability sets the "allow_high_availability" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAllowHighAvailability(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAllowHighAvailability(*v)
+	}
+	return _c
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_c *GroupCreate) SetWebSearchPricePerCall(v float64) *GroupCreate {
 	_c.mutation.SetWebSearchPricePerCall(v)
@@ -1149,6 +1169,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultVideoRateMultiplier
 		_c.mutation.SetVideoRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.AllowHighAvailability(); !ok {
+		v := group.DefaultAllowHighAvailability
+		_c.mutation.SetAllowHighAvailability(v)
+	}
 	if _, ok := _c.mutation.LongContextPricingEnabled(); !ok {
 		v := group.DefaultLongContextPricingEnabled
 		_c.mutation.SetLongContextPricingEnabled(v)
@@ -1347,6 +1371,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.VideoRateMultiplier(); !ok {
 		return &ValidationError{Name: "video_rate_multiplier", err: errors.New(`ent: missing required field "Group.video_rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.AllowHighAvailability(); !ok {
+		return &ValidationError{Name: "allow_high_availability", err: errors.New(`ent: missing required field "Group.allow_high_availability"`)}
 	}
 	if v, ok := _c.mutation.SearchPricePer1k(); ok {
 		if err := group.SearchPricePer1kValidator(v); err != nil {
@@ -1622,6 +1649,14 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.VideoModelPrices(); ok {
 		_spec.SetField(group.FieldVideoModelPrices, field.TypeJSON, value)
 		_node.VideoModelPrices = value
+	}
+	if value, ok := _c.mutation.VideoPricePlans(); ok {
+		_spec.SetField(group.FieldVideoPricePlans, field.TypeJSON, value)
+		_node.VideoPricePlans = value
+	}
+	if value, ok := _c.mutation.AllowHighAvailability(); ok {
+		_spec.SetField(group.FieldAllowHighAvailability, field.TypeBool, value)
+		_node.AllowHighAvailability = value
 	}
 	if value, ok := _c.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
@@ -2476,6 +2511,36 @@ func (u *GroupUpsert) UpdateVideoModelPrices() *GroupUpsert {
 // ClearVideoModelPrices clears the value of the "video_model_prices" field.
 func (u *GroupUpsert) ClearVideoModelPrices() *GroupUpsert {
 	u.SetNull(group.FieldVideoModelPrices)
+	return u
+}
+
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (u *GroupUpsert) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpsert {
+	u.Set(group.FieldVideoPricePlans, v)
+	return u
+}
+
+// UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateVideoPricePlans() *GroupUpsert {
+	u.SetExcluded(group.FieldVideoPricePlans)
+	return u
+}
+
+// ClearVideoPricePlans clears the value of the "video_price_plans" field.
+func (u *GroupUpsert) ClearVideoPricePlans() *GroupUpsert {
+	u.SetNull(group.FieldVideoPricePlans)
+	return u
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (u *GroupUpsert) SetAllowHighAvailability(v bool) *GroupUpsert {
+	u.Set(group.FieldAllowHighAvailability, v)
+	return u
+}
+
+// UpdateAllowHighAvailability sets the "allow_high_availability" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowHighAvailability() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowHighAvailability)
 	return u
 }
 
@@ -3684,6 +3749,41 @@ func (u *GroupUpsertOne) UpdateVideoModelPrices() *GroupUpsertOne {
 func (u *GroupUpsertOne) ClearVideoModelPrices() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.ClearVideoModelPrices()
+	})
+}
+
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (u *GroupUpsertOne) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetVideoPricePlans(v)
+	})
+}
+
+// UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateVideoPricePlans() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateVideoPricePlans()
+	})
+}
+
+// ClearVideoPricePlans clears the value of the "video_price_plans" field.
+func (u *GroupUpsertOne) ClearVideoPricePlans() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearVideoPricePlans()
+	})
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (u *GroupUpsertOne) SetAllowHighAvailability(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowHighAvailability(v)
+	})
+}
+
+// UpdateAllowHighAvailability sets the "allow_high_availability" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowHighAvailability() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowHighAvailability()
 	})
 }
 
@@ -5144,6 +5244,41 @@ func (u *GroupUpsertBulk) UpdateVideoModelPrices() *GroupUpsertBulk {
 func (u *GroupUpsertBulk) ClearVideoModelPrices() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.ClearVideoModelPrices()
+	})
+}
+
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (u *GroupUpsertBulk) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetVideoPricePlans(v)
+	})
+}
+
+// UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateVideoPricePlans() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateVideoPricePlans()
+	})
+}
+
+// ClearVideoPricePlans clears the value of the "video_price_plans" field.
+func (u *GroupUpsertBulk) ClearVideoPricePlans() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.ClearVideoPricePlans()
+	})
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (u *GroupUpsertBulk) SetAllowHighAvailability(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowHighAvailability(v)
+	})
+}
+
+// UpdateAllowHighAvailability sets the "allow_high_availability" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowHighAvailability() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowHighAvailability()
 	})
 }
 

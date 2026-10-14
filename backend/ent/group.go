@@ -88,6 +88,10 @@ type Group struct {
 	VideoPrice1080p *float64 `json:"video_price_1080p,omitempty"`
 	// 按模型族和分辨率覆盖视频每秒价格
 	VideoModelPrices map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	// 按模型族的视频计费计划：模式 + 单价；未配置必须 fail closed
+	VideoPricePlans map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
+	// 是否可作为用户主动开启的高可用兜底分组（PRD-04）
+	AllowHighAvailability bool `json:"allow_high_availability,omitempty"`
 	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示使用默认价 0.01（官方 $10/1000 次）
 	WebSearchPricePerCall *float64 `json:"web_search_price_per_call,omitempty"`
 	// 搜索工具价格 per 1000 calls（web_search 等）
@@ -271,9 +275,9 @@ func (*Group) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case group.FieldVideoModelPrices, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
+		case group.FieldVideoModelPrices, group.FieldVideoPricePlans, group.FieldModelPricing, group.FieldModelRouting, group.FieldSupportedModelScopes, group.FieldMessagesDispatchModelConfig, group.FieldModelAllowlist, group.FieldCodexModelsManifestConfig, group.FieldReasoningEffortMappings:
 			values[i] = new([]byte)
-		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
+		case group.FieldPeakRateEnabled, group.FieldIsExclusive, group.FieldAllowImageGeneration, group.FieldAllowBatchImageGeneration, group.FieldImageRateIndependent, group.FieldVideoRateIndependent, group.FieldAllowHighAvailability, group.FieldLongContextPricingEnabled, group.FieldClaudeCodeOnly, group.FieldModelRoutingEnabled, group.FieldMcpXMLInject, group.FieldAllowMessagesDispatch, group.FieldAllowLive, group.FieldForceOpenaiFast, group.FieldFreeOpenaiFast, group.FieldRequireOauthOnly, group.FieldRequirePrivacySet, group.FieldProfitControlEnabled:
 			values[i] = new(sql.NullBool)
 		case group.FieldRateMultiplier, group.FieldPeakRateMultiplier, group.FieldDailyLimitUsd, group.FieldWeeklyLimitUsd, group.FieldMonthlyLimitUsd, group.FieldImageRateMultiplier, group.FieldImagePrice1k, group.FieldImagePrice2k, group.FieldImagePrice4k, group.FieldBatchImageDiscountMultiplier, group.FieldBatchImageHoldMultiplier, group.FieldVideoRateMultiplier, group.FieldVideoPrice480p, group.FieldVideoPrice720p, group.FieldVideoPrice1080p, group.FieldWebSearchPricePerCall, group.FieldSearchPricePer1k, group.FieldAudioRealtimePricePerMin, group.FieldAudioTtsPricePerMillionChars, group.FieldAudioSttPricePerHour, group.FieldProfitMinMargin, group.FieldProfitSafetyBuffer:
 			values[i] = new(sql.NullFloat64)
@@ -521,6 +525,20 @@ func (_m *Group) assignValues(columns []string, values []any) error {
 				if err := json.Unmarshal(*value, &_m.VideoModelPrices); err != nil {
 					return fmt.Errorf("unmarshal field video_model_prices: %w", err)
 				}
+			}
+		case group.FieldVideoPricePlans:
+			if value, ok := values[i].(*[]byte); !ok {
+				return fmt.Errorf("unexpected type %T for field video_price_plans", values[i])
+			} else if value != nil && len(*value) > 0 {
+				if err := json.Unmarshal(*value, &_m.VideoPricePlans); err != nil {
+					return fmt.Errorf("unmarshal field video_price_plans: %w", err)
+				}
+			}
+		case group.FieldAllowHighAvailability:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field allow_high_availability", values[i])
+			} else if value.Valid {
+				_m.AllowHighAvailability = value.Bool
 			}
 		case group.FieldWebSearchPricePerCall:
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
@@ -947,6 +965,12 @@ func (_m *Group) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("video_model_prices=")
 	builder.WriteString(fmt.Sprintf("%v", _m.VideoModelPrices))
+	builder.WriteString(", ")
+	builder.WriteString("video_price_plans=")
+	builder.WriteString(fmt.Sprintf("%v", _m.VideoPricePlans))
+	builder.WriteString(", ")
+	builder.WriteString("allow_high_availability=")
+	builder.WriteString(fmt.Sprintf("%v", _m.AllowHighAvailability))
 	builder.WriteString(", ")
 	if v := _m.WebSearchPricePerCall; v != nil {
 		builder.WriteString("web_search_price_per_call=")

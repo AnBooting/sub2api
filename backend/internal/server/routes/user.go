@@ -79,6 +79,10 @@ func RegisterUserRoutes(
 			keys.GET("/:id", h.APIKey.GetByID)
 			keys.POST("", h.APIKey.Create)
 			keys.PUT("/:id", h.APIKey.Update)
+			// PRD-04/TS-04：用户在自己的 Key 上主动开启/关闭某个 HA 兜底分组。
+			// 服务端校验归属、分组兜底标记与模型白名单；倍率一律取服务端分组配置。
+			keys.PUT("/:id/ha-groups/:groupID", h.APIKey.SetAPIKeyHAGroup)
+			keys.DELETE("/:id/ha-groups/:groupID", h.APIKey.SetAPIKeyHAGroup)
 			keys.DELETE("/:id", h.APIKey.Delete)
 		}
 

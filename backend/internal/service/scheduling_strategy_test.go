@@ -328,12 +328,29 @@ func TestAPIKeyAuthSnapshotSchedulingStrategyRoundtrip(t *testing.T) {
 	require.Equal(t, "latency", materialized.Group.SchedulingStrategy)
 }
 
-// 旧版本快照（v25 及更早，无分组策略字段）必须被淘汰回源，不得复用。
+// 旧版本快照（低于当前版本，缺字段）必须被淘汰回源，不得复用。
+//
+// 这里断言的是「版本严格向前推进」这一不变量，而不是某个历史字面量：每给分组快照
+// 增加一个计费/路由字段都必须升版，否则旧缓存会带着缺失字段继续生效
+// （scheduling_strategy 是 v26 引入的，video_price_plans 是 v27 引入的）。
 func TestAPIKeyAuthSnapshotOldVersionRejectedAfterSchedulingStrategy(t *testing.T) {
 	svc := &APIKeyService{}
-	require.Equal(t, 26, apiKeyAuthSnapshotVersion, "scheduling_strategy 加入分组快照后版本必须升级")
+	// scheduling_strategy 已并入快照；其引入版本是历史下界，当前版本必须不低于它。
+	require.GreaterOrEqual(t, apiKeyAuthSnapshotVersion, 26,
+		"scheduling_strategy 加入分组快照后版本必须升级")
+	// video_price_plans 并入快照后必须再升一版，否则旧快照会让计划恒为空。
+	require.GreaterOrEqual(t, apiKeyAuthSnapshotVersion, 27,
+		"video_price_plans 加入分组快照后版本必须升级")
 
-	_, used, err := svc.applyAuthCacheEntry("sk-v25", &APIKeyAuthCacheEntry{
+	// 任意低于当前版本的快照都必须回源，不能复用。
+	_, used, err := svc.applyAuthCacheEntry("sk-stale", &APIKeyAuthCacheEntry{
+		Snapshot: &APIKeyAuthSnapshot{Version: apiKeyAuthSnapshotVersion - 1},
+	})
+	require.NoError(t, err)
+	require.False(t, used, "低于当前版本的快照必须回源")
+
+	// v25 明确缺少 scheduling_strategy，同样必须回源。
+	_, used, err = svc.applyAuthCacheEntry("sk-v25", &APIKeyAuthCacheEntry{
 		Snapshot: &APIKeyAuthSnapshot{Version: 25},
 	})
 	require.NoError(t, err)

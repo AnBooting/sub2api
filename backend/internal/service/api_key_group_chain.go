@@ -124,6 +124,150 @@ func ResolveAPIKeyGroupChain(current, desired []APIKeyGroupLink, normalOnly bool
 	return NormalizeAPIKeyGroupLinks(out, false)
 }
 
+// ResolveAdminAPIKeyGroupChain 是管理员配置路径：允许声明/保留 role=ha 链接，
+// 但授权时间戳只能沿用数据库既有值——管理员不能代替用户主动开启。
+//
+// 语义（与用户路径 ResolveAPIKeyGroupChain 区分开）：
+//   - desired 中的 normal 链接整体替换当前 normal 链接；
+//   - desired 显式声明了 ha 链接时，ha 部分以 desired 为准（时间戳沿用 DB，缺失即未开启）；
+//   - desired 未声明任何 ha 链接时，保留当前的全部 ha 链接（兼容“只改普通组”的旧调用）。
+func ResolveAdminAPIKeyGroupChain(current, desired []APIKeyGroupLink) ([]APIKeyGroupLink, error) {
+	out, err := NormalizeAPIKeyGroupLinks(desired, false)
+	if err != nil {
+		return nil, err
+	}
+	oldHA := map[int64]APIKeyGroupLink{}
+	for _, link := range current {
+		if link.Role == APIKeyGroupRoleHA {
+			oldHA[link.GroupID] = link
+		}
+	}
+	declaresHA := false
+	merged := make([]APIKeyGroupLink, 0, len(out)+len(oldHA))
+	for _, link := range out {
+		link.Group = nil
+		if link.Role == APIKeyGroupRoleNormal {
+			link.EnabledByUserAt = nil
+			merged = append(merged, link)
+			continue
+		}
+		declaresHA = true
+		// 授权时间戳只从数据库沿用；客户端提交的值一律忽略，避免伪造开启状态。
+		if old, ok := oldHA[link.GroupID]; ok && old.EnabledByUserAt != nil {
+			at := *old.EnabledByUserAt
+			link.EnabledByUserAt = &at
+		} else {
+			link.EnabledByUserAt = nil
+		}
+		merged = append(merged, link)
+	}
+	if !declaresHA {
+		for _, link := range current {
+			if link.Role != APIKeyGroupRoleHA {
+				continue
+			}
+			link.Group = nil
+			if link.EnabledByUserAt != nil {
+				at := *link.EnabledByUserAt
+				link.EnabledByUserAt = &at
+			}
+			merged = append(merged, link)
+		}
+	}
+	return NormalizeAPIKeyGroupLinks(merged, false)
+}
+
+// ResolveUserAuthorizedAPIKeyGroupChain 是用户主动开启路径：desired 的 HA 集合即最终状态。
+//
+// 与管理员路径的区别在于时间戳语义：这里不继承数据库值，因为“关闭”正是用空时间戳
+// 表达的。安全边界仍由本函数守住——新增 role=ha 链接必须带服务端生成的时间戳；
+// 空时间戳只允许用于关闭一个数据库里已存在的 HA 授权，从而无法凭空伪造开启状态。
+func ResolveUserAuthorizedAPIKeyGroupChain(current, desired []APIKeyGroupLink) ([]APIKeyGroupLink, error) {
+	out, err := NormalizeAPIKeyGroupLinks(desired, false)
+	if err != nil {
+		return nil, err
+	}
+	oldHA := make(map[int64]APIKeyGroupLink, len(current))
+	for _, link := range current {
+		if link.Role == APIKeyGroupRoleHA {
+			oldHA[link.GroupID] = link
+		}
+	}
+	for i := range out {
+		out[i].Group = nil
+		if out[i].Role == APIKeyGroupRoleNormal {
+			out[i].EnabledByUserAt = nil
+			continue
+		}
+		if out[i].EnabledByUserAt != nil {
+			// 服务端生成的开启时间戳：原样保留（调用方已在锁内基于当前链构造）。
+			continue
+		}
+		if _, ok := oldHA[out[i].GroupID]; !ok {
+			return nil, infraerrors.Forbidden("HA_AUTHORIZATION_REQUIRED", "new HA authorization is not enabled")
+		}
+		// 关闭既有授权：显式置 NULL。
+		out[i].EnabledByUserAt = nil
+	}
+	return NormalizeAPIKeyGroupLinks(out, false)
+}
+
+// APIKeyHAUserEnablement 描述用户在自己 Key 上对某个 HA 兜底组的主动开启/关闭意图。
+// 它只能由用户接口产生；倍率不在此结构内，始终读服务端分组配置。
+type APIKeyHAUserEnablement struct {
+	GroupID int64
+	Enable  bool
+}
+
+// ApplyUserHAEnablement 在给定链上应用一次用户主动开启/关闭。
+//
+// 开启：写 enabled_by_user_at=now；重复开启保持原时间戳（幂等，不产生无意义版本递增）。
+// 关闭：置 enabled_by_user_at=NULL（链接保留，管理员配置不受影响）。
+// 同一个分组不允许同时是 normal 与 ha。
+func ApplyUserHAEnablement(current []APIKeyGroupLink, groupID int64, enable bool, now time.Time) ([]APIKeyGroupLink, error) {
+	if groupID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_GROUP_ID", "group_id must be positive")
+	}
+	out := CloneAPIKeyGroupLinks(current)
+	target := -1
+	for i := range out {
+		if out[i].GroupID != groupID {
+			continue
+		}
+		if out[i].Role == APIKeyGroupRoleNormal {
+			return nil, infraerrors.BadRequest("GROUP_ALREADY_NORMAL", "group is already bound as a normal group")
+		}
+		if out[i].Role == APIKeyGroupRoleHA {
+			target = i
+		}
+	}
+	if !enable {
+		if target < 0 {
+			// 关闭一个本就未开启的组：幂等无变化。
+			return NormalizeAPIKeyGroupLinks(out, false)
+		}
+		out[target].EnabledByUserAt = nil
+		return NormalizeAPIKeyGroupLinks(out, false)
+	}
+	if target >= 0 {
+		if out[target].EnabledByUserAt != nil {
+			return NormalizeAPIKeyGroupLinks(out, false)
+		}
+		at := now.UTC()
+		out[target].EnabledByUserAt = &at
+		return NormalizeAPIKeyGroupLinks(out, false)
+	}
+	position := 0
+	for _, link := range out {
+		if link.Role == APIKeyGroupRoleHA && link.Position >= position {
+			position = link.Position + 1
+		}
+	}
+	at := now.UTC()
+	out = append(out, APIKeyGroupLink{GroupID: groupID, Role: APIKeyGroupRoleHA, Position: position, EnabledByUserAt: &at})
+	return NormalizeAPIKeyGroupLinks(out, false)
+}
+
 func APIKeyGroupChainsEqual(a, b []APIKeyGroupLink) bool {
 	if len(a) != len(b) {
 		return false

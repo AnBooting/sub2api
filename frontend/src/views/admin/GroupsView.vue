@@ -628,6 +628,17 @@
         </div>
         <SchedulingStrategySelect v-model="createForm.scheduling_strategy" allow-inherit :disabled="submitting" />
         <div>
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+              t("admin.groups.form.allowHighAvailability")
+            }}</label>
+            <Toggle v-model="createForm.allow_high_availability" />
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {{ t("admin.groups.form.allowHighAvailabilityHint") }}
+          </p>
+        </div>
+        <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
             v-model.number="createForm.rpm_limit"
@@ -1155,6 +1166,118 @@
               </div>
             </div>
           </div>
+          <div
+            class="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-dark-700"
+            data-testid="create-video-price-plans"
+          >
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.videoPlans.title") }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("admin.groups.videoPlans.description") }}
+            </p>
+            <div class="mt-3 space-y-4">
+              <div
+                v-for="family in videoPricePlanFamilyRows(createForm.video_price_plans)"
+                :key="family.key"
+                class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+              >
+                <div class="flex flex-wrap items-end gap-3">
+                  <div class="min-w-0 font-mono text-xs text-gray-700 dark:text-gray-300">
+                    {{ family.label }}
+                  </div>
+                  <label class="block">
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.groups.videoPlans.mode") }}
+                    </span>
+                    <select
+                      v-model="createForm.video_price_plans[family.key].mode"
+                      class="input"
+                      :data-testid="`create-video-plan-mode-${family.key}`"
+                    >
+                      <option value="">{{ t("admin.groups.videoPlans.modeUnset") }}</option>
+                      <option v-for="mode in videoPlanModes" :key="mode.key" :value="mode.key">
+                        {{ mode.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label
+                    v-if="createForm.video_price_plans[family.key].mode === 'per_request'"
+                    class="block"
+                  >
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.groups.videoPlans.perRequestPrice") }}
+                    </span>
+                    <input
+                      v-model.number="createForm.video_price_plans[family.key].perRequestPrice"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      class="input"
+                      :data-testid="`create-video-plan-per-request-${family.key}`"
+                    />
+                  </label>
+                </div>
+                <div
+                  v-if="createForm.video_price_plans[family.key].mode === 'per_second'"
+                  class="mt-3 grid gap-2 sm:grid-cols-3"
+                >
+                  <label v-for="resolution in videoPlanResolutions" :key="resolution.key" class="block">
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {{ resolution.label }} ($/s)
+                    </span>
+                    <input
+                      v-model.number="createForm.video_price_plans[family.key].perSecondPrices[resolution.key]"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      class="input"
+                      :data-testid="`create-video-plan-per-second-${family.key}-${resolution.key}`"
+                    />
+                  </label>
+                </div>
+                <div
+                  v-if="createForm.video_price_plans[family.key].mode === 'per_token'"
+                  class="mt-3 space-y-2"
+                >
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.groups.videoPlans.perTokenHint") }}
+                  </p>
+                  <div class="grid gap-2 sm:grid-cols-3">
+                    <label v-for="resolution in videoPlanResolutions" :key="`wo-${resolution.key}`" class="block">
+                      <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                        {{ resolution.label }} {{ t("admin.groups.videoPlans.withoutInput") }}
+                      </span>
+                      <input
+                        v-model.number="createForm.video_price_plans[family.key].perTokenWithoutInput[resolution.key]"
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        class="input"
+                        :data-testid="`create-video-plan-token-wo-${family.key}-${resolution.key}`"
+                      />
+                    </label>
+                  </div>
+                  <div class="grid gap-2 sm:grid-cols-3">
+                    <label v-for="resolution in videoPlanResolutions" :key="`wi-${resolution.key}`" class="block">
+                      <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                        {{ resolution.label }} {{ t("admin.groups.videoPlans.withInput") }}
+                      </span>
+                      <input
+                        v-model.number="createForm.video_price_plans[family.key].perTokenWithInput[resolution.key]"
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        class="input"
+                        :data-testid="`create-video-plan-token-wi-${family.key}-${resolution.key}`"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t(videoPricingI18nKey("modeHint")) }}
           </p>
@@ -2267,6 +2390,17 @@
         </div>
         <SchedulingStrategySelect v-model="editForm.scheduling_strategy" allow-inherit :disabled="submitting" :effective-strategy="savedEffectiveStrategy" />
         <div>
+          <div class="flex items-center justify-between gap-3">
+            <label class="text-sm text-gray-600 dark:text-gray-400">{{
+              t("admin.groups.form.allowHighAvailability")
+            }}</label>
+            <Toggle v-model="editForm.allow_high_availability" />
+          </div>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {{ t("admin.groups.form.allowHighAvailabilityHint") }}
+          </p>
+        </div>
+        <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
             v-model.number="editForm.rpm_limit"
@@ -2796,6 +2930,118 @@
               </div>
             </div>
           </div>
+          <div
+            class="mt-4 border-t border-dashed border-gray-200 pt-4 dark:border-dark-700"
+            data-testid="edit-video-price-plans"
+          >
+            <p class="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {{ t("admin.groups.videoPlans.title") }}
+            </p>
+            <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {{ t("admin.groups.videoPlans.description") }}
+            </p>
+            <div class="mt-3 space-y-4">
+              <div
+                v-for="family in videoPricePlanFamilyRows(editForm.video_price_plans)"
+                :key="family.key"
+                class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+              >
+                <div class="flex flex-wrap items-end gap-3">
+                  <div class="min-w-0 font-mono text-xs text-gray-700 dark:text-gray-300">
+                    {{ family.label }}
+                  </div>
+                  <label class="block">
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.groups.videoPlans.mode") }}
+                    </span>
+                    <select
+                      v-model="editForm.video_price_plans[family.key].mode"
+                      class="input"
+                      :data-testid="`edit-video-plan-mode-${family.key}`"
+                    >
+                      <option value="">{{ t("admin.groups.videoPlans.modeUnset") }}</option>
+                      <option v-for="mode in videoPlanModes" :key="mode.key" :value="mode.key">
+                        {{ mode.label }}
+                      </option>
+                    </select>
+                  </label>
+                  <label
+                    v-if="editForm.video_price_plans[family.key].mode === 'per_request'"
+                    class="block"
+                  >
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.groups.videoPlans.perRequestPrice") }}
+                    </span>
+                    <input
+                      v-model.number="editForm.video_price_plans[family.key].perRequestPrice"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      class="input"
+                      :data-testid="`edit-video-plan-per-request-${family.key}`"
+                    />
+                  </label>
+                </div>
+                <div
+                  v-if="editForm.video_price_plans[family.key].mode === 'per_second'"
+                  class="mt-3 grid gap-2 sm:grid-cols-3"
+                >
+                  <label v-for="resolution in videoPlanResolutions" :key="resolution.key" class="block">
+                    <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                      {{ resolution.label }} ($/s)
+                    </span>
+                    <input
+                      v-model.number="editForm.video_price_plans[family.key].perSecondPrices[resolution.key]"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      class="input"
+                      :data-testid="`edit-video-plan-per-second-${family.key}-${resolution.key}`"
+                    />
+                  </label>
+                </div>
+                <div
+                  v-if="editForm.video_price_plans[family.key].mode === 'per_token'"
+                  class="mt-3 space-y-2"
+                >
+                  <p class="text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.groups.videoPlans.perTokenHint") }}
+                  </p>
+                  <div class="grid gap-2 sm:grid-cols-3">
+                    <label v-for="resolution in videoPlanResolutions" :key="`wo-${resolution.key}`" class="block">
+                      <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                        {{ resolution.label }} {{ t("admin.groups.videoPlans.withoutInput") }}
+                      </span>
+                      <input
+                        v-model.number="editForm.video_price_plans[family.key].perTokenWithoutInput[resolution.key]"
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        class="input"
+                        :data-testid="`edit-video-plan-token-wo-${family.key}-${resolution.key}`"
+                      />
+                    </label>
+                  </div>
+                  <div class="grid gap-2 sm:grid-cols-3">
+                    <label v-for="resolution in videoPlanResolutions" :key="`wi-${resolution.key}`" class="block">
+                      <span class="mb-1 block text-xs text-gray-500 dark:text-gray-400">
+                        {{ resolution.label }} {{ t("admin.groups.videoPlans.withInput") }}
+                      </span>
+                      <input
+                        v-model.number="editForm.video_price_plans[family.key].perTokenWithInput[resolution.key]"
+                        type="number"
+                        step="0.0001"
+                        min="0"
+                        class="input"
+                        :data-testid="`edit-video-plan-token-wi-${family.key}-${resolution.key}`"
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
             {{ t(videoPricingI18nKey("modeHint")) }}
           </p>
@@ -4381,6 +4627,13 @@ import {
   serializeVideoModelPrices,
   videoModelPriceFamilyRows,
 } from "./groupsVideoModelPricing";
+import {
+  createVideoPricePlansForm,
+  serializeVideoPricePlans,
+  videoPlanModes,
+  videoPlanResolutions,
+  videoPricePlanFamilyRows,
+} from "./groupsVideoPricePlans";
 
 const supportsLivePlatform = (platform: string): boolean =>
   platform === "openai" || platform === "composite";
@@ -4976,6 +5229,8 @@ const createForm = reactive({
   video_price_720p: null as number | null,
   video_price_1080p: null as number | null,
   video_model_prices: createVideoModelPricesForm(),
+  // 视频计费计划（PRD-06/K-4）：按模型族声明计量模式与单价
+  video_price_plans: createVideoPricePlansForm(),
   // Codex 网页搜索按次计费（仅 openai 平台使用）；null = 使用默认价 0.01
   web_search_price_per_call: null as number | null,
   search_price_per_1k: null as number | null,
@@ -4995,6 +5250,8 @@ const createForm = reactive({
   claude_code_only: false,
   fallback_group_id: null as number | null,
   fallback_group_id_on_invalid_request: null as number | null,
+  // HA 兜底分组标记（PRD-04）：管理员标记后用户可在自己的 Key 上主动开启
+  allow_high_availability: false,
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
   allow_live: false,
@@ -5343,6 +5600,8 @@ const editForm = reactive({
   video_price_720p: null as number | null,
   video_price_1080p: null as number | null,
   video_model_prices: createVideoModelPricesForm(),
+  // 视频计费计划（PRD-06/K-4）：按模型族声明计量模式与单价
+  video_price_plans: createVideoPricePlansForm(),
   // Codex 网页搜索按次计费（仅 openai 平台使用）；null = 使用默认价 0.01
   web_search_price_per_call: null as number | null,
   search_price_per_1k: null as number | null,
@@ -5362,6 +5621,8 @@ const editForm = reactive({
   claude_code_only: false,
   fallback_group_id: null as number | null,
   fallback_group_id_on_invalid_request: null as number | null,
+  // HA 兜底分组标记（PRD-04）
+  allow_high_availability: false,
   // OpenAI Messages 调度配置（仅 openai 平台使用）
   allow_messages_dispatch: false,
   allow_live: false,
@@ -5800,6 +6061,7 @@ const closeCreateModal = () => {
   createForm.video_price_720p = null;
   createForm.video_price_1080p = null;
   createForm.video_model_prices = createVideoModelPricesForm();
+  createForm.video_price_plans = createVideoPricePlansForm();
   createForm.long_context_pricing_enabled = true;
   createForm.force_openai_fast = false;
   createForm.free_openai_fast = false;
@@ -5916,10 +6178,15 @@ const handleCreateGroup = async () => {
   try {
     const {
       video_model_prices: _createFormVideoModelPrices,
+      // 表单态不是 API 态：计划经 serializeVideoPricePlans 转换后再提交
+      video_price_plans: _createFormVideoPricePlans,
       ...createGroupForm
     } = createForm;
     const videoModelPrices = serializeVideoModelPrices(
       createForm.video_model_prices,
+    );
+    const createVideoPricePlans = serializeVideoPricePlans(
+      createForm.video_price_plans,
     );
     // 构建请求数据，包含模型路由配置
     const requestData = {
@@ -5948,10 +6215,16 @@ const handleCreateGroup = async () => {
       ...(Object.keys(videoModelPrices).length > 0
         ? { video_model_prices: videoModelPrices }
         : {}),
+      // 视频计费计划：只提交声明了 mode 的族，空档位不落库（避免变成 0 价）
+      ...(Object.keys(createVideoPricePlans).length > 0
+        ? { video_price_plans: createVideoPricePlans }
+        : {}),
       model_routing: convertRoutingRulesToApiFormat(
         createModelRoutingRules.value,
       ),
       model_allowlist: buildModelAllowlistConfig(createModelAllowlistState),
+      // HA 兜底分组标记（PRD-04）：管理员标记后用户可在自己的 Key 上主动开启
+      allow_high_availability: createForm.allow_high_availability,
       // 创建时固定账号 manifest 固定发送关闭状态（后端创建路径禁止开启）
       codex_models_manifest_config: createCodexManifestDefaults(),
       supported_model_scopes: normalizeSupportedModelScopesForPlatform(
@@ -6093,6 +6366,7 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.video_model_prices = createVideoModelPricesForm(
     group.video_model_prices,
   );
+  editForm.video_price_plans = createVideoPricePlansForm(group.video_price_plans);
   editForm.web_search_price_per_call = group.web_search_price_per_call ?? null;
   editForm.search_price_per_1k = group.search_price_per_1k ?? null;
   editForm.audio_realtime_price_per_min = group.audio_realtime_price_per_min ?? null;
@@ -6116,6 +6390,7 @@ const handleEdit = async (group: AdminGroup) => {
   const messagesDispatchFormState = messagesDispatchConfigToFormState(
     group.messages_dispatch_model_config,
   );
+  editForm.allow_high_availability = group.allow_high_availability ?? false;
   editForm.allow_messages_dispatch =
     group.allow_messages_dispatch ||
     messagesDispatchFormState.allow_messages_dispatch;
@@ -6204,6 +6479,7 @@ const closeEditModal = () => {
   editForm.video_price_720p = null;
   editForm.video_price_1080p = null;
   editForm.video_model_prices = createVideoModelPricesForm();
+  editForm.video_price_plans = createVideoPricePlansForm();
   editForm.long_context_pricing_enabled = true;
   editForm.force_openai_fast = false;
   editForm.free_openai_fast = false;
@@ -6286,6 +6562,8 @@ const handleUpdateGroup = async () => {
       video_model_prices: serializeVideoModelPrices(
         editForm.video_model_prices,
       ),
+      // 视频计费计划：表单是权威来源，序列化后整体提交（空对象表示清空）
+      video_price_plans: serializeVideoPricePlans(editForm.video_price_plans),
       fallback_group_id:
         editForm.fallback_group_id === null ? 0 : editForm.fallback_group_id,
       fallback_group_id_on_invalid_request:
