@@ -58,6 +58,7 @@ type CyberPolicyUsageInput struct {
 	Stream       bool
 	InputTokens  int
 	OutputTokens int
+	PricingAt    time.Time
 	// 渠道归因与请求级 meta，使 cyber 计费行与正常 RecordUsage 行口径一致
 	// （否则 cyber 行 channel_id 等为空，渠道维度统计会遗漏 cyber 命中）。
 	InboundEndpoint    string
@@ -106,6 +107,7 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		ChannelUsageFields: in.ChannelUsageFields,
 		CyberBlocked:       true,
 		NativeCompactionV2: in.NativeCompactionV2,
+		PricingAt:          requestPricingAt(ctx, in.PricingAt),
 	}); err != nil {
 		logger.LegacyPrintf("service.openai_gateway", "cyber usage record failed: request_id=%s err=%v", in.RequestID, err)
 	}
@@ -737,6 +739,11 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 			ServiceTier: serviceTier, ReasoningEffort: reasoningEffort, Resolver: s.resolver,
 			LongContextBillingEnabled: longContextBillingGate,
 		})
+	}
+	if RequestPricingSnapshotFromContext(ctx) != nil {
+		return s.billingService.CalculateCostUnified(CostInput{Ctx: ctx, Model: billingModel, Group: apiKey.Group,
+			Tokens: tokens, RateMultiplier: multiplier, PricingAt: pricingAt, ServiceTier: serviceTier,
+			ReasoningEffort: reasoningEffort, Resolver: NewModelPricingResolver(nil, s.billingService), LongContextBillingEnabled: longContextBillingGate})
 	}
 	return s.billingService.calculateCostWithServiceTierPolicy(
 		billingModel,

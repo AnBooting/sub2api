@@ -113,11 +113,18 @@ func effectiveDeepseekCalendar(calendar *deepseekHolidayCalendar, year int) *dee
 
 func (s *PricingService) deepseekCalendarAt(at time.Time) *deepseekHolidayCalendar {
 	year := at.In(time.FixedZone("Asia/Shanghai", 8*3600)).Year()
-	calendar := effectiveDeepseekCalendar(s.deepseekCalendar(), year)
-	if s != nil && !calendar.years[year] {
+	return effectiveDeepseekCalendar(s.deepseekCalendar(), year)
+}
+
+// Only startup and the existing scheduler perform notification I/O. Pricing
+// reads remain pure, including when delivery fails or SMTP is slow.
+func (s *PricingService) checkDeepseekCalendarCoverage(at time.Time) {
+	year := at.In(time.FixedZone("Asia/Shanghai", 8*3600)).Year()
+	if !s.deepseekCalendarAt(at).years[year] {
 		s.recordPricingSyncResult(fmt.Sprintf("DeepSeek calendar %d", year), ErrDeepseekCalendarUnavailable)
+	} else {
+		s.recordPricingSyncResult(fmt.Sprintf("DeepSeek calendar %d", year), nil)
 	}
-	return calendar
 }
 
 func (s *PricingService) deepseekCalendarStatus() ([]int, string) {

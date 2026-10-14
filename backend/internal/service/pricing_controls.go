@@ -105,7 +105,7 @@ func (s *PricingService) loadControls(ctx context.Context) error {
 		slog.Warn("Invalid saved DeepSeek holiday calendar; using built-in dates", "error", calendarErr)
 		s.recordPricingSyncResult("DeepSeek calendar", ErrInvalidDeepseekHolidays)
 	}
-	s.deepseekCalendarAt(time.Now())
+	s.checkDeepseekCalendarCoverage(time.Now())
 	if raw := values[SettingKeyPricingControls]; raw != "" {
 		var controls PricingControls
 		if err := json.Unmarshal([]byte(raw), &controls); err != nil {

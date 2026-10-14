@@ -45,6 +45,7 @@ type ResolvedPricing struct {
 	longContextPricingEnabled bool
 	pricingAt                 time.Time
 	pricingError              error
+	deepseekCalendar          *deepseekHolidayCalendar
 }
 
 // ModelPricingResolver 统一模型定价解析器。
@@ -74,12 +75,7 @@ type PricingInput struct {
 // 1. 获取基础定价（LiteLLM → Fallback）
 // 2. 如果指定了 GroupID，查找渠道定价并覆盖
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
-	if input.PricingAt.IsZero() {
-		input.PricingAt = GatewayTokenRequestPricingAtFromContext(ctx)
-	}
-	if input.PricingAt.IsZero() {
-		input.PricingAt = time.Now()
-	}
+	input.PricingAt = requestPricingAt(ctx, input.PricingAt)
 	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
 	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
 		// Group token cards only override the first-tier / flat rates.
@@ -117,10 +113,16 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 
 	// 1. 获取基础定价
 	basePricing, source := r.resolveBasePricing(input.Model, input.PricingAt)
+	var calendar *deepseekHolidayCalendar
+	if isDeepSeekModel(input.Model) || (basePricing != nil && basePricing.NativeCard != nil && strings.EqualFold(basePricing.NativeCard.Provider, "deepseek")) {
+		calendar = requestDeepseekCalendar(ctx, r.billingService.pricingService, input.PricingAt)
+		basePricing = freezeNativeDeepseekCalendar(basePricing, calendar)
+	}
 
 	resolved := &ResolvedPricing{
 		Mode:                   BillingModeToken,
 		pricingAt:              input.PricingAt,
+		deepseekCalendar:       calendar,
 		BasePricing:            basePricing,
 		Source:                 source,
 		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,

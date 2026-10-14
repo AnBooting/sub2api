@@ -310,7 +310,7 @@ func NewPricingService(cfg *config.Config, remoteClient PricingRemoteClient) *Pr
 
 // Initialize 初始化价格服务
 func (s *PricingService) Initialize() error {
-	s.deepseekCalendarAt(time.Now())
+	s.checkDeepseekCalendarCoverage(time.Now())
 	// 确保数据目录存在
 	if err := os.MkdirAll(s.cfg.Pricing.DataDir, 0755); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
@@ -377,6 +377,7 @@ func (s *PricingService) startUpdateScheduler() {
 		for {
 			select {
 			case <-ticker.C:
+				s.checkDeepseekCalendarCoverage(time.Now())
 				if s.RemotePullEnabled() && remoteEnabled {
 					if err := s.syncWithRemote(); err != nil {
 						logger.LegacyPrintf("service.pricing", "[Pricing] Sync failed: %v", err)
@@ -466,7 +467,7 @@ func (s *PricingService) syncWithRemote() error {
 	if !s.RemotePullEnabled() {
 		return nil
 	}
-	s.deepseekCalendarAt(time.Now())
+	s.checkDeepseekCalendarCoverage(time.Now())
 	// 如果配置了哈希URL，从远程获取哈希进行比对
 	if s.cfg.Pricing.HashURL != "" {
 		remoteHash, err := s.fetchRemoteHash()

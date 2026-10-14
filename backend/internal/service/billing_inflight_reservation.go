@@ -507,6 +507,9 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 		if pricing == nil {
 			return 0
 		}
+		if pricing.NativeCard != nil && strings.EqualFold(pricing.NativeCard.Provider, "deepseek") && RequestPricingSnapshotFromContext(ctx) != nil {
+			pricing = freezeNativeDeepseekCalendar(pricing, requestDeepseekCalendar(ctx, d.billing.pricingService, at))
+		}
 		var err error
 		pricing, err = resolveNativeTokenPricing(pricing, UsageTokens{InputTokens: inputTokens, OutputTokens: outputTokens}, at)
 		if err != nil {
@@ -514,7 +517,7 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 		}
 		multiplier := resolvedChannelTimeMultiplier(resolved, at)
 		if (resolved == nil || resolved.Source == PricingSourceLiteLLM) && pricing.Currency != "CNY" && isDeepSeekModel(model) {
-			multiplier *= deepseekPeakMultiplierWithCalendar(at, d.billing.pricingService.deepseekCalendarAt(at))
+			multiplier *= deepseekPeakMultiplierWithCalendar(at, requestDeepseekCalendar(ctx, d.billing.pricingService, at))
 		}
 		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate * multiplier
 	}

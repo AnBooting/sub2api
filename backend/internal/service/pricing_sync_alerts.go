@@ -95,6 +95,11 @@ func (s *PricingService) recordPricingSyncResult(source string, err error) {
 	cfg, cfgErr := getOpsEmailNotificationConfig(ctx, s.settingsRepo)
 	if cfgErr != nil {
 		slog.Warn("Could not read pricing alert email settings", "error", cfgErr)
+		s.alertsMu.Lock()
+		if s.syncAlertTimes[source] == now {
+			delete(s.syncAlertTimes, source)
+		}
+		s.alertsMu.Unlock()
 		return
 	}
 	if !cfg.Alert.Enabled || !shouldSendOpsAlertEmailByMinSeverity(cfg.Alert.MinSeverity, "P1") {

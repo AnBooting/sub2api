@@ -1512,7 +1512,7 @@ type CostInput struct {
 // CalculateCostUnified 统一计费入口，支持三种计费模式。
 // 使用 ModelPricingResolver 解析定价，然后根据 BillingMode 分发计算。
 func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
-	if input.Resolved != nil && input.Resolver == nil {
+	if input.Resolver == nil && (input.Resolved != nil || RequestPricingSnapshotFromContext(input.Ctx) != nil) {
 		input.Resolver = NewModelPricingResolver(nil, s)
 	}
 	if input.Resolver == nil {
@@ -1618,7 +1618,11 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 仅作用于默认价卡（Source=LiteLLM，无分组/渠道自定义定价）——分组/渠道
 	// 自定义定价保持运营者语义，不叠加。先克隆再乘，避免污染共享 fallbackPrices 指针。
 	if pricing.Currency != "CNY" && resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
-		if mult := deepseekPeakMultiplierWithCalendar(pricingAt, s.pricingService.deepseekCalendarAt(pricingAt)); mult > 1 {
+		calendar := resolved.deepseekCalendar
+		if calendar == nil {
+			calendar = requestDeepseekCalendar(input.Ctx, s.pricingService, pricingAt)
+		}
+		if mult := deepseekPeakMultiplierWithCalendar(pricingAt, calendar); mult > 1 {
 			cloned := *pricing
 			cloned.InputPricePerToken *= mult
 			cloned.OutputPricePerToken *= mult

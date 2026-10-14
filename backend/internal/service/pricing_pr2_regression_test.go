@@ -42,7 +42,8 @@ func TestPR2CalendarFallbackAndMissingYearAlerts(t *testing.T) {
 		s.alertSender = spy
 		at := time.Date(2027, 10, 1, 2, 0, 0, 0, time.UTC)
 		require.Equal(t, 1.0, deepseekPeakMultiplierWithCalendar(at, s.deepseekCalendarAt(at)))
-		s.deepseekCalendarAt(at)
+		s.checkDeepseekCalendarCoverage(at)
+		s.checkDeepseekCalendarCoverage(at)
 		require.Equal(t, []string{"DeepSeek calendar 2027"}, spy.calls)
 		require.Contains(t, s.GetPricingControlStatus()["deepseek_calendar_years"], 2026)
 	}

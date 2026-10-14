@@ -395,7 +395,7 @@ func (s *PricingService) loadNativeCNYCache() {
 	s.mu.Unlock()
 }
 func (s *PricingService) syncNativeCNY(force bool) (resultErr error) {
-	s.deepseekCalendarAt(time.Now())
+	s.checkDeepseekCalendarCoverage(time.Now())
 	if !s.GetControls().NativeCNYEnabled {
 		return nil
 	}
@@ -509,9 +509,11 @@ func (s *PricingService) nativePricingAt(model string, at time.Time) (*ModelPric
 	if at.IsZero() {
 		at = time.Now()
 	}
-	clonedCard := *card
-	clonedCard.holidayCalendar = s.deepseekCalendarAt(at)
-	card = &clonedCard
+	if strings.EqualFold(card.Provider, "deepseek") {
+		clonedCard := *card
+		clonedCard.holidayCalendar = s.deepseekCalendarAt(at)
+		card = &clonedCard
+	}
 	rates := card.ratesAt(0, at)
 	p := &ModelPricing{Currency: "CNY", PricingSource: card.Source, NativeCard: card, NativePricingAt: at, CacheCreationPriceExplicit: true}
 	applyNativeRates(p, rates)
@@ -531,6 +533,18 @@ func applyNativeRates(p *ModelPricing, r NativeRates) {
 	// Defaults for providers without independently priced image input tokens.
 	p.ImageInputPricePerToken = 0
 	p.ImageCacheReadPricePerToken = 0
+}
+
+func freezeNativeDeepseekCalendar(p *ModelPricing, calendar *deepseekHolidayCalendar) *ModelPricing {
+	if p == nil || p.NativeCard == nil || !strings.EqualFold(p.NativeCard.Provider, "deepseek") {
+		return p
+	}
+	cloned := *p
+	card := *p.NativeCard
+	card.holidayCalendar = calendar
+	cloned.NativeCard = &card
+	applyNativeRates(&cloned, card.ratesAt(0, p.NativePricingAt))
+	return &cloned
 }
 
 var missingNativeCachePriceWarned sync.Map
