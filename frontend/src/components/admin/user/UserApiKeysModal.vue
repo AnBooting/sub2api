@@ -26,27 +26,27 @@
                 class="-mx-1 -my-0.5 flex cursor-pointer items-center gap-1 rounded-md px-1 py-0.5 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
                 :disabled="updatingKeyIds.has(key.id)"
               >
-                <GroupBadge
-                  v-if="key.group_id && key.group"
-                  :name="key.group.name"
-                  :platform="key.group.platform"
-                  :subscription-type="key.group.subscription_type"
-                  :rate-multiplier="key.group.rate_multiplier"
-                  :peak-rate-enabled="key.group.peak_rate_enabled"
-                  :peak-start="key.group.peak_start"
-                  :peak-end="key.group.peak_end"
-                  :peak-rate-multiplier="key.group.peak_rate_multiplier"
-                />
-                <span v-else class="text-gray-400 italic">{{ t('admin.users.none') }}</span>
+                <KeyGroupChain :api-key="key" :groups="allGroups" :user-rates="user?.group_rates" />
                 <svg v-if="updatingKeyIds.has(key.id)" class="h-3 w-3 animate-spin text-primary-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
                 <svg v-else class="h-3 w-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 15L12 18.75 15.75 15m-7.5-6L12 5.25 15.75 9" /></svg>
               </button>
             </div>
+            <button type="button" class="btn btn-secondary px-2 py-1" :disabled="updatingKeyIds.has(key.id)" @click="openChainEditor(key)">{{ t('keys.chain.edit') }}</button>
             <div class="flex items-center gap-1"><span>{{ t('admin.users.columns.created') }}: {{ formatDateTime(key.created_at) }}</span></div>
           </div>
         </div>
       </div>
     </div>
+  </BaseDialog>
+
+  <BaseDialog :show="chainKey !== null" :title="t('keys.chain.edit')" :close-on-escape="!chainSaving" :show-close-button="!chainSaving" @close="closeChainEditor">
+    <GroupChainEditor v-model="chainIds" :groups="allGroups" :user-rates="user?.group_rates" :disabled="chainSaving" />
+    <template #footer>
+      <div class="flex justify-end gap-2">
+        <button type="button" class="btn btn-secondary" :disabled="chainSaving" @click="closeChainEditor">{{ t('common.cancel') }}</button>
+        <button type="button" class="btn btn-primary" :disabled="chainSaving" @click="saveChain">{{ t('common.save') }}</button>
+      </div>
+    </template>
   </BaseDialog>
 
   <!-- Group Selector Dropdown -->
@@ -113,8 +113,10 @@ import { adminAPI } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
 import type { AdminUser, AdminGroup, ApiKey } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
+import GroupChainEditor from '@/components/keys/GroupChainEditor.vue'
+import KeyGroupChain from '@/components/keys/KeyGroupChain.vue'
+import { normalGroupIds, normalGroupEntries, isGroupChainConflict } from '@/utils/keyGroupChain'
 
 const props = defineProps<{ show: boolean; user: AdminUser | null }>()
 const emit = defineEmits(['close'])
@@ -124,6 +126,26 @@ const appStore = useAppStore()
 const apiKeys = ref<ApiKey[]>([])
 const allGroups = ref<AdminGroup[]>([])
 const loading = ref(false)
+const chainKey = ref<ApiKey | null>(null)
+const chainIds = ref<number[]>([])
+const chainSaving = ref(false)
+const openChainEditor = (key: ApiKey) => { closeGroupSelector(); chainKey.value = key; chainIds.value = normalGroupIds(key) }
+const closeChainEditor = () => { if (!chainSaving.value) chainKey.value = null }
+const saveChain = async () => {
+  if (!chainKey.value || chainSaving.value) return
+  const keyId = chainKey.value.id
+  const userId = props.user?.id
+  chainSaving.value = true
+  try {
+    const result = await adminAPI.apiKeys.updateApiKeyGroups(keyId, normalGroupEntries(chainIds.value), chainKey.value.group_chain_revision)
+    if (props.user?.id !== userId) return
+    const index = apiKeys.value.findIndex((key) => key.id === keyId)
+    if (index !== -1) apiKeys.value[index] = result.api_key
+    chainKey.value = null
+    appStore.showSuccess(t('admin.users.groupChangedSuccess'))
+  } catch (error: any) { appStore.showError(isGroupChainConflict(error) ? t('keys.chain.conflict') : (error?.message || t('admin.users.groupChangeFailed'))) }
+  finally { chainSaving.value = false }
+}
 let requestVersion = 0
 const updatingKeyIds = ref(new Set<number>())
 const groupSelectorKeyId = ref<number | null>(null)
@@ -148,6 +170,7 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
 watch(() => [props.show, props.user?.id] as const, ([show], _, onCleanup) => {
   onCleanup(() => { requestVersion++ })
   closeGroupSelector()
+  chainKey.value = null
   if (show && props.user) {
     load()
     loadGroups()
@@ -174,7 +197,7 @@ const load = async () => {
 const loadGroups = async () => {
   try {
     const groups = await adminAPI.groups.getAll()
-    allGroups.value = groups
+    allGroups.value = groups ?? []
   } catch (error) {
     console.error('Failed to load groups:', error)
   }
@@ -208,7 +231,7 @@ const closeGroupSelector = () => {
 
 const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   closeGroupSelector()
-  if (key.group_id === newGroupId || (!key.group_id && newGroupId === null)) return
+  if (normalGroupIds(key).length <= 1 && (key.group_id === newGroupId || (!key.group_id && newGroupId === null))) return
 
   updatingKeyIds.value.add(key.id)
   try {
@@ -250,6 +273,7 @@ const handleClickOutside = (event: MouseEvent) => {
 
 const handleClose = () => {
   closeGroupSelector()
+  closeChainEditor()
   emit('close')
 }
 

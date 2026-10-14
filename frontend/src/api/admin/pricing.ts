@@ -1,10 +1,15 @@
 import { apiClient } from '../client'
+import type { DeepSeekHolidayCalendar } from '@/utils/deepseekCalendar'
 
 export interface PricingControls {
   remote_enabled: boolean
   native_cny_enabled: boolean
+  // Omission preserves the latest server calendar; {} explicitly clears it.
+  deepseek_holidays?: DeepSeekHolidayCalendar
 }
 export interface PricingStatus extends PricingControls {
+  // Optional for an older backend: absence is unsupported/unknown, never false.
+  deepseek_calendar_year_missing?: boolean
   usd_model_count: number
   usd_last_updated: string
   cny_model_count: number

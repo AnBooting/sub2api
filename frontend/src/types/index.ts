@@ -107,7 +107,7 @@ export interface AdminUser extends User {
   last_used_at?: string | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
-  // 为 true 时该用户仅可使用 allowed_groups 中列出的公开分组。
+  // 历史兼容字段；通用公开标准组访问不再受此值限制。
   // 管理侧权限开关，普通用户接口不返回。
   restrict_public_groups?: boolean
   // 当前并发数（仅管理员列表接口返回）
@@ -565,7 +565,12 @@ export interface ReasoningEffortMapping {
   model?: string
 }
 
+export type SchedulingStrategy = 'balanced' | 'stable' | 'latency'
+export type GroupSchedulingStrategy = 'inherit' | SchedulingStrategy
+
 export interface Group {
+  scheduling_strategy?: GroupSchedulingStrategy
+  effective_scheduling_strategy?: SchedulingStrategy
   id: number
   name: string
   description: string | null
@@ -731,7 +736,18 @@ export interface CompositeRouteDecision {
   reason?: string
 }
 
+export interface ApiKeyGroup {
+  group_id: number
+  role: 'normal' | 'ha'
+  position: number
+  enabled_by_user_at?: string | null
+}
+
+export type ApiKeyGroupInput = Pick<ApiKeyGroup, 'group_id' | 'role' | 'position'>
+
 export interface ApiKey {
+  group_chain_revision: number
+  groups?: ApiKeyGroup[]
   id: number
   user_id: number
   key: string
@@ -764,6 +780,7 @@ export interface ApiKey {
 }
 
 export interface CreateApiKeyRequest {
+  groups?: ApiKeyGroupInput[]
   name: string
   group_id?: number | null
   custom_key?: string // Optional custom API Key
@@ -777,6 +794,8 @@ export interface CreateApiKeyRequest {
 }
 
 export interface UpdateApiKeyRequest {
+  expected_group_chain_revision?: number
+  groups?: ApiKeyGroupInput[]
   name?: string
   group_id?: number | null
   status?: 'active' | 'inactive'
@@ -792,6 +811,7 @@ export interface UpdateApiKeyRequest {
 }
 
 export interface CreateGroupRequest {
+  scheduling_strategy?: GroupSchedulingStrategy
   name: string
   description?: string | null
   platform?: GroupPlatform
@@ -857,6 +877,7 @@ export interface CreateGroupRequest {
 }
 
 export interface UpdateGroupRequest {
+  scheduling_strategy?: GroupSchedulingStrategy
   name?: string
   description?: string | null
   platform?: GroupPlatform
@@ -1745,8 +1766,44 @@ export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
+export interface PricingSnapshotItem {
+  kind: 'input' | 'output' | 'cache_read' | 'cache_write' | 'cache_write_1h' | 'image' | 'video_request' | 'video_second' | string
+  base_credit_price?: number | string | null
+  usage?: number | string | null
+  normalized_usage?: number | string | null
+  subtotal?: number | string | null
+}
+export interface PricingSnapshotV2 {
+  v: 2
+  quota_unit: 'credits'
+  request_started_at?: string | null
+  price_version?: string | null
+  source?: string | null
+  currency?: string | null
+  unit?: string | null
+  period?: { label?: string; timezone?: string; window?: string } | null
+  items?: PricingSnapshotItem[] | null
+  served_group_id?: number | null
+  group_multiplier?: number | string | null
+  total_credit?: number | string | null
+  media?: { mode?: string; billable_count?: number | null; billable_seconds?: number | null; seconds_source?: string | null } | null
+}
+export interface PricingSnapshotLegacy {
+  v?: 1
+  currency?: string
+  source?: string
+  quota_unit?: string
+  input_per_token?: number
+  output_per_token?: number
+  cache_read_per_token?: number
+  cache_write_per_token?: number
+}
 export interface UsageLog {
-  pricing_snapshot?: { currency: 'CNY' | 'USD'; source: string; quota_unit: string; input_per_token?: number; output_per_token?: number; cache_read_per_token?: number; cache_write_per_token?: number }
+  requested_group_id?: number | null
+  served_group_id?: number | null
+  failover?: 'none' | 'account' | 'group' | 'ha' | null
+  attempt_count?: number | null
+  pricing_snapshot?: PricingSnapshotV2 | PricingSnapshotLegacy | null
   id: number
   user_id: number
   api_key_id: number

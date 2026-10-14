@@ -44,6 +44,20 @@ describe('BulkEditKeysModal', () => {
     bulkUpdate.mockResolvedValue({ succeededIds: [1, 2], failures: [] })
   })
 
+  it.each([1.2, 0])('shows the same user override %s in bulk single options and the ordered chain, not the default 8x', async (rate) => {
+    const wrapper = mountModal()
+    await wrapper.setProps({ groups: [{ id: 7, name: 'Available group', rate_multiplier: 8, status: 'active' }] as Group[], userRates: { 7: rate } })
+    await wrapper.get('[data-test="enable-group"]').setValue(true)
+    expect(wrapper.get('[data-test="group-input"] option[value="7"]').text()).toContain(rate + 'x')
+    const editor = wrapper.findComponent({ name: 'GroupChainEditor' })
+    expect(editor.props('userRates')).toEqual({ 7: rate })
+    expect(editor.get('option[value="7"]').text()).toBe('Available group · ' + rate + 'x')
+    await editor.get('select').setValue('7')
+    // Real GroupBadge rendering: default 8x is crossed out, the effective user rate is bold.
+    expect(editor.get('li .font-bold').text()).toBe(rate + 'x')
+    expect(editor.get('li .line-through').text()).toBe('8x')
+  })
+
   it('requires an explicit field choice and sends only that field', async () => {
     const wrapper = mountModal()
     expect(wrapper.get('[data-test="submit"]').attributes('disabled')).toBeDefined()
@@ -77,14 +91,19 @@ describe('BulkEditKeysModal', () => {
     expect(wrapper.get('[data-test="submit"]').attributes('disabled')).toBeDefined()
   })
 
-  it('requires an available group when changing group', async () => {
+  it('saves an explicitly chosen normal chain, including clearing it', async () => {
     const wrapper = mountModal()
     await wrapper.get('[data-test="enable-group"]').setValue(true)
     await wrapper.get('form').trigger('submit')
-    expect(bulkUpdate).not.toHaveBeenCalled()
+    expect(bulkUpdate).toHaveBeenCalledWith([1, 2], { groups: [] })
+    await flushPromises()
+    // A successful first submit removes all pending keys. Reopen for the next edit.
+    await wrapper.setProps({ show: false })
+    await wrapper.setProps({ show: true })
+    await wrapper.get('[data-test="enable-group"]').setValue(true)
     await wrapper.get('[data-test="group-input"]').setValue('7')
     await wrapper.get('form').trigger('submit')
-    expect(bulkUpdate).toHaveBeenCalledWith([1, 2], { group_id: 7 })
+    expect(bulkUpdate).toHaveBeenLastCalledWith([1, 2], { groups: [{ group_id: 7, role: 'normal', position: 0 }] })
   })
 
   it('clears only an explicitly selected IP list and expiration', async () => {

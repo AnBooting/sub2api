@@ -211,11 +211,11 @@
                         )
                       "
                       >{{
-                        formatUsd(usageMap.get(row.id)?.today_cost ?? 0)
+                        formatGroupCredit(usageMap.get(row.id)?.today_cost ?? 0)
                       }}</span
                     >
                     <span class="text-gray-400 dark:text-gray-500">
-                      / {{ formatUsd(row.daily_limit_usd) }}/{{
+                      / {{ formatGroupCredit(row.daily_limit_usd) }}/{{
                         t("admin.groups.limitDay")
                       }}</span
                     >
@@ -229,7 +229,7 @@
                     >·</span
                   >
                   <span v-if="row.weekly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.weekly_limit_usd) }}/{{
+                    >{{ formatGroupCredit(row.weekly_limit_usd) }}/{{
                       t("admin.groups.limitWeek")
                     }}</span
                   >
@@ -239,7 +239,7 @@
                     >·</span
                   >
                   <span v-if="row.monthly_limit_usd" class="whitespace-nowrap"
-                    >{{ formatUsd(row.monthly_limit_usd) }}/{{
+                    >{{ formatGroupCredit(row.monthly_limit_usd) }}/{{
                       t("admin.groups.limitMonth")
                     }}</span
                   >
@@ -253,7 +253,7 @@
                     >{{
                       usageLoading
                         ? "—"
-                        : formatUsd(usageMap.get(row.id)?.total_cost ?? 0)
+                        : formatGroupCredit(usageMap.get(row.id)?.total_cost ?? 0)
                     }}</span
                   >
                 </div>
@@ -626,6 +626,7 @@
           />
           <p class="input-hint">{{ t("admin.groups.rateMultiplierHint") }}</p>
         </div>
+        <SchedulingStrategySelect v-model="createForm.scheduling_strategy" allow-inherit :disabled="submitting" />
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -2264,6 +2265,7 @@
             data-tour="group-form-multiplier"
           />
         </div>
+        <SchedulingStrategySelect v-model="editForm.scheduling_strategy" allow-inherit :disabled="submitting" :effective-strategy="savedEffectiveStrategy" />
         <div>
           <label class="input-label">{{ t("admin.groups.form.rpmLimit") }}</label>
           <input
@@ -4265,6 +4267,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { ref, reactive, computed, onMounted, onUnmounted, watch } from "vue";
 import { useI18n } from "vue-i18n";
 import { useAppStore } from "@/stores/app";
@@ -4296,6 +4299,7 @@ import BaseDialog from "@/components/common/BaseDialog.vue";
 import ConfirmDialog from "@/components/common/ConfirmDialog.vue";
 import EmptyState from "@/components/common/EmptyState.vue";
 import Select from "@/components/common/Select.vue";
+import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelect.vue";
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import { platformLabel } from "@/utils/platformColors";
 import Icon from "@/components/icons/Icon.vue";
@@ -4945,6 +4949,7 @@ const createForm = reactive({
   description: "",
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
+  scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
   is_exclusive: false,
   subscription_type: "standard" as SubscriptionType,
   daily_limit_usd: null as number | null,
@@ -5304,11 +5309,13 @@ const convertApiFormatToRoutingRules = async (
   return rules;
 };
 
+const savedEffectiveStrategy = ref<import("@/types").SchedulingStrategy>();
 const editForm = reactive({
   name: "",
   description: "",
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
+  scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
   is_exclusive: false,
   status: "active" as "active" | "inactive",
   subscription_type: "standard" as SubscriptionType,
@@ -5653,8 +5660,8 @@ const formatCost = (cost: number): string => {
   return cost.toFixed(2);
 };
 
-const formatUsd = (cost: number | null | undefined): string =>
-  `$${formatCost(cost ?? 0)}`;
+const formatGroupCredit = (cost: number | null | undefined): string =>
+  formatCustomerCredit(formatCost(cost ?? 0));
 
 const getQuotaUsageClass = (
   used: number,
@@ -5772,6 +5779,7 @@ const closeCreateModal = () => {
   createForm.description = "";
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
+  createForm.scheduling_strategy = "inherit";
   createForm.is_exclusive = false;
   createForm.subscription_type = "standard";
   createForm.daily_limit_usd = null;
@@ -6053,6 +6061,8 @@ const handleEdit = async (group: AdminGroup) => {
   editForm.description = group.description || "";
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
+  editForm.scheduling_strategy = group.scheduling_strategy ?? "inherit";
+  savedEffectiveStrategy.value = group.effective_scheduling_strategy;
   editForm.is_exclusive = group.is_exclusive;
   editForm.status = group.status;
   editForm.subscription_type = group.subscription_type || "standard";

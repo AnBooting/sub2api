@@ -66,6 +66,21 @@ export default {
 
   // API Keys
   keys: {
+    chain: {
+      conflict: "The group configuration changed in another operation. Refresh the key list and reopen the editor before saving. This change was not automatically retried.",
+      publicGroupsHint: "Public standard groups are always available. Configure user rates here; exclusive access and subscription requirements are unchanged.",
+      "title": "Ordinary group order",
+      "hint": "Try groups in order, exhausting eligible accounts in each group first. Billing uses the effective rate of the group that serves the request.",
+      "add": "Add ordinary group",
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down",
+      "remove": "Remove {name}",
+      "empty": "No ordinary groups bound",
+      "unavailable": "Group #{id} (currently unavailable)",
+      "haAuthorized": "User-authorized HA fallback",
+      "singleHint": "The single-group picker above replaces the ordinary chain. HA consent is unchanged.",
+      "edit": "Edit ordinary group order"
+    },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',
@@ -295,7 +310,7 @@ export default {
     reset: 'Reset',
     resetQuotaUsed: 'Reset used quota to 0',
     resetQuotaTitle: 'Confirm Reset Quota',
-    resetQuotaConfirmMessage: 'Are you sure you want to reset the used quota (${used}) for key "{name}" to 0? This action cannot be undone.',
+    resetQuotaConfirmMessage: 'Are you sure you want to reset the used quota ({used} Credit) for key "{name}" to 0? This action cannot be undone.',
     quotaResetSuccess: 'Quota reset successfully',
     failedToResetQuota: 'Failed to reset quota',
     rateLimitColumn: 'Rate Limit',
@@ -331,6 +346,46 @@ export default {
 
   // Usage
   usage: {
+    currencyUnknown: "Currency unknown",
+  "billingDetails": "Billing details",
+  "recordedGroup": "Recorded group",
+  "requestedGroup": "Requested first group",
+  "servedGroup": "Served group",
+  "fromSnapshot": "(from locked snapshot)",
+  "failover": "Failover",
+  "attemptCount": "Upstream send count",
+  "failoverKinds": {
+    "none": "No failover",
+    "account": "Account failover",
+    "group": "Ordinary group failover",
+    "ha": "User-authorized HA fallback"
+  },
+  "recordedCredit": "Recorded debit (Credit)",
+  "missingLockedSnapshot": "No readable v2 locked-price snapshot is stored. Only existing ledger fields are shown; historical prices, multipliers, or routing facts are not reconstructed.",
+  "lockedSnapshot": "Stored locked-price snapshot",
+  "requestStartedAt": "Request started at",
+  "priceVersion": "Locked price version",
+  "priceSource": "Price source",
+  "sourceCurrency": "Source currency",
+  "pricingUnit": "Pricing unit",
+  "lockedPeriod": "Locked pricing period",
+  "snapshotServedGroup": "Snapshot served group",
+  "lockedMultiplier": "Locked group multiplier",
+  "lockedTotalCredit": "Snapshot total debit",
+  "priceKind": "Billing dimension",
+  "baseCreditPrice": "Base price (Credit)",
+  "storedUsage": "Stored usage",
+  "normalizedUsage": "Stored normalized usage",
+  "subtotalCredit": "Stored subtotal (Credit)",
+  "missingStoredPriceItems": "No price items were stored; current pricing is not used to fill them in.",
+  "storedSnapshotOnly": "Snapshot values are server-stored request-time facts. This page does not query live prices or recalculate billing.",
+  "snapshotConflict": "The record and its price snapshot disagree on the served group or debit. Both stored values are retained below for inspection; this page never changes the ledger.",
+  "mediaBillingMode": "Media billing mode",
+  "mediaBillableCount": "Stored billable count",
+  "mediaBillableSeconds": "Stored billable seconds",
+  "mediaSecondsSource": "Seconds source"
+,
+
     title: 'Usage Records',
     description: 'View and analyze your API usage history',
     costDetails: 'Cost Breakdown',

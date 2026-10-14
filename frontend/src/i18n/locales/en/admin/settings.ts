@@ -1,6 +1,30 @@
 export default {
     settings: {
 	  pricing: {
+      calendar: {
+        "title": "DeepSeek statutory holiday calendar",
+        "rules": "Timezone: Asia/Shanghai. Maintained statutory holidays take off-peak precedence. Weekends, including makeup-work weekends, remain off-peak. Non-holiday weekdays use peak windows [09:00,12:00) and [14:00,18:00); all other times are off-peak. This editor does not calculate the current price or period.",
+        "unsupported": "The backend does not provide both calendar and year-state fields. Calendar support is unconfirmed; editing is unavailable. Existing pricing switches remain available.",
+        "yearMissing": "The server reports that the current Shanghai year has no maintained holiday calendar. That year is unknown. Administrators must verify and maintain dates rather than assume there are no holidays.",
+        "yearMaintained": "The server reports that the current Shanghai year is maintained; an explicit empty date array counts as maintained.",
+        "editorLabel": "Statutory holidays by year (JSON)",
+        "editorHelp": "Use an object mapping four-digit years to date arrays. Dates must be valid YYYY-MM-DD, match the year, and have no duplicates. Do not enter makeup-work days. A year with [] is explicitly maintained with no holidays; an absent year is unknown. Entering and saving {'{'}{'}'} explicitly clears all years. No statutory dates are supplied automatically.",
+        "unsaved": "Unsaved draft. Polling, pricing refreshes, and switch saves preserve it. The draft is not effective yet.",
+        "save": "Save calendar",
+        "resetDraft": "Discard draft and restore server value",
+        "savedState": "Server-saved calendar",
+        "saved": "Calendar saved and read back from the server",
+        "missingReadback": "The server did not return complete calendar and year-state fields. The effective calendar is unconfirmed; your draft is retained.",
+        "errors": {
+          "json": "Enter valid JSON.",
+          "root": "The calendar root must be an object, not null or an array.",
+          "year": "Year must be four digits from 0001 to 9999: {value}",
+          "dates": "The year value must be a date array, never null: {value}",
+          "date": "Invalid date or YYYY-MM-DD format: {value}",
+          "yearMismatch": "Date year does not match its calendar year: {value}",
+          "duplicate": "Duplicate date: {value}"
+        }
+      },
 	    creditUnit: 'credits', rechargeHint: 'Credit mode: a base recharge of ¥1 or $1 adds 1 credit. Bonuses and fees are calculated separately.',
 	    currency: 'Price currency', manualCNYHint: 'CNY token cards require input, output, cache read and cache write rates. Enter 0 for free items; USD rates are never inherited.',
 	    title: 'Model pricing and credits', description: 'Choose native CNY prices and control all remote pricing requests. Changes take effect immediately.',
@@ -456,6 +480,21 @@ export default {
           'Reject Claude Code clients above this version (semver format). Leave empty to allow any version.'
       },
       scheduling: {
+  "strategy": "Scheduling strategy",
+  "strategyHint": "Strategy affects candidate ordering and affinity, never concurrency, safe retries, or model capability checks.",
+  "effectiveStrategy": "Current effective strategy",
+  "strategies": {
+    "inherit": "Inherit global",
+    "stable": "Stability first",
+    "balanced": "Balanced",
+    "latency": "Latency first"
+  },
+  "maxAttempts": "Maximum sends per request",
+  "requestBudget": "Total request budget (seconds)",
+  "budgetHint": "Includes all actual upstream retries. Existing lower limits still apply. Defaults: 16 sends / 600 seconds.",
+  "invalidBudget": "Attempt and time budgets must be positive integers."
+,
+
         title: 'Gateway Scheduling Settings',
         description: 'Control API Key scheduling behavior',
         allowUngroupedKey: 'Allow Ungrouped Key Scheduling',

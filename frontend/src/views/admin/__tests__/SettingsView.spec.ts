@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
+import { createPinia } from "pinia";
 import { flushPromises, mount } from "@vue/test-utils";
 
 import enCommon from "@/i18n/locales/en/common";
@@ -128,6 +129,29 @@ vi.mock("@/stores", () => ({
     fetchPublicSettings,
   }),
 }));
+
+// The real pricing panel imports the direct module, not the stores barrel.
+// Preserve both module paths on the same app-store test contract.
+vi.mock("@/stores/app", () => ({
+  useAppStore: () => ({ showError, showSuccess, showWarning: vi.fn(), showInfo: vi.fn(), fetchPublicSettings }),
+}));
+
+// Keep the real affiliate watcher and pricing panel hermetic. Named and default
+// affiliate exports must alias the same API object for direct and barrel users.
+const affiliateListUsers = vi.hoisted(() => vi.fn());
+vi.mock("@/api/admin/affiliates", () => {
+  const api = { listUsers: affiliateListUsers };
+  return { affiliatesAPI: api, default: api };
+});
+const pricingAPI = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn() }));
+vi.mock("@/api/admin/pricing", () => ({ getPricingControls: pricingAPI.get, updatePricingControls: pricingAPI.update, refreshPricing: pricingAPI.refresh }));
+const pricingStatus = { remote_enabled: false, native_cny_enabled: false, usd_model_count: 10, cny_model_count: 0, usd_last_updated: "", cny_last_updated: "", cny_error: "", deepseek_holidays: {}, deepseek_calendar_year_missing: true };
+beforeEach(() => {
+  affiliateListUsers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 });
+  pricingAPI.get.mockReset().mockResolvedValue({ ...pricingStatus });
+  pricingAPI.update.mockReset().mockImplementation(async (controls) => ({ ...pricingStatus, ...controls }));
+  pricingAPI.refresh.mockReset().mockResolvedValue({ ...pricingStatus });
+});
 
 vi.mock("@/stores/adminSettings", () => ({
   useAdminSettingsStore: () => ({
@@ -563,8 +587,10 @@ const baseSettingsResponse = {
 function mountView() {
   return mount(SettingsView, {
     global: {
+      plugins: [createPinia()],
       stubs: {
         AppLayout: AppLayoutStub,
+        RouterLink: { template: '<a><slot /></a>' },
         Select: SelectStub,
         Toggle: ToggleStub,
         Icon: true,
@@ -737,6 +763,38 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("keeps the real pricing panel mounted with its direct-store and API fixture dependencies", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    expect(pricingAPI.get).toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="calendar-year-missing"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="calendar-draft"]').exists()).toBe(true);
+    await wrapper.get('[data-testid="native-cny-toggle"]').setValue(true);
+    await flushPromises();
+    expect(pricingAPI.update).toHaveBeenCalledWith({ remote_enabled: false, native_cny_enabled: true });
+    expect(fetchPublicSettings).toHaveBeenCalledWith(true);
+    wrapper.unmount();
+  });
+
+  it("saves global strategy and request budgets while displaying only the server-saved effective strategy", async () => {
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, scheduling_strategy: "stable", gateway_max_attempts_per_request: 16, gateway_request_budget_seconds: 600 });
+    const wrapper = mountView();
+    await flushPromises();
+    await openGatewayTab(wrapper);
+    const selector = wrapper.findComponent({ name: "SchedulingStrategySelect" });
+    expect(selector.props("effectiveStrategy")).toBe("stable");
+    await selector.get("select").setValue("latency");
+    expect(selector.props("modelValue")).toBe("latency");
+    expect(selector.props("effectiveStrategy")).toBe("stable");
+    await wrapper.get('[data-test="gateway-max-attempts"]').setValue("12");
+    await wrapper.get('[data-test="gateway-request-budget"]').setValue("300");
+    await wrapper.get("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ scheduling_strategy: "latency", gateway_max_attempts_per_request: 12, gateway_request_budget_seconds: 300 }));
+    expect(selector.props("effectiveStrategy")).toBe("latency");
+    wrapper.unmount();
   });
 
   it("loads and saves the open button visibility for each custom menu", async () => {
@@ -1232,6 +1290,8 @@ describe("admin SettingsView payment visible method controls", () => {
         affiliate_admin_recharge_enabled: true,
       }),
     );
+    expect(affiliateListUsers).toHaveBeenCalledTimes(1);
+    expect(affiliateListUsers).toHaveBeenCalledWith({ page: 1, page_size: 20, search: "" });
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {
@@ -1418,8 +1478,10 @@ describe("admin SettingsView payment visible method controls", () => {
 
     const wrapper = mount(SettingsView, {
       global: {
+        plugins: [createPinia()],
         stubs: {
           AppLayout: AppLayoutStub,
+          RouterLink: { template: '<a><slot /></a>' },
           Select: SelectStub,
           Toggle: ToggleStub,
           Icon: true,
@@ -1765,8 +1827,10 @@ describe("admin SettingsView payment visible method controls", () => {
 
     const wrapper = mount(SettingsView, {
       global: {
+        plugins: [createPinia()],
         stubs: {
           AppLayout: AppLayoutStub,
+          RouterLink: { template: '<a><slot /></a>' },
           Select: SelectStub,
           Toggle: ToggleStub,
           Icon: true,

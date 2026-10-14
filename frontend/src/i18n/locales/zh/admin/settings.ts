@@ -1,6 +1,30 @@
 export default {
     settings: {
 	  pricing: {
+      calendar: {
+        "title": "DeepSeek 法定假日日历",
+        "rules": "时区固定 Asia/Shanghai。已维护的法定假日优先按谷价；周末（包含调休补班周末）仍按谷价。非假日工作日峰价窗口为 [09:00,12:00) 与 [14:00,18:00)，其余时间谷价。这里不推算当前价格或时段。",
+        "unsupported": "当前后端未完整提供日历或年度状态字段，无法确认支持。日历编辑不可用，原价格开关仍可使用。",
+        "yearMissing": "服务器报告上海当前年未维护法定假日日历，该年信息未知。请管理员自行核验并维护，不能把缺年当成已确认无假日。",
+        "yearMaintained": "服务器报告上海当前年日历已维护（空日期数组也属于明确维护）。",
+        "editorLabel": "年度法定假日 JSON",
+        "editorHelp": "根对象按四位年份映射日期数组，格式 YYYY-MM-DD，日期必须有效且与年份一致、不得重复；不录入补班日期。某年 [] 表示已确认该年无维护假日，缺少年份表示未知。输入并保存 {'{'}{'}'} 将明确清空所有年度，不会自动填入任何法定日期。",
+        "unsaved": "存在未保存草稿。轮询、价格刷新和开关保存不会覆盖此草稿，草稿尚未生效。",
+        "save": "保存日历",
+        "resetDraft": "放弃草稿，恢复服务器值",
+        "savedState": "服务器已保存日历",
+        "saved": "日历已保存并读回服务器值",
+        "missingReadback": "服务器未返回完整日历及年度状态，无法确认日历生效；草稿保留。",
+        "errors": {
+          "json": "请输入有效的 JSON。",
+          "root": "日历根必须是对象，不能是 null 或数组。",
+          "year": "年份必须为四位 0001–9999：{value}",
+          "dates": "年份的值必须为日期数组，不能是 null：{value}",
+          "date": "日期格式或日期本身无效：{value}",
+          "yearMismatch": "日期年份与所属年份不一致：{value}",
+          "duplicate": "日期重复：{value}"
+        }
+      },
 	    creditUnit: '额度', rechargeHint: '额度模式已启用：¥1 或 $1 基础充值均到账 1 额度，赠送和手续费另行计算。',
 	    currency: '价格币种', manualCNYHint: '人民币 Token 价卡需填写输入、输出、缓存读取和缓存写入价格，免费项填写 0；不会继承美元价格。',
 	    title: '模型价格与额度计费', description: '选择国模价卡，并控制所有远程价格拉取。开关保存后即时生效。',
@@ -449,6 +473,21 @@ export default {
         maxVersionHint: '拒绝高于此版本的 Claude Code 客户端请求（semver 格式）。留空则不限制最高版本。'
       },
       scheduling: {
+  "strategy": "调度策略",
+  "strategyHint": "策略仅影响候选排序与亲和，不放宽并发、安全重试或模型能力约束。",
+  "effectiveStrategy": "当前有效策略",
+  "strategies": {
+    "inherit": "继承全局",
+    "stable": "稳定优先",
+    "balanced": "平衡",
+    "latency": "响应速度优先"
+  },
+  "maxAttempts": "单请求最大发送次数",
+  "requestBudget": "单请求总预算（秒）",
+  "budgetHint": "包括所有真实上游重试，现有更小的限制仍然有效。默认 16 次 / 600 秒。",
+  "invalidBudget": "发送次数与预算必须为正整数。"
+,
+
         title: '网关调度设置',
         description: '控制 API Key 的调度行为',
         allowUngroupedKey: '允许未分组 Key 调度',
