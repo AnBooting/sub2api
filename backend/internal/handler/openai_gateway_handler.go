@@ -3105,6 +3105,11 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, fmt.Sprintf("Model %q is not available for this group", blocked))
 		return
 	}
+	// Target-only ARTEX gate is independent of the generic audit/cyber pipeline.
+	if err := service.CheckArtexWSRequest(h.cfg, firstMessage); err != nil {
+		closeOpenAIClientWS(wsConn, coderws.StatusPolicyViolation, service.ArtexGuardBlockedCode)
+		return
+	}
 	// Keep the client model in the frame for admission, response identity and usage.
 	// Apply the resolved upstream model through MapRequestModel on every turn.
 	wsRouteModel := reqModel
@@ -3848,6 +3853,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			ReasoningEffortMappings:     reasoningEffortMappings,
 			TurnStarted:                 recordTurnStart,
 			BeforeRequest: func(turn int, payload []byte, originalModel string) error {
+				if err := service.CheckArtexWSRequest(h.cfg, payload); err != nil {
+					return err
+				}
 				if turn > logicalTurn {
 					logicalTurn = turn
 					failedAccountIDs = make(map[int64]struct{})
