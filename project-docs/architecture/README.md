@@ -10,6 +10,7 @@
 | [02-scheduling.md](02-scheduling.md) | 调度与并发控制 | 543 | ✅ |
 | [03-media.md](03-media.md) | 图片与视频生成链路 | 312 | ✅ |
 | [05-frontend.md](05-frontend.md) | 前端结构与构建 | 447 | ✅ |
+| [06-repository-map.md](06-repository-map.md) | 项目代码地图、影响面查询与最小上下文流程 | — | 🧪 |
 
 ---
 
