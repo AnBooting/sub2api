@@ -15,6 +15,10 @@ description: "Use when working on the Sub2API fork at F:\\sub2: Go/Vue code, mig
 | 技术栈 | Go 1.27.2 + Gin + Ent + PostgreSQL 18 + Redis 8；Vue 3.5 + Vite 5 + pnpm 9 |
 | 文档 | `F:\sub2\project-docs\`（先读 `00-overview.md`，规则读 `F:\sub2\AGENTS.md`） |
 
+## 仓库导航
+
+跨模块、公共契约、计费、调度、迁移或影响面不明确的任务，先读 `project-skills/repository-navigation/SKILL.md`，使用 `tools/repo-intelligence.mjs` 和 `tools/repo-map.mjs` 生成最小上下文包，再进入实现和验证。
+
 ## 环境（本机已就绪，勿重复安装）
 
 | 工具 | 位置 / 用法 |
