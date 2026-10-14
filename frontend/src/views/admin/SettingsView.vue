@@ -5021,18 +5021,6 @@
                 <Toggle v-model="form.allow_ungrouped_key_scheduling" />
               </div>
               <SchedulingStrategySelect :model-value="form.scheduling_strategy" @update:model-value="(value) => { if (value !== 'inherit') form.scheduling_strategy = value }" :effective-strategy="savedSchedulingStrategy" :disabled="saving" />
-              <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label class="block">
-                  <span class="input-label">{{ t('admin.settings.scheduling.maxAttempts') }}</span>
-                  <input v-model.number="form.gateway_max_attempts_per_request" type="number" min="1" step="1" class="input" data-test="gateway-max-attempts" />
-                </label>
-                <label class="block">
-                  <span class="input-label">{{ t('admin.settings.scheduling.requestBudget') }}</span>
-                  <input v-model.number="form.gateway_request_budget_seconds" type="number" min="1" step="1" class="input" data-test="gateway-request-budget" />
-                </label>
-              </div>
-              <p class="input-hint">{{ t('admin.settings.scheduling.budgetHint') }}</p>
-
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <div class="mb-3">
                   <label class="font-medium text-gray-900 dark:text-white">
@@ -5309,6 +5297,7 @@
                       v-model.number="form.gateway_max_attempts_per_request"
                       class="input w-full"
                       data-testid="gateway-max-attempts-per-request"
+                      data-test="gateway-max-attempts"
                       type="number"
                       min="1"
                       step="1"
@@ -5330,6 +5319,7 @@
                       v-model.number="form.gateway_request_budget_seconds"
                       class="input w-full"
                       data-testid="gateway-request-budget-seconds"
+                      data-test="gateway-request-budget"
                       type="number"
                       min="1"
                       step="1"
@@ -9890,8 +9880,6 @@ const form = reactive<SettingsForm>({
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
   scheduling_strategy: "balanced",
-  gateway_max_attempts_per_request: 16,
-  gateway_request_budget_seconds: 600,
   site_name: "Sub2API",
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
@@ -11406,10 +11394,6 @@ const siteBillingModeHint = computed(() =>
 async function saveSettings() {
   saving.value = true;
   try {
-    if (!Number.isInteger(form.gateway_max_attempts_per_request) || form.gateway_max_attempts_per_request < 1 || !Number.isInteger(form.gateway_request_budget_seconds) || form.gateway_request_budget_seconds < 1) {
-      appStore.showError(t("admin.settings.scheduling.invalidBudget"));
-      return;
-    }
     const normalizedTableDefaultPageSize = Math.floor(
       Number(form.table_default_page_size),
     );
@@ -11621,8 +11605,6 @@ async function saveSettings() {
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
       default_user_rpm_limit: form.default_user_rpm_limit,
       scheduling_strategy: form.scheduling_strategy,
-      gateway_max_attempts_per_request: form.gateway_max_attempts_per_request,
-      gateway_request_budget_seconds: form.gateway_request_budget_seconds,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,

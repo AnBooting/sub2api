@@ -405,8 +405,6 @@ export function deriveWeChatConnectStoredMode(
  */
 export interface SystemSettings {
   scheduling_strategy?: SchedulingStrategy;
-  gateway_max_attempts_per_request?: number;
-  gateway_request_budget_seconds?: number;
   // Registration settings
   registration_enabled: boolean;
   email_verify_enabled: boolean;
@@ -771,8 +769,6 @@ export interface SystemSettings {
 
 export interface UpdateSettingsRequest {
   scheduling_strategy?: SchedulingStrategy;
-  gateway_max_attempts_per_request?: number;
-  gateway_request_budget_seconds?: number;
   registration_enabled?: boolean;
   email_verify_enabled?: boolean;
   registration_email_suffix_whitelist?: string[];

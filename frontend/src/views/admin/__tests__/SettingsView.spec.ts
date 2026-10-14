@@ -602,8 +602,8 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
-        // 该面板自行 useAppStore()，测试环境没有 pinia 实例；本文件不覆盖它的行为。
-        PricingSettingsPanel: true,
+        // The real panel is exercised below: its @/stores/app and @/api/admin/pricing
+        // dependencies are mocked at module scope, so it must not be stubbed here.
       },
     },
   });
