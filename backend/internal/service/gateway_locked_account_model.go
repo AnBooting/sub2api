@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
@@ -24,7 +25,15 @@ func resolveGatewayRequestAccountUpstreamModel(ctx context.Context, account *Acc
 	if account == nil {
 		return requestedModel
 	}
+	// Ordinary HTTP cross-family candidates follow their actual forwarding family.
+	if domain.UsesOpenAIGateway(account.Platform) {
+		return resolveOpenAIAccountUpstreamModelForRequest(account, requestedModel, false)
+	}
 	switch {
+	// Gemini OAuth Forward/ForwardNative do not apply account model mappings.
+	// Freeze that existing protocol behavior rather than changing OAuth routing.
+	case account.Platform == PlatformGemini && account.Type == AccountTypeOAuth:
+		return requestedModel
 	case account.IsAnthropicAPIKeyPassthroughEnabled():
 		return mappedOrRequested(account, requestedModel)
 	case account.IsBedrock():

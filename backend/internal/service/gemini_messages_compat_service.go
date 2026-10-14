@@ -635,7 +635,13 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 
 	originalModel := req.Model
 	mappedModel := req.Model
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+	frozenModel, locked, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenErr != nil {
+		return nil, frozenErr
+	}
+	if locked {
+		mappedModel = frozenModel
+	} else if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
 		mappedModel = account.GetMappedModel(req.Model)
 	}
 
@@ -1097,28 +1103,40 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	}
 
 	var usage *ClaudeUsage
+	var streamErr error
 	var firstTokenMs *int
 	if req.Stream {
 		streamRes, err := s.handleStreamingResponse(c, resp, startTime, originalModel)
 		if err != nil {
-			return nil, err
+			if streamRes == nil || !hasMeasuredGeminiResult(c, streamRes.usage) {
+				return nil, err
+			}
+			streamErr = err
 		}
 		usage = streamRes.usage
 		firstTokenMs = streamRes.firstTokenMs
 	} else {
 		if useUpstreamStream {
-			collected, usageObj, err := collectGeminiSSE(resp.Body, true)
+			partialObserver := &upstreamResponseModelObserver{}
+			collected, usageObj, _, err := collectGeminiSSEObserved(resp.Body, true, func(raw []byte) { observeGeminiImageOutputs(c, raw); partialObserver.ObserveGemini(raw) })
 			if err != nil {
-				return nil, s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to read upstream stream")
-			}
-			collectedBytes, _ := json.Marshal(collected)
-			upstreamResponseModelObserverFromContext(c).ObserveGemini(collectedBytes)
-			observeGeminiImageOutputs(c, collectedBytes)
-			claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes, false)
-			c.JSON(http.StatusOK, claudeResp)
-			usage = usageObj2
-			if usageObj != nil && (usageObj.InputTokens > 0 || usageObj.OutputTokens > 0) {
+				_ = s.writeClaudeError(c, http.StatusBadGateway, "upstream_error", "Failed to read upstream stream")
+				if !hasMeasuredGeminiResult(c, usageObj) {
+					return nil, err
+				}
 				usage = usageObj
+				streamErr = err
+				*upstreamResponseModelObserverFromContext(c) = *partialObserver
+			} else {
+				collectedBytes, _ := json.Marshal(collected)
+				upstreamResponseModelObserverFromContext(c).ObserveGemini(collectedBytes)
+				observeGeminiImageOutputs(c, collectedBytes)
+				claudeResp, usageObj2 := convertGeminiToClaudeMessage(collected, originalModel, collectedBytes, false)
+				c.JSON(http.StatusOK, claudeResp)
+				usage = usageObj2
+				if usageObj != nil && (usageObj.InputTokens > 0 || usageObj.OutputTokens > 0) {
+					usage = usageObj
+				}
 			}
 		} else {
 			usage, err = s.handleNonStreamingResponse(c, resp, originalModel)
@@ -1132,6 +1150,9 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 	imageInputSize := s.extractImageInputSize(body)
 	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
 	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
+	if streamErr != nil {
+		imageCount = observedGeminiImageOutputs(c)
+	}
 
 	return &ForwardResult{
 		RequestID:                     requestID,
@@ -1147,7 +1168,7 @@ func (s *GeminiMessagesCompatService) Forward(ctx context.Context, c *gin.Contex
 		ImageCount:                    imageCount,
 		ImageSize:                     imageSize,
 		ImageInputSize:                imageInputSize,
-	}, nil
+	}, streamErr
 }
 
 func isGeminiSignatureRelatedError(respBody []byte) bool {
@@ -1190,7 +1211,13 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	body = ensureGeminiFunctionCallThoughtSignatures(body)
 
 	mappedModel := originalModel
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+	frozenModel, locked, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenErr != nil {
+		return nil, frozenErr
+	}
+	if locked {
+		mappedModel = frozenModel
+	} else if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
 		mappedModel = account.GetMappedModel(originalModel)
 	}
 
@@ -1594,32 +1621,46 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	}
 
 	var usage *ClaudeUsage
+	var streamErr error
 	var firstTokenMs *int
 
 	if stream {
 		streamRes, err := s.handleNativeStreamingResponse(c, resp, startTime, isOAuth, account, requestID)
 		if err != nil {
-			return nil, err
+			if streamRes == nil || !hasMeasuredGeminiResult(c, streamRes.usage) {
+				return nil, err
+			}
+			streamErr = err
 		}
 		usage = streamRes.usage
 		firstTokenMs = streamRes.firstTokenMs
 	} else {
 		if useUpstreamStream {
 			var best geminiResponseSignal
+			partialObserver := &upstreamResponseModelObserver{}
 			collected, usageObj, stats, err := collectGeminiSSEObserved(resp.Body, isOAuth, func(rawBytes []byte) {
+				observeGeminiImageOutputs(c, rawBytes)
+				partialObserver.ObserveGemini(rawBytes)
 				if sig, ok := detectGeminiResponseSignal(rawBytes); ok && sig.Kind > best.Kind {
 					best = sig
 				}
 			})
 			if err != nil {
-				return nil, s.writeGoogleError(c, http.StatusBadGateway, "Failed to read upstream stream")
+				_ = s.writeGoogleError(c, http.StatusBadGateway, "Failed to read upstream stream")
+				if !hasMeasuredGeminiResult(c, usageObj) {
+					return nil, err
+				}
+				usage = usageObj
+				streamErr = err
+				*upstreamResponseModelObserverFromContext(c) = *partialObserver
+			} else {
+				s.finalizeGeminiSSESignal(c, account, false, requestID, best, stats.dataEvents > 0, stats.fallback)
+				b, _ := json.Marshal(collected)
+				upstreamResponseModelObserverFromContext(c).ObserveGemini(b)
+				observeGeminiImageOutputs(c, b)
+				c.Data(http.StatusOK, "application/json", b)
+				usage = usageObj
 			}
-			s.finalizeGeminiSSESignal(c, account, false, requestID, best, stats.dataEvents > 0, stats.fallback)
-			b, _ := json.Marshal(collected)
-			upstreamResponseModelObserverFromContext(c).ObserveGemini(b)
-			observeGeminiImageOutputs(c, b)
-			c.Data(http.StatusOK, "application/json", b)
-			usage = usageObj
 		} else {
 			usageResp, err := s.handleNativeNonStreamingResponse(c, resp, isOAuth, account, requestID)
 			if err != nil {
@@ -1637,6 +1678,9 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	imageInputSize := s.extractImageInputSize(body)
 	imageSize := normalizeOpenAIImageSizeTier(imageInputSize)
 	imageCount := resolveGeminiImageCount(c, originalModel, mappedModel)
+	if streamErr != nil {
+		imageCount = observedGeminiImageOutputs(c)
+	}
 
 	return &ForwardResult{
 		RequestID:                     requestID,
@@ -1653,7 +1697,7 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 		ImageCount:                    imageCount,
 		ImageSize:                     imageSize,
 		ImageInputSize:                imageInputSize,
-	}, nil
+	}, streamErr
 }
 
 // checkErrorPolicyInLoop 在重试循环内预检查错误策略。
@@ -2081,6 +2125,17 @@ func mapGeminiStatusToClaudeErrorType(status string) string {
 	}
 }
 
+// hasMeasuredGeminiUsage recognizes only upstream-reported token dimensions.
+// Observed images without token usage are not inferred as partial billing here.
+func hasMeasuredGeminiUsage(u *ClaudeUsage) bool {
+	return u != nil && (u.InputTokens > 0 || u.OutputTokens > 0 || u.CacheCreationInputTokens > 0 || u.CacheReadInputTokens > 0 || u.CacheCreation5mTokens > 0 || u.CacheCreation1hTokens > 0 || u.ImageOutputTokens > 0)
+}
+
+// Partial results require observed output, never model-name image heuristics.
+func hasMeasuredGeminiResult(c *gin.Context, u *ClaudeUsage) bool {
+	return hasMeasuredGeminiUsage(u) || observedGeminiImageOutputs(c) > 0
+}
+
 type geminiStreamResult struct {
 	usage        *ClaudeUsage
 	firstTokenMs *int
@@ -2161,11 +2216,19 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 	seenToolJSON := ""
 
 	reader := bufio.NewReader(resp.Body)
+	var terminalReadErr error
 	for {
+		if terminalReadErr != nil {
+			if hasMeasuredGeminiResult(c, &usage) {
+				return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", terminalReadErr)
+			}
+			return nil, fmt.Errorf("stream read error: %w", terminalReadErr)
+		}
 		line, err := reader.ReadString('\n')
 		if err != nil && !errors.Is(err, io.EOF) {
-			return nil, fmt.Errorf("stream read error: %w", err)
+			terminalReadErr = err
 		}
+		// Process a complete final data frame even when Read returns data and error together.
 
 		if !strings.HasPrefix(line, "data:") {
 			if errors.Is(err, io.EOF) {
@@ -2528,7 +2591,7 @@ func collectGeminiSSEObserved(body io.Reader, isOAuth bool, observe func(rawByte
 			break
 		}
 		if err != nil {
-			return nil, nil, stats, err
+			return mergeCollectedTextParts(pickGeminiCollectResult(last, lastWithParts), collectedTextParts), usage, stats, err
 		}
 	}
 
@@ -2845,6 +2908,9 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 			break
 		}
 		if err != nil {
+			if hasMeasuredGeminiResult(c, usage) {
+				return &geminiNativeStreamResult{usage: usage, firstTokenMs: firstTokenMs}, err
+			}
 			return nil, err
 		}
 	}

@@ -54,6 +54,10 @@ type RecordUsageInput struct {
 	APIKeyService      APIKeyQuotaUpdater // 可选：用于更新API Key配额
 	QuotaPlatform      string             // user×platform 配额计量平台：handler 在请求 ctx 内经 QuotaPlatform() 算定后传入（后扣运行在 worker 池 background ctx 上，取不到 ForcePlatform）
 
+	// RoutingUsage 是可选不可变 C6 路由事实；nil 保持历史 NULL，非 nil 时在
+	// RecordUsage 任何副作用之前校验并与冻结/认证分组事实核对。
+	RoutingUsage *RoutingUsageMetadata
+
 	ChannelUsageFields // 渠道映射信息（由 handler 在 Forward 前解析）
 }
 
@@ -662,6 +666,7 @@ func (s *GatewayService) RecordUsage(ctx context.Context, input *RecordUsageInpu
 		ForceCacheBilling:  input.ForceCacheBilling,
 		APIKeyService:      input.APIKeyService,
 		QuotaPlatform:      input.QuotaPlatform,
+		RoutingUsage:       cloneRoutingUsageMetadata(input.RoutingUsage),
 		ChannelUsageFields: input.ChannelUsageFields,
 	})
 }
@@ -683,6 +688,7 @@ type recordUsageCoreInput struct {
 	ForceCacheBilling  bool
 	APIKeyService      APIKeyQuotaUpdater
 	QuotaPlatform      string
+	RoutingUsage       *RoutingUsageMetadata
 	ChannelUsageFields
 }
 
@@ -762,6 +768,9 @@ func logResponseModelBillingApplied(component string, account *Account, requestI
 
 // recordUsageCore 是 RecordUsage 的核心实现。
 func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsageCoreInput) error {
+	if err := validateRoutingUsageFacts(ctx, input.APIKey, input.RoutingUsage); err != nil {
+		return err
+	}
 	result := input.Result
 	apiKey := input.APIKey
 	user := input.User
@@ -807,10 +816,9 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 		}
 		cost = lockedCost
 		billingModel = scope.BillingModel
-		// 冻结倍率 = 请求建立时点的用户/分组倍率叠加上当时的高峰因子。纯 token 守卫
-		// 已在计价前拒绝媒体形态，因此图片倍率与 token 倍率同值。
+		// Token 使用冻结高峰倍率；按图使用最终报价的冻结分组独立倍率或基础倍率。
 		multiplier = quote.EffectiveMultiplier()
-		imageMultiplier = multiplier
+		imageMultiplier = resolveImageRateMultiplier(&APIKey{Group: quote.candidate.group}, quote.BaseMultiplier())
 		pricingAt = requestPricing.StartedAt()
 	} else {
 		// 获取费率倍数（优先级：用户专属 > 分组默认 > 系统默认）
@@ -890,6 +898,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	accountRateMultiplier := account.BillingRateMultiplier()
 	usageLog := s.buildRecordUsageLog(ctx, input, result, apiKey, user, account, subscription,
 		requestedModel, multiplier, imageMultiplier, accountRateMultiplier, billingType, cacheTTLOverridden, cost)
+	input.RoutingUsage.apply(usageLog)
 	// 锁价请求的扣费键固定为请求建立时生成的 requestID（与 OpenAI 消费侧同语义）：
 	// 同一逻辑请求的 failover 重试与异步 worker 只落到同一 usage_logs/计费幂等键，
 	// 不会被客户端 X-Request-Id 或上游 request id 改变而重复扣费。

@@ -382,6 +382,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	rejectedFieldRetryState := openAIResponsesRejectedFieldRetryStateForRequest(c, body)
 	var resp *http.Response
 	var usage *OpenAIUsage
+	var partialErr error
 	var firstTokenMs *int
 	responseID := ""
 	imageCount := 0
@@ -478,7 +479,10 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 
 		if reqStream {
 			result, handleErr := s.handleStreamingResponsePassthrough(ctx, resp, c, account, startTime, reqModel, upstreamPassthroughModel)
-			if handleErr != nil {
+			if handleErr != nil && hasMeasuredPassthroughPartial(result, handleErr) {
+				partialErr = handleErr
+			}
+			if handleErr != nil && partialErr == nil {
 				// 锁定计费（存在冻结模型）时禁止同账号 compact 模型兜底重试：
 				// 冻结表已按 compact 口径固定上游模型，现场切换会偏离冻结事实。
 				if retryBody, fallbackModel, retry := s.applyOpenAIPassthroughCompactFallbackFromSignal(
@@ -538,7 +542,9 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 	}
 	defer func() { _ = resp.Body.Close() }()
 	serviceTier := extractOpenAIServiceTierFromBody(body)
-	s.bindHTTPResponseAccount(ctx, c, account, responseID)
+	if partialErr == nil {
+		s.bindHTTPResponseAccount(ctx, c, account, responseID)
+	}
 
 	// 排除 spark 影子:其 codex_* 仅由 QueryUsage(/wham/usage bengalfox)更新(外审第7轮 P1)。
 	if !account.IsShadow() {
@@ -577,7 +583,7 @@ func (s *OpenAIGatewayService) forwardOpenAIPassthrough(
 		forwardResult.ImageOutputSizes = imageOutputSizes
 		forwardResult.BillingModel = imageBillingModel
 	}
-	return forwardResult, nil
+	return forwardResult, partialErr
 }
 
 func logOpenAIPassthroughInstructionsRejected(
@@ -1072,6 +1078,21 @@ func collectOpenAIPassthroughTimeoutHeaders(h http.Header) []string {
 	}
 	sort.Strings(matched)
 	return matched
+}
+
+// Preserve measured stream usage without turning retry signals into partial execution.
+func hasMeasuredPassthroughPartial(result *openaiStreamingResultPassthrough, err error) bool {
+	if result == nil || result.usage == nil {
+		return false
+	}
+	var failover *UpstreamFailoverError
+	if errors.As(err, &failover) {
+		return false
+	}
+	if _, compact := asOpenAICompactFallbackSignal(err); compact {
+		return false
+	}
+	return openAIUsageHasTokens(result.usage) || result.usage.ImageCacheReadTokens > 0
 }
 
 type openaiStreamingResultPassthrough struct {

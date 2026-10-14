@@ -122,6 +122,18 @@ func (f *lockedMediaFixture) record(t *testing.T, result *OpenAIForwardResult) e
 	})
 }
 
+// recordWithRouting 允许 C6 测试显式传入路由事实（nil 表示历史兼容）。
+func (f *lockedMediaFixture) recordWithRouting(t *testing.T, result *OpenAIForwardResult, routing *RoutingUsageMetadata) error {
+	t.Helper()
+	return f.svc.RecordUsage(f.ctx, &OpenAIRecordUsageInput{
+		Result:       result,
+		APIKey:       f.key,
+		User:         f.key.User,
+		Account:      f.account,
+		RoutingUsage: routing,
+	})
+}
+
 // recordWithoutBundle 走无冻结 bundle 的 legacy 分支（回归对照）。
 func (f *lockedMediaFixture) recordWithoutBundle(t *testing.T, result *OpenAIForwardResult) error {
 	t.Helper()

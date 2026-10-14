@@ -71,6 +71,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	firstClientMessage []byte,
 	hooks *OpenAIWSIngressHooks,
 ) (returnErr error) {
+	logicalOffset := 0
+	if hooks != nil {
+		logicalOffset = hooks.LogicalTurnOffset
+	}
+	hooks = hooks.WithLogicalTurnOffset()
 	if s == nil {
 		return errors.New("service is nil")
 	}
@@ -1841,8 +1846,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				continue
 			}
 			finalErr := relayErr
-			if unwrapped := errors.Unwrap(relayErr); unwrapped != nil {
-				finalErr = unwrapped
+			if turn+logicalOffset > 1 {
+				finalErr = newOpenAIWSNativeResumeError(relayErr, turn+logicalOffset, currentClientPayload, resolveTurnContext(turn), currentOriginalModel)
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, nil, finalErr)

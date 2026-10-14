@@ -51,20 +51,35 @@ func (s *GatewayService) ForwardAsChatCompletions(
 
 	// Resolve the final upstream model before model-specific conversion.
 	mappedModel := originalModel
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mappedModel = account.GetMappedModel(originalModel)
+	frozenModel, frozen, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenErr != nil {
+		return nil, frozenErr
 	}
-	if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount {
-		normalized := normalizeVertexAnthropicModelID(claude.NormalizeModelID(originalModel))
-		if normalized != originalModel {
-			mappedModel = normalized
+	if frozen {
+		if account.IsBedrock() {
+			return nil, fmt.Errorf("%w: Bedrock is not supported by this compatibility adapter", ErrModelPricingUnavailable)
 		}
-	} else if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
-		normalized := claude.NormalizeModelID(originalModel)
-		if normalized != originalModel {
-			mappedModel = normalized
+		if account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount && frozenModel != normalizeVertexAnthropicModelID(claude.NormalizeModelID(frozenModel)) {
+			return nil, fmt.Errorf("%w: frozen Vertex model requires canonical contract alignment", ErrModelPricingUnavailable)
+		}
+		mappedModel = frozenModel
+	} else {
+		if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+			mappedModel = account.GetMappedModel(originalModel)
+		}
+		if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type == AccountTypeServiceAccount {
+			normalized := normalizeVertexAnthropicModelID(claude.NormalizeModelID(originalModel))
+			if normalized != originalModel {
+				mappedModel = normalized
+			}
+		} else if mappedModel == originalModel && account.Platform == PlatformAnthropic && account.Type != AccountTypeAPIKey {
+			normalized := claude.NormalizeModelID(originalModel)
+			if normalized != originalModel {
+				mappedModel = normalized
+			}
 		}
 	}
+
 	if err := validateClaude55Request(body, mappedModel); err != nil {
 		writeChatCompletionsError(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 		return nil, err

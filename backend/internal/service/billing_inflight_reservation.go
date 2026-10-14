@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/google/uuid"
@@ -805,6 +806,13 @@ func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest)
 			if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
 				platform = apiKey.Group.Platform
 			}
+			if !req.RequireCompact && !req.RequireWSIngressModel {
+				// Only known HTTP forwarding families may retain their own bucket.
+				if domain.UsesOpenAIGateway(platform) || platform == PlatformAnthropic || platform == PlatformGemini || platform == PlatformAntigravity {
+					return platform, false, true
+				}
+				return "", false, false
+			}
 			return NormalizeOpenAICompatiblePlatform(platform), false, true
 		}
 		requireCompact := req.RequireCompact
@@ -817,9 +825,12 @@ func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest)
 		// 冻结表中的账号上游模型必须与调度准入、实际转发同口径：
 		// /compact 请求按 compact 链解析；WS 请求按本账号实际会走的 ingress 适配器
 		// 解析（passthrough 不套账号映射）；其余按普通 HTTP 链解析。
-		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(_ context.Context, account *Account, model string) string {
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(ctx context.Context, account *Account, model string) string {
 			if requireWSIngressModel {
 				return resolveOpenAIAccountWSIngressUpstreamModel(account, model, wsIngressDefaultMode)
+			}
+			if !requireCompact {
+				return resolveGatewayRequestAccountUpstreamModel(ctx, account, model)
 			}
 			return resolveOpenAIAccountUpstreamModelForRequest(account, model, requireCompact)
 		})

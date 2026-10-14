@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"github.com/tidwall/gjson"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -278,14 +279,14 @@ func bindSharedGatewayLockedBillingAccount(
 // 判定与 GatewayHandler.Messages 内部选择分支的优先级一致：强制平台（/antigravity
 // 等路由）> composite 解析出的目标平台 > 分组平台。
 func messagePlatformResolvesToGemini(c *gin.Context, apiKey *service.APIKey) bool {
-	if c != nil && c.Request != nil {
-		if platform, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok && platform == service.PlatformGemini {
-			return true
-		}
-	}
 	if c != nil {
-		if forcePlatform, ok := middleware2.GetForcePlatformFromContext(c); ok && forcePlatform == service.PlatformGemini {
-			return true
+		if forced, ok := middleware2.GetForcePlatformFromContext(c); ok {
+			return forced == service.PlatformGemini
+		}
+		if c.Request != nil {
+			if resolved, ok := service.ResolvedTargetPlatformFromContext(c.Request.Context()); ok {
+				return resolved == service.PlatformGemini
+			}
 		}
 	}
 	return apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform == service.PlatformGemini
@@ -297,4 +298,22 @@ func (l gatewayLockedBilling) apply(mapping service.ChannelMappingResult) servic
 		return l.mapping
 	}
 	return mapping
+}
+
+// validateSharedGeminiImagePricing uses the exact body supplied to Forward,
+// including the original Claude body for Messages (not its Gemini conversion).
+func validateSharedGeminiImagePricing(c *gin.Context, locked gatewayLockedBilling, groupID, accountID int64, body []byte) error {
+	if !locked.active {
+		return nil
+	}
+	bundle := service.GatewayRequestBillingFromContext(c.Request.Context())
+	model, err := bundle.UpstreamModelFor(groupID, accountID)
+	if err != nil {
+		return err
+	}
+	scope, err := bundle.ScopeFor(groupID, model, "")
+	if err != nil {
+		return err
+	}
+	return bundle.ValidateSharedImagePricing(scope, gjson.GetBytes(body, "generationConfig.imageConfig.imageSize").String())
 }

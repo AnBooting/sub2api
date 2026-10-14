@@ -200,14 +200,13 @@ func TestSharedLockedUsageRejectsUnboundAccount(t *testing.T) {
 	require.Nil(t, f.ledger.lastCmd)
 }
 
-// TestSharedLockedUsageRejectsMediaShapes 锁定纯 token 守卫：图片 / 搜索叠加 / 语音
-// 在共享锁价分支一律拒绝，不静默按 token 价错计。
+// TestSharedLockedUsageRejectsMediaShapes 拒绝负图片数、搜索与语音，不静默错计。
 func TestSharedLockedUsageRejectsMediaShapes(t *testing.T) {
 	cases := []struct {
 		name string
 		put  func(*ForwardResult)
 	}{
-		{name: "image", put: func(r *ForwardResult) { r.ImageCount = 2 }},
+		{name: "negative_image", put: func(r *ForwardResult) { r.ImageCount = -1 }},
 		{name: "search", put: func(r *ForwardResult) { r.SearchCount = 3 }},
 		{name: "audio", put: func(r *ForwardResult) { r.AudioUsage = &AudioUsage{Mode: "tts", DurationOrUnits: 2} }},
 	}

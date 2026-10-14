@@ -7,12 +7,11 @@ import (
 )
 
 // lockedSharedGatewayUsageMediaError 报告共享计费链路上本切片不覆盖的按次/媒体形态。
-// 锁价消费者只实现了纯 token 计费；图片、搜索叠加与语音一旦混入，宁可 fail-closed
+// 锁价消费者覆盖 token/image；搜索叠加与语音一旦混入，宁可 fail-closed
 // 也不能按 token 价静默错价（这些形态另由媒体/非文本切片处理）。
 //
-// 这是**纵深防御**：入口侧已把可能产出媒体的转发分支排除在锁价之外（Gemini 平台分支
-// 的 generateContent 会带 ImageCount），因此正常路径不应命中。保留守卫是为了让未来
-// 新增入口若误把媒体形态接进锁价时立刻暴露，而不是静默按 token 计价。
+// 这是纵深防御：入口仍须在上游前检查具体图片尺寸的冻结报价；本守卫禁止
+// 将未接入的搜索与音频维度静默当作 token 或图片记账。
 //
 // 注意：共享的 ForwardResult 只有 ImageCount / SearchCount / AudioUsage 三个媒体维度；
 // 没有 VideoCount / WebSearchCalls（那是 OpenAIForwardResult 的字段），所以视频与
@@ -22,8 +21,8 @@ func lockedSharedGatewayUsageMediaError(result *ForwardResult) error {
 		return nil
 	}
 	switch {
-	case result.ImageCount != 0:
-		return fmt.Errorf("%w: locked shared billing does not cover image results (image_count=%d)", ErrModelPricingUnavailable, result.ImageCount)
+	case result.ImageCount < 0:
+		return fmt.Errorf("%w: locked shared billing rejects negative image count (image_count=%d)", ErrModelPricingUnavailable, result.ImageCount)
 	case result.SearchCount != 0:
 		return fmt.Errorf("%w: locked shared billing does not cover search surcharges (search_count=%d)", ErrModelPricingUnavailable, result.SearchCount)
 	case result.AudioUsage != nil:
@@ -54,7 +53,7 @@ func lockedPricingIsChannelPriced(quote *LockedRequestPricing) bool {
 //     responseModelBillingAdoptable 口径（不得比冻结基线更贵 / 不得把计费归零 /
 //     不得跨定价源切换），基线是同一冻结 bundle 下 mapping.MappedModel 的冻结价；
 //   - 显式零价视为「有价」，由 quote.Availability() 判定，不在这里放宽；
-//   - 纯 token 守卫：媒体/搜索/语音形态整笔拒绝（纵深防御，见上）。
+//   - 仅 token/image：搜索/语音及未知计费模式拒绝；图像计数与尺寸只使用冻结价卡。
 //
 // 返回值中的 quote 供调用方取冻结倍率，scope.BillingModel 用于 usage_log 的计费基准。
 func (s *GatewayService) calculateLockedSharedGatewayUsageCost(
@@ -118,7 +117,7 @@ func (s *GatewayService) calculateLockedSharedGatewayUsageCost(
 		ServiceTier:       optionalStringValue(result.ServiceTier),
 		ReasoningEffort:   optionalStringValue(result.ReasoningEffort),
 	}
-	cost, costErr := quote.Calculate(costInput)
+	cost, costErr := calculateLockedSharedQuoteCost(quote, result, costInput)
 	if costErr != nil {
 		return nil, nil, PriceScope{}, costErr
 	}
@@ -130,13 +129,17 @@ func (s *GatewayService) calculateLockedSharedGatewayUsageCost(
 		if baselineModel != "" && !strings.EqualFold(baselineModel, strings.TrimSpace(scope.BillingModel)) {
 			baselineScope := PriceScope{GroupID: facts.groupID, BillingModel: baselineModel, ChannelID: mapping.ChannelID}
 			if baselineQuote, baselineErr := requestPricing.PricingFor(baselineScope); baselineErr == nil && baselineQuote.Availability() == nil {
-				if baselineCost, baselineCostErr := baselineQuote.Calculate(costInput); baselineCostErr == nil {
+				if baselineCost, baselineCostErr := calculateLockedSharedQuoteCost(baselineQuote, result, costInput); baselineCostErr == nil {
 					if !responseModelBillingAdoptable(baselineCost, cost, lockedPricingIsChannelPriced(baselineQuote), lockedPricingIsChannelPriced(quote)) {
 						cost = baselineCost
 						quote = baselineQuote
 						scope = baselineScope
 					}
+				} else if result.ImageCount > 0 {
+					return nil, nil, PriceScope{}, fmt.Errorf("%w: image response baseline cannot be calculated: %v", ErrModelPricingUnavailable, baselineCostErr)
 				}
+			} else if result.ImageCount > 0 {
+				return nil, nil, PriceScope{}, fmt.Errorf("%w: image response baseline is unavailable", ErrModelPricingUnavailable)
 			}
 		}
 	}

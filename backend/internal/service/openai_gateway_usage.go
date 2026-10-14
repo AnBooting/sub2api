@@ -43,6 +43,9 @@ type OpenAIRecordUsageInput struct {
 	// Responses handler from stream=true + compaction_trigger. It never stores
 	// the request payload and does not replace the transport request type.
 	NativeCompactionV2 bool
+	// RoutingUsage 是可选不可变 C6 路由事实；nil 保持历史 NULL，非 nil 时在
+	// RecordUsage 任何副作用之前校验并与冻结/认证分组事实核对。
+	RoutingUsage *RoutingUsageMetadata
 	ChannelUsageFields
 }
 
@@ -154,6 +157,10 @@ func groupBillsOpenAIFastAtStandard(apiKey *APIKey, account *Account, serviceTie
 func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {
 	if input == nil {
 		return errors.New("openai usage input is nil")
+	}
+	routingUsage := cloneRoutingUsageMetadata(input.RoutingUsage)
+	if err := validateRoutingUsageFacts(ctx, input.APIKey, routingUsage); err != nil {
+		return err
 	}
 	result := input.Result
 	if result == nil {
@@ -482,6 +489,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageSizeBreakdown:       imageSizeBreakdown,
 		NativeCompactionV2:       input.NativeCompactionV2,
 	}
+	routingUsage.apply(usageLog)
 	isVideoUsage := isGrokVideoUsageResult(result, billingModels)
 	if isVideoUsage {
 		usageLog.VideoCount = result.VideoCount

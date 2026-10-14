@@ -97,6 +97,7 @@ func ProvideAdminHandlers(
 }
 
 func ProvideGatewayHandler(
+	subscriptionService *service.SubscriptionService,
 	gatewayService *service.GatewayService,
 	openAIGatewayService *service.OpenAIGatewayService,
 	geminiCompatService *service.GeminiMessagesCompatService,
@@ -117,12 +118,14 @@ func ProvideGatewayHandler(
 	h := NewGatewayHandler(gatewayService, openAIGatewayService, geminiCompatService, antigravityGatewayService,
 		userService, concurrencyService, billingCacheService, usageService, apiKeyService, usageRecordWorkerPool,
 		errorPassthroughService, contentModerationService, userMsgQueueService, cfg, settingService)
+	h.subscriptionService = subscriptionService
 	h.securityAuditCoordinator = coordinator
 	return h
 }
 
 func ProvideOpenAIGatewayHandler(
 	gatewayService *service.OpenAIGatewayService,
+	sharedGatewayService *service.GatewayService,
 	pluginManager *service.PluginManager,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
@@ -135,6 +138,7 @@ func ProvideOpenAIGatewayHandler(
 	cfg *config.Config,
 	coordinator *securityaudit.Coordinator,
 	compositeResolver *service.CompositeRouteResolver,
+	subscriptionService *service.SubscriptionService,
 ) *OpenAIGatewayHandler {
 	gatewayService.SetPluginManager(pluginManager)
 	h := NewOpenAIGatewayHandler(gatewayService, concurrencyService, billingCacheService, apiKeyService,
@@ -142,6 +146,8 @@ func ProvideOpenAIGatewayHandler(
 	h.compositeResolver = compositeResolver
 	h.securityAuditCoordinator = coordinator
 	h.grokMediaEligibilityProber = grokQuotaService
+	h.subscriptionService = subscriptionService
+	h.sharedGatewayService = sharedGatewayService
 	return h
 }
 

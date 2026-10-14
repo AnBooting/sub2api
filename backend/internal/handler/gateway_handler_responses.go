@@ -158,6 +158,27 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	}
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
+	requestBilling := service.GatewayRequestBillingFromContext(requestCtx)
+	var normalIDs []int64
+	if lockedResponses.active {
+		normalIDs = requestBilling.NormalGroupIDs()
+	}
+	groupChainActive := len(normalIDs) > 1
+	originalAPIKey := apiKey
+	crossResponses := chatCrossFamilyChain(apiKey)
+	groupIndex := 0
+	if groupChainActive {
+		var admitted bool
+		apiKey, subscription, admitted = h.authorizeSharedResponsesGroup(c, originalAPIKey, normalIDs[0], normalIDs, body, crossResponses)
+		if !admitted {
+			return
+		}
+		requestCtx = sharedResponsesExecutionContext(requestCtx, apiKey)
+		c.Request = c.Request.WithContext(requestCtx)
+	}
+	// Keep an unreserved base for switching financial identities. A nil reservation
+	// does NOT mask a previous reservation in the context helper.
+	reservationBase := requestCtx
 
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
 
@@ -194,7 +215,8 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		h.responsesErrorResponse(c, status, code, message)
 		return
 	}
-	defer inflightRelease()
+	defer func() { inflightRelease() }()
+	requestCtx = c.Request.Context()
 
 	// Parse request for session hash
 	bodyRef := service.NewRequestBodyRef(body)
@@ -213,18 +235,115 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 	// clientDeadline 本期不读，传零值；预算耗尽由 HandleSelectionExhausted /
 	// HandleFailoverError 统一走 503 + no_available_group。
 	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(requestCtx)
-	budgetCtx, _ := service.EnsureRequestAttemptBudget(requestCtx, maxAttemptSends, budgetWindow, time.Time{})
+	budgetCtx, attemptBudget := service.EnsureRequestAttemptBudget(requestCtx, maxAttemptSends, budgetWindow, time.Time{})
 	requestCtx = budgetCtx
 	c.Request = c.Request.WithContext(requestCtx)
 
 	// 3. Account selection + failover loop
 	fs := NewFailoverState(h.maxAccountSwitches, false)
+	reservationBase = service.WithRequestAttemptBudget(reservationBase, service.RequestAttemptBudgetFromContext(requestCtx))
+	// A recoverable account failure obtains its switch permit BEFORE the next
+	// selection. Reuse that permit if its pool is empty; never charge it twice.
+	pendingSwitchPermit := false
+	var firstSentAccountID int64
+	sentDifferentAccount := false
+	semanticStart := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
+	advanceGroup := func() normalGroupAdvance {
+		if !groupChainActive || groupIndex+1 >= len(normalIDs) {
+			return normalGroupUnavailable
+		}
+		if failoverClientGone(c) {
+			return normalGroupTerminal
+		}
+		if requestAttemptBudgetExhausted(requestCtx, "responses_group_advance") || service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != semanticStart {
+			return normalGroupUnavailable
+		}
+		if fs.LastFailoverErr != nil && !fs.LastFailoverErr.ShouldRetryNextAccount() {
+			return normalGroupUnavailable
+		}
+		// Group boundaries also spend the request-wide smaller switch allowance,
+		// even for an empty pool. Unlike this allowance, attempt budget counts
+		// only actual upstream sends. A permit granted by A can enter B once.
+		if !pendingSwitchPermit {
+			if fs.SwitchCount >= fs.MaxSwitches {
+				return normalGroupUnavailable
+			}
+			fs.SwitchCount++
+		}
+		pendingSwitchPermit = false
+		nextKey, nextSub, admitted := h.authorizeSharedResponsesGroup(c, originalAPIKey, normalIDs[groupIndex+1], normalIDs, body, crossResponses)
+		if !admitted {
+			return normalGroupTerminal
+		}
+		nextMapping, mappingErr := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		if mappingErr != nil {
+			writeResponsesGatewayLockedBillingError(c, reqLog, "gateway.responses.group_mapping_rejected", reqModel, mappingErr)
+			return normalGroupTerminal
+		}
+		// No usage worker was submitted on the failed attempts. Release the old
+		// handler reference once, then reserve with the destination billing identity.
+		inflightRelease()
+		inflightRelease = inflightNoop
+		nextCtx := sharedResponsesExecutionContext(reservationBase, nextKey)
+		if crossResponses && nextKey.Group.Platform == service.PlatformOpenAI {
+			if h.openAIGatewayService == nil {
+				h.responsesErrorResponse(c, 503, "no_available_group", "OpenAI service unavailable")
+				return normalGroupTerminal
+			}
+			nextCtx, _ = h.openAIGatewayService.WithOpenAIRequestPricingContext(nextCtx, nextKey.GroupID)
+		}
+		c.Request = c.Request.WithContext(nextCtx)
+		if eligibilityErr := h.billingCacheService.CheckFinancialEligibility(nextCtx, nextKey.User, nextKey, nextKey.Group, nextSub, service.QuotaPlatform(nextCtx, nextKey)); eligibilityErr != nil {
+			status, code, message, _ := billingErrorDetails(eligibilityErr)
+			h.responsesErrorResponse(c, status, code, message)
+			return normalGroupTerminal
+		}
+		if rpmErr := h.billingCacheService.CheckGroupRPMEligibility(nextCtx, nextKey.User, nextKey.Group); rpmErr != nil {
+			status, code, message, retryAfter := billingErrorDetails(rpmErr)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			h.responsesErrorResponse(c, status, code, message)
+			return normalGroupTerminal
+		}
+		var reserveErr error
+		estimator := inflightReservationEstimator(h.gatewayService)
+		if crossResponses {
+			estimator = chatTargetEstimator(nextKey.Group.Platform, h.gatewayService, h.openAIGatewayService)
+		}
+		inflightRelease, reserveErr = reserveInflightBalance(c, h.billingCacheService, estimator, nextKey, nextSub, tokenInflightEstimate(reqModel, body))
+		if reserveErr != nil {
+			status, code, message, _ := billingErrorDetails(reserveErr)
+			h.responsesErrorResponse(c, status, code, message)
+			return normalGroupTerminal
+		}
+		groupIndex++
+		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
+		lockedResponses.groupID, lockedResponses.mapping = normalIDs[groupIndex], nextMapping
+		requestCtx = c.Request.Context()
+		return normalGroupAdvanced
+	}
 
 	for {
 		if failoverClientGone(c) {
 			return
 		}
-		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(requestCtx, apiKey.GroupID, sessionHash, reqModel, fs.FailedAccountIDs, "", int64(0))
+		var selection *service.AccountSelectionResult
+		var err error
+		if crossResponses && apiKey.Group.Platform == service.PlatformOpenAI {
+			previous := gjson.GetBytes(body, "previous_response_id").String()
+			if previous != "" {
+				owned, e := h.openAIGatewayService.ValidateOpenAIHTTPResponseOwner(requestCtx, derefGroupID(apiKey.GroupID), previous, apiKey.UserID, apiKey.ID)
+				if e != nil || !owned {
+					h.responsesErrorResponse(c, 400, "invalid_request_error", "previous_response_id is not available for this user")
+					return
+				}
+			}
+			service.SetOpenAIHTTPResponseOwner(c, apiKey.UserID, apiKey.ID)
+			selection, _, err = h.openAIGatewayService.SelectAccountWithSchedulerForCapability(requestCtx, apiKey.GroupID, gjson.GetBytes(body, "previous_response_id").String(), sessionHash, openAIChannelForwardModel(channelMapping, reqModel), fs.FailedAccountIDs, service.OpenAIUpstreamTransportAny, service.OpenAIEndpointCapabilityResponses, isOpenAILegacyCompactPath(c), false, true, service.PlatformOpenAI)
+		} else {
+			selection, err = h.gatewayService.SelectAccountWithLoadAwareness(requestCtx, apiKey.GroupID, sessionHash, reqModel, fs.FailedAccountIDs, "", 0)
+		}
 		if err != nil {
 			if failoverClientGone(c) {
 				reqLog.Info("gateway.responses.account_select_aborted_client_disconnected", zap.Error(err))
@@ -236,12 +355,30 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 				if !cls.ModelNotFound {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				}
+				if !cls.ModelNotFound && errors.Is(err, service.ErrNoAvailableAccounts) {
+					switch advanceGroup() {
+					case normalGroupAdvanced:
+						continue
+					case normalGroupTerminal:
+						return
+					}
+				}
 				message := cls.Message
 				if !cls.ModelNotFound {
 					message = "No available accounts: " + err.Error()
 				}
 				h.responsesErrorResponse(c, cls.Status, cls.ErrType, message)
 				return
+			}
+			// Natural pool exhaustion is not the same as MaxSwitches exhaustion.
+			// Only a previously granted retry permit can cross a group boundary.
+			if errors.Is(err, service.ErrNoAvailableAccounts) && fs.LastFailoverErr != nil && fs.LastFailoverErr.ShouldRetryNextAccount() {
+				switch advanceGroup() {
+				case normalGroupAdvanced:
+					continue
+				case normalGroupTerminal:
+					return
+				}
 			}
 			action := fs.HandleSelectionExhausted(requestCtx)
 			switch action {
@@ -288,7 +425,14 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		// ctx 上（composite/fallback 还可能解析出与入口分组不同的门），直接用
 		// requestCtx 会退化为空操作。
 		admissionCtx := service.ContextWithSelectionProfitGate(requestCtx, selection)
-		latest, vetoed, reason := h.gatewayService.GatewayProfitControlVetoLatest(admissionCtx, account)
+		var latest *service.Account
+		var vetoed bool
+		var reason string
+		if crossResponses && account.Platform == service.PlatformOpenAI {
+			latest, vetoed, reason = h.openAIGatewayService.ProfitControlVetoLatest(admissionCtx, account)
+		} else {
+			latest, vetoed, reason = h.gatewayService.GatewayProfitControlVetoLatest(admissionCtx, account)
+		}
 		if vetoed {
 			if accountReleaseFunc != nil {
 				accountReleaseFunc()
@@ -303,9 +447,14 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		}
 		account = latest
 		selection.Account = latest
-		if selection.ProfitGateActive() {
+		if selection.ProfitGateActive() && account.Platform != service.PlatformOpenAI {
 			if err := h.gatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, sessionHash, account.ID); err != nil {
 				reqLog.Warn("gateway.responses.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+			}
+		}
+		if selection.ProfitGateActive() && account.Platform == service.PlatformOpenAI {
+			if e := h.openAIGatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, sessionHash, account.ID); e != nil {
+				reqLog.Warn("responses_bridge.sticky_bind_failed", zap.Error(e))
 			}
 		}
 		// C-1 锁价绑定：账号终检之后、Forward 之前把实际执行账号写入冻结 bundle。
@@ -324,15 +473,41 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		requestCtx = c.Request.Context()
 		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
 
+		pendingSwitchPermit = false
 		// 5. Forward request
 		writerSizeBeforeForward := c.Writer.Size()
 		forwardBody := body
 		if channelMapping.Mapped {
 			forwardBody = h.gatewayService.ReplaceModelInBody(body, channelMapping.MappedModel)
 		}
+		usedBeforeForward := attemptBudget.Used()
+		if crossResponses {
+			decision := responsesBridgeAssess(requestCtx, derefGroupID(apiKey.GroupID), account, forwardBody, isOpenAILegacyCompactPath(c), isOpenAIRemoteCompactionV2Request(body), h.openAIGatewayService)
+			if decision.Class != chatBridgeCompatible {
+				if accountReleaseFunc != nil {
+					accountReleaseFunc()
+				}
+				if decision.Class == chatBridgeIllegal {
+					h.responsesErrorResponse(c, 400, "invalid_request_error", decision.Reason)
+					return
+				}
+				if fs.SwitchCount >= fs.MaxSwitches {
+					h.responsesErrorResponse(c, 503, "no_available_group", "No compatible Responses target")
+					return
+				}
+				fs.FailedAccountIDs[account.ID] = struct{}{}
+				fs.SwitchCount++
+				fs.LastFailoverErr = &service.UpstreamFailoverError{StatusCode: 503}
+				pendingSwitchPermit = true
+				continue
+			}
+		}
+		var openAIResult *service.OpenAIForwardResult
 		var result *service.ForwardResult
 		setActualUpstreamEndpoint(c, "")
-		if shouldUseAntigravityCompat(account) {
+		if crossResponses && account.Platform == service.PlatformOpenAI {
+			openAIResult, err = h.openAIGatewayService.Forward(requestCtx, c, account, forwardBody)
+		} else if shouldUseAntigravityCompat(account) {
 			if h.antigravityGatewayService == nil {
 				h.responsesErrorResponse(c, http.StatusBadGateway, "upstream_error", "Antigravity compatibility service is not configured")
 				if accountReleaseFunc != nil {
@@ -345,20 +520,112 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		} else {
 			result, err = h.gatewayService.ForwardAsResponses(requestCtx, c, account, forwardBody, parsedReq)
 		}
+		// Count identities only after a real send. Selection, preflight rejection and
+		// exhausted-budget attempts cannot fabricate account failover. Hidden
+		// same-account retries increase Used(), not the number of identities.
+		if attemptBudget.Used() > usedBeforeForward {
+			if firstSentAccountID == 0 {
+				firstSentAccountID = account.ID
+			} else if firstSentAccountID != account.ID {
+				sentDifferentAccount = true
+			}
+		}
 
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()
+		}
+
+		if openAIResult != nil {
+			stampOpenAIRequestedReasoningEffort(openAIResult, c)
+			input := chatOpenAIUsageSnapshot(c, openAIResult, apiKey, subscription, account, reqModel, channelMapping, pricingAt, attemptBudget.Used(), sentDifferentAccount, h.apiKeyService)
+			input.NativeCompactionV2 = isOpenAIRemoteCompactionV2Request(body)
+			input.RequestPayloadHash = service.HashUsageRequestPayload(body)
+			h.submitUsageRecordTask(requestCtx, func(ctx context.Context) {
+				if e := h.openAIGatewayService.RecordUsage(ctx, input); e != nil {
+					reqLog.Error("responses_bridge.record_usage_failed", zap.Error(e))
+				}
+			})
+			if err == nil {
+				h.openAIGatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, openAIResult), true, openAIResult.FirstTokenMs)
+			} else if !gatewayForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err) {
+				h.ensureForwardErrorResponse(c, streamStarted)
+			}
+			return
+		}
+		submitSharedResponsesUsage := func() {
+			// 6. Record usage
+			userAgent := c.GetHeader("User-Agent")
+			clientIP := ip.GetClientIP(c)
+			requestPayloadHash := service.HashUsageRequestPayload(body)
+			inboundEndpoint := GetInboundEndpoint(c)
+			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+
+			quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+			sessionID := service.ExtractClientSessionID(c)
+			stampForwardRequestedReasoningEffort(result, service.RequestedReasoningEffortFromContext(c.Request.Context()))
+			usageFields := clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel)
+			servedKey, servedSubscription := apiKey, subscription
+			var routingUsage *service.RoutingUsageMetadata
+			// Scope zero (truly ungrouped keys) has no positive group identity. Keep
+			// its historical NULLs rather than invent IDs or fail successful billing.
+			if lockedResponses.active && requestBilling != nil {
+				if requested := requestBilling.RequestedGroupID(); requested != nil && *requested > 0 && lockedResponses.groupID > 0 {
+					failover := service.RoutingFailoverNone
+					if *requested != lockedResponses.groupID {
+						failover = service.RoutingFailoverGroup
+					} else if sentDifferentAccount {
+						failover = service.RoutingFailoverAccount
+					}
+					routingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: lockedResponses.groupID, Failover: failover, AttemptCount: attemptBudget.Used()}
+				}
+			}
+			// All C6 scalars above are captured before the task is queued: the worker
+			// must not read a later budget value, Gin context, or mutable group cursor.
+			h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+					Result:             result,
+					RoutingUsage:       routingUsage,
+					QuotaPlatform:      quotaPlatform,
+					APIKey:             servedKey,
+					User:               servedKey.User,
+					Account:            account,
+					Subscription:       servedSubscription,
+					PricingAt:          pricingAt,
+					InboundEndpoint:    inboundEndpoint,
+					UpstreamEndpoint:   upstreamEndpoint,
+					UserAgent:          userAgent,
+					IPAddress:          clientIP,
+					RequestPayloadHash: requestPayloadHash,
+					APIKeyService:      h.apiKeyService,
+					SessionID:          sessionID,
+					ChannelUsageFields: usageFields,
+				}); err != nil {
+					reqLog.Error("gateway.responses.record_usage_failed",
+						zap.Int64("account_id", account.ID),
+						zap.Error(err),
+					)
+				}
+			})
+		}
+		if result != nil {
+			submitSharedResponsesUsage()
+			if err != nil && !gatewayForwardErrorAlreadyCommunicated(c, writerSizeBeforeForward, err) {
+				h.ensureForwardErrorResponse(c, streamStarted)
+			}
+			return
 		}
 
 		if err != nil {
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
 				// Can't failover if streaming content already sent
-				if c.Writer.Size() != writerSizeBeforeForward {
+				if service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != semanticStart {
 					h.handleResponsesFailoverExhausted(c, failoverErr, true)
 					return
 				}
+				previousSwitchCount := fs.SwitchCount
 				action := fs.HandleFailoverError(requestCtx, h.gatewayService, account.ID, account.Platform, account.GetPoolModeRetryCount(), failoverErr)
+				pendingSwitchPermit = action == FailoverContinue && fs.SwitchCount > previousSwitchCount
 				switch action {
 				case FailoverContinue:
 					continue
@@ -384,40 +651,6 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 			return
 		}
 
-		// 6. Record usage
-		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-		requestPayloadHash := service.HashUsageRequestPayload(body)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		sessionID := service.ExtractClientSessionID(c)
-		stampForwardRequestedReasoningEffort(result, service.RequestedReasoningEffortFromContext(c.Request.Context()))
-		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-				Result:             result,
-				QuotaPlatform:      quotaPlatform,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				PricingAt:          pricingAt,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				APIKeyService:      h.apiKeyService,
-				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
-			}); err != nil {
-				reqLog.Error("gateway.responses.record_usage_failed",
-					zap.Int64("account_id", account.ID),
-					zap.Error(err),
-				)
-			}
-		})
 		return
 	}
 }

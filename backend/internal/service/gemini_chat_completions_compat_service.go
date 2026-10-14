@@ -83,8 +83,17 @@ func (s *GeminiMessagesCompatService) forwardClaudeBodyAsChatCompletions(
 	}
 
 	mappedModel := req.Model
-	if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
-		mappedModel = account.GetMappedModel(req.Model)
+	frozenModel, frozen, frozenErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if frozenErr != nil {
+		return nil, frozenErr
+	}
+	if frozen {
+		mappedModel = frozenModel
+	} else {
+		if account.Type == AccountTypeAPIKey || account.Type == AccountTypeServiceAccount {
+			mappedModel = account.GetMappedModel(req.Model)
+		}
+
 	}
 
 	geminiReq, err := convertClaudeMessagesToGeminiGenerateContent(claudeBody)
