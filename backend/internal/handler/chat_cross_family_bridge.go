@@ -43,15 +43,14 @@ func chatBridgeRouting(ctx context.Context, key *service.APIKey, used int, diffe
 	if b == nil || b.RequestedGroupID() == nil {
 		return nil
 	}
-	kind := service.RoutingFailoverNone
 	requested := *b.RequestedGroupID()
 	served := derefGroupID(key.GroupID)
-	if requested != served {
-		kind = service.RoutingFailoverGroup
-	} else if different {
-		kind = service.RoutingFailoverAccount
+	return &service.RoutingUsageMetadata{
+		RequestedGroupID: requested,
+		ServedGroupID:    served,
+		Failover:         classifyGroupFailover(requested, served, b.HAGroupIDs(), different),
+		AttemptCount:     used,
 	}
-	return &service.RoutingUsageMetadata{RequestedGroupID: requested, ServedGroupID: served, Failover: kind, AttemptCount: used}
 }
 func chatSharedUsageSnapshot(c *gin.Context, result *service.ForwardResult, key *service.APIKey, sub *service.UserSubscription, account *service.Account, model string, body []byte, mapping service.ChannelMappingResult, pricingAt time.Time, used int, different bool, keys *service.APIKeyService) *service.RecordUsageInput {
 	return &service.RecordUsageInput{Result: result, APIKey: key, User: key.User, Account: account, Subscription: sub, PricingAt: pricingAt, RoutingUsage: chatBridgeRouting(c.Request.Context(), key, used, different), QuotaPlatform: service.QuotaPlatform(c.Request.Context(), key), InboundEndpoint: GetInboundEndpoint(c), UpstreamEndpoint: GetUpstreamEndpoint(c, account.Platform), UserAgent: c.GetHeader("User-Agent"), IPAddress: ip.GetClientIP(c), RequestPayloadHash: service.HashUsageRequestPayload(body), APIKeyService: keys, SessionID: service.ExtractClientSessionID(c), ChannelUsageFields: clientRequestedUsageFields(c, mapping, model, result.UpstreamModel)}

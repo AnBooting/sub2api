@@ -963,13 +963,12 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 				// its historical NULLs rather than invent IDs or fail successful billing.
 				if !fallbackUsed && lockedBilling.active && requestBilling != nil {
 					if requested := requestBilling.RequestedGroupID(); requested != nil && *requested > 0 && lockedBilling.groupID > 0 {
-						failover := service.RoutingFailoverNone
-						if *requested != lockedBilling.groupID {
-							failover = service.RoutingFailoverGroup
-						} else if sentDifferentAccount {
-							failover = service.RoutingFailoverAccount
+						routingUsage = &service.RoutingUsageMetadata{
+							RequestedGroupID: *requested,
+							ServedGroupID:    lockedBilling.groupID,
+							Failover:         classifyGroupFailover(*requested, lockedBilling.groupID, haIDs, sentDifferentAccount),
+							AttemptCount:     attemptBudget.Used(),
 						}
-						routingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: lockedBilling.groupID, Failover: failover, AttemptCount: attemptBudget.Used()}
 					}
 				}
 				// All C6 scalars above are captured before the task is queued: the worker

@@ -671,13 +671,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		// its historical NULLs rather than invent IDs or fail successful billing.
 		if lockedCC.active && requestBilling != nil {
 			if requested := requestBilling.RequestedGroupID(); requested != nil && *requested > 0 && lockedCC.groupID > 0 {
-				failover := service.RoutingFailoverNone
-				if *requested != lockedCC.groupID {
-					failover = service.RoutingFailoverGroup
-				} else if sentDifferentAccount {
-					failover = service.RoutingFailoverAccount
+				routingUsage = &service.RoutingUsageMetadata{
+					RequestedGroupID: *requested,
+					ServedGroupID:    lockedCC.groupID,
+					Failover:         classifyGroupFailover(*requested, lockedCC.groupID, requestBilling.HAGroupIDs(), sentDifferentAccount),
+					AttemptCount:     attemptBudget.Used(),
 				}
-				routingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: lockedCC.groupID, Failover: failover, AttemptCount: attemptBudget.Used()}
 			}
 		}
 		// All C6 scalars above are captured before the task is queued: the worker

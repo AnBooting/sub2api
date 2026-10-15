@@ -247,3 +247,31 @@ func sharedResponsesExecutionContext(base context.Context, key *service.APIKey) 
 	ctx = context.WithValue(ctx, ctxkey.ResolvedTargetPlatform, "")
 	return context.WithValue(ctx, ctxkey.ForcePlatform, "")
 }
+
+// classifyGroupFailover 判定一次请求的换组归因（C-6 failover 字段，PRD-04 BE-05
+// 「记录实际服务组和兜底原因」）。
+//
+// 取值语义（11-共享契约.md:113：none / account / group / ha）：
+//   - none    ：服务组与请求组相同，且未换账号；
+//   - account ：组未变，但换了账号；
+//   - ha      ：服务组是本次请求授权的兜底候选（HA 阶段）；
+//   - group   ：换了普通组（非兜底）。
+//
+// ha 优先于 group 判定：HA 阶段的服务组必然与请求组不同，若不先判 ha 就会把兜底
+// 误记为普通换组，兜底与普通换组在用量记录上不可区分——这正是 BE-05 要避免的。
+// haIDs 来自请求开始时冻结的授权候选，不在执行期扩展。
+func classifyGroupFailover(requestedGroupID, servedGroupID int64, haIDs []int64, sentDifferentAccount bool) string {
+	for _, id := range haIDs {
+		if id == servedGroupID {
+			return service.RoutingFailoverHA
+		}
+	}
+	if requestedGroupID != servedGroupID {
+		return service.RoutingFailoverGroup
+	}
+	if sentDifferentAccount {
+		return service.RoutingFailoverAccount
+	}
+	return service.RoutingFailoverNone
+}
+
