@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
@@ -93,8 +94,12 @@ func TestAPIKeyGroupServiceHAEnablementRejectionsDoNotWrite(t *testing.T) {
 	require.Zero(t, got.GroupChainRevision)
 }
 
-// 管理员路径：可创建 role=ha（用户未开启时时间戳为空），且不能伪造用户开启。
-func TestAPIKeyGroupChainRepositoryAdminHADeclarationDoesNotForgeUserEnablement(t *testing.T) {
+// 管理员路径：不得创建 role=ha，也不得借此丢掉既有 HA 授权。
+//
+// 契约（11-共享契约.md:75、13-接口文档.md:33）：管理员 groups 只允许 normal，
+// 数据库保留既有 HA。旧实现允许管理员写入 HA，并在同一次提交里把未声明的既有 HA
+// 静默删除——而 enabled_by_user_at 只存在于那些行里，删掉无法重建。
+func TestAPIKeyGroupChainRepositoryAdminHADeclarationPreservesUserEnablement(t *testing.T) {
 	repo, client := newAPIKeyRepoSQLite(t)
 	ctx := context.Background()
 	user := mustCreateAPIKeyRepoUser(t, ctx, client, "ha-admin@test.com")
@@ -102,21 +107,46 @@ func TestAPIKeyGroupChainRepositoryAdminHADeclarationDoesNotForgeUserEnablement(
 	require.NoError(t, err)
 	ha, err := client.Group.Create().SetName("ha-admin-candidate").SetAllowHighAvailability(true).Save(ctx)
 	require.NoError(t, err)
+	other, err := client.Group.Create().SetName("ha-admin-other").SetAllowHighAvailability(true).Save(ctx)
+	require.NoError(t, err)
 
 	key := &service.APIKey{UserID: user.ID, Key: "sk-ha-admin", Name: "HA", Status: service.StatusActive, Groups: []service.APIKeyGroupLink{{GroupID: normal.ID, Role: service.APIKeyGroupRoleNormal, Position: 0}}}
 	require.NoError(t, repo.Create(ctx, key))
 
+	// The user enables one HA group through the user path (server-generated timestamp).
+	enabledAt := time.Now().UTC().Truncate(time.Millisecond)
 	rev := key.GroupChainRevision
-	admin := *key
+	enabled := *key
+	enabled.Groups = []service.APIKeyGroupLink{
+		{GroupID: normal.ID, Role: service.APIKeyGroupRoleNormal, Position: 0},
+		{GroupID: other.ID, Role: service.APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &enabledAt},
+	}
+	require.NoError(t, repo.Update(ctx, &enabled, service.APIKeyUpdateFields{Groups: true, AuthoritativeHAGroups: true, ExpectedGroupChainRevision: &rev}))
+
+	// An admin then edits the normal chain and also submits a (different) HA entry.
+	got, err := repo.GetByID(ctx, key.ID)
+	require.NoError(t, err)
+	rev = got.GroupChainRevision
+	admin := *got
 	admin.Groups = []service.APIKeyGroupLink{
 		{GroupID: normal.ID, Role: service.APIKeyGroupRoleNormal, Position: 0},
 		{GroupID: ha.ID, Role: service.APIKeyGroupRoleHA, Position: 0},
 	}
 	require.NoError(t, repo.Update(ctx, &admin, service.APIKeyUpdateFields{Groups: true, AllowHADeclaration: true, ExpectedGroupChainRevision: &rev}))
 
-	got, err := repo.GetByID(ctx, key.ID)
+	final, err := repo.GetByID(ctx, key.ID)
 	require.NoError(t, err)
-	require.Len(t, got.Groups, 2)
-	require.Equal(t, service.APIKeyGroupRoleHA, got.Groups[1].Role)
-	require.Nil(t, got.Groups[1].EnabledByUserAt, "admin configuration must not forge user enablement")
+	var haIDs []int64
+	for _, link := range final.Groups {
+		if link.Role == service.APIKeyGroupRoleHA {
+			haIDs = append(haIDs, link.GroupID)
+		}
+	}
+	require.Equal(t, []int64{other.ID}, haIDs,
+		"the user's HA authorization must survive an admin normal-chain edit, and no new HA may be created")
+	for _, link := range final.Groups {
+		if link.Role == service.APIKeyGroupRoleHA {
+			require.NotNil(t, link.EnabledByUserAt)
+		}
+	}
 }

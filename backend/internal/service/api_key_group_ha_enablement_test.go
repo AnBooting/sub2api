@@ -239,31 +239,38 @@ func TestApplyUserHAEnablementRejectsNormalGroup(t *testing.T) {
 	require.Error(t, err)
 }
 
-// 管理员解析：声明 HA 时保留数据库既有授权时间戳，且不能凭空开启。
+// 管理员解析：HA 链恒取数据库既有值，且不能凭空开启。
+//
+// 契约（11-共享契约.md:75、13-接口文档.md:33）：管理员的 groups 只允许 normal，
+// 数据库保留既有 HA。这里同时覆盖「管理员绕过校验提交 HA」的情形——HA 条目被忽略，
+// 而不是让其它既有授权被丢弃。
 func TestResolveAdminAPIKeyGroupChainKeepsDatabaseAuthorization(t *testing.T) {
 	at := time.Date(2026, 10, 10, 1, 0, 0, 0, time.UTC)
 	forged := at.Add(time.Hour)
 	current := []APIKeyGroupLink{{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0}, {GroupID: 9, Role: APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &at}}
 
-	// 显式声明 ha 但伪造时间戳：沿用数据库值。
+	// 提交里带 ha 且伪造时间戳：HA 以数据库为准，时间戳沿用，伪造值无效。
 	got, err := ResolveAdminAPIKeyGroupChain(current, []APIKeyGroupLink{{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0}, {GroupID: 9, Role: APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &forged}})
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.True(t, got[1].EnabledByUserAt.Equal(at))
 
-	// 只改普通组：保留未声明变更的既有 ha。
+	// 只改普通组：保留既有 ha。
 	got, err = ResolveAdminAPIKeyGroupChain(current, []APIKeyGroupLink{{GroupID: 2, Role: APIKeyGroupRoleNormal, Position: 0}})
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	require.Equal(t, APIKeyGroupRoleHA, got[1].Role)
 	require.True(t, got[1].EnabledByUserAt.Equal(at))
 
-	// 管理员新增 ha 链接但用户未开启：允许写入（enabled_by_user_at 为空），不得伪造开启。
+	// 管理员提交里新增了一条用户未开启的 ha：**忽略**该条目，且既有 ha 不受影响。
+	// 管理员不能代替用户开启兜底（HA 开启是用户动作），也不能因此丢掉其它授权。
 	got, err = ResolveAdminAPIKeyGroupChain(current, []APIKeyGroupLink{{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0}, {GroupID: 9, Role: APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &forged}, {GroupID: 10, Role: APIKeyGroupRoleHA, Position: 1}})
 	require.NoError(t, err)
-	require.Len(t, got, 3)
+	require.Len(t, got, 2, "the admin-declared HA must be ignored, not created")
 	require.True(t, got[1].EnabledByUserAt.Equal(at))
-	require.Nil(t, got[2].EnabledByUserAt)
+	for _, link := range got {
+		require.NotEqual(t, int64(10), link.GroupID, "admin must not create an HA authorization")
+	}
 }
 
 // 用户授权解析：不允许凭空新增 HA 开启；关闭既有授权是允许的。
@@ -285,6 +292,11 @@ func TestResolveUserAuthorizedAPIKeyGroupChain(t *testing.T) {
 
 // 仓储层：AllowHADeclaration 走管理员解析，AuthoritativeHAGroups 走用户解析，
 // 默认（普通路径）仍不允许伪造 HA。
+//
+// 三条路径都不得由非用户操作创建 HA 授权：
+//   - 默认路径直接拒绝；
+//   - 管理员路径忽略提交里的 HA（HA 开启是用户动作，管理员只编辑 normal 链）；
+//   - 用户权威路径要求服务端生成的时间戳。
 func TestAPIKeyUpdateFieldsHADeclarationRouting(t *testing.T) {
 	current := []APIKeyGroupLink{{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0}}
 	desired := []APIKeyGroupLink{{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0}, {GroupID: 9, Role: APIKeyGroupRoleHA, Position: 0}}
@@ -293,10 +305,11 @@ func TestAPIKeyUpdateFieldsHADeclarationRouting(t *testing.T) {
 	if _, err := ResolveAPIKeyGroupChain(current, desired, false); err == nil {
 		t.Fatal("default path must not allow new HA authorization")
 	}
-	// 管理员声明：允许，但时间戳为空。
+	// 管理员路径：只保留 normal，提交里的 HA 被忽略（既不能开启，也不能借此丢授权）。
 	admin, err := ResolveAdminAPIKeyGroupChain(current, desired)
 	require.NoError(t, err)
-	require.Nil(t, admin[1].EnabledByUserAt)
+	require.Len(t, admin, 1, "the admin path must not create an HA authorization")
+	require.Equal(t, APIKeyGroupRoleNormal, admin[0].Role)
 	// 用户权威集合：不带服务端时间戳时拒绝。
 	_, err = ResolveUserAuthorizedAPIKeyGroupChain(current, desired)
 	require.Error(t, err)

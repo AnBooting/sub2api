@@ -53,6 +53,21 @@ func ValidateAPIKeyGroupChainInput(groupID *int64, groupIDProvided bool, groups 
 		if !create && (expected == nil || *expected < 0) {
 			return ErrGroupChainConflict
 		}
+		// 契约（11-共享契约.md:75、13-接口文档.md:33）：管理员的 groups 只允许 normal，
+		// 数据库保留既有 HA；管理员提交 HA 条目必须拒绝。
+		//
+		// 这不只是格式校验：管理员路径一旦接受 HA，解析器就会切换成「以提交为准」，
+		// 把未在本次提交里出现的既有 HA 链接（含用户已开启的）整体丢弃，而
+		// enabled_by_user_at 只存在于那些行里，无法重建。拒绝提交既守住契约，也
+		// 消除了这条静默数据丢失路径。
+		if admin {
+			for _, link := range *groups {
+				if link.Role == APIKeyGroupRoleHA {
+					return infraerrors.BadRequest("HA_ENTRY_NOT_ALLOWED",
+						"admin group updates accept only normal groups; existing HA authorizations are preserved and HA enablement is a user action")
+				}
+			}
+		}
 		_, err := NormalizeAPIKeyGroupLinks(*groups, admin)
 		return err
 	}
@@ -124,55 +139,45 @@ func ResolveAPIKeyGroupChain(current, desired []APIKeyGroupLink, normalOnly bool
 	return NormalizeAPIKeyGroupLinks(out, false)
 }
 
-// ResolveAdminAPIKeyGroupChain 是管理员配置路径：允许声明/保留 role=ha 链接，
-// 但授权时间戳只能沿用数据库既有值——管理员不能代替用户主动开启。
+// ResolveAdminAPIKeyGroupChain 是管理员配置路径。
 //
-// 语义（与用户路径 ResolveAPIKeyGroupChain 区分开）：
-//   - desired 中的 normal 链接整体替换当前 normal 链接；
-//   - desired 显式声明了 ha 链接时，ha 部分以 desired 为准（时间戳沿用 DB，缺失即未开启）；
-//   - desired 未声明任何 ha 链接时，保留当前的全部 ha 链接（兼容“只改普通组”的旧调用）。
+// 契约（11-共享契约.md:75、13-接口文档.md:33）：管理员的 groups 只允许 normal，
+// 数据库保留既有 HA；管理员提交 HA 必须拒绝。因此本函数的职责很窄——
+// **只替换 normal 链，HA 链原样保留**。
+//
+// 之所以按「HA 恒取数据库」而不是「desired 声明了就以 desired 为准」实现：
+// 后者会让一次普通的管理员编辑把未在本次提交里出现的 HA 授权整体丢弃，而
+// enabled_by_user_at（用户主动开启的唯一凭据）只存在于那些行里，丢弃后无法重建。
+// 校验层已经拒绝管理员提交 HA；这里再保证无论调用方传什么，HA 都不会丢——
+// 数据丢失是不可逆的，值得两道防线。
+//
+// desired 中出现的 HA 条目（若调用方绕过了校验）一律忽略：HA 授权只能由用户
+// 主动开启，管理员既不能新增也不能修改。
 func ResolveAdminAPIKeyGroupChain(current, desired []APIKeyGroupLink) ([]APIKeyGroupLink, error) {
 	out, err := NormalizeAPIKeyGroupLinks(desired, false)
 	if err != nil {
 		return nil, err
 	}
-	oldHA := map[int64]APIKeyGroupLink{}
-	for _, link := range current {
-		if link.Role == APIKeyGroupRoleHA {
-			oldHA[link.GroupID] = link
-		}
-	}
-	declaresHA := false
-	merged := make([]APIKeyGroupLink, 0, len(out)+len(oldHA))
+	merged := make([]APIKeyGroupLink, 0, len(out)+len(current))
 	for _, link := range out {
-		link.Group = nil
-		if link.Role == APIKeyGroupRoleNormal {
-			link.EnabledByUserAt = nil
-			merged = append(merged, link)
+		if link.Role != APIKeyGroupRoleNormal {
 			continue
 		}
-		declaresHA = true
-		// 授权时间戳只从数据库沿用；客户端提交的值一律忽略，避免伪造开启状态。
-		if old, ok := oldHA[link.GroupID]; ok && old.EnabledByUserAt != nil {
-			at := *old.EnabledByUserAt
-			link.EnabledByUserAt = &at
-		} else {
-			link.EnabledByUserAt = nil
-		}
+		link.Group = nil
+		link.EnabledByUserAt = nil
 		merged = append(merged, link)
 	}
-	if !declaresHA {
-		for _, link := range current {
-			if link.Role != APIKeyGroupRoleHA {
-				continue
-			}
-			link.Group = nil
-			if link.EnabledByUserAt != nil {
-				at := *link.EnabledByUserAt
-				link.EnabledByUserAt = &at
-			}
-			merged = append(merged, link)
+	// HA 链恒取数据库既有值（含授权时间戳），与本次提交无关。
+	for _, link := range current {
+		if link.Role != APIKeyGroupRoleHA {
+			continue
 		}
+		link.Group = nil
+		if link.EnabledByUserAt != nil {
+			at := *link.EnabledByUserAt
+			link.EnabledByUserAt = &at
+		}
+		merged = append(merged, link)
 	}
 	return NormalizeAPIKeyGroupLinks(merged, false)
 }
