@@ -779,11 +779,14 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			switchCount++
 		}
 		pendingSwitchPermit = false
-		// retryable=true: the guard above already returned when lastFailoverErr is
-		// non-nil and not retryable, so reaching here means either there is no prior
-		// failure or it is recoverable. Passing the condition again would be a
-		// tautology that hides which guard actually enforces the PRD-04 rule.
-		nextID, nextIsHA, hasNext := groupPlan.peek(true)
+		// PRD-04: crossing from the normal chain into HA requires a retryable
+		// (site-side recoverable) failure class. The guard above already returns for a
+		// non-retryable failure, so this repeats the same condition on purpose: it is
+		// the only retryable check at the four shared entries, and keeping it here
+		// means removing the guard above cannot silently turn HA into a fail-open
+		// path. Same expression as gateway_handler.go / chat_completions / responses /
+		// gemini so the five entries stay comparable.
+		nextID, nextIsHA, hasNext := groupPlan.peek(lastFailoverErr == nil || lastFailoverErr.ShouldRetryNextAccount())
 		if !hasNext {
 			return normalGroupUnavailable
 		}
