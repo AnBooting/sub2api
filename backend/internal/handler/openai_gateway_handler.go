@@ -889,7 +889,14 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 				zap.Error(openAICompatibleSelectionErrorForLog(err, requestPlatform)),
 				zap.Int("excluded_account_count", len(failedAccountIDs)),
 			)
-			if errors.Is(err, service.ErrNoAvailableAccounts) || errors.Is(err, service.ErrNoAvailableCompactAccounts) {
+			// PRD-04 §2.4 + 10-共享规范.md:18: only a site-side recoverable cause opens
+			// the fallback. Capacity exhaustion IS named as recoverable (满载), so on
+			// the first attempt advancing is correct — the plan still visits every
+			// normal candidate before any HA one. Once accounts HAVE failed, a
+			// non-retryable last failure must not cross a group boundary. Same split as
+			// gateway_handler_responses.go:370-395.
+			if (errors.Is(err, service.ErrNoAvailableAccounts) || errors.Is(err, service.ErrNoAvailableCompactAccounts)) &&
+				(len(failedAccountIDs) == 0 || (lastFailoverErr != nil && lastFailoverErr.ShouldRetryNextAccount())) {
 				switch advanceNormalGroup() {
 				case normalGroupAdvanced:
 					continue
