@@ -84,6 +84,8 @@ var ProviderSet = wire.NewSet(
 	NewUsageLogRepository,
 	NewUsageBillingRepository,
 	NewBatchImageRepository,
+	// NewVideoTaskRepository 提供 PRD-06/TS-06 的异步视频任务表仓储（本站任务归属）。
+	NewVideoTaskRepository,
 	NewIdempotencyRepository,
 	NewUsageCleanupRepository,
 	NewDashboardAggregationRepository,

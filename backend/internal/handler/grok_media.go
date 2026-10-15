@@ -539,6 +539,26 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 					)
 				}
 			}
+			// PRD-06/TS-06: register the site task so a background worker can push
+			// the terminal state even when the client never polls (§4). This records
+			// the ACTUAL serving group and carrying account so later queries reuse
+			// them instead of re-running account scheduling (§2.3). It is a best-effort
+			// side record: the recorder never returns an error and never blocks the
+			// create response.
+			service.RecordVideoTaskCreate(requestCtx, service.VideoTaskCreateParams{
+				TaskKey:        result.ResponseID,
+				UpstreamTaskID: result.ResponseID,
+				UserID:         subject.UserID,
+				APIKeyID:       apiKey.ID,
+				GroupID:        videoTaskGroupID(apiKey),
+				Platform:       videoTaskPlatformForEndpoint(endpoint),
+				Model:          requestModel,
+				BillingModel:   firstNonEmptyString(result.BillingModel, requestModel),
+				BillingMode:    videoTaskBillingMode(apiKey.Group, firstNonEmptyString(result.BillingModel, requestModel)),
+				AccountID:      account.ID,
+				Pending:        &pending,
+				CreatedAt:      time.Now(),
+			})
 		}
 		// Status poll OR content download can observe official done+video.url.
 		// Both paths share the same claim key so the customer is charged once.
@@ -574,6 +594,34 @@ func (h *OpenAIGatewayHandler) ensureGrokMediaAccountEligibility(ctx context.Con
 		return false, "billing_probe_unavailable", errors.New("grok media eligibility probe is not configured")
 	}
 	return h.grokMediaEligibilityProber.ProbeMediaEligibility(ctx, account.ID)
+}
+
+// videoTaskGroupID 取实际服务分组 ID（PRD-06 §2.3 的「实际服务分组」）。
+// Key 未绑定分组时返回 0，登记入口据此跳过——没有实际分组就没有可追溯的归属。
+func videoTaskGroupID(apiKey *service.APIKey) int64 {
+	if apiKey == nil || apiKey.GroupID == nil {
+		return 0
+	}
+	return *apiKey.GroupID
+}
+
+// videoTaskPlatformForEndpoint 把媒体端点映射为任务表记录的平台标识，
+// 决定 worker 用哪套上游状态协议查询。
+func videoTaskPlatformForEndpoint(endpoint service.GrokMediaEndpoint) string {
+	if endpoint.IsSeedance() {
+		return service.VideoTaskPlatformSeedance
+	}
+	return service.VideoTaskPlatformGrok
+}
+
+// videoTaskBillingMode 记录创建时的计费模式快照（仅用于留痕/排障，
+// 实际计费仍由既有 RecordUsage 按同一份分组价目表决定，不新写计费口径）。
+func videoTaskBillingMode(group *service.Group, model string) string {
+	plan := service.VideoPricePlanForGroup(group, model)
+	if plan == nil {
+		return ""
+	}
+	return string(plan.Mode)
 }
 
 func grokMediaRequiredCapability(endpoint service.GrokMediaEndpoint) service.OpenAIEndpointCapability {

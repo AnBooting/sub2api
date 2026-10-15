@@ -106,6 +106,30 @@ func ProvideBatchImageModelPricingResolver(resolver *ModelPricingResolver) *Batc
 	return &BatchImageModelPricingResolver{Resolver: resolver}
 }
 
+// ProvideVideoTaskWorker 装配并启动 PRD-06/TS-06 的异步视频任务推进 worker。
+//
+// 同时把登记器注入进程级入口：创建路径（handler）用它把「本站任务 ↔ 用户 ↔
+// 实际分组 ↔ 承载账号」写入任务表，worker 才能在没有客户端轮询时主动推进终态。
+func ProvideVideoTaskWorker(
+	repo VideoTaskRepository,
+	gateway *OpenAIGatewayService,
+	apiKeyRepo APIKeyRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	accountRepo AccountRepository,
+	apiKeySvc *APIKeyService,
+	settingRepo SettingRepository,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *VideoTaskWorker {
+	tasks := NewVideoTaskService(repo)
+	SetDefaultVideoTaskRecorder(NewVideoTaskRecorder(tasks))
+	worker := NewVideoTaskWorker(tasks, gateway, apiKeyRepo, userRepo, userSubRepo, accountRepo, apiKeySvc, settingRepo)
+	worker.SetLeaderLock(lockCache, db)
+	worker.Start()
+	return worker
+}
+
 func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo AccountRepository, cfg *config.Config) *BatchImageCleanupService {
 	svc := NewBatchImageCleanupService(repo, accountRepo, cfg)
 	svc.Start()
@@ -912,6 +936,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
 	ProvideUpstreamBillingProbeService,
+	ProvideVideoTaskWorker,
 	ProvideOllamaCloudUsageService,
 	ProvideOpenCodeGoUsageService,
 	ProvideSettingService,
