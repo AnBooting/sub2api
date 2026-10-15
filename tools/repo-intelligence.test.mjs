@@ -1,12 +1,31 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildManifest, cacheRootFor, extractJsonEnvelope, fingerprintFromParts, isReadOnlyQuery, manifestStatus, parseCli, projectKey } from './repo-intelligence.mjs';
+import { buildManifest, cacheRootFor, ensureExternalCache, extractJsonEnvelope, fingerprintFromParts, isReadOnlyQuery, manifestStatus, parseCli, projectKey } from './repo-intelligence.mjs';
 
 test('cache root is stable and external to source', () => {
   const root = 'F:/sub2';
   const cache = cacheRootFor(root, { LOCALAPPDATA: 'C:/Users/test/AppData/Local' });
   assert.match(projectKey(root), /^[0-9a-f]{16}$/);
   assert.equal(cache.replaceAll('\\', '/'), 'C:/Users/test/AppData/Local/dsh/repo-intelligence/sub2-' + projectKey(root));
+});
+
+// Regression: on Windows, path.relative between two different drives returns an
+// ABSOLUTE path (e.g. root F:\sub2, cache C:\Users\...), which is neither '' nor does
+// it start with '..'. The old containment test therefore concluded the cache was
+// inside the source tree and rejected every run on such a machine, disabling the
+// whole tool. This test exercises the guard directly, which the previous suite never
+// did (it only checked cacheRootFor, so the bug shipped with 9/9 green).
+test('cache on another Windows drive is accepted as external', () => {
+  assert.doesNotThrow(() => ensureExternalCache('F:/sub2', 'C:/Users/test/AppData/Local/dsh/repo-intelligence/sub2-abc'));
+  // Same drive, cache beside the source: still external.
+  assert.doesNotThrow(() => ensureExternalCache('F:/sub2', 'F:/cache/sub2-abc'));
+});
+
+test('cache inside the source tree is rejected', () => {
+  // The guard must keep failing closed for a genuinely internal cache.
+  assert.throws(() => ensureExternalCache('F:/sub2', 'F:/sub2/.cache'), (error) => error.code === 'CACHE_INSIDE_SOURCE');
+  assert.throws(() => ensureExternalCache('F:/sub2', 'F:/sub2'), (error) => error.code === 'CACHE_INSIDE_SOURCE');
+  assert.throws(() => ensureExternalCache('F:/sub2', 'F:/sub2/tools/.cache'), (error) => error.code === 'CACHE_INSIDE_SOURCE');
 });
 
 test('CLI parses dirty and passthrough query arguments', () => {

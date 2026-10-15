@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, relative, resolve } from 'node:path';
+import { join, parse, relative, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
@@ -23,10 +23,24 @@ export function cacheRootFor(root, env = process.env) {
   return join(localAppData, DEFAULT_CACHE_PARENT_NAME, 'sub2-' + projectKey(root));
 }
 
-function ensureExternalCache(root, cacheRoot) {
-  const rel = relative(resolve(root), resolve(cacheRoot));
-  if (rel === '' || (!rel.startsWith('..') && rel !== '..')) {
-    const error = new Error('Repository intelligence cache must be outside the source tree: ' + cacheRoot);
+export function ensureExternalCache(root, cacheRoot) {
+  const resolvedRoot = resolve(root);
+  const resolvedCache = resolve(cacheRoot);
+  // path.relative returns an ABSOLUTE path when the two paths are on different
+  // Windows drives (e.g. root F:\sub2, cache C:\Users\...). That absolute path is
+  // neither '' nor does it start with '..', so the old containment test wrongly
+  // reported "cache is inside the source tree" and disabled the whole tool on any
+  // machine whose cache root sits on another drive. Compare parsed paths instead:
+  // the cache is inside the source only when root === cache or root is an ancestor.
+  const parsedRoot = parse(resolvedRoot);
+  const parsedCache = parse(resolvedCache);
+  const sameDrive = parsedRoot.root.toLowerCase() === parsedCache.root.toLowerCase();
+  const cacheInsideRoot = sameDrive && (() => {
+    const rel = relative(resolvedRoot, resolvedCache);
+    return rel === '' || (!rel.startsWith('..') && rel !== '..');
+  })();
+  if (cacheInsideRoot) {
+    const error = new Error('Repository intelligence cache must be outside the source tree: ' + resolvedCache);
     error.code = 'CACHE_INSIDE_SOURCE';
     throw error;
   }

@@ -877,7 +877,7 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	// carry token usage but no VideoCount, so they would otherwise never reach the
 	// video cost path. A configured plan therefore takes precedence here; without a
 	// plan the legacy token settlement is preserved unchanged.
-	if hasSeedanceVideoPlan(apiKey, billingModel) {
+	if seedanceVideoPricingAvailable(apiKey, billingModel) {
 		planCost, hasPlan := s.calculateOpenAIVideoPlanCost(ctx, apiKey, billingModel, result, videoMultiplier)
 		if hasPlan {
 			if planCost == nil {
@@ -1000,6 +1000,28 @@ func hasSeedanceVideoPlan(apiKey *APIKey, billingModel string) bool {
 		return false
 	}
 	return GroupHasVideoPricePlan(apiKey.Group, billingModel)
+}
+
+// seedanceVideoPricingAvailable reports whether a Seedance result can be priced for
+// this group, which is exactly the set the create-time gate accepts
+// (GroupHasSeedanceVideoPrice: a metering plan OR the legacy per-model slots).
+//
+// The routing gate must use this rather than hasSeedanceVideoPlan alone. Otherwise a
+// group configured with only the legacy per-model slots passes the create gate,
+// generates upstream, and then never enters the video cost path — it falls through to
+// LLM token billing and is recorded at zero cost with a warning. Keeping the two sets
+// equal is the point of SeedanceLegacyPerSecondPlan.
+func seedanceVideoPricingAvailable(apiKey *APIKey, billingModel string) bool {
+	if apiKey == nil || apiKey.Group == nil {
+		return false
+	}
+	if canonicalSeedanceVideoPriceFamily(billingModel) == "" {
+		return false
+	}
+	if GroupHasVideoPricePlan(apiKey.Group, billingModel) {
+		return true
+	}
+	return SeedanceLegacyPerSecondPlan(apiKey.Group, billingModel) != nil
 }
 
 func isGrokVideoBillingModel(model string) bool {
@@ -1183,7 +1205,19 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoPlanCost(
 ) (*CostBreakdown, bool) {
 	plan := videoPlanFromAPIKey(apiKey, billingModel)
 	if plan == nil {
-		return nil, false
+		// B-4: the create-time gate (GroupHasSeedanceVideoPrice) also accepts the legacy
+		// per-model / flat video price columns for Seedance. Settlement must cover the
+		// same set, otherwise a group that passes the gate with only those slots would be
+		// accepted, generate upstream, and then record zero cost. Synthesize the
+		// equivalent per_second plan so "passes the gate" and "can settle" stay equal.
+		// Still fail closed: a group with no usable slot yields nil and keeps the
+		// existing (nil, false) behaviour.
+		if apiKey != nil {
+			plan = SeedanceLegacyPerSecondPlan(apiKey.Group, billingModel)
+		}
+		if plan == nil {
+			return nil, false
+		}
 	}
 	cost, err := s.billingService.CalculateVideoCostFromPlan(VideoCostInput{
 		Model:            billingModel,

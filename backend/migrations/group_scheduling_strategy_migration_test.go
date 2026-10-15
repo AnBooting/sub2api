@@ -66,12 +66,14 @@ func TestSchedulingStrategyMigrationNumbering(t *testing.T) {
 	}
 
 	// 245 之后每个编号都必须存在，防止跳号（246/247 已随 PRD-04/PRD-06 追加，
-	// 248 随 TS-03 白标充值中心追加，249 随 TS-06 视频任务表追加）。
+	// 248 随 TS-03 白标充值中心追加，249 随 TS-06 视频任务表追加，
+	// 250 修正 api_key_group_links 的授权 CHECK 与写入契约矛盾）。
 	require.True(t, seen["245"], "245_group_scheduling_strategy.sql 必须仍然存在")
 	require.True(t, seen["246"], "246 迁移缺失：编号必须连续")
 	require.True(t, seen["247"], "247 迁移缺失：编号必须连续")
 	require.True(t, seen["248"], "248 迁移缺失：编号必须连续")
 	require.True(t, seen["249"], "249 迁移缺失：编号必须连续")
-	require.Equal(t, "249_video_tasks.sql", latest,
+	require.True(t, seen["250"], "250 迁移缺失：编号必须连续")
+	require.Equal(t, "250_relax_group_link_authorization_check.sql", latest,
 		"最新迁移必须与磁盘上的最高编号一致")
 }
