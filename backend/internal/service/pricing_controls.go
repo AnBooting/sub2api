@@ -65,7 +65,13 @@ func (s *PricingService) RefreshNativeCNY() {
 }
 
 func (s *PricingService) GetPricingControlStatus() map[string]any {
+	// LOCK ORDER: controlsMu must be acquired before mu, never after. Resolve every
+	// controls-derived value (including the effective interval, which reads controls
+	// internally) BEFORE taking mu.RLock() below. Taking mu first and then reaching
+	// for controls would invert the order used by the pricing writers
+	// (controlsMu → mu in savePricingData / syncNativeCNY) and deadlock.
 	controls := s.GetControls()
+	effectiveIntervalHours := s.PricingSyncIntervalHours()
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return map[string]any{
@@ -73,7 +79,7 @@ func (s *PricingService) GetPricingControlStatus() map[string]any {
 		// PRD-01/K-6: the admin page must show the period that is actually in
 		// effect, not just the stored override (0 means "using the config default").
 		"update_interval_hours":          controls.UpdateIntervalHours,
-		"effective_interval_hours":       s.PricingSyncIntervalHours(),
+		"effective_interval_hours":       effectiveIntervalHours,
 		"deepseek_holidays":              controls.DeepSeekHolidays,
 		"deepseek_calendar_year_missing": chooseDeepSeekPricingPeriod(time.Now(), controls.DeepSeekHolidays).CalendarYearMissing,
 		"usd_model_count":                len(s.pricingData), "usd_last_updated": s.lastUpdated,
