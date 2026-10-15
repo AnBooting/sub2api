@@ -1298,10 +1298,17 @@ func (s *GatewayService) buildRecordUsageLog(
 		if cost.PriceVersion == "" && cost.PricingSnapshot != nil && !cost.PricingSnapshot.NativePricingAt.IsZero() {
 			cost.PriceVersion = nativeCNYPriceVersion(cost.PricingSnapshot)
 		}
+		// C-1 契约 :46：media 仅 TS-06（视频）使用，mode 只允许 per_request /
+		// per_second。图片按次已有 Unit="per_image" + items，不能再挂 media——否则
+		// 落库成 {"billable_count":N,"billable_seconds":0} 且 mode 被 omitempty 丢掉，
+		// 审计会把它误读为视频计量。mediaBillingModeForSnapshot 对 image 返回 ""，
+		// 所以以它为准。
 		if result.ImageCount > 0 {
-			cost.Media = &PricingSnapshotMedia{
-				Mode:          mediaBillingModeForSnapshot(cost),
-				BillableCount: result.ImageCount,
+			if mode := mediaBillingModeForSnapshot(cost); mode != "" {
+				cost.Media = &PricingSnapshotMedia{
+					Mode:          mode,
+					BillableCount: result.ImageCount,
+				}
 			}
 		}
 		usageLog.InputCost = cost.InputCost

@@ -294,6 +294,16 @@ func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
 	cost.CacheReadCost *= multiplier
 	cost.TotalCost *= multiplier
 	cost.ActualCost *= multiplier
+	// C-1: the lock-price items must be scaled by the same factor, or the stored
+	// snapshot stops reconciling. The contract requires
+	// total_credit == group_multiplier * sum(items[].subtotal); total_credit is the
+	// scaled ActualCost, so leaving the subtotals unscaled broke the check whenever a
+	// channel time-of-day or reasoning-effort multiplier applied after the items were
+	// built.
+	for i := range cost.PricingItems {
+		cost.PricingItems[i].BaseCreditPrice *= multiplier
+		cost.PricingItems[i].Subtotal *= multiplier
+	}
 }
 
 func isClaudeFable51Model(model string) bool {

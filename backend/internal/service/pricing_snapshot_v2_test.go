@@ -244,3 +244,50 @@ func TestMediaCostPathsEmitRecomputableV2(t *testing.T) {
 	require.Empty(t, bs.CalculateImageCost("m", "1K", 0, nil, 1).PricingItems)
 }
 
+
+// Regression for D-1: the C-1 recompute check must hold even when a channel
+// time-of-day multiplier or a reasoning-effort multiplier is applied AFTER the items
+// are built.
+//
+// computeTokenBreakdown builds items from the pre-multiplier amounts, and
+// CalculateCostUnified then calls applyCostBreakdownMultiplier for the channel time
+// multiplier and the reasoning-effort multiplier. That helper scales TotalCost and
+// ActualCost but not PricingItems, so total_credit (== ActualCost, scaled) no longer
+// equals group_multiplier x sum(items[].subtotal) (unscaled) — the contract's check
+// breaks. The earlier tests all used multiplier 1 for those two paths, which hid it.
+func TestSnapshotRecomputeHoldsAfterPostHocMultipliers(t *testing.T) {
+	bs := newNativeBillingTest(t)
+	resolver := NewModelPricingResolver(nil, bs)
+	price := 2e-6
+	group := &Group{ID: 12, ModelPricing: []ChannelModelPricing{{
+		Models: []string{"glm-test"}, Currency: "USD",
+		InputPrice: &price, OutputPrice: &price,
+	}}}
+
+	cost, err := bs.CalculateTokenCostForRequest(TokenCostRequest{
+		Ctx: context.Background(), Model: "glm-test", Group: group,
+		Tokens:         UsageTokens{InputTokens: 500_000, OutputTokens: 100_000},
+		RateMultiplier: 1.2, Resolver: resolver,
+	})
+	require.NoError(t, err)
+
+	// Simulate exactly what CalculateCostUnified does after building the breakdown.
+	applyCostBreakdownMultiplier(cost, 1.7)
+	applyCostBreakdownMultiplier(cost, 2.0)
+
+	var snapshot map[string]any
+	require.NoError(t, json.Unmarshal(costPricingSnapshot(cost), &snapshot))
+	items := snapshot["items"].([]any)
+	require.NotEmpty(t, items)
+
+	multiplier := snapshot["group_multiplier"].(float64)
+	totalCredit := snapshot["total_credit"].(float64)
+	sum := 0.0
+	for _, raw := range items {
+		sum += raw.(map[string]any)["subtotal"].(float64)
+	}
+	require.InDelta(t, multiplier*sum, totalCredit, 1e-9,
+		"the contract's recompute check must survive post-hoc multipliers")
+	require.InDelta(t, cost.ActualCost, totalCredit, 1e-12)
+}
+
