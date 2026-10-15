@@ -419,6 +419,31 @@ func (h *APIKeyHandler) SetAPIKeyHAGroup(c *gin.Context) {
 	h.writeHAEnablementResponse(c, result)
 }
 
+// ListAPIKeyHAGroups 列出当前 Key 可主动开启的高可用兜底组及其开启状态。
+// GET /api/v1/keys/:id/ha-groups
+//
+// 只做展示：倍率恒为服务端分组配置，开启状态取本 Key 的 enabled_by_user_at。
+// 列表按「管理员已标记 allow_high_availability 且分组活跃」过滤，不套用普通分组
+// 的绑定权限（PRD-04/K-3：兜底不依赖独立分组访问权限）。
+func (h *APIKeyHandler) ListAPIKeyHAGroups(c *gin.Context) {
+	subject, ok := middleware2.GetAuthSubjectFromContext(c)
+	if !ok {
+		response.Unauthorized(c, "User not authenticated")
+		return
+	}
+	keyID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || keyID <= 0 {
+		response.BadRequest(c, "Invalid key ID")
+		return
+	}
+	candidates, err := h.apiKeyService.ListAPIKeyHAGroupCandidates(c.Request.Context(), subject.UserID, keyID)
+	if err != nil {
+		response.ErrorFrom(c, err)
+		return
+	}
+	response.Success(c, candidates)
+}
+
 // decodeHAEnablementJSON 解析 PUT 请求体：enabled 必须显式出现，缺失即报错。
 // 未知字段（含 rate_multiplier）一律忽略，不参与判定。
 func decodeHAEnablementJSON(c *gin.Context, req *SetAPIKeyHAGroupRequest) error {

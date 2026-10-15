@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -278,3 +279,91 @@ func (s *APIKeyService) SetAPIKeyHAGroupEnabled(ctx context.Context, userID, key
 	}
 	return result, nil
 }
+
+// HAGroupCandidate is one admin-designated high-availability fallback group that a
+// user may opt into for a given API key (PRD-04/TS-04).
+//
+// It is a display-only projection: Enabled reflects the user's CURRENT consent for
+// this key (enabled_by_user_at is set), and RateMultiplier is the server-side group
+// multiplier that billing will actually apply. The client never supplies a rate.
+type HAGroupCandidate struct {
+	GroupID         int64      `json:"group_id"`
+	Name            string     `json:"name"`
+	Platform        string     `json:"platform"`
+	RateMultiplier  float64    `json:"rate_multiplier"`
+	Enabled         bool       `json:"enabled"`
+	EnabledByUserAt *time.Time `json:"enabled_by_user_at,omitempty"`
+	// ScopeCompatible reports whether this candidate can serve the model scope of
+	// the key. An incompatible candidate is still listed (so the user sees why it is
+	// unavailable) but cannot be enabled; the write path re-checks it.
+	ScopeCompatible bool `json:"scope_compatible"`
+}
+
+// ListAPIKeyHAGroupCandidates returns the HA fallback groups the user may opt this
+// key into, together with their current consent state.
+//
+// Listing deliberately does NOT reuse GetAvailableGroups: PRD-04/K-3 states the HA
+// fallback is an extra stability capability that does NOT depend on ordinary group
+// access permission. Filtering by canUserBindGroup would hide an admin-designated
+// fallback from a user who cannot bind it as a normal group — exactly the case this
+// feature exists for. Only the admin flag and group activity gate listing;
+// ownership is checked on the key.
+func (s *APIKeyService) ListAPIKeyHAGroupCandidates(ctx context.Context, userID, keyID int64) ([]HAGroupCandidate, error) {
+	if userID <= 0 || keyID <= 0 {
+		return nil, infraerrors.BadRequest("INVALID_HA_GROUP_REQUEST", "user and key ids must be positive")
+	}
+	if s == nil || s.apiKeyRepo == nil || s.groupRepo == nil {
+		return nil, ErrBillingServiceUnavailable
+	}
+	key, err := s.apiKeyRepo.GetByID(ctx, keyID)
+	if err != nil {
+		return nil, fmt.Errorf("load key for ha candidates: %w", err)
+	}
+	if key == nil || key.ID != keyID {
+		return nil, ErrAPIKeyNotFound
+	}
+	// Ownership is the same boundary as the write path: never reveal another
+	// user's key, and never distinguish "missing" from "not yours".
+	if key.UserID != userID {
+		return nil, ErrInsufficientPerms
+	}
+
+	consent := make(map[int64]*time.Time, len(key.Groups))
+	for _, link := range key.Groups {
+		if link.Role != APIKeyGroupRoleHA {
+			continue
+		}
+		consent[link.GroupID] = link.EnabledByUserAt
+	}
+
+	groups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups for ha candidates: %w", err)
+	}
+	out := make([]HAGroupCandidate, 0)
+	for i := range groups {
+		group := groups[i]
+		if !group.AllowHighAvailability {
+			continue
+		}
+		out = append(out, HAGroupCandidate{
+			GroupID:         group.ID,
+			Name:            group.Name,
+			Platform:        group.Platform,
+			RateMultiplier:  group.RateMultiplier,
+			EnabledByUserAt: consent[group.ID],
+			Enabled:         consent[group.ID] != nil,
+			ScopeCompatible: haGroupScopeCompatible(&group, key),
+		})
+	}
+	// Enabled first, then by id: the user's current choices stay at the top and the
+	// order is stable across calls.
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Enabled != out[j].Enabled {
+			return out[i].Enabled
+		}
+		return out[i].GroupID < out[j].GroupID
+	})
+	return out, nil
+}
+

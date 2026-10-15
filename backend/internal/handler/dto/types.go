@@ -142,6 +142,10 @@ type Group struct {
 	// 无效请求兜底分组
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
 
+	// AllowHighAvailability 标记本组可由用户主动开启为高可用兜底（PRD-04/TS-04）。
+	// 用户侧需要它来列出「管理员已标记为可兜底」的候选组，只展示、不授权。
+	AllowHighAvailability bool `json:"allow_high_availability"`
+
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	// OpenAI Live 接口开关

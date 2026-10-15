@@ -223,6 +223,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		ClaudeCodeOnly:                  g.ClaudeCodeOnly,
 		FallbackGroupID:                 g.FallbackGroupID,
 		FallbackGroupIDOnInvalidRequest: g.FallbackGroupIDOnInvalidRequest,
+		AllowHighAvailability:           g.AllowHighAvailability,
 		AllowMessagesDispatch:           g.AllowMessagesDispatch,
 		AllowLive:                       g.AllowLive,
 		RequireOAuthOnly:                g.RequireOAuthOnly,

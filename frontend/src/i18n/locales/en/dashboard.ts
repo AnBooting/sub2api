@@ -81,6 +81,16 @@ export default {
       "singleHint": "The single-group picker above replaces the ordinary chain. HA consent is unchanged.",
       "edit": "Edit ordinary group order"
     },
+    // PRD-04/TS-04: user-initiated high-availability fallback consent. The admin owns
+    // the multiplier on the group; this surface only displays it.
+    ha: {
+      "title": "High-availability fallback groups",
+      "hint": "When every ordinary group is unavailable, the fallback groups you enabled are tried in order. Billing uses the rate of the group that serves the request. The administrator sets that rate.",
+      "empty": "No fallback groups are configured by the administrator yet",
+      "enable": "Enable fallback",
+      "enabled": "Enabled",
+      "scopeMismatch": "This group's model scope does not match this key, so it cannot be enabled"
+    },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
     searchPlaceholder: 'Search name or key...',

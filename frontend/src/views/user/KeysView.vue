@@ -578,6 +578,14 @@
         <div v-if="showEditModal && selectedKey?.groups?.some((entry) => entry.role === 'ha')" class="text-xs text-gray-500">
           <KeyGroupChain :api-key="{ ...selectedKey!, group_id: null, groups: selectedKey!.groups!.filter((entry) => entry.role === 'ha') }" :groups="groups" />
         </div>
+        <!-- PRD-04/TS-04：用户主动开启/关闭高可用兜底分组。仅在编辑已有 Key 时出现，
+             因为授权对象是具体的 Key。 -->
+        <KeyHAGroupOptIn
+          v-if="showEditModal && selectedKey"
+          :api-key-id="selectedKey.id"
+          :disabled="submitting"
+          @changed="onHAChanged"
+        />
 
         <!-- Custom Key Section (only for create) -->
         <div v-if="!showEditModal" class="space-y-3">
@@ -1216,6 +1224,7 @@ import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 import GroupChainEditor from '@/components/keys/GroupChainEditor.vue'
 import KeyGroupChain from '@/components/keys/KeyGroupChain.vue'
+import KeyHAGroupOptIn from '@/components/keys/KeyHAGroupOptIn.vue'
 import { normalGroupIds, normalGroupEntries, replaceNormalGroups, isGroupChainConflict } from '@/utils/keyGroupChain'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
@@ -1676,6 +1685,17 @@ const loadPublicSettings = async () => {
 const openUseKeyModal = (key: ApiKey) => {
   selectedKey.value = key
   showUseKeyModal.value = true
+}
+
+// HA consent lives on the key row (enabled_by_user_at), so the cached list entry is
+// stale after a toggle. Re-read the key so the displayed HA chain matches the server
+// instead of the pre-toggle copy.
+const onHAChanged = async () => {
+  if (!selectedKey.value) return
+  const keyID = selectedKey.value.id
+  await loadApiKeys()
+  const refreshed = apiKeys.value.find((entry) => entry.id === keyID)
+  if (refreshed) selectedKey.value = refreshed
 }
 
 const closeUseKeyModal = () => {

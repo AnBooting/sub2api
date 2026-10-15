@@ -72,7 +72,8 @@ func newHAEnablementService(t *testing.T, key *APIKey, group *Group) (*APIKeySer
 
 type haGroupRepoStub struct {
 	GroupRepository
-	group *Group
+	group  *Group
+	groups []Group
 }
 
 func (s *haGroupRepoStub) GetByID(context.Context, int64) (*Group, error) {
@@ -300,3 +301,90 @@ func TestAPIKeyUpdateFieldsHADeclarationRouting(t *testing.T) {
 	_, err = ResolveUserAuthorizedAPIKeyGroupChain(current, desired)
 	require.Error(t, err)
 }
+
+// ListActive 供候选列表使用：返回所有活跃分组，由服务层按兜底标记过滤。
+func (s *haGroupRepoStub) ListActive(context.Context) ([]Group, error) {
+	if s.groups != nil {
+		return append([]Group(nil), s.groups...), nil
+	}
+	if s.group == nil {
+		return nil, nil
+	}
+	clone := *s.group
+	return []Group{clone}, nil
+}
+
+// PRD-04/TS-04：候选列表只按「管理员标记兜底」过滤，不套用普通分组绑定权限。
+func TestListAPIKeyHAGroupCandidatesFiltersByAdminFlagOnly(t *testing.T) {
+	key := haTestKey(7, APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0})
+	svc := &APIKeyService{
+		apiKeyRepo: &haChainRepoStub{key: key},
+		groupRepo: &haGroupRepoStub{groups: []Group{
+			{ID: 1, Name: "normal", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1},
+			{ID: 9, Name: "fallback", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 2.5, AllowHighAvailability: true},
+			{ID: 10, Name: "not-fallback", Platform: PlatformOpenAI, Status: StatusActive, RateMultiplier: 1},
+		}},
+	}
+
+	candidates, err := svc.ListAPIKeyHAGroupCandidates(context.Background(), 7, 1)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1, "only the admin-marked group is a candidate")
+	require.Equal(t, int64(9), candidates[0].GroupID)
+	require.Equal(t, 2.5, candidates[0].RateMultiplier, "multiplier is the server-side group config")
+	require.False(t, candidates[0].Enabled, "no consent recorded yet")
+}
+
+// 已开启的候选必须回报 enabled，并带上授权时刻。
+func TestListAPIKeyHAGroupCandidatesReportsExistingConsent(t *testing.T) {
+	enabledAt := time.Now().Add(-time.Hour)
+	key := haTestKey(7,
+		APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0},
+		APIKeyGroupLink{GroupID: 9, Role: APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &enabledAt},
+	)
+	svc := &APIKeyService{
+		apiKeyRepo: &haChainRepoStub{key: key},
+		groupRepo:  &haGroupRepoStub{groups: []Group{{ID: 9, Name: "fallback", Status: StatusActive, RateMultiplier: 3, AllowHighAvailability: true}}},
+	}
+
+	candidates, err := svc.ListAPIKeyHAGroupCandidates(context.Background(), 7, 1)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	require.True(t, candidates[0].Enabled)
+	require.NotNil(t, candidates[0].EnabledByUserAt)
+}
+
+// 非本人 Key 一律拒绝，不泄漏 Key 是否存在。
+func TestListAPIKeyHAGroupCandidatesRejectsForeignKey(t *testing.T) {
+	key := haTestKey(8)
+	svc := &APIKeyService{
+		apiKeyRepo: &haChainRepoStub{key: key},
+		groupRepo:  &haGroupRepoStub{groups: []Group{{ID: 9, AllowHighAvailability: true}}},
+	}
+
+	_, err := svc.ListAPIKeyHAGroupCandidates(context.Background(), 7, 1)
+	require.ErrorIs(t, err, ErrInsufficientPerms)
+}
+
+// 模型范围不匹配的候选仍然列出（让用户看到原因），但标记为不可开启。
+func TestListAPIKeyHAGroupCandidatesFlagsScopeMismatch(t *testing.T) {
+	normal := Group{
+		ID: 1, Name: "normal", Status: StatusActive,
+		ModelAllowlist: GroupModelAllowlist{Enabled: true, Models: []string{"gpt-4o"}},
+	}
+	fallback := Group{
+		ID: 9, Name: "fallback", Status: StatusActive, RateMultiplier: 2,
+		AllowHighAvailability: true,
+		ModelAllowlist:        GroupModelAllowlist{Enabled: true, Models: []string{"claude-3"}},
+	}
+	key := haTestKey(7, APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0, Group: &normal})
+	svc := &APIKeyService{
+		apiKeyRepo: &haChainRepoStub{key: key},
+		groupRepo:  &haGroupRepoStub{groups: []Group{fallback}},
+	}
+
+	candidates, err := svc.ListAPIKeyHAGroupCandidates(context.Background(), 7, 1)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1, "an incompatible candidate is still listed")
+	require.False(t, candidates[0].ScopeCompatible)
+}
+
