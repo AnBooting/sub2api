@@ -6,10 +6,16 @@ export const videoPlanModes = [
   { key: 'per_token', label: 'per_token' }
 ] as const
 
+// Tiers offered by the video price plan form. 4k is a real Ark Seedance tier: the
+// official price table lists a 4k rate (PRD 22:54). Omitting it made the tier
+// impossible to configure and silently dropped it on serialization, so a 4k
+// generation could not be priced. Keep this list in sync with the backend's
+// service.VideoBillingResolutionTiers.
 export const videoPlanResolutions = [
   { key: '480p', label: '480p' },
   { key: '720p', label: '720p' },
-  { key: '1080p', label: '1080p' }
+  { key: '1080p', label: '1080p' },
+  { key: '4k', label: '4k' }
 ] as const
 
 /** Known families offered by default; operators may still add others. */

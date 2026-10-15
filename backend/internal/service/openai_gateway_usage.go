@@ -1444,6 +1444,13 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 	if len(group.VideoModelPrices) > 0 {
 		return false
 	}
+	// VideoPricePlans is a first-class pricing source too (the metering plans for
+	// per_request / per_second / per_token). Omitting it made a group configured only
+	// with plans look like a blank shell, so the fresh-group reload was skipped and the
+	// second-chance pricing guard lost its input.
+	if len(group.VideoPricePlans) > 0 {
+		return false
+	}
 	if len(group.ModelPricing) > 0 || group.LongContextPricingEnabled {
 		return false
 	}
@@ -1457,6 +1464,7 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 	return group.ImagePrice1K == nil && group.ImagePrice2K == nil && group.ImagePrice4K == nil &&
 		group.VideoPrice480P == nil && group.VideoPrice720P == nil && group.VideoPrice1080P == nil
 }
+
 
 // filterCNProviderBillingModelCandidates 过滤国产供应商（kimi/zhipu/deepseek）
 // 账号的计费候选模型名：claude-* 候选仅在运营者显式配置了分组/渠道定价时保留。

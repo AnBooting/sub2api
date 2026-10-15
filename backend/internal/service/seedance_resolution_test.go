@@ -21,8 +21,13 @@ func TestSeedanceResolutionFromStatusBody(t *testing.T) {
 	// Absent / unusable must stay empty: never coerce to the cheapest tier.
 	require.Equal(t, "", SeedanceResolutionFromStatusBody(nil))
 	require.Equal(t, "", SeedanceResolutionFromStatusBody([]byte(`{}`)))
-	require.Equal(t, "", SeedanceResolutionFromStatusBody([]byte(`{"resolution":"4k"}`)))
+	// 4k is a real Ark Seedance tier (PRD 22:54 lists a 4k rate), so it must be
+	// recognised rather than treated as unknown.
+	require.Equal(t, "4k", SeedanceResolutionFromStatusBody([]byte(`{"resolution":"4k"}`)))
+	require.Equal(t, "4k", SeedanceResolutionFromStatusBody([]byte(`{"resolution":"2160p"}`)))
+	// A non-string or genuinely unknown tier stays empty.
 	require.Equal(t, "", SeedanceResolutionFromStatusBody([]byte(`{"resolution":720}`)))
+	require.Equal(t, "", SeedanceResolutionFromStatusBody([]byte(`{"resolution":"1080i"}`)))
 	require.Equal(t, "", SeedanceResolutionFromStatusBody([]byte("not json")))
 }
 

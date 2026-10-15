@@ -371,7 +371,7 @@ func SeedanceLegacyPerSecondPlan(group *Group, model string) *domain.VideoPriceP
 	}
 	prices := map[string]float64{}
 	normalized := NormalizeVideoModelPrices(group.VideoModelPrices)
-	for _, tier := range []string{VideoBillingResolution480P, VideoBillingResolution720P, VideoBillingResolution1080P} {
+	for _, tier := range VideoBillingResolutionTiers {
 		if price := LookupVideoModelPrice(normalized, VideoPriceFamilySeedance, tier); price != nil {
 			prices[tier] = *price
 		}

@@ -44,7 +44,7 @@ func GroupHasSeedanceVideoPrice(group *Group) bool {
 	// A per-model slot counts if ANY tier is priced; checking a single default tier
 	// would miss a group that only configured e.g. 720p.
 	prices := NormalizeVideoModelPrices(group.VideoModelPrices)
-	for _, tier := range []string{VideoBillingResolution480P, VideoBillingResolution720P, VideoBillingResolution1080P} {
+	for _, tier := range VideoBillingResolutionTiers {
 		if LookupVideoModelPrice(prices, VideoPriceFamilySeedance, tier) != nil {
 			return true
 		}
