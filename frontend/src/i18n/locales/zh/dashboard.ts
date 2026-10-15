@@ -89,7 +89,8 @@ export default {
       "empty": "管理员暂未配置可用于兜底的分组",
       "enable": "开启兜底",
       "enabled": "已开启",
-      "scopeMismatch": "该分组的模型范围与本密钥不匹配，暂不可开启"
+      "scopeMismatch": "该分组的模型范围与本密钥不匹配，暂不可开启",
+      "accessRequired": "该分组为专属分组，需先获得访问授权才能开启兜底"
     },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',

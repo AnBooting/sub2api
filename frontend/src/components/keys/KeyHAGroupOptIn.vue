@@ -29,6 +29,11 @@
           <p v-if="!candidate.scope_compatible" class="text-xs text-amber-600" data-test="ha-scope-mismatch">
             {{ t('keys.ha.scopeMismatch') }}
           </p>
+          <!-- FE-02: never offer an opt-in the server would reject. A group the user
+               cannot yet access is shown as unavailable rather than enableable. -->
+          <p v-else-if="!candidate.access_granted" class="text-xs text-amber-600" data-test="ha-access-required">
+            {{ t('keys.ha.accessRequired') }}
+          </p>
         </div>
         <button
           type="button"
@@ -36,7 +41,7 @@
           :class="candidate.enabled
             ? 'bg-primary-600 text-white hover:bg-primary-700'
             : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-dark-600 dark:text-gray-200 dark:hover:bg-dark-700'"
-          :disabled="disabled || pending === candidate.group_id || !candidate.scope_compatible"
+          :disabled="disabled || pending === candidate.group_id || !candidate.scope_compatible || !candidate.access_granted"
           :data-test="`ha-toggle-${candidate.group_id}`"
           @click="toggle(candidate)"
         >

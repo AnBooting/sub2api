@@ -30,6 +30,7 @@ const candidate = (overrides: Record<string, unknown> = {}) => ({
   rate_multiplier: 2.5,
   enabled: false,
   scope_compatible: true,
+  access_granted: true,
   ...overrides
 })
 
@@ -123,3 +124,15 @@ describe('KeyHAGroupOptIn', () => {
     expect(wrapper.find('[data-test="ha-empty"]').exists()).toBe(true)
   })
 })
+
+  it('does not offer an opt-in the server would reject (FE-02)', async () => {
+    // A group the user cannot access must be shown as unavailable and not enableable,
+    // rather than advertising an opt-in the write path refuses.
+    listKeyHAGroups.mockResolvedValue([candidate({ access_granted: false })])
+    const wrapper = mountOptIn()
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="ha-access-required"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="ha-toggle-9"]').attributes('disabled')).toBeDefined()
+  })
+

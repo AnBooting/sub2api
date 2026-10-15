@@ -158,6 +158,13 @@ export interface KeyHAGroupCandidate {
   enabled: boolean
   enabled_by_user_at?: string
   scope_compatible: boolean
+  /**
+   * Whether the user currently holds the access this group needs to actually serve
+   * (an exclusive group needs an explicit grant; a public group needs none). The
+   * server enforces the same condition on write, so this mirrors what will really
+   * happen rather than advertising an opt-in the server would reject (PRD-04 FE-02).
+   */
+  access_granted: boolean
 }
 
 /**

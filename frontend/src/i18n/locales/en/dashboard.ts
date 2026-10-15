@@ -89,7 +89,8 @@ export default {
       "empty": "No fallback groups are configured by the administrator yet",
       "enable": "Enable fallback",
       "enabled": "Enabled",
-      "scopeMismatch": "This group's model scope does not match this key, so it cannot be enabled"
+      "scopeMismatch": "This group's model scope does not match this key, so it cannot be enabled",
+      "accessRequired": "This is an exclusive group; you need an access grant before you can enable it as a fallback"
     },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',

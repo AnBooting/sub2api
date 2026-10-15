@@ -251,6 +251,29 @@ func (s *APIKeyService) SetAPIKeyHAGroupEnabled(ctx context.Context, userID, key
 		if !haGroupScopeCompatible(group, key) {
 			return infraerrors.Forbidden("HA_GROUP_MODEL_SCOPE_MISMATCH", "group cannot serve the model scope of this api key")
 		}
+		// ④ FE-02：开启前确认该组在执行期真的能服务，否则界面会显示一个执行必拒的
+		// 「已开启」。执行期对非订阅专属组要求 CanBindGroup，这里复用同一判定源。
+		// 订阅型组的授权由订阅关系承担，写入时无法静态确认，仍由执行期校验。
+		// 放在归属校验之后，避免用「用户是否存在」这类信息替代 403。
+		// 只有**专属**非订阅组才需要用户授权：公共组 CanBindGroup 恒为 true（K-3 保证
+		// 兜底不依赖普通分组访问权限），订阅组的授权由订阅关系承担。因此仅在真正需要
+		// 判定访问时读用户，避免给公共组路径引入无谓的依赖与失败面。
+		if enable && !group.IsSubscriptionType() && group.IsExclusive {
+			if s.userRepo == nil {
+				return ErrBillingServiceUnavailable
+			}
+			enablementUser, err := s.userRepo.GetByID(txCtx, userID)
+			if err != nil {
+				return fmt.Errorf("get ha enablement user: %w", err)
+			}
+			if enablementUser == nil || enablementUser.ID != userID {
+				return ErrUserNotFound
+			}
+			if !haGroupAccessSatisfied(enablementUser, group) {
+				return infraerrors.Forbidden("HA_GROUP_ACCESS_REQUIRED",
+					"this fallback group requires an explicit grant before it can serve")
+			}
+		}
 		resolved, err := ApplyUserHAEnablement(key.Groups, groupID, enable, time.Now())
 		if err != nil {
 			return err
@@ -297,6 +320,12 @@ type HAGroupCandidate struct {
 	// the key. An incompatible candidate is still listed (so the user sees why it is
 	// unavailable) but cannot be enabled; the write path re-checks it.
 	ScopeCompatible bool `json:"scope_compatible"`
+	// AccessGranted reports whether the user currently holds the access this group
+	// needs to actually serve (an exclusive group needs an explicit grant; a public
+	// group needs none). The write path enforces the same condition, so a candidate
+	// shown as enableable can really serve — PRD-04 FE-02 forbids showing a
+	// misleading "enabled" state.
+	AccessGranted bool `json:"access_granted"`
 }
 
 // ListAPIKeyHAGroupCandidates returns the HA fallback groups the user may opt this
@@ -336,6 +365,17 @@ func (s *APIKeyService) ListAPIKeyHAGroupCandidates(ctx context.Context, userID,
 		consent[link.GroupID] = link.EnabledByUserAt
 	}
 
+	// FE-02：候选列表必须如实反映「能否真的服务」，否则界面会显示一个执行必拒的
+	// 可开启项。访问前置条件与写入路径、执行路径共用同一判定源。
+	// 仅在存在专属候选时才需要读用户：公共组与订阅组都不依赖 AllowedGroups。
+	var listUser *User
+	if s.userRepo != nil {
+		listUser, err = s.userRepo.GetByID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("load user for ha candidates: %w", err)
+		}
+	}
+
 	groups, err := s.groupRepo.ListActive(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("list active groups for ha candidates: %w", err)
@@ -354,6 +394,7 @@ func (s *APIKeyService) ListAPIKeyHAGroupCandidates(ctx context.Context, userID,
 			EnabledByUserAt: consent[group.ID],
 			Enabled:         consent[group.ID] != nil,
 			ScopeCompatible: haGroupScopeCompatible(&group, key),
+			AccessGranted:   haGroupAccessSatisfied(listUser, &group),
 		})
 	}
 	// Enabled first, then by id: the user's current choices stay at the top and the
@@ -365,5 +406,29 @@ func (s *APIKeyService) ListAPIKeyHAGroupCandidates(ctx context.Context, userID,
 		return out[i].GroupID < out[j].GroupID
 	})
 	return out, nil
+}
+
+
+// haGroupAccessSatisfied 报告用户当前是否满足「让该 HA 组实际服务」的访问前置条件。
+//
+// 为什么开启期必须复用执行期的判定（PRD-04 FE-02「无可用候选时不显示误导性的已启用
+// 状态」）：执行期 AuthorizeHAGroupExecution 对**非订阅专属组**要求 CanBindGroup 通过，
+// 而开启期原本不检查。于是用户可以开启一个执行时必被拒的兜底组，界面显示「已开启」，
+// 真到需要兜底时却拿不到服务——这正是 FE-02 禁止的误导状态。
+//
+// 注意这不违反 K-3/BE-02「兜底不依赖普通分组访问权限」：公共组（非专属）
+// CanBindGroup 恒为 true，仍然无需任何预授权；只有**专属组**才要求显式授权，
+// 与执行期完全一致。订阅型组的授权由订阅关系承担，这里不重复判定。
+func haGroupAccessSatisfied(user *User, group *Group) bool {
+	if group == nil {
+		return false
+	}
+	if group.IsSubscriptionType() {
+		return true
+	}
+	if user == nil {
+		return false
+	}
+	return user.CanBindGroup(group.ID, group.IsExclusive)
 }
 

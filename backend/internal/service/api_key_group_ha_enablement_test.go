@@ -66,8 +66,22 @@ func (s *haChainRepoStub) ListKeysByGroupID(context.Context, int64) ([]string, e
 func newHAEnablementService(t *testing.T, key *APIKey, group *Group) (*APIKeyService, *haChainRepoStub) {
 	t.Helper()
 	repo := &haChainRepoStub{key: key}
-	svc := NewAPIKeyService(repo, nil, &haGroupRepoStub{group: group}, nil, nil, nil, nil)
+	svc := NewAPIKeyService(repo, &haUserRepoStub{user: &User{ID: key.UserID, Status: StatusActive}}, &haGroupRepoStub{group: group}, nil, nil, nil, nil)
 	return svc, repo
+}
+
+// haUserRepoStub 只提供 GetByID：开启期需要读用户来判断专属组访问前置条件。
+type haUserRepoStub struct {
+	UserRepository
+	user *User
+}
+
+func (s *haUserRepoStub) GetByID(context.Context, int64) (*User, error) {
+	if s.user == nil {
+		return nil, nil
+	}
+	clone := *s.user
+	return &clone, nil
 }
 
 type haGroupRepoStub struct {
@@ -399,5 +413,81 @@ func TestListAPIKeyHAGroupCandidatesFlagsScopeMismatch(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, candidates, 1, "an incompatible candidate is still listed")
 	require.False(t, candidates[0].ScopeCompatible)
+}
+
+
+// ④ FE-02：专属 HA 组在用户没有访问授权时不得被开启。
+//
+// 执行期 AuthorizeHAGroupExecution 对非订阅专属组要求 CanBindGroup 通过；开启期原本
+// 不检查，于是用户可以开启一个执行时必被拒的兜底组，界面显示「已开启」却在真正需要
+// 兜底时拿不到服务——PRD-04 FE-02 明确禁止这种误导状态。
+//
+// 注意这**不**违反 K-3/BE-02「兜底不依赖普通分组访问权限」：公共组 CanBindGroup 恒为
+// true，仍然无需任何预授权；只有专属组要求显式授权，与执行期一致。
+func TestSetAPIKeyHAGroupRequiresAccessForExclusiveGroup(t *testing.T) {
+	key := haTestKey(7, APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0})
+
+	// 专属组 + 用户没有该组授权 → 拒绝，且不落库。
+	exclusive := haTestGroup(9, true)
+	exclusive.IsExclusive = true
+	svc, repo := newHAEnablementService(t, key, exclusive)
+	_, err := svc.SetAPIKeyHAGroupEnabled(context.Background(), 7, 1, 9, true)
+	require.Error(t, err)
+	require.Zero(t, repo.updateCalls, "an inaccessible exclusive group must not be written")
+	require.False(t, haLinkPresent(repo.key.Groups, 9))
+
+	// 同一专属组，用户已有授权 → 允许开启（与执行期同判定）。
+	grantedKey := haTestKey(7, APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0})
+	grantedKey.User = &User{ID: 7, Status: StatusActive, AllowedGroups: []int64{9}}
+	svc2 := NewAPIKeyService(&haChainRepoStub{key: grantedKey},
+		&haUserRepoStub{user: &User{ID: 7, Status: StatusActive, AllowedGroups: []int64{9}}},
+		&haGroupRepoStub{group: exclusive}, nil, nil, nil, nil)
+	result, err := svc2.SetAPIKeyHAGroupEnabled(context.Background(), 7, 1, 9, true)
+	require.NoError(t, err)
+	require.True(t, result.Enabled)
+
+	// 公共（非专属）组不受影响：K-3 保证无需任何预授权。
+	public := haTestGroup(10, true)
+	svc3, repo3 := newHAEnablementService(t, haTestKey(7, APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0}), public)
+	_, err = svc3.SetAPIKeyHAGroupEnabled(context.Background(), 7, 1, 10, true)
+	require.NoError(t, err, "a public fallback group must need no prior access")
+	require.NotZero(t, repo3.updateCalls)
+}
+
+// 关闭动作不需要访问前置条件：关闭是撤销，不是授予。
+func TestSetAPIKeyHAGroupDisableNeedsNoAccess(t *testing.T) {
+	at := time.Date(2026, 10, 10, 1, 0, 0, 0, time.UTC)
+	key := haTestKey(7,
+		APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0},
+		APIKeyGroupLink{GroupID: 9, Role: APIKeyGroupRoleHA, Position: 0, EnabledByUserAt: &at},
+	)
+	exclusive := haTestGroup(9, true)
+	exclusive.IsExclusive = true
+	svc, repo := newHAEnablementService(t, key, exclusive)
+
+	_, err := svc.SetAPIKeyHAGroupEnabled(context.Background(), 7, 1, 9, false)
+	require.NoError(t, err, "disabling must not require the access it is removing")
+	require.NotZero(t, repo.updateCalls)
+}
+
+// 候选列表必须如实报告访问前置条件，界面据此禁用按钮（FE-02）。
+func TestListAPIKeyHAGroupCandidatesReportsAccess(t *testing.T) {
+	key := haTestKey(7, APIKeyGroupLink{GroupID: 1, Role: APIKeyGroupRoleNormal, Position: 0})
+	exclusive := haTestGroup(9, true)
+	exclusive.IsExclusive = true
+	public := haTestGroup(10, true)
+
+	svc := NewAPIKeyService(&haChainRepoStub{key: key},
+		&haUserRepoStub{user: &User{ID: 7, Status: StatusActive}},
+		&haGroupRepoStub{groups: []Group{*exclusive, *public}}, nil, nil, nil, nil)
+
+	got, err := svc.ListAPIKeyHAGroupCandidates(context.Background(), 7, 1)
+	require.NoError(t, err)
+	byID := map[int64]HAGroupCandidate{}
+	for _, c := range got {
+		byID[c.GroupID] = c
+	}
+	require.False(t, byID[9].AccessGranted, "an exclusive group without a grant is not accessible")
+	require.True(t, byID[10].AccessGranted, "a public group needs no grant")
 }
 
