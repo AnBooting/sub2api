@@ -362,7 +362,7 @@ func (s *PricingService) syncNativeCNY(force bool) error {
 	s.mu.RLock()
 	last := s.nativeCNYUpdated
 	s.mu.RUnlock()
-	interval := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	interval := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 	if interval < time.Hour {
 		interval = 24 * time.Hour
 	}

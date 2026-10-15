@@ -201,3 +201,36 @@ describe('DeepSeek calendar editor', () => {
     expect(api.update).not.toHaveBeenCalled()
   })
 })
+
+describe('pricing sync interval (PRD-01/K-6)', () => {
+  it('saves the administrator-configured period and reports the effective value', async () => {
+    api.get.mockResolvedValue({ ...initial, update_interval_hours: 0, effective_interval_hours: 24 })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    // No stored override yet: the panel still renders the effective-period line
+    // (this suite stubs t() to echo keys, so assert the key rather than the number).
+    expect(wrapper.get('[data-testid="sync-interval-effective"]').text()).toContain('admin.settings.pricing.syncIntervalEffective')
+    await wrapper.get('[data-testid="sync-interval-input"]').setValue(6)
+    await wrapper.get('[data-testid="sync-interval-save"]').trigger('click'); await flushPromises()
+    expect(api.update).toHaveBeenCalledWith({ remote_enabled: true, native_cny_enabled: false, update_interval_hours: 6 })
+  })
+
+  it('refuses an out-of-range period before calling the API', async () => {
+    api.get.mockResolvedValue({ ...initial, update_interval_hours: 24, effective_interval_hours: 24 })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    await wrapper.get('[data-testid="sync-interval-input"]').setValue(0)
+    await wrapper.get('[data-testid="sync-interval-save"]').trigger('click'); await flushPromises()
+    expect(api.update).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-testid="sync-interval-error"]').exists()).toBe(true)
+  })
+
+  it('does not let a polling refresh overwrite an unsaved period draft', async () => {
+    vi.useFakeTimers()
+    api.get.mockResolvedValue({ ...initial, update_interval_hours: 12, effective_interval_hours: 12 })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    await wrapper.get('[data-testid="sync-interval-input"]').setValue(3)
+    // A poll returns the old stored value; the draft must survive it.
+    await vi.advanceTimersByTimeAsync(60000); await flushPromises()
+    expect((wrapper.get('[data-testid="sync-interval-input"]').element as HTMLInputElement).value).toBe('3')
+  })
+})
+

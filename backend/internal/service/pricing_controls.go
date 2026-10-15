@@ -16,6 +16,12 @@ type PricingControls struct {
 	RemoteEnabled    bool                `json:"remote_enabled"`
 	NativeCNYEnabled bool                `json:"native_cny_enabled"`
 	DeepSeekHolidays map[string][]string `json:"deepseek_holidays"`
+
+	// UpdateIntervalHours 是管理员可配的定价同步周期（小时），PRD-01/K-6。
+	// 0 表示「未覆盖」，此时回落到配置文件 pricing.update_interval_hours。
+	// 指针语义在这里不合适：0 与「显式设为 0」都不合法，用 0 表示未设置即可，
+	// 校验层会拒绝任何非正值。
+	UpdateIntervalHours int `json:"update_interval_hours,omitempty"`
 }
 
 func (s *PricingService) controlsLocked() PricingControls {
@@ -64,6 +70,10 @@ func (s *PricingService) GetPricingControlStatus() map[string]any {
 	defer s.mu.RUnlock()
 	return map[string]any{
 		"remote_enabled": controls.RemoteEnabled, "native_cny_enabled": controls.NativeCNYEnabled,
+		// PRD-01/K-6: the admin page must show the period that is actually in
+		// effect, not just the stored override (0 means "using the config default").
+		"update_interval_hours":          controls.UpdateIntervalHours,
+		"effective_interval_hours":       s.PricingSyncIntervalHours(),
 		"deepseek_holidays":              controls.DeepSeekHolidays,
 		"deepseek_calendar_year_missing": chooseDeepSeekPricingPeriod(time.Now(), controls.DeepSeekHolidays).CalendarYearMissing,
 		"usd_model_count":                len(s.pricingData), "usd_last_updated": s.lastUpdated,
@@ -103,20 +113,79 @@ func (s *PricingService) loadControls(ctx context.Context) error {
 	return nil
 }
 
+// PricingSyncIntervalHoursBounds are the accepted administrator-configured
+// pricing sync periods, in hours. The lower bound keeps a mis-typed value from
+// turning the sync loop into a hot loop against the upstream price sources; the
+// upper bound keeps the setting meaningful (a longer period is "disable", which
+// already exists as a separate switch).
+const (
+	PricingSyncIntervalMinHours = 1
+	PricingSyncIntervalMaxHours = 24 * 30
+)
+
+// ErrInvalidPricingSyncInterval reports an out-of-range sync period.
+var ErrInvalidPricingSyncInterval = errors.New("pricing sync interval is out of range")
+
+// ValidatePricingSyncIntervalHours accepts 0 as "not overridden" and otherwise
+// requires a value inside the documented bounds.
+func ValidatePricingSyncIntervalHours(hours int) error {
+	if hours == 0 {
+		return nil
+	}
+	if hours < PricingSyncIntervalMinHours || hours > PricingSyncIntervalMaxHours {
+		return ErrInvalidPricingSyncInterval
+	}
+	return nil
+}
+
+// PricingSyncIntervalHours resolves the effective pricing sync period:
+// administrator setting first, configuration file as the default.
+//
+// PRD-01/K-6 requires the period to be operator-configurable from the admin page
+// rather than only from the config file. Every consumer must go through this
+// resolver so the three read sites cannot drift apart.
+func (s *PricingService) PricingSyncIntervalHours() int {
+	if s == nil {
+		return 0
+	}
+	if override := s.GetControls().UpdateIntervalHours; override > 0 {
+		return override
+	}
+	if s.cfg != nil && s.cfg.Pricing.UpdateIntervalHours > 0 {
+		return s.cfg.Pricing.UpdateIntervalHours
+	}
+	return 0
+}
+
 func (s *PricingService) UpdateControls(ctx context.Context, controls PricingControls) error {
 	if err := validateDeepSeekHolidays(controls.DeepSeekHolidays); err != nil {
+		return err
+	}
+	if err := ValidatePricingSyncIntervalHours(controls.UpdateIntervalHours); err != nil {
 		return err
 	}
 	if controls.DeepSeekHolidays != nil {
 		controls.DeepSeekHolidays = cloneDeepSeekHolidays(controls.DeepSeekHolidays)
 	}
 	s.controlsMu.Lock()
-	defer s.controlsMu.Unlock()
+	// The lock is released explicitly below so the reschedule notification runs
+	// outside it (the scheduler goroutine reads controls while rescheduling).
+	locked := true
+	defer func() {
+		if locked {
+			s.controlsMu.Unlock()
+		}
+	}()
 	// nil means the caller omitted the calendar. Preserve the latest version
 	// inside the same serialized write that persists switches and publishes memory.
 	// A non-nil empty map is an explicit clear. Never merge a handler snapshot.
 	if controls.DeepSeekHolidays == nil {
 		controls.DeepSeekHolidays = s.controlsLocked().DeepSeekHolidays
+	}
+	// 0 means the caller omitted the interval; preserve the stored override so a
+	// switch-only update cannot silently drop the administrator's period.
+	if controls.UpdateIntervalHours == 0 {
+		controls.UpdateIntervalHours = s.controlsLocked().UpdateIntervalHours
 	}
 	if s.settingsRepo != nil {
 		body, err := json.Marshal(controls)
@@ -127,11 +196,19 @@ func (s *PricingService) UpdateControls(ctx context.Context, controls PricingCon
 			return err
 		}
 	}
+	intervalChanged := s.controlsLocked().UpdateIntervalHours != controls.UpdateIntervalHours
 	s.remoteGeneration++
 	for _, cancel := range s.remoteCancels {
 		cancel()
 	}
 	s.controls = &controls
+	s.controlsMu.Unlock()
+	locked = false
+	// Hot update (PRD-01/K-6): rearm the sync timer so the new period applies at the
+	// next boundary rather than after the previously scheduled period elapses.
+	if intervalChanged {
+		s.notifySyncIntervalChanged()
+	}
 	return nil
 }
 

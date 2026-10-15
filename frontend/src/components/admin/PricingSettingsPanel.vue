@@ -21,6 +21,36 @@
           </span>
           <input type="checkbox" :checked="status.remote_enabled" :disabled="saving" data-testid="remote-pull-toggle" @change="save({ remote_enabled: ($event.target as HTMLInputElement).checked })" />
         </label>
+        <label class="flex items-start justify-between gap-4">
+          <span>
+            <span class="block font-medium">{{ t('admin.settings.pricing.syncInterval') }}</span>
+            <span class="mt-1 block text-xs text-gray-500">{{ t('admin.settings.pricing.syncIntervalHint', { min: 1, max: 720 }) }}</span>
+            <span class="mt-1 block text-xs text-gray-500" data-testid="sync-interval-effective">{{ t('admin.settings.pricing.syncIntervalEffective', { hours: status.effective_interval_hours ?? status.update_interval_hours ?? 0 }) }}</span>
+          </span>
+          <span class="flex items-center gap-2">
+            <input
+              v-model.number="intervalDraft"
+              type="number"
+              min="1"
+              max="720"
+              step="1"
+              class="input w-24"
+              :disabled="saving"
+              :aria-invalid="Boolean(intervalError)"
+              data-testid="sync-interval-input"
+            />
+            <button
+              type="button"
+              class="btn btn-secondary"
+              :disabled="saving || !intervalDirty || Boolean(intervalError)"
+              data-testid="sync-interval-save"
+              @click="saveInterval"
+            >
+              {{ t('admin.settings.pricing.syncIntervalSave') }}
+            </button>
+          </span>
+        </label>
+        <p v-if="intervalError" role="alert" class="text-sm text-red-600" data-testid="sync-interval-error">{{ intervalError }}</p>
         <p v-if="!status.remote_enabled" class="rounded bg-gray-100 p-3 text-sm dark:bg-dark-700">{{ t('admin.settings.pricing.offline') }}</p>
         <div class="grid gap-3 text-sm sm:grid-cols-2">
           <div>USD: {{ status.usd_model_count }} · {{ timestamp(status.usd_last_updated) }}</div>
@@ -76,6 +106,12 @@ const loading = ref(true)
 const error = ref('')
 const calendarDraft = ref('')
 const savedCalendarText = ref('')
+// PRD-01/K-6: the sync period is a stored override. The draft starts from the
+// stored value (0 = "using the config default") and only a dirty draft can be saved,
+// so a stray click cannot rewrite the period.
+const intervalDraft = ref(0)
+const intervalError = ref('')
+const intervalDirty = computed(() => intervalDraft.value !== (status.value?.update_interval_hours ?? 0))
 const calendarError = ref('')
 const calendarDirty = computed(() => calendarDraft.value !== savedCalendarText.value)
 const calendarSupported = computed(() => status.value?.deepseek_holidays !== undefined && typeof status.value?.deepseek_calendar_year_missing === 'boolean' && validateDeepSeekCalendar(status.value.deepseek_holidays).ok)
@@ -86,7 +122,9 @@ const message = (err: unknown) => (err as { response?: { data?: { message?: stri
 
 function applyStatus(next: PricingStatus, replaceDraft = false) {
   const keepDraft = calendarDirty.value && !replaceDraft
+  const keepIntervalDraft = intervalDirty.value && !replaceDraft
   status.value = next
+  if (!keepIntervalDraft) intervalDraft.value = next.update_interval_hours ?? 0
   if (next.deepseek_holidays !== undefined && validateDeepSeekCalendar(next.deepseek_holidays).ok) {
     const serialized = serializeDeepSeekCalendar(next.deepseek_holidays)
     savedCalendarText.value = serialized
@@ -94,6 +132,35 @@ function applyStatus(next: PricingStatus, replaceDraft = false) {
   }
 }
 function resetCalendarDraft() { calendarDraft.value = savedCalendarText.value; calendarError.value = '' }
+// Validate locally with the same bounds the backend enforces, so the user gets the
+// error before a round trip. 0 is never a valid period: omitting the field is how
+// "keep using the config default" is expressed.
+function validateInterval(value: number): string {
+  if (!Number.isInteger(value) || value < 1 || value > 720) return t('admin.settings.pricing.syncIntervalInvalid')
+  return ''
+}
+async function saveInterval() {
+  if (!status.value || saving.value) return
+  const invalid = validateInterval(intervalDraft.value)
+  if (invalid) { intervalError.value = invalid; return }
+  saving.value = true
+  revision++
+  error.value = ''
+  intervalError.value = ''
+  try {
+    const next = await updatePricingControls({
+      remote_enabled: status.value.remote_enabled,
+      native_cny_enabled: status.value.native_cny_enabled,
+      update_interval_hours: intervalDraft.value
+    })
+    if (disposed) return
+    applyStatus(next)
+    intervalDraft.value = next.update_interval_hours ?? intervalDraft.value
+    await app.fetchPublicSettings(true)
+    app.showSuccess(t('admin.settings.pricing.saved'))
+  } catch (err) { const detail = message(err); await load(); intervalError.value = detail }
+  finally { saving.value = false }
+}
 async function load() {
   const expected = revision
   loading.value = true

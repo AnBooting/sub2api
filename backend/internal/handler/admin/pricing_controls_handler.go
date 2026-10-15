@@ -20,12 +20,23 @@ func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 		RemoteEnabled    *bool           `json:"remote_enabled" binding:"required"`
 		NativeCNYEnabled *bool           `json:"native_cny_enabled" binding:"required"`
 		DeepSeekHolidays json.RawMessage `json:"deepseek_holidays"`
+		// PRD-01/K-6: the admin page may change the pricing sync period. Omitted
+		// (nil) preserves the stored override; 0 is rejected because "use the config
+		// default" is expressed by omitting the field, and a real period is >= 1h.
+		UpdateIntervalHours *int `json:"update_interval_hours"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "both pricing switches are required")
 		return
 	}
 	controls := service.PricingControls{RemoteEnabled: *req.RemoteEnabled, NativeCNYEnabled: *req.NativeCNYEnabled}
+	if req.UpdateIntervalHours != nil {
+		if *req.UpdateIntervalHours == 0 {
+			response.BadRequest(c, "update_interval_hours must be positive; omit it to keep the current value")
+			return
+		}
+		controls.UpdateIntervalHours = *req.UpdateIntervalHours
+	}
 	if len(req.DeepSeekHolidays) > 0 {
 		if bytes.Equal(bytes.TrimSpace(req.DeepSeekHolidays), []byte("null")) {
 			response.BadRequest(c, "deepseek_holidays must be an object, not null")
@@ -42,6 +53,10 @@ func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 	if err := h.pricingService.UpdateControls(c.Request.Context(), controls); err != nil {
 		if errors.Is(err, service.ErrInvalidDeepSeekHolidays) {
 			response.BadRequest(c, err.Error())
+			return
+		}
+		if errors.Is(err, service.ErrInvalidPricingSyncInterval) {
+			response.BadRequest(c, "update_interval_hours must be between 1 and 720")
 			return
 		}
 		response.Error(c, http.StatusInternalServerError, err.Error())

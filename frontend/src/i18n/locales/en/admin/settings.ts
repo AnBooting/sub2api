@@ -30,6 +30,7 @@ export default {
 	    title: 'Model pricing and credits', description: 'Choose native CNY prices and control all remote pricing requests. Changes take effect immediately.',
 	    nativeCNY: 'Use native CNY model prices', nativeCNYHint: 'Chinese models use original CNY lists; Claude/GPT keep USD lists. ¥1 and $1 each consume 1 credit, with no FX conversion; recharge credits use a ratio of 1. Missing CNY prices require manual pricing.',
 	    remote: 'Allow remote pricing requests', remoteHint: 'Turning this off stops startup checks, scheduled sync, remote hash checks and manual refresh. Cached and manual prices remain available.',
+    syncInterval: 'Pricing sync period (hours)', syncIntervalHint: 'Enter {min}–{max} hours. Saving rearms the timer immediately, so the next boundary uses the new period without a restart. Leave empty to keep the config-file default.', syncIntervalEffective: 'Effective period: {hours} hours', syncIntervalSave: 'Save period', syncIntervalInvalid: 'Enter a whole number of hours between 1 and 720.',
 	    offline: 'Remote pricing is off. Local prices are in use.', noCNY: 'No CNY price cache yet. Enable requests to sync, or configure manual prices with an explicit currency.',
 	    sources: 'Pricing data:', refresh: 'Sync prices now', retry: 'Retry', never: 'Not synced', failed: 'Pricing request failed', saved: 'Pricing settings saved',
 	  },

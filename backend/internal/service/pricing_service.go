@@ -287,6 +287,10 @@ type PricingService struct {
 	// 停止信号
 	stopCh chan struct{}
 	wg     sync.WaitGroup
+
+	// rescheduleCh 让管理员改动同步周期后立即重排定时器（PRD-01/K-6 热更新），
+	// 而不必等到下一个旧周期。缓冲 1 + 非阻塞发送：多次连续改动只合并成一次重排。
+	rescheduleCh chan struct{}
 }
 
 // NewPricingService 创建价格服务
@@ -296,6 +300,7 @@ func NewPricingService(cfg *config.Config, remoteClient PricingRemoteClient) *Pr
 		remoteClient: remoteClient,
 		pricingData:  make(map[string]*LiteLLMModelPricing),
 		stopCh:       make(chan struct{}),
+		rescheduleCh: make(chan struct{}, 1),
 	}
 	return s
 }
@@ -341,6 +346,29 @@ func (s *PricingService) Stop() {
 	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
 }
 
+// schedulerInterval resolves the ticker period. PRD-01/K-6 makes the sync period
+// administrator-configurable, so the effective value wins over the config file;
+// hashInterval is the configuration-derived fallback (already clamped by the caller).
+func (s *PricingService) schedulerInterval(fallback time.Duration) time.Duration {
+	if hours := s.PricingSyncIntervalHours(); hours > 0 {
+		return time.Duration(hours) * time.Hour
+	}
+	return fallback
+}
+
+// notifySyncIntervalChanged asks the scheduler to rebuild its ticker after the
+// administrator changed the pricing sync period. Non-blocking: a full buffer means a
+// reschedule is already pending, which is equivalent to this request.
+func (s *PricingService) notifySyncIntervalChanged() {
+	if s == nil || s.rescheduleCh == nil {
+		return
+	}
+	select {
+	case s.rescheduleCh <- struct{}{}:
+	default:
+	}
+}
+
 // startUpdateScheduler 启动定时调度器：每个周期先做远程目录哈希同步（配置了 remote_url 时），
 // 再比对 fallback/override 文件指纹做本地热重载（配置了任一文件时）。两者都未配置则不启动。
 func (s *PricingService) startUpdateScheduler() {
@@ -364,11 +392,18 @@ func (s *PricingService) startUpdateScheduler() {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		ticker := time.NewTicker(hashInterval)
+		// The ticker is rebuilt whenever the effective sync period changes, so an
+		// administrator edit takes effect on the next boundary instead of after the
+		// previously scheduled period elapses.
+		ticker := time.NewTicker(s.schedulerInterval(hashInterval))
 		defer ticker.Stop()
 
 		for {
 			select {
+			case <-s.rescheduleCh:
+				ticker.Stop()
+				ticker = time.NewTicker(s.schedulerInterval(hashInterval))
+				logger.LegacyPrintf("service.pricing", "[Pricing] Update scheduler rescheduled (check every %v)", s.schedulerInterval(hashInterval))
 			case <-ticker.C:
 				if s.RemotePullEnabled() && remoteEnabled {
 					if err := s.syncWithRemote(); err != nil {
@@ -443,7 +478,7 @@ func (s *PricingService) checkAndUpdatePricing() error {
 	}
 
 	fileAge := time.Since(info.ModTime())
-	maxAge := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	maxAge := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 
 	if fileAge > maxAge {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Local file is %v old, updating...", fileAge.Round(time.Hour))
@@ -489,7 +524,7 @@ func (s *PricingService) syncWithRemote() error {
 	}
 
 	fileAge := time.Since(info.ModTime())
-	maxAge := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	maxAge := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 
 	if fileAge > maxAge {
 		logger.LegacyPrintf("service.pricing", "[Pricing] File is %v old, downloading...", fileAge.Round(time.Hour))
