@@ -779,9 +779,11 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			switchCount++
 		}
 		pendingSwitchPermit = false
-		// retryable: crossing into the HA phase requires a site-side recoverable
-		// failure class (PRD-04); a client error must never open the fallback.
-		nextID, nextIsHA, hasNext := groupPlan.peek(lastFailoverErr == nil || lastFailoverErr.ShouldRetryNextAccount())
+		// retryable=true: the guard above already returned when lastFailoverErr is
+		// non-nil and not retryable, so reaching here means either there is no prior
+		// failure or it is recoverable. Passing the condition again would be a
+		// tautology that hides which guard actually enforces the PRD-04 rule.
+		nextID, nextIsHA, hasNext := groupPlan.peek(true)
 		if !hasNext {
 			return normalGroupUnavailable
 		}
@@ -1109,13 +1111,14 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			var routingUsage *service.RoutingUsageMetadata
 			if requestBilling != nil {
 				if requested := requestBilling.RequestedGroupID(); requested != nil && *requested > 0 && derefGroupID(apiKey.GroupID) > 0 {
-					kind := service.RoutingFailoverNone
-					if *requested != derefGroupID(apiKey.GroupID) {
-						kind = service.RoutingFailoverGroup
-					} else if sentDifferentAccount {
-						kind = service.RoutingFailoverAccount
+					routingUsage = &service.RoutingUsageMetadata{
+						RequestedGroupID: *requested,
+						ServedGroupID:    derefGroupID(apiKey.GroupID),
+						// C-6/PRD-04 BE-05: the shared classifier, so an HA-served
+						// request is recorded as failover=ha. This entry reaches HA now.
+						Failover:     classifyGroupFailover(*requested, derefGroupID(apiKey.GroupID), requestBilling.HAGroupIDs(), sentDifferentAccount),
+						AttemptCount: requestBudget.Used(),
 					}
-					routingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: derefGroupID(apiKey.GroupID), Failover: kind, AttemptCount: requestBudget.Used()}
 				}
 			}
 			h.submitOpenAIUsageRecordTask(c.Request.Context(), res, func(ctx context.Context) {
@@ -2616,15 +2619,18 @@ func (e openAIWSTurnExecution) snapshotUsage(result *service.OpenAIForwardResult
 	if b != nil && e.key != nil && e.key.GroupID != nil {
 		requested := b.RequestedGroupID()
 		if requested != nil && *requested > 0 && *e.key.GroupID > 0 {
-			kind := service.RoutingFailoverNone
-			if *requested != *e.key.GroupID {
-				kind = service.RoutingFailoverGroup
-			}
 			used := 0
 			if budget := service.RequestAttemptBudgetFromContext(e.ctx); budget != nil {
 				used = budget.Used()
 			}
-			input.RoutingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: *e.key.GroupID, Failover: kind, AttemptCount: used}
+			// C-6/PRD-04 BE-05: attribute through the shared classifier so an
+			// HA-served request is recorded as failover=ha rather than a group switch.
+			input.RoutingUsage = &service.RoutingUsageMetadata{
+				RequestedGroupID: *requested,
+				ServedGroupID:    *e.key.GroupID,
+				Failover:         classifyGroupFailover(*requested, *e.key.GroupID, b.HAGroupIDs(), false),
+				AttemptCount:     used,
+			}
 		}
 	}
 	return input

@@ -252,9 +252,11 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			switchCount++
 		}
 		pendingSwitchPermit = false
-		// retryable: crossing into the HA phase requires a site-side recoverable
-		// failure class (PRD-04); a client error must never open the fallback.
-		nextID, nextIsHA, hasNext := groupPlan.peek(lastFailoverErr == nil || lastFailoverErr.ShouldRetryNextAccount())
+		// retryable=true: the guard above already returned when lastFailoverErr is
+		// non-nil and not retryable, so reaching here means either there is no prior
+		// failure or it is recoverable. Passing the condition again would be a
+		// tautology that hides which guard actually enforces the PRD-04 rule.
+		nextID, nextIsHA, hasNext := groupPlan.peek(true)
 		if !hasNext {
 			return normalGroupUnavailable
 		}
@@ -509,13 +511,15 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			var routingUsage *service.RoutingUsageMetadata
 			if requestBilling != nil {
 				if requested := requestBilling.RequestedGroupID(); requested != nil && *requested > 0 && derefGroupID(apiKey.GroupID) > 0 {
-					kind := service.RoutingFailoverNone
-					if *requested != derefGroupID(apiKey.GroupID) {
-						kind = service.RoutingFailoverGroup
-					} else if sentDifferentAccount {
-						kind = service.RoutingFailoverAccount
+					routingUsage = &service.RoutingUsageMetadata{
+						RequestedGroupID: *requested,
+						ServedGroupID:    derefGroupID(apiKey.GroupID),
+						// C-6/PRD-04 BE-05: use the shared classifier so an HA-served
+						// request is recorded as failover=ha rather than a plain group
+						// switch. This entry can now reach HA, so it must attribute it.
+						Failover:     classifyGroupFailover(*requested, derefGroupID(apiKey.GroupID), requestBilling.HAGroupIDs(), sentDifferentAccount),
+						AttemptCount: requestBudget.Used(),
 					}
-					routingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: derefGroupID(apiKey.GroupID), Failover: kind, AttemptCount: requestBudget.Used()}
 				}
 			}
 			h.submitOpenAIUsageRecordTask(c.Request.Context(), res, func(ctx context.Context) {

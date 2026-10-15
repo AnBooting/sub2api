@@ -365,21 +365,34 @@ func (s *APIKeyService) ListAPIKeyHAGroupCandidates(ctx context.Context, userID,
 		consent[link.GroupID] = link.EnabledByUserAt
 	}
 
+	groups, err := s.groupRepo.ListActive(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list active groups for ha candidates: %w", err)
+	}
+
 	// FE-02：候选列表必须如实反映「能否真的服务」，否则界面会显示一个执行必拒的
 	// 可开启项。访问前置条件与写入路径、执行路径共用同一判定源。
-	// 仅在存在专属候选时才需要读用户：公共组与订阅组都不依赖 AllowedGroups。
+	//
+	// 只有**专属非订阅**候选才依赖 AllowedGroups，所以先看一遍列表再决定是否读用户：
+	// 公共组与订阅组都豁免，无谓的 GetByID 会给整张列表多引入一个失败面。
 	var listUser *User
-	if s.userRepo != nil {
+	needsUser := false
+	for i := range groups {
+		if groups[i].AllowHighAvailability && !groups[i].IsSubscriptionType() && groups[i].IsExclusive {
+			needsUser = true
+			break
+		}
+	}
+	if needsUser {
+		if s.userRepo == nil {
+			return nil, ErrBillingServiceUnavailable
+		}
 		listUser, err = s.userRepo.GetByID(ctx, userID)
 		if err != nil {
 			return nil, fmt.Errorf("load user for ha candidates: %w", err)
 		}
 	}
 
-	groups, err := s.groupRepo.ListActive(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list active groups for ha candidates: %w", err)
-	}
 	out := make([]HAGroupCandidate, 0)
 	for i := range groups {
 		group := groups[i]
@@ -423,7 +436,10 @@ func haGroupAccessSatisfied(user *User, group *Group) bool {
 	if group == nil {
 		return false
 	}
-	if group.IsSubscriptionType() {
+	// 豁免必须先于 user==nil 判定：公共组的 CanBindGroup 恒为 true（K-3/BE-02 保证
+	// 兜底不依赖普通分组访问权限）。若先因 user 缺失返回 false，公共组会被误标为
+	// 「需要授权」，前端禁用开关——那正是 FE-02 要消除的误导态。
+	if group.IsSubscriptionType() || !group.IsExclusive {
 		return true
 	}
 	if user == nil {
