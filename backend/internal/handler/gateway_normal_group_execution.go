@@ -38,12 +38,34 @@ func newNormalGroupPlan(normalIDs, haIDs []int64) *normalGroupPlan {
 	return &normalGroupPlan{normalIDs: append([]int64(nil), normalIDs...), haIDs: append([]int64(nil), haIDs...)}
 }
 
-// active reports whether this request has any group boundary to cross at all.
+// active reports whether this request has a group boundary to cross at all.
+//
+// PRD-04 orders HA strictly after the normal chain, so a plan is only active when
+// there IS a normal chain to exhaust AND something to cross to. An HA-only chain is
+// deliberately inactive: there is no ordinary group to fail over from, and serving
+// HA directly would make a fallback behave like an ordinary group. Requiring a
+// normal candidate also keeps every caller's normalIDs[0] indexing safe.
 func (p *normalGroupPlan) active() bool {
 	if p == nil {
 		return false
 	}
+	if len(p.normalIDs) == 0 {
+		return false
+	}
 	return len(p.normalIDs)+len(p.haIDs) > 1
+}
+
+// first reports the starting candidate without consuming it, so the initial
+// authorization uses the same phase the plan will serve. A chain may legitimately
+// contain HA links and no normal links, so callers must not index normalIDs directly.
+func (p *normalGroupPlan) first() (int64, bool, bool) {
+	if p == nil || len(p.normalIDs)+len(p.haIDs) == 0 {
+		return 0, false, false
+	}
+	if len(p.normalIDs) > 0 {
+		return p.normalIDs[0], false, true
+	}
+	return p.haIDs[0], true, true
 }
 
 // current returns the serving group id and whether it is an HA candidate.
@@ -62,6 +84,12 @@ func (p *normalGroupPlan) current() (int64, bool) {
 // retryable must be true to cross from the normal chain into the HA phase.
 func (p *normalGroupPlan) peek(retryable bool) (int64, bool, bool) {
 	if p == nil {
+		return 0, false, false
+	}
+	// Mirror active(): an HA-only chain has no normal chain to exhaust, so it never
+	// yields a candidate. Keeping the two consistent means a caller that forgets the
+	// active() guard cannot accidentally serve a fallback as an ordinary group.
+	if len(p.normalIDs) == 0 {
 		return 0, false, false
 	}
 	next := p.index + 1
@@ -117,6 +145,17 @@ func (h *GatewayHandler) authorizeSharedTextGroup(c *gin.Context, original *serv
 
 func (h *GatewayHandler) authorizeSharedMessagesGroup(c *gin.Context, original *service.APIKey, groupID int64, normalIDs []int64, body []byte) (*service.APIKey, *service.UserSubscription, bool) {
 	return h.authorizeSharedTextGroupPolicy(c, original, groupID, normalIDs, body, false, true, h.errorResponse)
+}
+
+// authorizeSharedMessagesGroupCandidate routes to the normal or HA gate depending on
+// which phase of the frozen candidate plan this group came from. Every platform,
+// model-allowlist, Claude-Code and subscription policy check is shared, so an HA
+// fallback cannot bypass them.
+func (h *GatewayHandler) authorizeSharedMessagesGroupCandidate(c *gin.Context, original *service.APIKey, groupID int64, isHA bool, normalIDs, haIDs []int64, body []byte) (*service.APIKey, *service.UserSubscription, bool) {
+	if !isHA {
+		return h.authorizeSharedMessagesGroup(c, original, groupID, normalIDs, body)
+	}
+	return h.authorizeSharedTextGroupPolicyWith(c, original, groupID, normalIDs, haIDs, true, body, false, true, h.errorResponse)
 }
 
 func (h *GatewayHandler) authorizeSharedTextGroupPolicy(c *gin.Context, original *service.APIKey, groupID int64, normalIDs []int64, body []byte, chat, messages bool, writeError func(*gin.Context, int, string, string), nativeModel ...string) (*service.APIKey, *service.UserSubscription, bool) {

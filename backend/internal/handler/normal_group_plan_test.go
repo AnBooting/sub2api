@@ -74,4 +74,23 @@ func TestNormalGroupPlanHAOnlyFailsClosed(t *testing.T) {
 	require.False(t, p.active())
 	_, _, ok := p.peek(true)
 	require.False(t, ok, "an HA-only plan must not become a servable chain")
+
+	// Two or more HA links and no normal link is still HA-only. It must stay inactive
+	// so callers that start from the plan's first candidate never index an empty
+	// normal chain.
+	multi := newNormalGroupPlan(nil, []int64{30, 31})
+	require.False(t, multi.active(), "an HA-only plan stays inactive regardless of link count")
+	_, _, ok = multi.peek(true)
+	require.False(t, ok)
+
+	// first() is the safe starting accessor: it never indexes an empty normal chain.
+	id, isHA, ok := newNormalGroupPlan(nil, []int64{30, 31}).first()
+	require.True(t, ok)
+	require.Equal(t, int64(30), id)
+	require.True(t, isHA)
+
+	id, isHA, ok = newNormalGroupPlan([]int64{10}, []int64{30}).first()
+	require.True(t, ok)
+	require.Equal(t, int64(10), id)
+	require.False(t, isHA, "the normal chain always starts first")
 }

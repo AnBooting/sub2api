@@ -270,10 +270,17 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestBilling := service.GatewayRequestBillingFromContext(c.Request.Context())
 	var normalIDs []int64
+	var haIDs []int64
 	if lockedBilling.active {
 		normalIDs = requestBilling.NormalGroupIDs()
+		// PRD-04: HA candidates come from the same frozen bundle and are only
+		// reachable after every normal candidate is exhausted on a retryable error.
+		haIDs = requestBilling.HAGroupIDs()
 	}
-	groupChainActive := len(normalIDs) > 1
+	// The plan owns normal-then-HA ordering; both lists are frozen and never
+	// reordered here.
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
+	groupChainActive := groupPlan.active()
 	originalAPIKey := apiKey
 	groupIndex := 0
 	forcedPlatform, hasForcedPlatform := middleware2.GetForcePlatformFromContext(c)
@@ -282,7 +289,14 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		if geminiMessages {
 			apiKey, subscription, admitted = h.authorizeSharedTextGroupPolicy(c, originalAPIKey, derefGroupID(originalAPIKey.GroupID), normalIDs, body, false, true, h.errorResponse, reqModel)
 		} else {
-			apiKey, subscription, admitted = h.authorizeSharedMessagesGroup(c, originalAPIKey, normalIDs[0], normalIDs, body)
+			// Start from the plan's first candidate rather than normalIDs[0]: a chain
+			// may hold only HA links, and the phase must match what the plan serves.
+			startID, startIsHA, hasStart := groupPlan.first()
+			if !hasStart {
+				h.errorResponse(c, http.StatusServiceUnavailable, "no_available_group", "No group candidate available for this request")
+				return
+			}
+			apiKey, subscription, admitted = h.authorizeSharedMessagesGroupCandidate(c, originalAPIKey, startID, startIsHA, normalIDs, haIDs, body)
 		}
 		if !admitted {
 			return
@@ -442,7 +456,13 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 	sentDifferentAccount := false
 	semanticStart := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	advanceGroup := func() normalGroupAdvance {
-		if !groupChainActive || fallbackUsed || groupIndex+1 >= len(normalIDs) {
+		if !groupChainActive || fallbackUsed {
+			return normalGroupUnavailable
+		}
+		// PRD-04: crossing from the normal chain into HA requires a retryable
+		// (site-side recoverable) failure class. Normal advancement is unchanged.
+		nextID, nextIsHA, hasNext := groupPlan.peek(fs.LastFailoverErr == nil || fs.LastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
 			return normalGroupUnavailable
 		}
 		if failoverClientGone(c) {
@@ -454,7 +474,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		if fs.LastFailoverErr != nil && !fs.LastFailoverErr.ShouldRetryNextAccount() {
 			return normalGroupUnavailable
 		}
-		nextKey, nextSub, admitted := h.authorizeSharedMessagesGroup(c, originalAPIKey, normalIDs[groupIndex+1], normalIDs, body)
+		nextKey, nextSub, admitted := h.authorizeSharedMessagesGroupCandidate(c, originalAPIKey, nextID, nextIsHA, normalIDs, haIDs, body)
 		if !admitted {
 			return normalGroupTerminal
 		}
@@ -482,7 +502,7 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			fs.SwitchCount++
 		}
 		pendingSwitchPermit = false
-		nextMapping, mappingErr := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		nextMapping, mappingErr := requestBilling.MappingFor(nextID)
 		if mappingErr != nil {
 			writeSharedGatewayLockedBillingError(c, reqLog, "gateway.messages.group_mapping_rejected", reqModel, mappingErr)
 			return normalGroupTerminal
@@ -516,9 +536,13 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 			h.errorResponse(c, status, code, message)
 			return normalGroupTerminal
 		}
+		// Commit only after every guard passed, so a rejected attempt never skips a
+		// candidate. currentGroupIsHA keeps the billing identity aligned with the
+		// candidate the plan actually advanced to.
+		groupPlan.commit()
 		groupIndex++
 		currentAPIKey, currentSubscription, channelMapping = nextKey, nextSub, nextMapping
-		lockedBilling.groupID, lockedBilling.mapping = normalIDs[groupIndex], nextMapping
+		lockedBilling.groupID, lockedBilling.mapping = nextID, nextMapping
 		for _, acc := range sessionSlotAccounts {
 			h.gatewayService.ReleaseAccountSession(context.Background(), acc, sessionSlotKeys[acc.ID])
 		}
