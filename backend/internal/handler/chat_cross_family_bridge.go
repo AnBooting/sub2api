@@ -61,6 +61,24 @@ func chatOpenAIUsageSnapshot(c *gin.Context, result *service.OpenAIForwardResult
 	return &service.OpenAIRecordUsageInput{Result: result, APIKey: key, User: key.User, Account: account, Subscription: sub, PricingAt: pricingAt, RoutingUsage: chatBridgeRouting(c.Request.Context(), key, used, different), QuotaPlatform: service.QuotaPlatform(c.Request.Context(), key), InboundEndpoint: GetInboundEndpoint(c), UpstreamEndpoint: resolveOpenAIUpstreamEndpoint(c, account, result), UserAgent: c.GetHeader("User-Agent"), IPAddress: ip.GetClientIP(c), APIKeyService: keys, SessionID: service.ExtractClientSessionID(c), ChannelUsageFields: clientRequestedUsageFields(c, mapping, model, result.UpstreamModel), CyberBlocked: service.GetOpsCyberPolicy(c) != nil}
 }
 
+// chatStickyBinderViaOpenAIService reports which service must record the sticky
+// binding for an admitted account.
+//
+// The bridge path (crossChat on an OpenAI account) goes through the OpenAI service
+// because that service selected the account. Every other combination keeps the
+// shared-gateway bind — including a plain OpenAI group where crossChat is false.
+//
+// Getting this wrong is silent: an earlier revision excluded the whole OpenAI
+// platform from the shared bind and only rebound via the OpenAI service when
+// crossChat was true, so the quadrant (no crossChat, OpenAI account) recorded no
+// binding at all and a session lost its affinity after the first admitted request.
+func chatStickyBinderViaOpenAIService(crossChat bool, account *service.Account) bool {
+	if account == nil {
+		return false
+	}
+	return crossChat && account.Platform == service.PlatformOpenAI
+}
+
 // Only an explicit normal chain spanning these families enables the bridge.
 func chatCrossFamilyChain(key *service.APIKey) bool {
 	if key == nil {

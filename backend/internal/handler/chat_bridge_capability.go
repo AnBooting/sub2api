@@ -35,6 +35,13 @@ func chatBridgeDecision(c chatBridgeCapabilityClass, f, r string) chatBridgeCapa
 	return chatBridgeCapabilityDecision{c, f, r}
 }
 func chatBridgeJSONEqual(a, b []byte) bool {
+	// Two absent values are equal. json.Valid(nil) is false, so without this the
+	// converter copying an omitted "parameters" verbatim (nil on both sides) was
+	// reported as "converter changes function definition" and a valid request was
+	// classified unsupported.
+	if len(bytes.TrimSpace(a)) == 0 && len(bytes.TrimSpace(b)) == 0 {
+		return true
+	}
 	var x, y any
 	da, db := json.NewDecoder(bytes.NewReader(a)), json.NewDecoder(bytes.NewReader(b))
 	da.UseNumber()
@@ -225,7 +232,22 @@ func assessChatBridgeCapability(body []byte, frozenModel string, protocol chatBr
 			return illegal("tool_choice", "expected string or object")
 		}
 	}
-	responses, err := apicompat.ChatCompletionsToResponses(&req)
+	// The Responses forward path rewrites the model to the frozen upstream model
+	// BEFORE converting (service/openai_gateway_chat_completions.go: chatReq.Model =
+	// upstreamModel; ChatCompletionsToResponses), and the converter branches on the
+	// model: isReasoningModel drops temperature/top_p for gpt-5+, and
+	// normalizeGPT6ResponsesSampling strips them for GPT-6. Assess the conversion
+	// that will actually run, not one keyed on the client-visible model name —
+	// otherwise the sampling check below passes while the forward silently drops
+	// the client's temperature/top_p, which is exactly what this gate exists to stop.
+	// The Anthropic path keeps the original order because its forward paths also
+	// convert with the requested model and only swap in the frozen model before the
+	// second conversion.
+	conversionReq := req
+	if protocol == chatBridgeResponses {
+		conversionReq.Model = frozenModel
+	}
+	responses, err := apicompat.ChatCompletionsToResponses(&conversionReq)
 	if err != nil {
 		return unsupported("conversion", "target conversion cannot preserve this request")
 	}
@@ -297,7 +319,12 @@ func assessChatBridgeCapability(body []byte, frozenModel string, protocol chatBr
 			}
 			f := t.Function
 			a := responses.Tools[i]
-			if a.Name != f.Name || a.Description != f.Description || !reflect.DeepEqual(a.Strict, f.Strict) || !chatBridgeJSONEqual(f.Parameters, a.Parameters) {
+			// Compare strict by value with nil treated as false: the converter applies
+			// defaultStrictFalse, so an omitted strict becomes &false on the converted
+			// side. reflect.DeepEqual(&false, nil) is false, which rejected every tool
+			// that omits strict — the common case, since clients rarely send it.
+			strictEqual := (a.Strict == nil || !*a.Strict) == (f.Strict == nil || !*f.Strict)
+			if a.Name != f.Name || a.Description != f.Description || !strictEqual || !chatBridgeJSONEqual(f.Parameters, a.Parameters) {
 				return unsupported("tools.function", "converter changes function definition")
 			}
 		}

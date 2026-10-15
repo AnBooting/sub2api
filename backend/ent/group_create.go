@@ -1169,6 +1169,10 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultVideoRateMultiplier
 		_c.mutation.SetVideoRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.VideoPricePlans(); !ok {
+		v := group.DefaultVideoPricePlans
+		_c.mutation.SetVideoPricePlans(v)
+	}
 	if _, ok := _c.mutation.AllowHighAvailability(); !ok {
 		v := group.DefaultAllowHighAvailability
 		_c.mutation.SetAllowHighAvailability(v)
@@ -1371,6 +1375,9 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.VideoRateMultiplier(); !ok {
 		return &ValidationError{Name: "video_rate_multiplier", err: errors.New(`ent: missing required field "Group.video_rate_multiplier"`)}
+	}
+	if _, ok := _c.mutation.VideoPricePlans(); !ok {
+		return &ValidationError{Name: "video_price_plans", err: errors.New(`ent: missing required field "Group.video_price_plans"`)}
 	}
 	if _, ok := _c.mutation.AllowHighAvailability(); !ok {
 		return &ValidationError{Name: "allow_high_availability", err: errors.New(`ent: missing required field "Group.allow_high_availability"`)}
@@ -2523,12 +2530,6 @@ func (u *GroupUpsert) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *Gr
 // UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
 func (u *GroupUpsert) UpdateVideoPricePlans() *GroupUpsert {
 	u.SetExcluded(group.FieldVideoPricePlans)
-	return u
-}
-
-// ClearVideoPricePlans clears the value of the "video_price_plans" field.
-func (u *GroupUpsert) ClearVideoPricePlans() *GroupUpsert {
-	u.SetNull(group.FieldVideoPricePlans)
 	return u
 }
 
@@ -3763,13 +3764,6 @@ func (u *GroupUpsertOne) SetVideoPricePlans(v map[string]domain.VideoPricePlan) 
 func (u *GroupUpsertOne) UpdateVideoPricePlans() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateVideoPricePlans()
-	})
-}
-
-// ClearVideoPricePlans clears the value of the "video_price_plans" field.
-func (u *GroupUpsertOne) ClearVideoPricePlans() *GroupUpsertOne {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearVideoPricePlans()
 	})
 }
 
@@ -5258,13 +5252,6 @@ func (u *GroupUpsertBulk) SetVideoPricePlans(v map[string]domain.VideoPricePlan)
 func (u *GroupUpsertBulk) UpdateVideoPricePlans() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateVideoPricePlans()
-	})
-}
-
-// ClearVideoPricePlans clears the value of the "video_price_plans" field.
-func (u *GroupUpsertBulk) ClearVideoPricePlans() *GroupUpsertBulk {
-	return u.Update(func(s *GroupUpsert) {
-		s.ClearVideoPricePlans()
 	})
 }
 

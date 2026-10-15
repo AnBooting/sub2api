@@ -482,12 +482,20 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		}
 		account = latest
 		selection.Account = latest
-		if selection.ProfitGateActive() && account.Platform != service.PlatformOpenAI {
+		// Exactly one binder must run per admitted account. The bridge path
+		// (crossChat on an OpenAI account) goes through the OpenAI service because
+		// that is the service that selected the account; every other combination —
+		// including a plain OpenAI group where crossChat is false — keeps the
+		// original shared-gateway bind. Excluding the whole OpenAI platform here
+		// left that last quadrant with no sticky binding at all, so a session lost
+		// its affinity after the first admitted request.
+		bindViaOpenAIService := chatStickyBinderViaOpenAIService(crossChat, account)
+		if selection.ProfitGateActive() && !bindViaOpenAIService {
 			if err := h.gatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, selectionSessionHash, account.ID); err != nil {
 				reqLog.Warn("gateway.cc.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}
 		}
-		if crossChat && account.Platform == service.PlatformOpenAI && selection.ProfitGateActive() {
+		if bindViaOpenAIService && selection.ProfitGateActive() {
 			if e := h.openAIGatewayService.BindStickySessionAfterProfitAdmission(admissionCtx, apiKey.GroupID, selectionSessionHash, account.ID); e != nil {
 				reqLog.Warn("chat_bridge.sticky_bind_failed", zap.Error(e))
 			}

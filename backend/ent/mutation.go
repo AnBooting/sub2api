@@ -24930,22 +24930,9 @@ func (m *GroupMutation) OldVideoPricePlans(ctx context.Context) (v map[string]do
 	return oldValue.VideoPricePlans, nil
 }
 
-// ClearVideoPricePlans clears the value of the "video_price_plans" field.
-func (m *GroupMutation) ClearVideoPricePlans() {
-	m.video_price_plans = nil
-	m.clearedFields[group.FieldVideoPricePlans] = struct{}{}
-}
-
-// VideoPricePlansCleared returns if the "video_price_plans" field was cleared in this mutation.
-func (m *GroupMutation) VideoPricePlansCleared() bool {
-	_, ok := m.clearedFields[group.FieldVideoPricePlans]
-	return ok
-}
-
 // ResetVideoPricePlans resets all changes to the "video_price_plans" field.
 func (m *GroupMutation) ResetVideoPricePlans() {
 	m.video_price_plans = nil
-	delete(m.clearedFields, group.FieldVideoPricePlans)
 }
 
 // SetAllowHighAvailability sets the "allow_high_availability" field.
@@ -28363,9 +28350,6 @@ func (m *GroupMutation) ClearedFields() []string {
 	if m.FieldCleared(group.FieldVideoModelPrices) {
 		fields = append(fields, group.FieldVideoModelPrices)
 	}
-	if m.FieldCleared(group.FieldVideoPricePlans) {
-		fields = append(fields, group.FieldVideoPricePlans)
-	}
 	if m.FieldCleared(group.FieldWebSearchPricePerCall) {
 		fields = append(fields, group.FieldWebSearchPricePerCall)
 	}
@@ -28445,9 +28429,6 @@ func (m *GroupMutation) ClearField(name string) error {
 		return nil
 	case group.FieldVideoModelPrices:
 		m.ClearVideoModelPrices()
-		return nil
-	case group.FieldVideoPricePlans:
-		m.ClearVideoPricePlans()
 		return nil
 	case group.FieldWebSearchPricePerCall:
 		m.ClearWebSearchPricePerCall()

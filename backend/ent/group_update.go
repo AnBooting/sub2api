@@ -660,12 +660,6 @@ func (_u *GroupUpdate) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *G
 	return _u
 }
 
-// ClearVideoPricePlans clears the value of the "video_price_plans" field.
-func (_u *GroupUpdate) ClearVideoPricePlans() *GroupUpdate {
-	_u.mutation.ClearVideoPricePlans()
-	return _u
-}
-
 // SetAllowHighAvailability sets the "allow_high_availability" field.
 func (_u *GroupUpdate) SetAllowHighAvailability(v bool) *GroupUpdate {
 	_u.mutation.SetAllowHighAvailability(v)
@@ -1831,9 +1825,6 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.VideoPricePlans(); ok {
 		_spec.SetField(group.FieldVideoPricePlans, field.TypeJSON, value)
 	}
-	if _u.mutation.VideoPricePlansCleared() {
-		_spec.ClearField(group.FieldVideoPricePlans, field.TypeJSON)
-	}
 	if value, ok := _u.mutation.AllowHighAvailability(); ok {
 		_spec.SetField(group.FieldAllowHighAvailability, field.TypeBool, value)
 	}
@@ -2989,12 +2980,6 @@ func (_u *GroupUpdateOne) ClearVideoModelPrices() *GroupUpdateOne {
 // SetVideoPricePlans sets the "video_price_plans" field.
 func (_u *GroupUpdateOne) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpdateOne {
 	_u.mutation.SetVideoPricePlans(v)
-	return _u
-}
-
-// ClearVideoPricePlans clears the value of the "video_price_plans" field.
-func (_u *GroupUpdateOne) ClearVideoPricePlans() *GroupUpdateOne {
-	_u.mutation.ClearVideoPricePlans()
 	return _u
 }
 
@@ -4192,9 +4177,6 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	}
 	if value, ok := _u.mutation.VideoPricePlans(); ok {
 		_spec.SetField(group.FieldVideoPricePlans, field.TypeJSON, value)
-	}
-	if _u.mutation.VideoPricePlansCleared() {
-		_spec.ClearField(group.FieldVideoPricePlans, field.TypeJSON)
 	}
 	if value, ok := _u.mutation.AllowHighAvailability(); ok {
 		_spec.SetField(group.FieldAllowHighAvailability, field.TypeBool, value)

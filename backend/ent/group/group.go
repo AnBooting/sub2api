@@ -392,6 +392,8 @@ var (
 	DefaultVideoRateIndependent bool
 	// DefaultVideoRateMultiplier holds the default value on creation for the "video_rate_multiplier" field.
 	DefaultVideoRateMultiplier float64
+	// DefaultVideoPricePlans holds the default value on creation for the "video_price_plans" field.
+	DefaultVideoPricePlans map[string]domain.VideoPricePlan
 	// DefaultAllowHighAvailability holds the default value on creation for the "allow_high_availability" field.
 	DefaultAllowHighAvailability bool
 	// SearchPricePer1kValidator is a validator for the "search_price_per_1k" field. It is called by the builders before save.

@@ -156,8 +156,14 @@ func (Group) Fields() []ent.Field {
 			Comment("按模型族和分辨率覆盖视频每秒价格"),
 		// 视频计费计划 (added by migration 247)：按模型族声明计量模式
 		// （per_request / per_second / per_token）与单价，替代「所有视频都按秒」的隐含假设。
+		// Non-optional WITH a default: migration 247 creates this column as
+		// JSONB NOT NULL DEFAULT '{}', so declaring it Optional() made ent model a
+		// nullable column, generate dead IsNil/NotNil predicates (IS NULL can never
+		// match, IS NOT NULL matches everything) and a Clear method that would emit
+		// SET video_price_plans = NULL and fail on the not-null constraint.
+		// "Unconfigured" is the empty object / a missing family key, not SQL NULL.
 		field.JSON("video_price_plans", map[string]domain.VideoPricePlan{}).
-			Optional().
+			Default(map[string]domain.VideoPricePlan{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("按模型族的视频计费计划：模式 + 单价；未配置必须 fail closed"),
 		// HA 兜底分组标记 (added by migration 246)。
@@ -326,7 +332,9 @@ func (Group) Fields() []ent.Field {
 func (Group) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("api_keys", APIKey.Type),
-		edge.To("api_key_links", APIKeyGroupLink.Type),
+		// See api_key.go: the cascade must be declared on the parent's edge.To.
+		edge.To("api_key_links", APIKeyGroupLink.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("redeem_codes", RedeemCode.Type),
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("usage_logs", UsageLog.Type),

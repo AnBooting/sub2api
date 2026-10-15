@@ -229,7 +229,10 @@ func NormalizeVideoPricePlanFamilyKey(family string) string {
 // tier.
 func NormalizeVideoPricePlans(in map[string]domain.VideoPricePlan) map[string]domain.VideoPricePlan {
 	if len(in) == 0 {
-		return nil
+		// Return an empty (non-nil) map: the column is JSONB NOT NULL, and "no plan
+		// configured" must persist as {} rather than depending on how ent serializes
+		// a nil map. Callers gate on emptiness, never on SQL NULL.
+		return map[string]domain.VideoPricePlan{}
 	}
 	families := make([]string, 0, len(in))
 	for family := range in {

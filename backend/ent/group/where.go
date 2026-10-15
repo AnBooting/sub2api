@@ -1825,16 +1825,6 @@ func VideoModelPricesNotNil() predicate.Group {
 	return predicate.Group(sql.FieldNotNull(FieldVideoModelPrices))
 }
 
-// VideoPricePlansIsNil applies the IsNil predicate on the "video_price_plans" field.
-func VideoPricePlansIsNil() predicate.Group {
-	return predicate.Group(sql.FieldIsNull(FieldVideoPricePlans))
-}
-
-// VideoPricePlansNotNil applies the NotNil predicate on the "video_price_plans" field.
-func VideoPricePlansNotNil() predicate.Group {
-	return predicate.Group(sql.FieldNotNull(FieldVideoPricePlans))
-}
-
 // AllowHighAvailabilityEQ applies the EQ predicate on the "allow_high_availability" field.
 func AllowHighAvailabilityEQ(v bool) predicate.Group {
 	return predicate.Group(sql.FieldEQ(FieldAllowHighAvailability, v))

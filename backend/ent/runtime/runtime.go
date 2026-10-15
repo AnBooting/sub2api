@@ -1136,6 +1136,10 @@ func init() {
 	groupDescVideoRateMultiplier := groupFields[26].Descriptor()
 	// group.DefaultVideoRateMultiplier holds the default value on creation for the video_rate_multiplier field.
 	group.DefaultVideoRateMultiplier = groupDescVideoRateMultiplier.Default.(float64)
+	// groupDescVideoPricePlans is the schema descriptor for video_price_plans field.
+	groupDescVideoPricePlans := groupFields[31].Descriptor()
+	// group.DefaultVideoPricePlans holds the default value on creation for the video_price_plans field.
+	group.DefaultVideoPricePlans = groupDescVideoPricePlans.Default.(map[string]domain.VideoPricePlan)
 	// groupDescAllowHighAvailability is the schema descriptor for allow_high_availability field.
 	groupDescAllowHighAvailability := groupFields[32].Descriptor()
 	// group.DefaultAllowHighAvailability holds the default value on creation for the allow_high_availability field.
