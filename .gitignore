@@ -165,3 +165,8 @@ issues/
 # Agent scratch/session files
 .tmp-*
 *.tmp-*
+
+# Local credential / scratch files used by agent sessions. They hold live API keys and
+# token dumps; a bare `git add -A` would otherwise stage them into a commit.
+.credkeys.txt
+.orphans.txt
