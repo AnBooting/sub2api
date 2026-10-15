@@ -153,22 +153,44 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestBilling := service.GatewayRequestBillingFromContext(c.Request.Context())
 	var normalIDs []int64
+	var haIDs []int64
 	if lockedCC.active {
 		normalIDs = requestBilling.NormalGroupIDs()
+		// PRD-04: HA candidates come from the same frozen bundle and are only
+		// reachable after every normal candidate is exhausted on a retryable error.
+		haIDs = requestBilling.HAGroupIDs()
 	}
-	groupChainActive := len(normalIDs) > 1
+	// The plan owns normal-then-HA ordering; both lists are frozen and never
+	// reordered here.
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
+	groupChainActive := groupPlan.active()
 	originalAPIKey := apiKey
 	crossChat := chatCrossFamilyChain(apiKey)
-	authorizeChat := func(original *service.APIKey, id int64, ids []int64) (*service.APIKey, *service.UserSubscription, bool) {
+	// authorizeChatCandidate selects the normal or HA gate for the candidate's phase.
+	// Both phases share the platform, allowlist, Claude-Code and subscription policy.
+	authorizeChatCandidate := func(original *service.APIKey, id int64, isHA bool) (*service.APIKey, *service.UserSubscription, bool) {
 		if crossChat {
-			return authorizeChatExecutionGroup(c, h.apiKeyService, h.subscriptionService, original, id, ids, reqModel, func(status int, code, msg string) { h.chatCompletionsErrorResponse(c, status, code, msg) }, true)
+			// The frozen allow-set must match the phase: a normal candidate is
+			// authorized against the normal chain, an HA candidate against the HA set.
+			allowSet := normalIDs
+			if isHA {
+				allowSet = haIDs
+			}
+			return authorizeChatExecutionGroupCandidate(c, h.apiKeyService, h.subscriptionService, original, id, allowSet, reqModel, func(status int, code, msg string) { h.chatCompletionsErrorResponse(c, status, code, msg) }, true, isHA)
 		}
-		return h.authorizeSharedTextGroup(c, original, id, ids, body, true, h.chatCompletionsErrorResponse)
+		return h.authorizeSharedTextGroupPolicyWith(c, original, id, normalIDs, haIDs, isHA, body, true, false, h.chatCompletionsErrorResponse)
 	}
 	groupIndex := 0
 	if groupChainActive {
 		var admitted bool
-		apiKey, subscription, admitted = authorizeChat(originalAPIKey, normalIDs[0], normalIDs)
+		// Start from the plan's first candidate rather than normalIDs[0]: a chain may
+		// hold only HA links, and the phase must match what the plan serves.
+		startID, startIsHA, hasStart := groupPlan.first()
+		if !hasStart {
+			h.chatCompletionsErrorResponse(c, http.StatusServiceUnavailable, "no_available_group", "No group candidate available for this request")
+			return
+		}
+		apiKey, subscription, admitted = authorizeChatCandidate(originalAPIKey, startID, startIsHA)
 		if !admitted {
 			return
 		}
@@ -253,7 +275,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 	sentDifferentAccount := false
 	semanticStart := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	advanceGroup := func() normalGroupAdvance {
-		if !groupChainActive || groupIndex+1 >= len(normalIDs) {
+		if !groupChainActive {
 			return normalGroupUnavailable
 		}
 		if failoverClientGone(c) {
@@ -265,7 +287,11 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 		if fs.LastFailoverErr != nil && !fs.LastFailoverErr.ShouldRetryNextAccount() {
 			return normalGroupUnavailable
 		}
-		nextKey, nextSub, admitted := authorizeChat(originalAPIKey, normalIDs[groupIndex+1], normalIDs)
+		nextID, nextIsHA, hasNext := groupPlan.peek(fs.LastFailoverErr == nil || fs.LastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
+			return normalGroupUnavailable
+		}
+		nextKey, nextSub, admitted := authorizeChatCandidate(originalAPIKey, nextID, nextIsHA)
 		if !admitted {
 			return normalGroupTerminal
 		}
@@ -290,7 +316,7 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			fs.SwitchCount++
 		}
 		pendingSwitchPermit = false
-		nextMapping, mappingErr := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		nextMapping, mappingErr := requestBilling.MappingFor(nextID)
 		if mappingErr != nil {
 			writeOpenAIGatewayLockedBillingError(c, reqLog, "gateway.cc.group_mapping_rejected", reqModel, mappingErr)
 			return normalGroupTerminal
@@ -332,9 +358,12 @@ func (h *GatewayHandler) ChatCompletions(c *gin.Context) {
 			h.chatCompletionsErrorResponse(c, status, code, message)
 			return normalGroupTerminal
 		}
+		// Commit only after every guard passed, so a rejected attempt never skips a
+		// candidate.
+		groupPlan.commit()
 		groupIndex++
 		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
-		lockedCC.groupID, lockedCC.mapping = normalIDs[groupIndex], nextMapping
+		lockedCC.groupID, lockedCC.mapping = nextID, nextMapping
 		groupPlatform = nextKey.Group.Platform
 		selectionSessionHash = sessionHash
 		if groupPlatform == service.PlatformGemini && sessionHash != "" {
