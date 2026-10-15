@@ -116,8 +116,12 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 
 	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
 	crossChat := chatCrossFamilyChain(apiKey)
-	authorizeChat := func(original *service.APIKey, id int64, ids []int64) (*service.APIKey, *service.UserSubscription, bool) {
-		return authorizeChatExecutionGroup(c, h.apiKeyService, h.subscriptionService, original, id, ids, reqModel, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, crossChat)
+	authorizeChatCandidate := func(original *service.APIKey, id int64, isHA bool, normalIDs, haIDs []int64) (*service.APIKey, *service.UserSubscription, bool) {
+		ids := normalIDs
+		if isHA {
+			ids = haIDs
+		}
+		return authorizeChatExecutionGroupCandidate(c, h.apiKeyService, h.subscriptionService, original, id, ids, reqModel, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, crossChat, isHA)
 	}
 
 	// 解析渠道级模型映射。限制检查（ResolveChannelMappingAndRestrict）继续保留；
@@ -148,13 +152,18 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
 	requestBilling := service.GatewayRequestBillingFromContext(c.Request.Context())
-	if requestBilling != nil && len(requestBilling.NormalGroupIDs()) > 1 {
+	if requestBilling != nil && len(requestBilling.NormalGroupIDs())+len(requestBilling.HAGroupIDs()) > 1 {
 		var admitted bool
-		apiKey, subscription, admitted = authorizeChat(apiKey, derefGroupID(apiKey.GroupID), requestBilling.NormalGroupIDs())
-		if !admitted {
-			return
+		// Start from the plan's first candidate rather than NormalGroupIDs()[0]: an
+		// HA-only authorized chain must authorize its own first candidate.
+		startID, startIsHA, hasStart := newNormalGroupPlan(requestBilling.NormalGroupIDs(), requestBilling.HAGroupIDs()).first()
+		if hasStart {
+			apiKey, subscription, admitted = authorizeChatCandidate(apiKey, startID, startIsHA, requestBilling.NormalGroupIDs(), requestBilling.HAGroupIDs())
+			if !admitted {
+				return
+			}
+			c.Request = c.Request.WithContext(sharedResponsesExecutionContext(c.Request.Context(), apiKey))
 		}
-		c.Request = c.Request.WithContext(sharedResponsesExecutionContext(c.Request.Context(), apiKey))
 	}
 
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
@@ -215,16 +224,22 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 	c.Request = c.Request.WithContext(budgetCtx)
 	reservationBase = service.WithRequestAttemptBudget(reservationBase, requestBudget)
 	var normalIDs []int64
+	var haIDs []int64
 	if requestBilling != nil {
 		normalIDs = requestBilling.NormalGroupIDs()
+		haIDs = requestBilling.HAGroupIDs()
 	}
-	groupIndex := 0
+	// PRD-04 AC-B2: this entry must reach the user's authorized fallback groups too.
+	// normalGroupPlan owns the ordering rule (every normal candidate first, HA only
+	// after a retryable failure) and is shared with the messages/responses/Gemini
+	// entries, so the OpenAI-native paths cannot drift from them.
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
 	pendingSwitchPermit := false
 	firstSentAccountID := int64(0)
 	sentDifferentAccount := false
 	initialSemanticSize := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	advanceNormalGroup := func() normalGroupAdvance {
-		if len(normalIDs) <= groupIndex+1 || requestBudget.Exhausted() || !openAIRequestAllowsFailoverReplay(c) || service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != initialSemanticSize {
+		if !groupPlan.active() || requestBudget.Exhausted() || !openAIRequestAllowsFailoverReplay(c) || service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != initialSemanticSize {
 			return normalGroupUnavailable
 		}
 		if lastFailoverErr != nil && !lastFailoverErr.ShouldRetryNextAccount() {
@@ -237,11 +252,17 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			switchCount++
 		}
 		pendingSwitchPermit = false
-		nextKey, nextSub, ok := authorizeChat(apiKey, normalIDs[groupIndex+1], normalIDs)
+		// retryable: crossing into the HA phase requires a site-side recoverable
+		// failure class (PRD-04); a client error must never open the fallback.
+		nextID, nextIsHA, hasNext := groupPlan.peek(lastFailoverErr == nil || lastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
+			return normalGroupUnavailable
+		}
+		nextKey, nextSub, ok := authorizeChatCandidate(apiKey, nextID, nextIsHA, normalIDs, haIDs)
 		if !ok {
 			return normalGroupTerminal
 		}
-		nextMapping, e := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		nextMapping, e := requestBilling.MappingFor(nextID)
 		if e != nil {
 			status, code, msg, _ := billingErrorDetails(e)
 			h.handleStreamingAwareError(c, status, code, msg, streamStarted)
@@ -273,10 +294,12 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 			h.handleStreamingAwareError(c, status, code, msg, streamStarted)
 			return normalGroupTerminal
 		}
-		groupIndex++
+		// Commit only after every guard passed, so a rejected attempt never skips a
+		// candidate.
+		groupPlan.commit()
 		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
 		requestPlatform = nextKey.Group.Platform
-		lockedOAI.groupID, lockedOAI.mapping = normalIDs[groupIndex], nextMapping
+		lockedOAI.groupID, lockedOAI.mapping = nextID, nextMapping
 		forwardModel = openAIChannelForwardModel(nextMapping, reqModel)
 		sessionHash = h.gatewayService.GenerateSessionHash(c, body)
 		return normalGroupAdvanced

@@ -655,13 +655,18 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 
 	// Get subscription info (may be nil)
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
-	if requestBilling != nil && len(requestBilling.NormalGroupIDs()) > 1 {
+	if requestBilling != nil && len(requestBilling.NormalGroupIDs())+len(requestBilling.HAGroupIDs()) > 1 {
 		var ok bool
-		apiKey, subscription, ok = h.authorizeOpenAIResponsesGroup(c, apiKey, derefGroupID(apiKey.GroupID), requestBilling.NormalGroupIDs(), reqModel, streamStarted)
-		if !ok {
-			return
+		// Start from the plan's first candidate rather than NormalGroupIDs()[0]: an
+		// HA-only authorized chain must authorize its own first candidate.
+		startID, startIsHA, hasStart := newNormalGroupPlan(requestBilling.NormalGroupIDs(), requestBilling.HAGroupIDs()).first()
+		if hasStart {
+			apiKey, subscription, ok = h.authorizeOpenAIResponsesGroupCandidate(c, apiKey, startID, startIsHA, requestBilling.NormalGroupIDs(), requestBilling.HAGroupIDs(), reqModel, streamStarted, chatCrossFamilyChain(apiKey))
+			if !ok {
+				return
+			}
+			c.Request = c.Request.WithContext(sharedResponsesExecutionContext(c.Request.Context(), apiKey))
 		}
-		c.Request = c.Request.WithContext(sharedResponsesExecutionContext(c.Request.Context(), apiKey))
 	}
 	requestPlatform := openAICompatibleRequestPlatform(c.Request.Context(), apiKey)
 	crossResponses := chatCrossFamilyChain(apiKey)
@@ -747,16 +752,21 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 	c.Request = c.Request.WithContext(budgetCtx)
 	reservationBase = service.WithRequestAttemptBudget(reservationBase, requestBudget)
 	var normalIDs []int64
+	var haIDs []int64
 	if requestBilling != nil {
 		normalIDs = requestBilling.NormalGroupIDs()
+		haIDs = requestBilling.HAGroupIDs()
 	}
-	groupIndex := 0
+	// PRD-04 AC-B2: this entry must reach the user's authorized fallback groups too.
+	// normalGroupPlan owns the ordering rule (every normal candidate first, HA only
+	// after a retryable failure) and is shared with the messages/Gemini entries.
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
 	pendingSwitchPermit := false
 	firstSentAccountID := int64(0)
 	sentDifferentAccount := false
 	initialSemanticSize := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	advanceNormalGroup := func() normalGroupAdvance {
-		if len(normalIDs) <= groupIndex+1 || requestBudget.Exhausted() || !openAIRequestAllowsFailoverReplay(c) || service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != initialSemanticSize {
+		if !groupPlan.active() || requestBudget.Exhausted() || !openAIRequestAllowsFailoverReplay(c) || service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != initialSemanticSize {
 			return normalGroupUnavailable
 		}
 		if lastFailoverErr != nil && !lastFailoverErr.ShouldRetryNextAccount() {
@@ -769,11 +779,17 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			switchCount++
 		}
 		pendingSwitchPermit = false
-		nextKey, nextSub, ok := h.authorizeOpenAIResponsesGroup(c, apiKey, normalIDs[groupIndex+1], normalIDs, reqModel, streamStarted, crossResponses)
+		// retryable: crossing into the HA phase requires a site-side recoverable
+		// failure class (PRD-04); a client error must never open the fallback.
+		nextID, nextIsHA, hasNext := groupPlan.peek(lastFailoverErr == nil || lastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
+			return normalGroupUnavailable
+		}
+		nextKey, nextSub, ok := h.authorizeOpenAIResponsesGroupCandidate(c, apiKey, nextID, nextIsHA, normalIDs, haIDs, reqModel, streamStarted, crossResponses)
 		if !ok {
 			return normalGroupTerminal
 		}
-		nextMapping, e := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		nextMapping, e := requestBilling.MappingFor(nextID)
 		if e != nil {
 			status, code, msg, _ := billingErrorDetails(e)
 			h.handleStreamingAwareError(c, status, code, msg, streamStarted)
@@ -806,7 +822,9 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 			h.handleStreamingAwareError(c, status, code, msg, streamStarted)
 			return normalGroupTerminal
 		}
-		groupIndex++
+		// Commit only after every guard passed, so a rejected attempt never skips a
+		// candidate.
+		groupPlan.commit()
 		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
 		requestPlatform = nextKey.Group.Platform
 		forwardBody = openAIModelMappedBody(body, nextMapping.Mapped, nextMapping.MappedModel, h.gatewayService.ReplaceModelInBody)

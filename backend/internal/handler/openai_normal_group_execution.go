@@ -11,6 +11,17 @@ func (h *OpenAIGatewayHandler) authorizeOpenAIResponsesGroup(c *gin.Context, ori
 	return authorizeChatExecutionGroup(c, h.apiKeyService, h.subscriptionService, original, id, normalIDs, model, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, len(crossFamily) > 0 && crossFamily[0])
 }
 
+// authorizeOpenAIResponsesGroupCandidate is the HA-aware form: isHA selects the HA
+// authorization gate and ids is the matching frozen allow-set. Every other policy
+// check is shared with the normal path, so a fallback cannot bypass them.
+func (h *OpenAIGatewayHandler) authorizeOpenAIResponsesGroupCandidate(c *gin.Context, original *service.APIKey, id int64, isHA bool, normalIDs, haIDs []int64, model string, streamStarted bool, crossFamily ...bool) (*service.APIKey, *service.UserSubscription, bool) {
+	ids := normalIDs
+	if isHA {
+		ids = haIDs
+	}
+	return authorizeChatExecutionGroupCandidate(c, h.apiKeyService, h.subscriptionService, original, id, ids, model, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, len(crossFamily) > 0 && crossFamily[0], isHA)
+}
+
 func authorizeChatExecutionGroup(c *gin.Context, keys *service.APIKeyService, subscriptions *service.SubscriptionService, original *service.APIKey, id int64, normalIDs []int64, model string, writeError func(int, string, string), chat bool) (*service.APIKey, *service.UserSubscription, bool) {
 	return authorizeChatExecutionGroupCandidate(c, keys, subscriptions, original, id, normalIDs, model, writeError, chat, false)
 }
