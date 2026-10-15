@@ -710,7 +710,20 @@ func calculateLockedRequestUsageCost(
 		if price == nil {
 			lockedMediaWarnIncompleteSnapshot(frozenGroup, "web_search")
 		}
-		return frozenBilling.CalculateWebSearchCost(result.WebSearchCalls, price, baseMultiplier), nil
+		searchCost := frozenBilling.CalculateWebSearchCost(result.WebSearchCalls, price, baseMultiplier)
+		// C-1: a search-only bill still needs a v2 item, otherwise the whole snapshot
+		// falls back to v1 and the frontend reports the lock price as missing.
+		if searchCost != nil && searchCost.TotalCost != 0 {
+			searchCost.Unit = "per_call"
+			searchCost.PricingItems = append(searchCost.PricingItems, CostBreakdownItem{
+				Kind:            "search",
+				BaseCreditPrice: searchCost.TotalCost / float64(result.WebSearchCalls),
+				Usage:           float64(result.WebSearchCalls),
+				NormalizedUsage: float64(result.WebSearchCalls),
+				Subtotal:        searchCost.TotalCost,
+			})
+		}
+		return searchCost, nil
 	}
 
 	// 视频：VideoCount 即权威（isGrokVideoUsageResult）。冻结卡非 token 模式时按
@@ -788,13 +801,41 @@ func calculateLockedRequestUsageCost(
 		if price == nil {
 			lockedMediaWarnIncompleteSnapshot(frozenGroup, "search")
 		}
-		searchCost := frozenBilling.CalculateSearchCost(result.SearchCount, price, baseMultiplier)
-		if searchCost != nil && (searchCost.TotalCost != 0 || searchCost.ActualCost != 0) {
-			cost.TotalCost += searchCost.TotalCost
-			cost.ActualCost += searchCost.ActualCost
-		}
+		mergeSearchSurcharge(cost, frozenBilling.CalculateSearchCost(result.SearchCount, price, baseMultiplier), result.SearchCount)
 	}
 	return cost, nil
+}
+
+// mergeSearchSurcharge folds a per-call search surcharge into a token breakdown.
+//
+// C-1 requires the stored snapshot to satisfy
+// total_credit == group_multiplier x sum(items[].subtotal) (11-共享契约.md:47), and
+// group_multiplier is derived as ActualCost/TotalCost. Adding the surcharge to
+// TotalCost/ActualCost alone therefore dilutes the multiplier and breaks the check the
+// frontend uses to validate a snapshot. The surcharge is a real billable item, so it
+// gets its own item; subtotals stay pre-multiplier like every other item.
+//
+// unit becomes "per_call": the mixed bill is dominated by neither token nor call
+// pricing, and the per-item facts are what the snapshot is read for.
+func mergeSearchSurcharge(cost *CostBreakdown, searchCost *CostBreakdown, callCount int) {
+	if cost == nil || searchCost == nil || callCount <= 0 {
+		return
+	}
+	if searchCost.TotalCost == 0 && searchCost.ActualCost == 0 {
+		return
+	}
+	if cost.Unit == "" {
+		cost.Unit = "per_call"
+	}
+	cost.PricingItems = append(cost.PricingItems, CostBreakdownItem{
+		Kind:            "search",
+		BaseCreditPrice: searchCost.TotalCost / float64(callCount),
+		Usage:           float64(callCount),
+		NormalizedUsage: float64(callCount),
+		Subtotal:        searchCost.TotalCost,
+	})
+	cost.TotalCost += searchCost.TotalCost
+	cost.ActualCost += searchCost.ActualCost
 }
 
 // lockedMediaWarnIncompleteSnapshot 在冻结分组快照看起来缺少媒体/搜索/语音标量价、
