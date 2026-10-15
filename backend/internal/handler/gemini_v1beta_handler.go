@@ -389,21 +389,37 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	subscription, _ := middleware.GetSubscriptionFromContext(c)
 	requestBilling := service.GatewayRequestBillingFromContext(c.Request.Context())
 	var normalIDs []int64
+	var haIDs []int64
 	if lockedGemini.active {
 		normalIDs = requestBilling.NormalGroupIDs()
+		// PRD-04: HA candidates come from the same frozen bundle and are only
+		// reachable after every normal candidate is exhausted on a retryable error.
+		haIDs = requestBilling.HAGroupIDs()
 	}
-	groupChainActive := len(normalIDs) > 1
+	// The plan owns normal-then-HA ordering; both lists are frozen and never
+	// reordered here.
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
+	groupChainActive := groupPlan.active()
 	originalAPIKey := apiKey
 	groupIndex := 0
 	forcePlatform, forced := middleware.GetForcePlatformFromContext(c)
 	googleWriter := func(c *gin.Context, status int, _ string, message string) { googleError(c, status, message) }
-	authorizeGroup := func(id int64) (*service.APIKey, *service.UserSubscription, bool) {
-		key, sub, ok := h.authorizeSharedTextGroup(c, originalAPIKey, id, normalIDs, body, false, googleWriter, reqModel)
-		return key, sub, ok
+	// authorizeGroupCandidate picks the normal or HA gate for the candidate's phase.
+	// Both phases share the platform, allowlist, Claude-Code and subscription policy,
+	// so a fallback cannot bypass the Gemini-native platform requirement.
+	authorizeGroupCandidate := func(id int64, isHA bool) (*service.APIKey, *service.UserSubscription, bool) {
+		return h.authorizeSharedTextGroupPolicyWith(c, originalAPIKey, id, normalIDs, haIDs, isHA, body, false, false, googleWriter, reqModel)
 	}
 	if groupChainActive {
 		var admitted bool
-		apiKey, subscription, admitted = authorizeGroup(normalIDs[0])
+		// Start from the plan's first candidate rather than normalIDs[0]: a chain may
+		// hold only HA links, and the phase must match what the plan serves.
+		startID, startIsHA, hasStart := groupPlan.first()
+		if !hasStart {
+			googleError(c, http.StatusServiceUnavailable, "No group candidate available for this request")
+			return
+		}
+		apiKey, subscription, admitted = authorizeGroupCandidate(startID, startIsHA)
 		if !admitted {
 			return
 		}
@@ -593,7 +609,13 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	sentDifferentAccount := false
 	semanticStart := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
 	advanceGroup := func() normalGroupAdvance {
-		if !groupChainActive || groupIndex+1 >= len(normalIDs) {
+		if !groupChainActive {
+			return normalGroupUnavailable
+		}
+		// PRD-04: crossing into HA requires a retryable failure class; normal
+		// advancement keeps its existing behaviour.
+		nextID, nextIsHA, hasNext := groupPlan.peek(fs.LastFailoverErr == nil || fs.LastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
 			return normalGroupUnavailable
 		}
 		if failoverClientGone(c) {
@@ -615,11 +637,11 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			fs.SwitchCount++
 		}
 		pendingSwitchPermit = false
-		nextKey, nextSub, admitted := authorizeGroup(normalIDs[groupIndex+1])
+		nextKey, nextSub, admitted := authorizeGroupCandidate(nextID, nextIsHA)
 		if !admitted {
 			return normalGroupTerminal
 		}
-		nextMapping, mappingErr := requestBilling.MappingFor(normalIDs[groupIndex+1])
+		nextMapping, mappingErr := requestBilling.MappingFor(nextID)
 		if mappingErr != nil {
 			writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.group_mapping_rejected", reqModel, mappingErr)
 			return normalGroupTerminal
@@ -653,9 +675,12 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			googleError(c, status, message)
 			return normalGroupTerminal
 		}
+		// Commit only after every guard passed, so a rejected attempt never skips a
+		// candidate.
+		groupPlan.commit()
 		groupIndex++
 		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
-		lockedGemini.groupID, lockedGemini.mapping = normalIDs[groupIndex], nextMapping
+		lockedGemini.groupID, lockedGemini.mapping = nextID, nextMapping
 		modelName = reqModel
 		if nextMapping.Mapped {
 			modelName = nextMapping.MappedModel
