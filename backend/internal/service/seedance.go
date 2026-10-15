@@ -255,6 +255,8 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 			// and the existing request-parameter fallback applies (never invent a
 			// duration, which would mis-bill an unbounded video).
 			result.VideoDurationSeconds = SeedanceDurationSecondsFromStatusBody(responseBody)
+			// C-1: 记录时长来源，供 media.seconds_source 如实标注为 upstream。
+			result.VideoDurationFromStatus = result.VideoDurationSeconds > 0
 			// Resolution is billed per tier; the query response carries it officially.
 			// Empty stays empty so callers fail closed rather than assume 480p.
 			result.VideoResolution = SeedanceResolutionFromStatusBody(responseBody)

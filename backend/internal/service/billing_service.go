@@ -205,12 +205,58 @@ type UsageTokens struct {
 	ImageOutputTokens     int
 }
 
+// CostBreakdownItem 是 C-1 锁价快照（pricing_snapshot v2）的单个计价分项。
+//
+// 它把「用了多少量、按什么单价、算出多少钱」显式记录下来，使账单可以脱离当前价表
+// 复算（PRD 11-共享契约 C-1）。单价一律换算为「每百万 token」口径，与 unit
+// "per_1m_tokens" 一致：base_credit_price = 每 token 价 × 1e6，
+// normalized_usage = usage / 1e6，subtotal = usage × 每 token 价（与计费同式）。
+type CostBreakdownItem struct {
+	Kind            string
+	BaseCreditPrice float64
+	Usage           float64
+	NormalizedUsage float64
+	Subtotal        float64
+}
+
+// PricingSnapshotMedia 记录视频/图片按次计费的计量事实（C-1 media 字段）。
+type PricingSnapshotMedia struct {
+	Mode            string
+	BillableCount   int
+	BillableSeconds float64
+	SecondsSource   string
+}
+
+// PricingSnapshotPeriod 记录峰谷价时段（C-1 period 字段），仅价表含 schedule 时出现。
+type PricingSnapshotPeriod struct {
+	Label    string
+	Timezone string
+	Window   string
+}
+
 // CostBreakdown 费用明细
 type CostBreakdown struct {
 	PricingError              error
 	PricingCurrency           string
 	PricingSource             string
 	PricingSnapshot           *ModelPricing
+	// ---- C-1 锁价快照（pricing_snapshot v2）事实 ----
+	// PricingItems 为按分项的计价明细；为空时 costPricingSnapshot 退回 v1 形态。
+	PricingItems []CostBreakdownItem
+	// GroupMultiplier 是本次请求实际应用的最终倍率。它由 ActualCost/TotalCost 反推，
+	// 因此天然满足 C-1 复算校验 total_credit == group_multiplier × Σ subtotal。
+	GroupMultiplier float64
+	// RequestStartedAt 是请求开始时点（C-1 request_started_at）。
+	RequestStartedAt time.Time
+	// PriceVersion 是本次所用价表的版本标识（C-2 price_version）。
+	PriceVersion string
+	// Period 仅在价表含峰谷 schedule 时填充。
+	Period *PricingSnapshotPeriod
+	// Media 仅媒体计费填充。
+	Media *PricingSnapshotMedia
+	// ServedGroupID 是实际服务组（C-6 served_group_id 的快照副本）。
+	ServedGroupID *int64
+	Unit          string
 	InputCost                 float64 // 文本输入费用（不含图片输入，图片输入单独记入 ImageInputCost）
 	ImageInputCost            float64 // 图片输入 token 费用（如 gpt-image-2 图片编辑）
 	OutputCost                float64
@@ -221,6 +267,19 @@ type CostBreakdown struct {
 	ActualCost                float64 // 应用倍率后的实际费用
 	BillingMode               string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
 	LongContextBillingApplied bool
+}
+
+// EffectiveMultiplier 返回本次请求实际应用的最终倍率。
+//
+// 它由 ActualCost/TotalCost 反推而非另行记录，因此 C-1 的复算校验
+// total_credit == group_multiplier × Σ items[].subtotal 在构造上恒成立：
+// total_credit 取 ActualCost，而 ActualCost 正是 TotalCost × 倍率。
+// TotalCost 为 0 时（免费或零用量）返回 0，避免除零并如实表达「未产生费用」。
+func (cost *CostBreakdown) EffectiveMultiplier() float64 {
+	if cost == nil || cost.TotalCost == 0 {
+		return 0
+	}
+	return cost.ActualCost / cost.TotalCost
 }
 
 func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
@@ -1763,7 +1822,97 @@ func (s *BillingService) computeTokenBreakdown(
 	bd.ActualCost = bd.TotalCost * rateMultiplier
 	bd.LongContextBillingApplied = baselineCost != nil && bd.ActualCost > baselineCost.ActualCost
 
+	// C-1 锁价快照分项：记录每个 kind 的用量、单价与金额，使账单可脱离当前价表复算。
+	// 单价换算为「每百万 token」（unit=per_1m_tokens）：base = 每 token 价 × 1e6，
+	// normalized_usage = usage / 1e6，subtotal 直接取该分项的实际金额，三者自洽。
+	bd.Unit = PricingSnapshotUnitPer1MTokens
+	bd.PricingItems = buildTokenPricingItems(pricing, tokens, bd, inputPrice, outputPrice, cacheReadPrice)
+
 	return bd
+}
+
+// PricingSnapshotUnitPer1MTokens 是 token 计费快照的单价口径（C-1 unit）。
+const PricingSnapshotUnitPer1MTokens = "per_1m_tokens"
+
+// tokenPricingItem 由「token 用量 + 每 token 单价 + 该分项金额」构造一个快照分项。
+// usage 为 0 的分项不写入：快照只记录真实发生的用量，不制造零用量条目。
+func tokenPricingItem(kind string, usage int, perTokenPrice, subtotal float64) (CostBreakdownItem, bool) {
+	if usage <= 0 {
+		return CostBreakdownItem{}, false
+	}
+	return CostBreakdownItem{
+		Kind:            kind,
+		BaseCreditPrice: perTokenPrice * 1_000_000,
+		Usage:           float64(usage),
+		NormalizedUsage: float64(usage) / 1_000_000,
+		Subtotal:        subtotal,
+	}, true
+}
+
+// buildTokenPricingItems 汇总 token 计费的各分项（C-1 items）。
+//
+// 同一用量只归入一个 kind（契约 S-2）。图片输入/输出 token 从文本 token 中分离，
+// 分别记入 image 相关 kind，避免与 input/output 重复计量。
+func buildTokenPricingItems(
+	pricing *ModelPricing,
+	tokens UsageTokens,
+	bd *CostBreakdown,
+	inputPrice, outputPrice, cacheReadPrice float64,
+) []CostBreakdownItem {
+	items := make([]CostBreakdownItem, 0, 6)
+	add := func(kind string, usage int, price, subtotal float64) {
+		if item, ok := tokenPricingItem(kind, usage, price, subtotal); ok {
+			items = append(items, item)
+		}
+	}
+
+	// 输入侧：图片输入 token 单独成项，其余为文本输入。
+	imageInputTokens := 0
+	if tokens.ImageInputTokens > 0 {
+		imageInputTokens = min(tokens.ImageInputTokens, max(tokens.InputTokens, 0))
+	}
+	add("input", tokens.InputTokens-imageInputTokens, inputPrice, bd.InputCost)
+	if imageInputTokens > 0 {
+		imageInputPrice := pricing.ImageInputPricePerToken
+		if imageInputPrice == 0 {
+			imageInputPrice = inputPrice
+		}
+		add("image", imageInputTokens, imageInputPrice, bd.ImageInputCost)
+	}
+
+	// 输出侧：图片输出 token 单独成项。
+	imageOutputTokens := min(max(tokens.ImageOutputTokens, 0), max(tokens.OutputTokens, 0))
+	add("output", tokens.OutputTokens-imageOutputTokens, outputPrice, bd.OutputCost)
+	if imageOutputTokens > 0 {
+		imageOutputPrice := pricing.ImageOutputPricePerToken
+		if imageOutputPrice == 0 && !pricing.ImageOutputPriceExplicit {
+			imageOutputPrice = outputPrice
+		}
+		add("image", imageOutputTokens, imageOutputPrice, bd.ImageOutputCost)
+	}
+
+	// 缓存创建：支持 5m/1h 分类时分别成项，否则合成一项。
+	if pricing.SupportsCacheBreakdown && (pricing.CacheCreation5mPrice > 0 || pricing.CacheCreation1hPrice > 0) {
+		cache5m, cache1h := normalizeCacheCreationBreakdown(tokens)
+		if cache5m == 0 && cache1h == 0 && tokens.CacheCreationTokens > 0 {
+			add("cache_write", tokens.CacheCreationTokens, pricing.CacheCreation5mPrice, bd.CacheCreationCost)
+		} else {
+			add("cache_write", cache5m, pricing.CacheCreation5mPrice, float64(cache5m)*pricing.CacheCreation5mPrice)
+			add("cache_write_1h", cache1h, pricing.CacheCreation1hPrice, float64(cache1h)*pricing.CacheCreation1hPrice)
+		}
+	} else {
+		add("cache_write", tokens.CacheCreationTokens, pricing.CacheCreationPricePerToken, bd.CacheCreationCost)
+	}
+
+	// 缓存读取：命中图片缓存的部分单独按图片缓存价计费。
+	if imageCached := min(max(tokens.ImageCacheReadTokens, 0), max(tokens.CacheReadTokens, 0)); imageCached > 0 && pricing.ImageCacheReadPricePerToken > 0 {
+		add("cache_read", tokens.CacheReadTokens-imageCached, cacheReadPrice, float64(tokens.CacheReadTokens-imageCached)*cacheReadPrice)
+		add("image", imageCached, pricing.ImageCacheReadPricePerToken, float64(imageCached)*pricing.ImageCacheReadPricePerToken)
+	} else {
+		add("cache_read", tokens.CacheReadTokens, cacheReadPrice, bd.CacheReadCost)
+	}
+
+	return items
 }
 
 // computeCacheCreationCost 计算缓存创建费用（支持 5m/1h 分类或标准计费）。
@@ -2433,11 +2582,57 @@ func (s *BillingService) CalculateVideoCostFromPlan(input VideoCostInput) (*Cost
 		return nil, fmt.Errorf("%w: unsupported video billing mode %q", ErrModelPricingUnavailable, string(plan.Mode))
 	}
 
-	return &CostBreakdown{
+	// C-1: 记录媒体计量事实与计价分项，使视频账单可复算。
+	// per_request 按「次」，per_second 按「秒」，per_token 按「百万 token」；
+	// 每种模式都写清单价、用量与金额，unit 随之切换。
+	bd := &CostBreakdown{
 		TotalCost:   totalCost,
 		ActualCost:  totalCost * rateMultiplier,
 		BillingMode: string(BillingModeVideo),
-	}, nil
+	}
+	switch plan.Mode {
+	case domain.VideoBillingModePerRequest:
+		unitPrice := VideoPlanPerRequestUnitPrice(plan)
+		bd.Unit = "per_request"
+		bd.Media = &PricingSnapshotMedia{Mode: "per_request", BillableCount: videoCount}
+		bd.PricingItems = []CostBreakdownItem{{
+			Kind:            "video_request",
+			BaseCreditPrice: *unitPrice,
+			Usage:           float64(videoCount),
+			NormalizedUsage: float64(videoCount),
+			Subtotal:        *unitPrice * float64(videoCount),
+		}}
+	case domain.VideoBillingModePerSecond:
+		resolution := NormalizeVideoBillingResolutionOrDefault(input.Resolution)
+		unitPrice := VideoPlanPerSecondUnitPrice(plan, resolution)
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(input.DurationSeconds)
+		billableSeconds := float64(durationSeconds) * float64(videoCount)
+		bd.Unit = "per_second"
+		bd.Media = &PricingSnapshotMedia{
+			Mode:            "per_second",
+			BillableCount:   videoCount,
+			BillableSeconds: billableSeconds,
+		}
+		bd.PricingItems = []CostBreakdownItem{{
+			Kind:            "video_second",
+			BaseCreditPrice: *unitPrice,
+			Usage:           billableSeconds,
+			NormalizedUsage: billableSeconds,
+			Subtotal:        *unitPrice * billableSeconds,
+		}}
+	case domain.VideoBillingModePerToken:
+		unitPrice := VideoPlanTokenUnitPrice(plan, input.Resolution, input.HasInputVideo)
+		bd.Unit = PricingSnapshotUnitPer1MTokens
+		bd.Media = &PricingSnapshotMedia{Mode: "per_token", BillableCount: videoCount}
+		bd.PricingItems = []CostBreakdownItem{{
+			Kind:            "video_token",
+			BaseCreditPrice: *unitPrice,
+			Usage:           float64(input.CompletionTokens),
+			NormalizedUsage: float64(input.CompletionTokens) / 1e6,
+			Subtotal:        float64(input.CompletionTokens) / 1e6 * *unitPrice,
+		}}
+	}
+	return bd, nil
 }
 
 // CalculateVideoCostForGroup resolves the group's video price plan for the model

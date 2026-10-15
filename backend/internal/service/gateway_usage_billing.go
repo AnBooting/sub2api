@@ -1286,6 +1286,24 @@ func (s *GatewayService) buildRecordUsageLog(
 		usageLog.RateMultiplier = imageMultiplier
 	}
 	if cost != nil {
+		// C-1: 补齐锁价快照的路由与媒体事实，使账单可脱离当前状态复算。
+		if usageLog.ServedGroupID != nil {
+			cost.ServedGroupID = usageLog.ServedGroupID
+		} else if usageLog.GroupID != nil {
+			cost.ServedGroupID = usageLog.GroupID
+		}
+		if cost.RequestStartedAt.IsZero() {
+			cost.RequestStartedAt = usageLog.CreatedAt
+		}
+		if cost.PriceVersion == "" && cost.PricingSnapshot != nil && !cost.PricingSnapshot.NativePricingAt.IsZero() {
+			cost.PriceVersion = nativeCNYPriceVersion(cost.PricingSnapshot)
+		}
+		if result.ImageCount > 0 {
+			cost.Media = &PricingSnapshotMedia{
+				Mode:          mediaBillingModeForSnapshot(cost),
+				BillableCount: result.ImageCount,
+			}
+		}
 		usageLog.InputCost = cost.InputCost
 		usageLog.PricingSnapshot = costPricingSnapshot(cost)
 		usageLog.OutputCost = cost.OutputCost

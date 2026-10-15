@@ -504,13 +504,35 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	routingUsage.apply(usageLog)
 	isVideoUsage := isGrokVideoUsageResult(result, billingModels)
+	videoDurationSeconds := 0
 	if isVideoUsage {
 		usageLog.VideoCount = result.VideoCount
 		usageLog.VideoResolution = optionalTrimmedStringPtr(NormalizeVideoBillingResolutionOrDefault(result.VideoResolution))
-		videoDurationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
+		videoDurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
 		usageLog.VideoDurationSeconds = &videoDurationSeconds
 	}
 	if cost != nil {
+		// C-1: 补齐锁价快照的路由与媒体事实，使账单可脱离当前状态复算。
+		// served_group_id 优先取本次实际服务组，退回请求的组。
+		if usageLog.ServedGroupID != nil {
+			cost.ServedGroupID = usageLog.ServedGroupID
+		} else if usageLog.GroupID != nil {
+			cost.ServedGroupID = usageLog.GroupID
+		}
+		if cost.RequestStartedAt.IsZero() {
+			cost.RequestStartedAt = usageLog.CreatedAt
+		}
+		if cost.PriceVersion == "" && cost.PricingSnapshot != nil && !cost.PricingSnapshot.NativePricingAt.IsZero() {
+			cost.PriceVersion = nativeCNYPriceVersion(cost.PricingSnapshot)
+		}
+		if isVideoUsage {
+			cost.Media = &PricingSnapshotMedia{
+				Mode:            mediaBillingModeForSnapshot(cost),
+				BillableCount:   usageLog.VideoCount,
+				BillableSeconds: float64(videoDurationSeconds),
+				SecondsSource:   videoSecondsSource(result),
+			}
+		}
 		usageLog.InputCost = cost.InputCost
 		usageLog.PricingSnapshot = costPricingSnapshot(cost)
 		usageLog.ImageInputCost = cost.ImageInputCost
