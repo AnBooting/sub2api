@@ -2,6 +2,7 @@ package handler
 
 import (
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
+	yunmaohandler "github.com/Wei-Shaw/sub2api/internal/handler/yunmao"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 )
 
@@ -68,6 +69,7 @@ type Handlers struct {
 	ModelPlaza       *ModelPlazaHandler
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
+	Shop             *yunmaohandler.ShopHandler
 }
 
 // BuildInfo contains build-time information

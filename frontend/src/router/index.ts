@@ -315,6 +315,21 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // TS-03 / PRD-03：白标充值中心（全程本站内闭环：商品 → 下单 → 支付中 → 结果/卡密）。
+    // requiresPayment 与既有购买页保持一致：站点关闭支付时该入口同样不可用。
+    path: '/shop',
+    name: 'ShopRecharge',
+    component: () => import('@/views/user/ShopView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Recharge Center',
+      titleKey: 'shop.title',
+      descriptionKey: 'shop.subtitle',
+      requiresPayment: true
+    }
+  },
+  {
     path: '/orders',
     name: 'OrderList',
     component: () => import('@/views/user/UserOrdersView.vue'),
