@@ -2460,10 +2460,20 @@ func (s *BillingService) CalculateImageCost(model string, imageSize string, imag
 	}
 	actualCost := totalCost * rateMultiplier
 
+	// C-1: 图片按次计费也要写分项，否则前端只看到 v1 快照、拿不到锁价单价。
+	// 单价按「每张」口径，用量为张数。
 	return &CostBreakdown{
 		TotalCost:   totalCost,
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeImage),
+		Unit:        "per_image",
+		PricingItems: []CostBreakdownItem{{
+			Kind:            "image",
+			BaseCreditPrice: unitPrice,
+			Usage:           float64(imageCount),
+			NormalizedUsage: float64(imageCount),
+			Subtotal:        totalCost,
+		}},
 	}
 }
 
@@ -2489,10 +2499,25 @@ func (s *BillingService) CalculateVideoCost(model string, resolution string, vid
 	}
 	actualCost := totalCost * rateMultiplier
 
+	// C-1: 视频按秒计费同样写分项与媒体计量事实，使账单可复算。
+	billableSeconds := float64(durationSeconds) * float64(videoCount)
 	return &CostBreakdown{
 		TotalCost:   totalCost,
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeVideo),
+		Unit:        "per_second",
+		Media: &PricingSnapshotMedia{
+			Mode:            "per_second",
+			BillableCount:   videoCount,
+			BillableSeconds: billableSeconds,
+		},
+		PricingItems: []CostBreakdownItem{{
+			Kind:            "video_second",
+			BaseCreditPrice: perSecondPrice,
+			Usage:           billableSeconds,
+			NormalizedUsage: billableSeconds,
+			Subtotal:        totalCost,
+		}},
 	}
 }
 

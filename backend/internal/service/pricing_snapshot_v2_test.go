@@ -194,3 +194,53 @@ func TestVideoPlanSnapshotsAreRecomputable(t *testing.T) {
 	}
 }
 
+
+// The image and flat per-second video paths originally emitted no items, so their
+// snapshots stayed v1 and the billing UI showed "missing snapshot" for them even
+// after the token path was fixed. Both now write an item, which is what makes the
+// lock price visible for media too.
+func TestMediaCostPathsEmitRecomputableV2(t *testing.T) {
+	bs := &BillingService{}
+
+	t.Run("image per image", func(t *testing.T) {
+		groupConfig := &ImagePriceConfig{Price1K: floatPtr(2.0)}
+		cost := bs.CalculateImageCost("gpt-image-1", "1K", 3, groupConfig, 1.5)
+		require.Equal(t, "per_image", cost.Unit)
+		require.Len(t, cost.PricingItems, 1)
+		require.Equal(t, "image", cost.PricingItems[0].Kind)
+		require.InDelta(t, 6.0, cost.TotalCost, 1e-9)
+
+		var snapshot map[string]any
+		require.NoError(t, json.Unmarshal(costPricingSnapshot(cost), &snapshot))
+		require.EqualValues(t, 2, snapshot["v"], "an image bill must carry a v2 snapshot")
+		items := snapshot["items"].([]any)
+		require.Len(t, items, 1)
+		item := items[0].(map[string]any)
+		require.InDelta(t, 2.0, item["base_credit_price"].(float64), 1e-9)
+		require.InDelta(t, 3.0, item["usage"].(float64), 1e-9)
+		multiplier := snapshot["group_multiplier"].(float64)
+		require.InDelta(t, multiplier*item["subtotal"].(float64), snapshot["total_credit"].(float64), 1e-9)
+	})
+
+	t.Run("video per second", func(t *testing.T) {
+		groupConfig := &VideoPriceConfig{Price720P: floatPtr(0.5)}
+		cost := bs.CalculateVideoCost("grok-imagine-video", VideoBillingResolution720P, 2, 10, groupConfig, 1.5)
+		require.Equal(t, "per_second", cost.Unit)
+		require.NotNil(t, cost.Media)
+		require.InDelta(t, 20.0, cost.Media.BillableSeconds, 1e-9)
+		require.Len(t, cost.PricingItems, 1)
+		require.Equal(t, "video_second", cost.PricingItems[0].Kind)
+
+		var snapshot map[string]any
+		require.NoError(t, json.Unmarshal(costPricingSnapshot(cost), &snapshot))
+		require.EqualValues(t, 2, snapshot["v"], "a video bill must carry a v2 snapshot")
+		require.Equal(t, "per_second", snapshot["unit"])
+		item := snapshot["items"].([]any)[0].(map[string]any)
+		multiplier := snapshot["group_multiplier"].(float64)
+		require.InDelta(t, multiplier*item["subtotal"].(float64), snapshot["total_credit"].(float64), 1e-9)
+	})
+
+	// A zero-count request keeps the historical v1 shape (no items, no media).
+	require.Empty(t, bs.CalculateImageCost("m", "1K", 0, nil, 1).PricingItems)
+}
+
