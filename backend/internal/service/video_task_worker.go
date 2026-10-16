@@ -56,9 +56,28 @@ const (
 	// failed 但**不扣费**。这只是生命周期收尾，不触发任何重生成。
 	videoTaskWorkerSettleWindow = 24 * time.Hour
 
+	// videoTaskWorkerReconcileInterval 是超出推进窗口后的核对间隔。
+	//
+	// PRD-06 §4 要求「对超时但上游仍可能执行的任务，记录待核实状态，不因本地超时
+	// 直接当失败」，同时 §4 也明确「不额外设置固定超时或保留周期作为产品要求」。
+	// 因此这里不是新的超时，只是把**核对频率**降下来：任务仍会被查询上游，迟到
+	// 成功照常结算，但不再按普通退避节奏反复扫，避免长期占用扫描配额。
+	videoTaskWorkerReconcileInterval = time.Hour
+
 	videoTaskWorkerLeaderLockKey = "video_task_worker:leader"
 	videoTaskWorkerLeaderLockTTL = 5 * time.Minute
 )
+
+// beyondVideoTaskSettleWindow 报告任务是否已超出正常推进窗口。
+//
+// 超窗口**不**意味着失败（PRD-06 §4）：它只表示本站尚未核对到上游终态。
+// 调用方据此降低核对频率并标记待核实，绝不据此宣告供应商失败。
+func beyondVideoTaskSettleWindow(task *VideoTask) bool {
+	if task == nil || task.CreatedAt.IsZero() {
+		return false
+	}
+	return time.Since(task.CreatedAt) > videoTaskWorkerSettleWindow
+}
 
 // VideoTaskWorkerSettings 是管理员可配的 worker 开关与周期。
 //
@@ -178,6 +197,12 @@ type videoTaskBillingPort interface {
 	ClaimBilled(ctx context.Context, requestID string, userID, apiKeyID int64) (bool, error)
 	ReleaseBilled(ctx context.Context, requestID string, userID, apiKeyID int64) error
 	PendingHasInputVideo(ctx context.Context, requestID string, userID, apiKeyID int64) bool
+	// DurableSettlementExists 报告这笔请求是否已在**持久账本**里落账。
+	//
+	// 必须与 ClaimBilled 区分开：ClaimBilled 是 Redis SetNX 占位，只表示「有人
+	// 正在结算」，不能证明扣费已提交（PRD-06 §4 的幂等要求靠 usage_billing_dedup
+	// 唯一键保证）。拿到占位的一方可能在写库前失败并释放占位——此时任务并未结算。
+	DurableSettlementExists(ctx context.Context, requestID string, userID, apiKeyID int64) (bool, error)
 	RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error
 }
 
@@ -202,6 +227,15 @@ type videoTaskAPIKeyReader interface {
 	GetByID(ctx context.Context, id int64) (*APIKey, error)
 }
 
+// videoTaskGroupReader 只给「按 ID 读一条分组」。
+//
+// 结算必须回到任务受理时的**原服务组**取价（PRD-06 BE-05「结算按原接受任务组
+// 倍率」），而不是 Key 的当前分组：用户在被受理后改组，不能改变已经发生的费用，
+// 也不能让这笔费用永远结不了。
+type videoTaskGroupReader interface {
+	GetByID(ctx context.Context, id int64) (*Group, error)
+}
+
 type videoTaskUserReader interface {
 	GetByID(ctx context.Context, id int64) (*User, error)
 }
@@ -216,6 +250,7 @@ type VideoTaskWorker struct {
 	upstream     videoTaskStatusQuerier
 	billing      videoTaskBillingPort
 	apiKeyRepo   videoTaskAPIKeyReader
+	groupRepo    videoTaskGroupReader
 	userRepo     videoTaskUserReader
 	userSubRepo  videoTaskSubscriptionReader
 	accountRepo  videoTaskAccountReader
@@ -240,6 +275,7 @@ func NewVideoTaskWorker(
 	tasks *VideoTaskService,
 	gateway *OpenAIGatewayService,
 	apiKeyRepo videoTaskAPIKeyReader,
+	groupRepo videoTaskGroupReader,
 	userRepo videoTaskUserReader,
 	userSubRepo videoTaskSubscriptionReader,
 	accountRepo videoTaskAccountReader,
@@ -250,6 +286,7 @@ func NewVideoTaskWorker(
 	worker := &VideoTaskWorker{
 		tasks:        tasks,
 		apiKeyRepo:   apiKeyRepo,
+		groupRepo:    groupRepo,
 		userRepo:     userRepo,
 		userSubRepo:  userSubRepo,
 		accountRepo:  accountRepo,
@@ -407,11 +444,17 @@ func (s *VideoTaskWorker) RunDue(ctx context.Context) (int, int, error) {
 
 // processTask 推进单个任务；返回是否已写入终态（结算或失败收尾）。
 func (s *VideoTaskWorker) processTask(ctx context.Context, task *VideoTask) bool {
-	// 超出推进窗口：收尾为 failed，不扣费，也不触发重生成。
-	if !task.CreatedAt.IsZero() && time.Since(task.CreatedAt) > videoTaskWorkerSettleWindow {
-		s.finalizeFailed(ctx, task, "settle_window_exceeded: no upstream terminal state within the settlement window")
-		return true
-	}
+	// 超出推进窗口**不再**直接判失败。
+	//
+	// PRD-06 §4 明确两点：①「对超时但上游仍可能执行的任务，记录待核实状态，
+	// 不因本地超时直接当失败并重新生成」；②「不允许客户端是否查询决定是否扣费」。
+	// 原先的实现在超窗口时**先于任何上游查询**就 MarkFailed 且不再扫描，等于把
+	// 「本站没核对」当成「上游失败」：服务中断一天、worker 停机或结算持续失败时，
+	// 上游早已成功也永远不会被结算，客户端不主动轮询就永久漏扣。
+	//
+	// 现在窗口只用于把检查间隔拉长并标记待核实（见 deferTask），任务仍按原承载账号
+	// 查询上游：上游明确成功照常结算，只有上游明确报告终态失败才收尾为 failed。
+	//
 	// 缺少承载账号：不能重新选号（§2.3），只能记录并保持 processing。
 	if task.AccountID == nil || *task.AccountID <= 0 {
 		s.deferTask(ctx, task, "carrying account is not bound; refusing to re-schedule account selection")
@@ -456,6 +499,14 @@ func (s *VideoTaskWorker) deferTask(ctx context.Context, task *VideoTask, reason
 		return
 	}
 	backoff := videoTaskBackoff(task.Attempts)
+	if beyondVideoTaskSettleWindow(task) {
+		if backoff < videoTaskWorkerReconcileInterval {
+			backoff = videoTaskWorkerReconcileInterval
+		}
+		if strings.TrimSpace(reason) == "" {
+			reason = "beyond_settlement_window: awaiting reconciliation"
+		}
+	}
 	if err := s.tasks.MarkChecked(ctx, task, time.Now().Add(backoff), reason); err != nil {
 		logger.L().Warn("video_task_worker.mark_checked_failed",
 			zap.String("task_no", task.TaskNo), zap.Error(err))
@@ -517,8 +568,35 @@ func (s *VideoTaskWorker) settleSuccess(ctx context.Context, task *VideoTask, ac
 			zap.Int64("api_key_user_id", apiKey.UserID))
 		return false
 	}
-	if apiKey.Group == nil || apiKey.GroupID == nil || *apiKey.GroupID != task.GroupID {
-		logger.L().Warn("video_task_worker.api_key_group_mismatch",
+	// 结算必须回到任务受理时的**原服务组**，而不是 Key 的当前分组。
+	//
+	// PRD-06 BE-05 要求「结算按原接受任务组倍率」；§4 要求「不允许客户端是否查询
+	// 决定是否扣费」。原先这里要求 Key 当前首分组仍等于任务分组，用户在视频被受理
+	// 后把 Key 换组或清空普通组，这笔已经发生的成功消费就永远结不了，最终还会被
+	// 窗口清理路径无费用关闭。实时权限用于**新请求准入**，不用于取消已发生的费用。
+	//
+	// 归属校验（apiKey.UserID == task.UserID）保留：防的是 Key 被迁移到别的用户，
+	// 与分组变更无关。
+	settlementGroup := apiKey.Group
+	if task.GroupID > 0 && (apiKey.GroupID == nil || *apiKey.GroupID != task.GroupID) {
+		// Key 已被换组：回原服务组取价。Key 未被换组时 apiKey.Group 就是原组，
+		// 无需额外读库（保持既有行为与既有测试夹具不变）。
+		if s.groupRepo == nil {
+			logger.L().Warn("video_task_worker.group_repo_unavailable",
+				zap.String("task_no", task.TaskNo))
+			return false
+		}
+		original, err := s.groupRepo.GetByID(ctx, task.GroupID)
+		if err != nil || original == nil {
+			logger.L().Warn("video_task_worker.load_original_group_failed",
+				zap.String("task_no", task.TaskNo),
+				zap.Int64("task_group_id", task.GroupID), zap.Error(err))
+			return false
+		}
+		settlementGroup = original
+	}
+	if settlementGroup == nil {
+		logger.L().Warn("video_task_worker.settlement_group_missing",
 			zap.String("task_no", task.TaskNo),
 			zap.Int64("task_group_id", task.GroupID))
 		return false
@@ -532,7 +610,7 @@ func (s *VideoTaskWorker) settleSuccess(ctx context.Context, task *VideoTask, ac
 	// Seedance per_token 计划需要 token 用量；缺失时不结算（保持 processing），
 	// 与 handler 的 fail-closed 门槛一致。
 	if strings.EqualFold(strings.TrimSpace(task.Platform), VideoTaskPlatformSeedance) &&
-		SeedanceCompletionRequiresTokens(apiKey.Group, result.BillingModel) && result.Usage.OutputTokens <= 0 {
+		SeedanceCompletionRequiresTokens(settlementGroup, result.BillingModel) && result.Usage.OutputTokens <= 0 {
 		logger.L().Warn("video_task_worker.seedance_missing_token_usage",
 			zap.String("task_no", task.TaskNo))
 		return false
@@ -546,13 +624,44 @@ func (s *VideoTaskWorker) settleSuccess(ctx context.Context, task *VideoTask, ac
 		return false
 	}
 	if !claimed {
-		// 客户端轮询（或并发 worker）已经结算过：不重复扣费，仅收尾任务行。
-		s.markCompleted(ctx, task)
-		return true
+		// 占位被别人持有：**不能**据此认为已经结算。
+		//
+		// ClaimBilled 是 Redis SetNX 占位，只表示「有人正在结算」。持位者可能在
+		// 写库前失败并释放占位（handler 与 worker 都在 RecordUsage 失败时释放）。
+		// 原先这里直接 markCompleted，等于把「别人正在扣」当成「已经扣了」：一旦
+		// 对方落账失败并释放，任务已 completed 不再被扫描，这笔费用永久漏扣。
+		//
+		// 因此只认持久账本：已落账才收尾；否则说明结算尚未提交，保持 processing
+		// 并安排重试，由下一轮（或客户端轮询）完成结算。
+		settled, checkErr := s.billing.DurableSettlementExists(ctx, task.BillingKey(), task.UserID, task.APIKeyID)
+		if checkErr != nil {
+			// 账本不可读时不猜：保持 processing，下轮再试。
+			logger.L().Warn("video_task_worker.durable_settlement_check_failed",
+				zap.String("task_no", task.TaskNo), zap.Error(checkErr))
+			return false
+		}
+		if settled {
+			// 已确认落账：不重复扣费，仅收尾任务行。
+			s.markCompleted(ctx, task)
+			return true
+		}
+		// 占位在途但尚未落账：保持 processing，不碰别人的占位，等下一轮重试。
+		logger.L().Warn("video_task_worker.claim_in_flight_not_yet_settled",
+			zap.String("task_no", task.TaskNo),
+			zap.String("billing_key", task.BillingKey()))
+		return false
 	}
 
 	user := s.loadUser(ctx, task.UserID, apiKey)
 	subscription := s.loadSubscription(ctx, task.UserID, task.GroupID)
+
+	// 结算用的 Key 视图：身份字段不变（APIKeyID 是幂等键与配额归属），但分组换成
+	// 任务受理时的原服务组，使单价与倍率都按原组解析（PRD-06 BE-05）。绝不改动
+	// 真实 Key 行——这里只是本次结算的入参副本。
+	settlementKey := *apiKey
+	originalGroupID := task.GroupID
+	settlementKey.GroupID = &originalGroupID
+	settlementKey.Group = settlementGroup
 
 	// Seedance per_token 的第二档维度（请求是否含视频输入）：优先 Redis 快照，
 	// Redis 过期后回落到任务表快照。只在有明确证据时才置 true（不打折猜测）。
@@ -568,7 +677,7 @@ func (s *VideoTaskWorker) settleSuccess(ctx context.Context, task *VideoTask, ac
 
 	if err := s.billing.RecordUsage(ctx, &OpenAIRecordUsageInput{
 		Result:             result,
-		APIKey:             apiKey,
+		APIKey:             &settlementKey,
 		User:               user,
 		Account:            account,
 		Subscription:       subscription,
@@ -707,6 +816,10 @@ func buildVideoTaskSettlementResult(task *VideoTask, statusBody []byte, pending 
 		if e2e := GrokVideoE2EDuration(pending.CreatedAt, time.Now()); e2e > 0 {
 			result.Duration = e2e
 		}
+		// PRD-06 AC-B4: carry the acceptance-time quote/multiplier into settlement so
+		// the charge matches what the operator published when the task was accepted.
+		result.FrozenVideoPlan = pending.FrozenVideoPlan
+		result.FrozenVideoMultiplier = pending.FrozenVideoMultiplier
 	}
 	if strings.TrimSpace(result.Model) == "" {
 		result.Model = firstNonEmptyString(task.Model, task.BillingModel)
@@ -767,6 +880,10 @@ func (g *gatewayVideoTaskBilling) ReleaseBilled(ctx context.Context, requestID s
 
 func (g *gatewayVideoTaskBilling) PendingHasInputVideo(ctx context.Context, requestID string, userID, apiKeyID int64) bool {
 	return g.gateway.GrokVideoPendingHasInputVideo(ctx, requestID, userID, apiKeyID)
+}
+
+func (g *gatewayVideoTaskBilling) DurableSettlementExists(ctx context.Context, requestID string, userID, apiKeyID int64) (bool, error) {
+	return g.gateway.GrokVideoDurableSettlementExists(ctx, requestID, apiKeyID)
 }
 
 func (g *gatewayVideoTaskBilling) RecordUsage(ctx context.Context, input *OpenAIRecordUsageInput) error {

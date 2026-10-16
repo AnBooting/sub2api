@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -148,6 +149,17 @@ func (f *fakeVideoTaskRepo) MarkFailed(_ context.Context, id int64, _ time.Time,
 	return false, nil
 }
 
+func (f *fakeVideoTaskRepo) lastErrorOf(taskNo string) string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, task := range f.tasks {
+		if task.TaskNo == taskNo {
+			return task.LastError
+		}
+	}
+	return ""
+}
+
 func (f *fakeVideoTaskRepo) statusOf(taskNo string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -164,16 +176,18 @@ func (f *fakeVideoTaskRepo) statusOf(taskNo string) string {
 type fakeVideoBilling struct {
 	mu            sync.Mutex
 	claimed       map[string]bool
+	settled       map[string]bool
 	recordCalls   int
 	releaseCalls  int
 	recordErr     error
+	durableErr    error
 	pending       *GrokVideoPendingBilling
 	hasInputVideo bool
 	onRecord      func()
 }
 
 func newFakeVideoBilling() *fakeVideoBilling {
-	return &fakeVideoBilling{claimed: map[string]bool{}}
+	return &fakeVideoBilling{claimed: map[string]bool{}, settled: map[string]bool{}}
 }
 
 func (f *fakeVideoBilling) LoadPendingBilling(_ context.Context, _ string, _, _ int64) (*GrokVideoPendingBilling, error) {
@@ -203,6 +217,24 @@ func (f *fakeVideoBilling) ReleaseBilled(_ context.Context, requestID string, _,
 
 func (f *fakeVideoBilling) PendingHasInputVideo(_ context.Context, _ string, _, _ int64) bool {
 	return f.hasInputVideo
+}
+
+// markDurableSettled 把某个 key 标记为「已持久落账」，模拟扣费事务已提交。
+func (f *fakeVideoBilling) markDurableSettled(requestID string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.settled[requestID] = true
+}
+
+// DurableSettlementExists 模拟持久幂等账本。claimed 是 Redis 在途占位，**不是**
+// 落账凭据；只有显式标记 settled 的 key 才算已扣费。
+func (f *fakeVideoBilling) DurableSettlementExists(_ context.Context, requestID string, _, _ int64) (bool, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.durableErr != nil {
+		return false, f.durableErr
+	}
+	return f.settled[requestID], nil
 }
 
 func (f *fakeVideoBilling) RecordUsage(_ context.Context, _ *OpenAIRecordUsageInput) error {
@@ -265,6 +297,15 @@ func (f *fakeVideoAccountRepo) GetByID(_ context.Context, _ int64) (*Account, er
 	return f.account, f.err
 }
 
+type fakeVideoGroupRepo struct {
+	group *Group
+	err   error
+}
+
+func (f *fakeVideoGroupRepo) GetByID(_ context.Context, _ int64) (*Group, error) {
+	return f.group, f.err
+}
+
 type fakeVideoAPIKeyRepo struct {
 	key *APIKey
 	err error
@@ -307,11 +348,12 @@ func videoTaskTestAccount() *Account {
 // newTestVideoTaskWorker 组装一个完全脱离 DB/Redis/上游的 worker。
 func newTestVideoTaskWorker(t *testing.T, repo *fakeVideoTaskRepo, billing *fakeVideoBilling, querier *fakeVideoStatusQuerier) *VideoTaskWorker {
 	t.Helper()
-	worker := NewVideoTaskWorker(NewVideoTaskService(repo), nil, nil, nil, nil, nil, nil, nil)
+	worker := NewVideoTaskWorker(NewVideoTaskService(repo), nil, nil, nil, nil, nil, nil, nil, nil)
 	worker.billing = billing
 	worker.upstream = querier
 	worker.accountRepo = &fakeVideoAccountRepo{account: videoTaskTestAccount()}
 	worker.apiKeyRepo = &fakeVideoAPIKeyRepo{key: videoTaskTestAPIKey()}
+	worker.groupRepo = &fakeVideoGroupRepo{group: videoTaskTestGroup()}
 	return worker
 }
 
@@ -344,13 +386,26 @@ func grokDoneBody() []byte {
 	return []byte(`{"status":"done","video":{"url":"https://up.example/v.mp4"},"model":"grok-imagine-video","video_config":{"resolution":"720p","duration":8}}`)
 }
 
+// videoTaskPendingSnapshot 是「受理时写入」的计费快照。
+//
+// 修复 R3 后，真实快照在受理时就把报价与有效倍率冻结进来（PRD-06 AC-B4），因此
+// 夹具必须同样带上冻结值——它代表的是「按 720p @0.07/秒、倍率 1.5 受理的任务」。
+// 结算若忽略这份快照而回源实时价，改价场景就会多扣（0.84 → 8.4）。
 func videoTaskPendingSnapshot() *GrokVideoPendingBilling {
+	frozenPrice := 0.07
+	frozenMultiplier := 1.5
 	return &GrokVideoPendingBilling{
 		Model:                "grok-imagine-video",
 		BillingModel:         "grok-imagine-video",
 		VideoResolution:      "720p",
 		VideoDurationSeconds: 8,
 		CreatedAt:            time.Now().Add(-time.Minute).Format(time.RFC3339Nano),
+		FrozenVideoPlan: &domain.VideoPricePlan{
+			Mode:            domain.VideoBillingModePerSecond,
+			PerSecondPrices: map[string]float64{VideoBillingResolution720P: frozenPrice},
+		},
+		FrozenVideoMultiplier:  &frozenMultiplier,
+		FrozenVideoPriceSource: "plan",
 	}
 }
 
@@ -398,10 +453,14 @@ func TestVideoTaskWorker_ClientRaceSettlesOnce(t *testing.T) {
 	repo := &fakeVideoTaskRepo{}
 	billing := newFakeVideoBilling()
 	billing.pending = videoTaskPendingSnapshot()
-	// 模拟客户端轮询抢在 worker 之前拿到 SetNX 占位。
+	// 模拟客户端轮询抢在 worker 之前拿到 SetNX 占位，**并且已完成落账**。
+	//
+	// 关键：占位本身不是结算凭据（见 R1 回归）。必须同时把持久账本标为已落账，
+	// 才构成「客户端已结算」这一前提，否则本条测试会把缺陷当成期望行为固定住。
 	claimed, err := billing.ClaimBilled(context.Background(), videoTaskTestTaskKey, videoTaskTestUserID, videoTaskTestAPIKeyID)
 	require.NoError(t, err)
 	require.True(t, claimed)
+	billing.markDurableSettled(videoTaskTestTaskKey)
 
 	querier := &fakeVideoStatusQuerier{state: videoTaskUpstreamSucceeded, body: grokDoneBody()}
 	worker := newTestVideoTaskWorker(t, repo, billing, querier)
@@ -604,7 +663,11 @@ func TestVideoTaskWorker_RecordUsageFailureReleasesClaim(t *testing.T) {
 	require.Equal(t, VideoTaskStatusCompleted, repo.statusOf(videoTaskTestTaskKey))
 }
 
-// ── 8. 归属不一致不结算（防止错扣到别的分组/用户）────────────
+// ── 8. 归属不一致不结算（防止错扣到**别的用户**）──────────────
+//
+// 归属校验的对象是**用户**，不是分组：Key 被换组不改变已发生费用的归属，但 Key 被
+// 迁移到别的用户名下时，这笔消费不应记到新用户头上。
+// （原用例把「分组不一致」当作拒绝条件，正是外部审查 R2 判定的缺陷，已改。）
 
 func TestVideoTaskWorker_RefusesMismatchedOwnership(t *testing.T) {
 	t.Parallel()
@@ -614,7 +677,37 @@ func TestVideoTaskWorker_RefusesMismatchedOwnership(t *testing.T) {
 	querier := &fakeVideoStatusQuerier{state: videoTaskUpstreamSucceeded, body: grokDoneBody()}
 	worker := newTestVideoTaskWorker(t, repo, billing, querier)
 	seedVideoTask(t, repo)
-	// Key 已迁移到别的分组。
+	// Key 已迁移到别的用户名下（分组保持原值，隔离出「用户」这一维度）。
+	otherUserID := int64(777)
+	worker.apiKeyRepo = &fakeVideoAPIKeyRepo{key: &APIKey{
+		ID:      videoTaskTestAPIKeyID,
+		UserID:  otherUserID,
+		GroupID: i64p(videoTaskTestGroupID),
+		Group:   videoTaskTestGroup(),
+	}}
+
+	_, settled, err := worker.RunDue(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 0, settled)
+	require.Equal(t, 0, billing.recordCount(), "用户归属不一致时不得扣费")
+	require.Equal(t, VideoTaskStatusProcessing, repo.statusOf(videoTaskTestTaskKey))
+}
+
+// ── 8b. Key 换组不得取消已受理视频的结算（R2 回归）──────────────
+//
+// PRD-06 BE-05「结算按原接受任务组倍率」；§4「不允许客户端是否查询决定是否扣费」。
+// 用户在受理后把 Key 换到别的组，不能改变已经发生的费用，也不能让它永远结不了。
+
+func TestVideoTaskWorker_GroupRebindStillSettlesAgainstOriginalGroup(t *testing.T) {
+	t.Parallel()
+	repo := &fakeVideoTaskRepo{}
+	billing := newFakeVideoBilling()
+	billing.pending = videoTaskPendingSnapshot()
+	querier := &fakeVideoStatusQuerier{state: videoTaskUpstreamSucceeded, body: grokDoneBody()}
+	worker := newTestVideoTaskWorker(t, repo, billing, querier)
+	seedVideoTask(t, repo)
+
+	// Key 换到另一个分组；原分组仍可由 groupRepo 读到。
 	otherGroupID := int64(555)
 	worker.apiKeyRepo = &fakeVideoAPIKeyRepo{key: &APIKey{
 		ID:      videoTaskTestAPIKeyID,
@@ -622,12 +715,14 @@ func TestVideoTaskWorker_RefusesMismatchedOwnership(t *testing.T) {
 		GroupID: &otherGroupID,
 		Group:   &Group{ID: otherGroupID},
 	}}
+	originalGroup := videoTaskTestGroup()
+	worker.groupRepo = &fakeVideoGroupRepo{group: originalGroup}
 
 	_, settled, err := worker.RunDue(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, 0, settled)
-	require.Equal(t, 0, billing.recordCount(), "分组不一致时不得扣费")
-	require.Equal(t, VideoTaskStatusProcessing, repo.statusOf(videoTaskTestTaskKey))
+	require.Equal(t, 1, settled, "已受理的成功视频必须结算")
+	require.Equal(t, 1, billing.recordCount(), "换组不得取消已发生费用的结算")
+	require.Equal(t, VideoTaskStatusCompleted, repo.statusOf(videoTaskTestTaskKey))
 }
 
 // ── 9. 归属校验：他人任务不可读 ────────────────────────────
@@ -763,9 +858,13 @@ func TestVideoTaskWorker_SettingsClampInterval(t *testing.T) {
 	require.Equal(t, int(videoTaskWorkerMaxInterval.Seconds()), settings.IntervalSeconds)
 }
 
-// ── 13. 超窗口收尾不扣费 ──────────────────────────────────
+// ── 13. 超窗口不得当失败：仍要核对上游，只有上游明确失败才收尾 ──────────
+//
+// 回归（外部审查 R4）：原实现在超窗口时**先于任何上游查询**就 MarkFailed 且不再
+// 扫描，把「本站没核对」当成「上游失败」。PRD-06 §4 明确要求「对超时但上游仍可能
+// 执行的任务，记录待核实状态，不因本地超时直接当失败并重新生成」。
 
-func TestVideoTaskWorker_SettleWindowExpiryChargesNothing(t *testing.T) {
+func TestVideoTaskWorker_SettleWindowExpiryStillQueriesUpstream(t *testing.T) {
 	t.Parallel()
 	repo := &fakeVideoTaskRepo{}
 	billing := newFakeVideoBilling()
@@ -778,9 +877,50 @@ func TestVideoTaskWorker_SettleWindowExpiryChargesNothing(t *testing.T) {
 
 	_, settled, err := worker.RunDue(context.Background())
 	require.NoError(t, err)
+	require.Equal(t, 0, settled, "上游仍是 pending，不得写入终态")
+	require.Equal(t, 1, querier.callCount(), "超窗口仍必须核对上游，不能凭本地年龄判失败")
+	require.Equal(t, 0, billing.recordCount(), "上游未成功不得扣费")
+	require.Equal(t, VideoTaskStatusProcessing, repo.statusOf(videoTaskTestTaskKey),
+		"超窗口只能是待核实状态，不得直接 failed")
+	require.Contains(t, repo.lastErrorOf(videoTaskTestTaskKey), "beyond_settlement_window",
+		"应标记为待核实，而不是上游失败")
+}
+
+// 超窗口但上游明确成功：必须照常结算（这正是原实现永久漏扣的场景）。
+func TestVideoTaskWorker_SettleWindowExpiryStillSettlesSuccess(t *testing.T) {
+	t.Parallel()
+	repo := &fakeVideoTaskRepo{}
+	billing := newFakeVideoBilling()
+	billing.pending = videoTaskPendingSnapshot()
+	querier := &fakeVideoStatusQuerier{state: videoTaskUpstreamSucceeded, body: grokDoneBody()}
+	worker := newTestVideoTaskWorker(t, repo, billing, querier)
+	seedVideoTask(t, repo, func(task *VideoTask) {
+		task.CreatedAt = time.Now().Add(-(videoTaskWorkerSettleWindow + time.Hour))
+	})
+
+	_, settled, err := worker.RunDue(context.Background())
+	require.NoError(t, err)
 	require.Equal(t, 1, settled)
-	require.Equal(t, 0, billing.recordCount(), "超窗口收尾不得扣费")
-	require.Equal(t, 0, querier.callCount(), "超窗口不再查询上游")
+	require.Equal(t, 1, billing.recordCount(), "上游已成功，超窗口也必须结算，不得免费关闭")
+	require.Equal(t, VideoTaskStatusCompleted, repo.statusOf(videoTaskTestTaskKey))
+}
+
+// 超窗口且上游明确失败：这时才允许收尾为 failed。
+func TestVideoTaskWorker_SettleWindowExpiryUpstreamFailureFinalizes(t *testing.T) {
+	t.Parallel()
+	repo := &fakeVideoTaskRepo{}
+	billing := newFakeVideoBilling()
+	billing.pending = videoTaskPendingSnapshot()
+	querier := &fakeVideoStatusQuerier{state: videoTaskUpstreamFailed, body: []byte(`{"status":"failed"}`)}
+	worker := newTestVideoTaskWorker(t, repo, billing, querier)
+	seedVideoTask(t, repo, func(task *VideoTask) {
+		task.CreatedAt = time.Now().Add(-(videoTaskWorkerSettleWindow + time.Hour))
+	})
+
+	_, settled, err := worker.RunDue(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, settled)
+	require.Equal(t, 0, billing.recordCount())
 	require.Equal(t, VideoTaskStatusFailed, repo.statusOf(videoTaskTestTaskKey))
 }
 
@@ -825,10 +965,11 @@ func TestVideoTaskWorker_LongKeyClientClaimBlocksWorker(t *testing.T) {
 		task.UpstreamTaskID = key // 完整、未截断
 	})
 
-	// 客户端先占位：用完整 key（与 handler 的 ClaimGrokVideoBilling 一致）。
+	// 客户端先占位并完成落账：用完整 key（与 handler 的 ClaimGrokVideoBilling 一致）。
 	claimed, err := billing.ClaimBilled(context.Background(), key, videoTaskTestUserID, videoTaskTestAPIKeyID)
 	require.NoError(t, err)
 	require.True(t, claimed)
+	billing.markDurableSettled(key)
 
 	_, settled, err := worker.RunDue(context.Background())
 	require.NoError(t, err)

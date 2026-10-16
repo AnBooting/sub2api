@@ -117,6 +117,7 @@ func ProvideVideoTaskWorker(
 	repo VideoTaskRepository,
 	gateway *OpenAIGatewayService,
 	apiKeyRepo APIKeyRepository,
+	groupRepo GroupRepository,
 	userRepo UserRepository,
 	userSubRepo UserSubscriptionRepository,
 	accountRepo AccountRepository,
@@ -127,7 +128,7 @@ func ProvideVideoTaskWorker(
 ) *VideoTaskWorker {
 	tasks := NewVideoTaskService(repo)
 	SetDefaultVideoTaskRecorder(NewVideoTaskRecorder(tasks))
-	worker := NewVideoTaskWorker(tasks, gateway, apiKeyRepo, userRepo, userSubRepo, accountRepo, apiKeySvc, settingRepo)
+	worker := NewVideoTaskWorker(tasks, gateway, apiKeyRepo, groupRepo, userRepo, userSubRepo, accountRepo, apiKeySvc, settingRepo)
 	worker.SetLeaderLock(lockCache, db)
 	worker.Start()
 	return worker

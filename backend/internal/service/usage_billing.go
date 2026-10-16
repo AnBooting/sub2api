@@ -220,6 +220,12 @@ type BatchImageBalanceHoldResult struct {
 
 type UsageBillingRepository interface {
 	Apply(ctx context.Context, cmd *UsageBillingCommand) (*UsageBillingApplyResult, error)
+	// SettlementExists 报告 (request_id, api_key_id) 是否已在持久幂等账本
+	// （usage_billing_dedup 或其归档表）中落账。
+	//
+	// 与 Redis 占位不同：占位只表示「有人正在结算」，落账才表示「扣费已提交」。
+	// 用于区分「别人已结算」与「别人结算失败后释放了占位，这笔还没扣」。
+	SettlementExists(ctx context.Context, requestID string, apiKeyID int64) (bool, error)
 	ReserveBatchImageBalance(ctx context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error)
 	CaptureBatchImageBalance(ctx context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error)
 	ReleaseBatchImageBalance(ctx context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error)
