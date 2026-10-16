@@ -217,6 +217,11 @@ func (r *apiKeyRepository) GetByKeyForAuth(ctx context.Context, key string) (*se
 				group.FieldVideoPrice720p,
 				group.FieldVideoPrice1080p,
 				group.FieldVideoModelPrices,
+				// TS-06：视频计费方案（per_request/per_second/per_token）是
+				// GroupHasSeedanceVideoPrice 的输入之一。漏选会让鉴权快照里的 Group
+				// 丢失方案，只配置新方案（未保留 legacy 视频价格列）的站，Seedance
+				// 创建会稳定返回 503 pricing_unavailable。
+				group.FieldVideoPricePlans,
 				group.FieldWebSearchPricePerCall,
 				group.FieldSearchPricePer1k,
 				group.FieldAudioRealtimePricePerMin,
