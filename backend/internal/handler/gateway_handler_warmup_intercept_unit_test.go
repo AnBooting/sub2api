@@ -162,6 +162,15 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 	schedulerCache := &fakeSchedulerCache{accounts: accounts}
 	schedulerSnapshot := service.NewSchedulerSnapshotService(schedulerCache, nil, nil, nil, nil)
 
+	// 请求锁价在准入阶段就需要计费/定价依赖（生产恒有）。这里给一组最小实现，
+	// 使 warmup/intercept 形状的请求也能完成冻结——否则测试会因为"无法冻结定价"
+	// 而在到达 mock 拦截前 503，掩盖真正要验证的拦截行为。
+	pricingCfg := &config.Config{}
+	billingSvc := service.NewBillingService(pricingCfg, nil)
+	// 共享入口（Gemini 原生 / Chat Completions）会在锁价前后解析渠道映射，
+	// 需要一个非 nil 的 ChannelService；空渠道仓储即可（无映射、无渠道价）。
+	channels := service.NewChannelService(&openAIWSUsageHandlerChannelRepoStub{}, nil, nil, nil, nil)
+
 	gwSvc := service.NewGatewayService(
 		nil, // accountRepo (not used: scheduler snapshot hit)
 		&fakeGroupRepo{group: group},
@@ -171,10 +180,10 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 		nil, // userSubRepo
 		nil, // userGroupRateRepo
 		nil, // cache (disable sticky)
-		nil, // cfg
+		pricingCfg,
 		schedulerSnapshot,
 		nil, // concurrencyService (disable load-aware; tryAcquire always acquired)
-		nil, // billingService
+		billingSvc,
 		nil, // rateLimitService
 		nil, // billingCacheService
 		nil, // identityService
@@ -186,13 +195,12 @@ func newTestGatewayHandler(t *testing.T, group *service.Group, accounts []*servi
 		nil, // digestStore
 		nil, // settingService
 		nil, // tlsFPProfileService
-		nil, // channelService
-		nil, // resolver
+		channels,
+		service.NewModelPricingResolver(channels, billingSvc),
 		nil, // compositeResolver
 		nil, // balanceNotifyService
 		nil, // userPlatformQuotaRepo
 	)
-
 	// RunModeSimple：跳过计费检查，避免引入 repo/cache 依赖。
 	cfg := &config.Config{RunMode: config.RunModeSimple}
 	billingCacheSvc := service.NewBillingCacheService(nil, nil, nil, nil, nil, nil, cfg, nil)

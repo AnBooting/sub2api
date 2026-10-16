@@ -72,6 +72,11 @@ func (UsageLog) Fields() []ent.Field {
 		field.Int64("group_id").
 			Optional().
 			Nillable(),
+		// Logical request routing metadata: historical rows remain NULL.
+		field.Int64("requested_group_id").Optional().Nillable(),
+		field.Int64("served_group_id").Optional().Nillable(),
+		field.Enum("failover").Values("none", "account", "group", "ha").Optional().Nillable(),
+		field.Int("attempt_count").NonNegative().Optional().Nillable(),
 		field.Int64("subscription_id").
 			Optional().
 			Nillable(),

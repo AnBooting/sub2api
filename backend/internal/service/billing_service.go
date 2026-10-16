@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
@@ -96,10 +97,13 @@ type BillingCache interface {
 
 // ModelPricing 模型价格配置（per-token价格，与LiteLLM格式一致）
 type ModelPricing struct {
-	Currency        string
-	PricingSource   string
-	NativeCard      *NativeCNYCard
-	NativePricingAt time.Time
+	TokenPricePresence TokenPricePresence
+	Currency           string
+	PricingSource      string
+	NativeCard         *NativeCNYCard
+	NativePricingAt    time.Time
+	tokenPricingError  error // preserves incomplete manual CNY cards as unavailable, never zero
+	manualTokenPricing bool  // retain NativeCard policy provenance without overwriting manual rates
 	// UltrafastMultiplier is model-owned and independent of operator Fast pricing.
 	UltrafastMultiplier                float64
 	InputPricePerToken                 float64            // 每token输入价格 (USD)
@@ -201,12 +205,58 @@ type UsageTokens struct {
 	ImageOutputTokens     int
 }
 
+// CostBreakdownItem 是 C-1 锁价快照（pricing_snapshot v2）的单个计价分项。
+//
+// 它把「用了多少量、按什么单价、算出多少钱」显式记录下来，使账单可以脱离当前价表
+// 复算（PRD 11-共享契约 C-1）。单价一律换算为「每百万 token」口径，与 unit
+// "per_1m_tokens" 一致：base_credit_price = 每 token 价 × 1e6，
+// normalized_usage = usage / 1e6，subtotal = usage × 每 token 价（与计费同式）。
+type CostBreakdownItem struct {
+	Kind            string
+	BaseCreditPrice float64
+	Usage           float64
+	NormalizedUsage float64
+	Subtotal        float64
+}
+
+// PricingSnapshotMedia 记录视频/图片按次计费的计量事实（C-1 media 字段）。
+type PricingSnapshotMedia struct {
+	Mode            string
+	BillableCount   int
+	BillableSeconds float64
+	SecondsSource   string
+}
+
+// PricingSnapshotPeriod 记录峰谷价时段（C-1 period 字段），仅价表含 schedule 时出现。
+type PricingSnapshotPeriod struct {
+	Label    string
+	Timezone string
+	Window   string
+}
+
 // CostBreakdown 费用明细
 type CostBreakdown struct {
-	PricingError              error
-	PricingCurrency           string
-	PricingSource             string
-	PricingSnapshot           *ModelPricing
+	PricingError    error
+	PricingCurrency string
+	PricingSource   string
+	PricingSnapshot *ModelPricing
+	// ---- C-1 锁价快照（pricing_snapshot v2）事实 ----
+	// PricingItems 为按分项的计价明细；为空时 costPricingSnapshot 退回 v1 形态。
+	PricingItems []CostBreakdownItem
+	// GroupMultiplier 是本次请求实际应用的最终倍率。它由 ActualCost/TotalCost 反推，
+	// 因此天然满足 C-1 复算校验 total_credit == group_multiplier × Σ subtotal。
+	GroupMultiplier float64
+	// RequestStartedAt 是请求开始时点（C-1 request_started_at）。
+	RequestStartedAt time.Time
+	// PriceVersion 是本次所用价表的版本标识（C-2 price_version）。
+	PriceVersion string
+	// Period 仅在价表含峰谷 schedule 时填充。
+	Period *PricingSnapshotPeriod
+	// Media 仅媒体计费填充。
+	Media *PricingSnapshotMedia
+	// ServedGroupID 是实际服务组（C-6 served_group_id 的快照副本）。
+	ServedGroupID             *int64
+	Unit                      string
 	InputCost                 float64 // 文本输入费用（不含图片输入，图片输入单独记入 ImageInputCost）
 	ImageInputCost            float64 // 图片输入 token 费用（如 gpt-image-2 图片编辑）
 	OutputCost                float64
@@ -217,6 +267,19 @@ type CostBreakdown struct {
 	ActualCost                float64 // 应用倍率后的实际费用
 	BillingMode               string  // 计费模式（"token"/"per_request"/"image"），由 CalculateCostUnified 填充
 	LongContextBillingApplied bool
+}
+
+// EffectiveMultiplier 返回本次请求实际应用的最终倍率。
+//
+// 它由 ActualCost/TotalCost 反推而非另行记录，因此 C-1 的复算校验
+// total_credit == group_multiplier × Σ items[].subtotal 在构造上恒成立：
+// total_credit 取 ActualCost，而 ActualCost 正是 TotalCost × 倍率。
+// TotalCost 为 0 时（免费或零用量）返回 0，避免除零并如实表达「未产生费用」。
+func (cost *CostBreakdown) EffectiveMultiplier() float64 {
+	if cost == nil || cost.TotalCost == 0 {
+		return 0
+	}
+	return cost.ActualCost / cost.TotalCost
 }
 
 func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
@@ -231,6 +294,16 @@ func applyCostBreakdownMultiplier(cost *CostBreakdown, multiplier float64) {
 	cost.CacheReadCost *= multiplier
 	cost.TotalCost *= multiplier
 	cost.ActualCost *= multiplier
+	// C-1: the lock-price items must be scaled by the same factor, or the stored
+	// snapshot stops reconciling. The contract requires
+	// total_credit == group_multiplier * sum(items[].subtotal); total_credit is the
+	// scaled ActualCost, so leaving the subtotals unscaled broke the check whenever a
+	// channel time-of-day or reasoning-effort multiplier applied after the items were
+	// built.
+	for i := range cost.PricingItems {
+		cost.PricingItems[i].BaseCreditPrice *= multiplier
+		cost.PricingItems[i].Subtotal *= multiplier
+	}
 }
 
 func isClaudeFable51Model(model string) bool {
@@ -293,26 +366,36 @@ const (
 )
 
 // isDeepSeekModel 判断模型名是否为 DeepSeek 模型（大小写不敏感）。
+// 归一化只做小写化 + trim，并取最后一段 "/" 之后的部分（如
+// "openrouter/deepseek-v4-flash" 取 "deepseek-v4-flash"），再按 "deepseek-"
+// 前缀判定。此处**不能**复用 nativeModelKey：它会剥掉连字符等所有非字母数字
+// 字符，使 "deepseekcoder" 这类与 DeepSeek 家族无关的名字也命中 "deepseek"
+// 前缀而被误判为 DeepSeek 模型。连字符必须保留：官方与历史模型名一律带连字符
+// （deepseek-v4-flash / deepseek-v4-pro / deepseek-coder 等），而无连字符的
+// deepseekcoder / deepseekv3 之类并非 DeepSeek 家族（CNY 国模族判定
+// isNativeCNModel 需要宽前缀，语义不同，勿混用）。
 // 任意 deepseek- 前缀均视为 DeepSeek 模型：官方模型（v4-flash / v4-pro /
 // v4-flash-vision-exp）按各自价卡计价，其余 deepseek-*（含已停服的
 // deepseek-chat / deepseek-reasoner 与未知型号）统一按 flash 价兜底，
 // 避免计费中断；新名字由 fallback warn 日志（每模型每进程一条）暴露，
 // 运营者据此更新价卡。
 func isDeepSeekModel(model string) bool {
-	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(model)), "deepseek-")
+	key := strings.ToLower(strings.TrimSpace(model))
+	if i := strings.LastIndex(key, "/"); i >= 0 {
+		key = key[i+1:]
+	}
+	return strings.HasPrefix(key, "deepseek-")
 }
 
-// deepseekPeakMultiplierAt 返回指定时刻的 DeepSeek 官方峰谷定价因子。
-// 官方口径（2026-08-23 起生效）：高峰价 = 2× 低谷价；高峰时段为
-// 01:00–04:00 与 06:00–10:00 UTC（半开区间），仅工作日；
-// 周末（北京时间周六/周日）全天低谷。北京时间用固定 +8 偏移（无夏令时）。
+// deepseekPeakMultiplierAt is the weekday/weekend policy without an installed calendar.
+// Weekends, including make-up workdays, remain offpeak. Configured holidays
+// use the same chooser through BillingService.deepSeekPricingPeriodAt.
 func deepseekPeakMultiplierAt(now time.Time) float64 {
 	return deepseekPeakMultiplierWithCalendar(now, defaultDeepseekCalendar)
 }
 
-// deepseekProRoutesToFlashAt：官方公告自北京时间 2026-09-14 12:00（04:00 UTC）起，
-// 所有 deepseek-v4-pro 请求被上游路由到 V4.1-Flash 并按 Flash 价计费（直至未来
-// V4.1 Pro 上线）。Source: https://api-docs.deepseek.com/news/news260910
+// Official Pro-to-Flash routing takes effect at Beijing 2026-09-14 12:00.
+// Source: https://api-docs.deepseek.com/news/news260910
 var deepseekProRoutesToFlashAt = time.Date(2026, 9, 14, 4, 0, 0, 0, time.UTC)
 
 // deepseekProBilledAsFlash 报告指定计费时点 deepseek-v4-pro 是否已按 Flash 价
@@ -994,6 +1077,11 @@ func (s *BillingService) initFallbackPricing() {
 		LongContextInputMultiplier:    2,
 		LongContextOutputMultiplier:   2,
 	}
+	// Built-in exact model cards are explicitly declared operator defaults,
+	// including zero charges for unmetered cache dimensions; never a family guess.
+	for _, price := range s.fallbackPrices {
+		price.TokenPricePresence = completeTokenPricePresence()
+	}
 }
 
 // getFallbackPricing 根据模型系列获取回退价格
@@ -1358,6 +1446,7 @@ func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time)
 			enableBreakdown := price1h > 0 && price1h > price5m
 			return s.applyModelSpecificPricingPolicyEx(model, &ModelPricing{
 				Currency:                           "USD",
+				TokenPricePresence:                 litellmPricing.TokenPricePresence,
 				PricingSource:                      "catalog",
 				InputPricePerToken:                 litellmPricing.InputCostPerToken,
 				InputPricePerTokenPriority:         litellmPricing.InputCostPerTokenPriority,
@@ -1407,7 +1496,7 @@ func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing
 }
 
 func (s *BillingService) getModelPricingWithChannelAt(model string, channelPricing *ChannelModelPricing, pricingAt time.Time) (*ModelPricing, error) {
-	if err := validateManualCNYTokenPricing(channelPricing); err != nil {
+	if err := manualTokenPricingError(channelPricing); err != nil {
 		return nil, err
 	}
 	if !hasChannelTokenOverrides(channelPricing) {
@@ -1449,7 +1538,9 @@ func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *Chan
 	if pricing == nil || channelPricing == nil {
 		return
 	}
-	pricing.NativeCard = nil
+	pricing.tokenPricingError = manualTokenPricingError(channelPricing)
+	applyTokenPricePresence(pricing, channelPricing)
+	pricing.manualTokenPricing = true
 	pricing.PricingSource = "manual"
 	pricing.Currency = channelPricing.Currency
 	if pricing.Currency == "" {
@@ -1494,6 +1585,7 @@ func applyChannelTokenPriceOverrides(pricing *ModelPricing, channelPricing *Chan
 type CostInput struct {
 	Ctx                       context.Context
 	Model                     string
+	SelectedAccountID         int64  // execution fact selecting frozen account policy, not customer-price scope
 	GroupID                   *int64 // 用于渠道定价查找
 	Group                     *Group
 	Tokens                    UsageTokens
@@ -1623,11 +1715,7 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 			calendar = requestDeepseekCalendar(input.Ctx, s.pricingService, pricingAt)
 		}
 		if mult := deepseekPeakMultiplierWithCalendar(pricingAt, calendar); mult > 1 {
-			cloned := *pricing
-			cloned.InputPricePerToken *= mult
-			cloned.OutputPricePerToken *= mult
-			cloned.CacheReadPricePerToken *= mult
-			pricing = &cloned
+			pricing = scaleDeepSeekTokenPricing(pricing, mult)
 		}
 	}
 
@@ -1758,7 +1846,97 @@ func (s *BillingService) computeTokenBreakdown(
 	bd.ActualCost = bd.TotalCost * rateMultiplier
 	bd.LongContextBillingApplied = baselineCost != nil && bd.ActualCost > baselineCost.ActualCost
 
+	// C-1 锁价快照分项：记录每个 kind 的用量、单价与金额，使账单可脱离当前价表复算。
+	// 单价换算为「每百万 token」（unit=per_1m_tokens）：base = 每 token 价 × 1e6，
+	// normalized_usage = usage / 1e6，subtotal 直接取该分项的实际金额，三者自洽。
+	bd.Unit = PricingSnapshotUnitPer1MTokens
+	bd.PricingItems = buildTokenPricingItems(pricing, tokens, bd, inputPrice, outputPrice, cacheReadPrice)
+
 	return bd
+}
+
+// PricingSnapshotUnitPer1MTokens 是 token 计费快照的单价口径（C-1 unit）。
+const PricingSnapshotUnitPer1MTokens = "per_1m_tokens"
+
+// tokenPricingItem 由「token 用量 + 每 token 单价 + 该分项金额」构造一个快照分项。
+// usage 为 0 的分项不写入：快照只记录真实发生的用量，不制造零用量条目。
+func tokenPricingItem(kind string, usage int, perTokenPrice, subtotal float64) (CostBreakdownItem, bool) {
+	if usage <= 0 {
+		return CostBreakdownItem{}, false
+	}
+	return CostBreakdownItem{
+		Kind:            kind,
+		BaseCreditPrice: perTokenPrice * 1_000_000,
+		Usage:           float64(usage),
+		NormalizedUsage: float64(usage) / 1_000_000,
+		Subtotal:        subtotal,
+	}, true
+}
+
+// buildTokenPricingItems 汇总 token 计费的各分项（C-1 items）。
+//
+// 同一用量只归入一个 kind（契约 S-2）。图片输入/输出 token 从文本 token 中分离，
+// 分别记入 image 相关 kind，避免与 input/output 重复计量。
+func buildTokenPricingItems(
+	pricing *ModelPricing,
+	tokens UsageTokens,
+	bd *CostBreakdown,
+	inputPrice, outputPrice, cacheReadPrice float64,
+) []CostBreakdownItem {
+	items := make([]CostBreakdownItem, 0, 6)
+	add := func(kind string, usage int, price, subtotal float64) {
+		if item, ok := tokenPricingItem(kind, usage, price, subtotal); ok {
+			items = append(items, item)
+		}
+	}
+
+	// 输入侧：图片输入 token 单独成项，其余为文本输入。
+	imageInputTokens := 0
+	if tokens.ImageInputTokens > 0 {
+		imageInputTokens = min(tokens.ImageInputTokens, max(tokens.InputTokens, 0))
+	}
+	add("input", tokens.InputTokens-imageInputTokens, inputPrice, bd.InputCost)
+	if imageInputTokens > 0 {
+		imageInputPrice := pricing.ImageInputPricePerToken
+		if imageInputPrice == 0 {
+			imageInputPrice = inputPrice
+		}
+		add("image", imageInputTokens, imageInputPrice, bd.ImageInputCost)
+	}
+
+	// 输出侧：图片输出 token 单独成项。
+	imageOutputTokens := min(max(tokens.ImageOutputTokens, 0), max(tokens.OutputTokens, 0))
+	add("output", tokens.OutputTokens-imageOutputTokens, outputPrice, bd.OutputCost)
+	if imageOutputTokens > 0 {
+		imageOutputPrice := pricing.ImageOutputPricePerToken
+		if imageOutputPrice == 0 && !pricing.ImageOutputPriceExplicit {
+			imageOutputPrice = outputPrice
+		}
+		add("image", imageOutputTokens, imageOutputPrice, bd.ImageOutputCost)
+	}
+
+	// 缓存创建：支持 5m/1h 分类时分别成项，否则合成一项。
+	if pricing.SupportsCacheBreakdown && (pricing.CacheCreation5mPrice > 0 || pricing.CacheCreation1hPrice > 0) {
+		cache5m, cache1h := normalizeCacheCreationBreakdown(tokens)
+		if cache5m == 0 && cache1h == 0 && tokens.CacheCreationTokens > 0 {
+			add("cache_write", tokens.CacheCreationTokens, pricing.CacheCreation5mPrice, bd.CacheCreationCost)
+		} else {
+			add("cache_write", cache5m, pricing.CacheCreation5mPrice, float64(cache5m)*pricing.CacheCreation5mPrice)
+			add("cache_write_1h", cache1h, pricing.CacheCreation1hPrice, float64(cache1h)*pricing.CacheCreation1hPrice)
+		}
+	} else {
+		add("cache_write", tokens.CacheCreationTokens, pricing.CacheCreationPricePerToken, bd.CacheCreationCost)
+	}
+
+	// 缓存读取：命中图片缓存的部分单独按图片缓存价计费。
+	if imageCached := min(max(tokens.ImageCacheReadTokens, 0), max(tokens.CacheReadTokens, 0)); imageCached > 0 && pricing.ImageCacheReadPricePerToken > 0 {
+		add("cache_read", tokens.CacheReadTokens-imageCached, cacheReadPrice, float64(tokens.CacheReadTokens-imageCached)*cacheReadPrice)
+		add("image", imageCached, pricing.ImageCacheReadPricePerToken, float64(imageCached)*pricing.ImageCacheReadPricePerToken)
+	} else {
+		add("cache_read", tokens.CacheReadTokens, cacheReadPrice, bd.CacheReadCost)
+	}
+
+	return items
 }
 
 // computeCacheCreationCost 计算缓存创建费用（支持 5m/1h 分类或标准计费）。
@@ -1813,23 +1991,53 @@ func (s *BillingService) calculatePerRequestCost(resolved *ResolvedPricing, inpu
 		units = float64(count)
 	}
 
-	var unitPrice float64
-
+	var unitPrice *float64
 	if input.SizeTier != "" {
-		unitPrice = input.Resolver.GetRequestTierPrice(resolved, input.SizeTier)
+		for _, tier := range resolved.RequestTiers {
+			if tier.TierLabel == input.SizeTier {
+				unitPrice = tier.PerRequestPrice
+				break
+			}
+		}
 	}
-
-	if unitPrice == 0 {
+	// A missing named price still falls back to genuine context tiers even
+	// when callers supplied a size. Never borrow a different named tier.
+	if unitPrice == nil {
 		totalContext := input.Tokens.InputTokens + input.Tokens.CacheCreationTokens + input.Tokens.CacheReadTokens
-		unitPrice = input.Resolver.GetRequestTierPriceByContext(resolved, totalContext)
+		var contextTiers []PricingInterval
+		for _, tier := range resolved.RequestTiers {
+			if tier.TierLabel == "" {
+				contextTiers = append(contextTiers, tier)
+			}
+		}
+		if tier := FindMatchingInterval(contextTiers, totalContext); tier != nil {
+			unitPrice = tier.PerRequestPrice
+		}
 	}
-
-	// 回退到默认按次价格
-	if unitPrice == 0 {
-		unitPrice = resolved.DefaultPerRequestPrice
+	// Only an explicitly present default fills a missing tier. Explicit zero
+	// never falls through to a higher default price, and absence is not free.
+	if unitPrice == nil && resolved.channelPricing != nil {
+		unitPrice = resolved.channelPricing.PerRequestPrice
 	}
-
-	totalCost := unitPrice * units
+	// Preserve the exported pre-resolved positive scalar contract only when
+	// there is no genuine source card. A present source with a missing default
+	// cannot be filled by a stale scalar, and scalar zero is still absence.
+	if unitPrice == nil && resolved.channelPricing == nil {
+		legacyPrice := resolved.DefaultPerRequestPrice
+		if err := validRequestPrice(legacyPrice); err != nil {
+			return nil, err
+		}
+		if legacyPrice > 0 {
+			unitPrice = &legacyPrice
+		}
+	}
+	if unitPrice == nil {
+		return nil, fmt.Errorf("%w: per-request tier/default price is missing", ErrModelPricingUnavailable)
+	}
+	if err := validRequestPrice(*unitPrice); err != nil {
+		return nil, err
+	}
+	totalCost := *unitPrice * units
 	actualCost := totalCost * input.RateMultiplier
 	currency := "USD"
 	if resolved.channelPricing != nil && resolved.channelPricing.Currency == "CNY" {
@@ -2269,10 +2477,20 @@ func (s *BillingService) CalculateImageCost(model string, imageSize string, imag
 	}
 	actualCost := totalCost * rateMultiplier
 
+	// C-1: 图片按次计费也要写分项，否则前端只看到 v1 快照、拿不到锁价单价。
+	// 单价按「每张」口径，用量为张数。
 	return &CostBreakdown{
 		TotalCost:   totalCost,
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeImage),
+		Unit:        "per_image",
+		PricingItems: []CostBreakdownItem{{
+			Kind:            "image",
+			BaseCreditPrice: unitPrice,
+			Usage:           float64(imageCount),
+			NormalizedUsage: float64(imageCount),
+			Subtotal:        totalCost,
+		}},
 	}
 }
 
@@ -2298,11 +2516,173 @@ func (s *BillingService) CalculateVideoCost(model string, resolution string, vid
 	}
 	actualCost := totalCost * rateMultiplier
 
+	// C-1: 视频按秒计费同样写分项与媒体计量事实，使账单可复算。
+	billableSeconds := float64(durationSeconds) * float64(videoCount)
 	return &CostBreakdown{
 		TotalCost:   totalCost,
 		ActualCost:  actualCost,
 		BillingMode: string(BillingModeVideo),
+		Unit:        "per_second",
+		Media: &PricingSnapshotMedia{
+			Mode:            "per_second",
+			BillableCount:   videoCount,
+			BillableSeconds: billableSeconds,
+		},
+		PricingItems: []CostBreakdownItem{{
+			Kind:            "video_second",
+			BaseCreditPrice: perSecondPrice,
+			Usage:           billableSeconds,
+			NormalizedUsage: billableSeconds,
+			Subtotal:        totalCost,
+		}},
 	}
+}
+
+// ---- PRD-06/K-4: video billing modes (per_request / per_second / per_token) ----
+//
+// The BillingMode enum stays at four values (token/per_request/image/video) and
+// is not extended: the three video metering modes live in the operator's video
+// price plan (domain.VideoPricePlan). This is the single dispatch entry that maps
+// a plan onto a CostBreakdown, so no caller has to re-implement the mode switch.
+
+// VideoCostInput carries the metering facts of one video result plus the
+// operator-set plan that decides how it is billed.
+type VideoCostInput struct {
+	// Model is the request/billing model used only for diagnostics.
+	Model string
+	// Resolution is the output resolution tier ("480p"/"720p"/"1080p").
+	Resolution string
+	// VideoCount is the number of generated videos; <=0 means one.
+	VideoCount int
+	// DurationSeconds is the billed duration (per_second plans).
+	DurationSeconds int
+	// CompletionTokens is usage.completion_tokens (per_token plans). Ark bills
+	// the whole generation, so this is the total for the request, not per video.
+	CompletionTokens int
+	// HasInputVideo reports whether the request carried a video input, which is
+	// the second dimension of Ark's token price table.
+	HasInputVideo bool
+	// Plan is the resolved operator plan; nil means "not priceable".
+	Plan *domain.VideoPricePlan
+	// RateMultiplier is the customer-facing rate multiplier.
+	RateMultiplier float64
+}
+
+// CalculateVideoCostFromPlan prices one video result with the metering mode
+// declared by the plan. It fails closed with ErrModelPricingUnavailable when the
+// plan is missing, declares an unsupported mode, or has no price for the exact
+// tier: a missing tier must never borrow another resolution's price, the image
+// tariff, or another model's plan.
+func (s *BillingService) CalculateVideoCostFromPlan(input VideoCostInput) (*CostBreakdown, error) {
+	plan := input.Plan
+	if plan == nil || !plan.Mode.IsValid() {
+		return nil, fmt.Errorf("%w: no video price plan configured for model %q", ErrModelPricingUnavailable, input.Model)
+	}
+	videoCount := input.VideoCount
+	if videoCount <= 0 {
+		videoCount = 1
+	}
+	rateMultiplier := input.RateMultiplier
+	if rateMultiplier < 0 {
+		rateMultiplier = 0
+	}
+
+	var totalCost float64
+	switch plan.Mode {
+	case domain.VideoBillingModePerRequest:
+		unitPrice := VideoPlanPerRequestUnitPrice(plan)
+		if unitPrice == nil {
+			return nil, fmt.Errorf("%w: per_request video price is not configured for model %q", ErrModelPricingUnavailable, input.Model)
+		}
+		totalCost = *unitPrice * float64(videoCount)
+	case domain.VideoBillingModePerSecond:
+		resolution := NormalizeVideoBillingResolutionOrDefault(input.Resolution)
+		unitPrice := VideoPlanPerSecondUnitPrice(plan, resolution)
+		if unitPrice == nil {
+			return nil, fmt.Errorf("%w: per_second video price is not configured for model %q resolution %q", ErrModelPricingUnavailable, input.Model, resolution)
+		}
+		// An unknown duration must not inherit the Grok-specific 8s default: that
+		// default belongs to xAI's API, not to a per-second plan on another vendor.
+		// Without a real duration there is nothing to reconcile, so fail closed.
+		if input.DurationSeconds <= 0 {
+			return nil, fmt.Errorf("%w: video duration is unknown for model %q and cannot be billed per second", ErrModelPricingUnavailable, input.Model)
+		}
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(input.DurationSeconds)
+		totalCost = *unitPrice * float64(durationSeconds) * float64(videoCount)
+	case domain.VideoBillingModePerToken:
+		unitPrice := VideoPlanTokenUnitPrice(plan, input.Resolution, input.HasInputVideo)
+		if unitPrice == nil {
+			return nil, fmt.Errorf("%w: per_token video price is not configured for model %q resolution %q", ErrModelPricingUnavailable, input.Model, input.Resolution)
+		}
+		if input.CompletionTokens <= 0 {
+			// Without the upstream token usage there is nothing to reconcile
+			// against; refuse rather than record a zero-cost row.
+			return nil, fmt.Errorf("%w: completion token usage is missing for model %q", ErrModelPricingUnavailable, input.Model)
+		}
+		totalCost = float64(input.CompletionTokens) / 1e6 * *unitPrice
+	default:
+		return nil, fmt.Errorf("%w: unsupported video billing mode %q", ErrModelPricingUnavailable, string(plan.Mode))
+	}
+
+	// C-1: 记录媒体计量事实与计价分项，使视频账单可复算。
+	// per_request 按「次」，per_second 按「秒」，per_token 按「百万 token」；
+	// 每种模式都写清单价、用量与金额，unit 随之切换。
+	bd := &CostBreakdown{
+		TotalCost:   totalCost,
+		ActualCost:  totalCost * rateMultiplier,
+		BillingMode: string(BillingModeVideo),
+	}
+	switch plan.Mode {
+	case domain.VideoBillingModePerRequest:
+		unitPrice := VideoPlanPerRequestUnitPrice(plan)
+		bd.Unit = "per_request"
+		bd.Media = &PricingSnapshotMedia{Mode: "per_request", BillableCount: videoCount}
+		bd.PricingItems = []CostBreakdownItem{{
+			Kind:            "video_request",
+			BaseCreditPrice: *unitPrice,
+			Usage:           float64(videoCount),
+			NormalizedUsage: float64(videoCount),
+			Subtotal:        *unitPrice * float64(videoCount),
+		}}
+	case domain.VideoBillingModePerSecond:
+		resolution := NormalizeVideoBillingResolutionOrDefault(input.Resolution)
+		unitPrice := VideoPlanPerSecondUnitPrice(plan, resolution)
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(input.DurationSeconds)
+		billableSeconds := float64(durationSeconds) * float64(videoCount)
+		bd.Unit = "per_second"
+		bd.Media = &PricingSnapshotMedia{
+			Mode:            "per_second",
+			BillableCount:   videoCount,
+			BillableSeconds: billableSeconds,
+		}
+		bd.PricingItems = []CostBreakdownItem{{
+			Kind:            "video_second",
+			BaseCreditPrice: *unitPrice,
+			Usage:           billableSeconds,
+			NormalizedUsage: billableSeconds,
+			Subtotal:        *unitPrice * billableSeconds,
+		}}
+	case domain.VideoBillingModePerToken:
+		unitPrice := VideoPlanTokenUnitPrice(plan, input.Resolution, input.HasInputVideo)
+		bd.Unit = PricingSnapshotUnitPer1MTokens
+		bd.Media = &PricingSnapshotMedia{Mode: "per_token", BillableCount: videoCount}
+		bd.PricingItems = []CostBreakdownItem{{
+			Kind:            "video_token",
+			BaseCreditPrice: *unitPrice,
+			Usage:           float64(input.CompletionTokens),
+			NormalizedUsage: float64(input.CompletionTokens) / 1e6,
+			Subtotal:        float64(input.CompletionTokens) / 1e6 * *unitPrice,
+		}}
+	}
+	return bd, nil
+}
+
+// CalculateVideoCostForGroup resolves the group's video price plan for the model
+// and prices the result with it. This is the group-bound form of the unified
+// dispatch entry; it fails closed when the group has no usable plan.
+func (s *BillingService) CalculateVideoCostForGroup(input VideoCostInput, group *Group) (*CostBreakdown, error) {
+	input.Plan = VideoPricePlanForGroup(group, input.Model)
+	return s.CalculateVideoCostFromPlan(input)
 }
 
 // getImageUnitPrice 获取图片单价

@@ -95,3 +95,40 @@ func TestSeedanceHandlerLifecycleAndOwnership(t *testing.T) {
 	}
 	require.Len(t, bindings.billed, 1)
 }
+
+// PRD-06/K-4 fail-closed: with no operator-set Seedance price the create request
+// must be rejected before any upstream call, while status/delete polling of an
+// already-accepted task stays allowed.
+func TestSeedanceCreateFailsClosedWithoutConfiguredPrice(t *testing.T) {
+	h, _, _, upstream := newGrokMediaSlotHandler(t, false, false, service.PlatformOpenAI)
+	newContext := func(method string) (*gin.Context, *httptest.ResponseRecorder) {
+		c, w := grokMediaSlotContext(context.Background(), method == http.MethodPost)
+		key, _ := middleware.GetAPIKeyFromContext(c)
+		key.Group.Platform = service.PlatformOpenAI
+		key.Group.VideoModelPrices = nil
+		key.Group.VideoPrice480P, key.Group.VideoPrice720P, key.Group.VideoPrice1080P = nil, nil, nil
+		body := ""
+		if method == http.MethodPost {
+			body = `{"model":"doubao-seedance","content":[{"type":"text","text":"waves"}]}`
+		}
+		c.Request = httptest.NewRequest(method, "/api/v3/contents/generations/tasks", strings.NewReader(body))
+		c.Params = gin.Params{{Key: "task_id", Value: "task-ark"}}
+		return c, w
+	}
+	before := upstream.calls
+	c, w := newContext(http.MethodPost)
+	h.SeedanceTasks(c)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code, w.Body.String())
+	require.Contains(t, w.Body.String(), "pricing_unavailable")
+	require.Equal(t, before, upstream.calls, "an unconfigured price must not reach upstream")
+
+	// A Grok-only tariff is not a Seedance tariff.
+	c, w = newContext(http.MethodPost)
+	key, _ := middleware.GetAPIKeyFromContext(c)
+	key.Group.VideoModelPrices = map[string]map[string]float64{
+		service.VideoPriceFamilyGrokImagineVideo: {service.VideoBillingResolution720P: 0.07},
+	}
+	h.SeedanceTasks(c)
+	require.Equal(t, http.StatusServiceUnavailable, w.Code, w.Body.String())
+	require.Equal(t, before, upstream.calls)
+}

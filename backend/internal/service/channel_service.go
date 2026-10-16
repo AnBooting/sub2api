@@ -166,8 +166,9 @@ type ChannelService struct {
 	pricingService       *PricingService // 用于「可用渠道」展示时回落到全局定价；可为 nil（测试场景）
 	cachePubSub          ChannelCachePubSub
 
-	cache   atomic.Value // *channelCache
-	cacheSF singleflight.Group
+	frozenCache *channelCache // request-owned immutable lookup; no expiry or live reload
+	cache       atomic.Value  // *channelCache
+	cacheSF     singleflight.Group
 }
 
 // NewChannelService 创建渠道服务实例。
@@ -187,6 +188,9 @@ func NewChannelService(repo ChannelRepository, groupRepo GroupRepository, authCa
 
 // loadCache 加载或返回缓存的渠道数据
 func (s *ChannelService) loadCache(ctx context.Context) (*channelCache, error) {
+	if s.frozenCache != nil {
+		return s.frozenCache, nil
+	}
 	if cached, ok := s.cache.Load().(*channelCache); ok && cached != nil {
 		if time.Since(cached.loadedAt) < channelCacheTTL {
 			return cached, nil

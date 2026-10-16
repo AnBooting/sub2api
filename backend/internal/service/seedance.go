@@ -27,6 +27,103 @@ func (e GrokMediaEndpoint) IsSeedance() bool {
 // SeedanceTaskKey isolates ownership and billing keys from other video providers.
 func SeedanceTaskKey(id string) string { return "seedance:" + strings.TrimSpace(id) }
 
+// seedanceFramesPerSecond is Ark's official frame rate: the query response reports
+// either duration in seconds or the raw frame count, and the documented conversion
+// is duration = total frames / 24, floored.
+const seedanceFramesPerSecond = 24
+
+// SeedanceDurationSecondsFromStatusBody extracts the billed duration (seconds)
+// from an Ark Seedance task query response.
+//
+// Official field rules:
+//   - top-level "duration" (integer seconds) when present and positive;
+//   - otherwise top-level "frames" converted as frames / 24, floored;
+//   - neither present (or unusable, e.g. the create-time duration=-1 sentinel) →
+//     0, meaning "unknown". Callers must then keep their request-parameter
+//     fallback instead of billing a guessed duration.
+func SeedanceDurationSecondsFromStatusBody(statusBody []byte) int {
+	if len(statusBody) == 0 || !gjson.ValidBytes(statusBody) {
+		return 0
+	}
+	if duration := gjson.GetBytes(statusBody, "duration"); duration.Exists() && duration.Type == gjson.Number {
+		if seconds := int(duration.Int()); seconds > 0 {
+			return seconds
+		}
+	}
+	if frames := gjson.GetBytes(statusBody, "frames"); frames.Exists() && frames.Type == gjson.Number {
+		if total := int(frames.Int()); total > 0 {
+			return total / seedanceFramesPerSecond
+		}
+	}
+	return 0
+}
+
+// SeedanceResolutionFromStatusBody extracts the output resolution tier from an Ark
+// Seedance task query response.
+//
+// Official contract: the query response carries a top-level "resolution" (and the
+// create request accepts the same field). Billing is tiered by resolution, so a
+// missing tier must not silently fall back to the cheapest one — callers compare
+// the returned string against the configured tiers and fail closed when absent.
+// Returns "" when the field is absent or unusable.
+func SeedanceResolutionFromStatusBody(statusBody []byte) string {
+	if len(statusBody) == 0 || !gjson.ValidBytes(statusBody) {
+		return ""
+	}
+	for _, path := range []string{"resolution", "content.resolution", "output.resolution"} {
+		value := gjson.GetBytes(statusBody, path)
+		if value.Type == gjson.String {
+			if normalized, ok := LookupVideoBillingResolution(value.String()); ok {
+				return normalized
+			}
+		}
+	}
+	return ""
+}
+
+// SeedanceResolutionFromRequest extracts the requested output resolution from an
+// Ark Seedance create request body. The create response does not echo it, so the
+// request is the only create-time source and must be snapshotted for later billing.
+func SeedanceResolutionFromRequest(body []byte) string {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return ""
+	}
+	for _, path := range []string{"resolution", "content.resolution", "output.resolution"} {
+		value := gjson.GetBytes(body, path)
+		if value.Type == gjson.String {
+			if normalized, ok := LookupVideoBillingResolution(value.String()); ok {
+				return normalized
+			}
+		}
+	}
+	return ""
+}
+
+// SeedanceDurationSecondsFromRequest extracts the requested duration (seconds)
+// from an Ark Seedance create request body.
+//
+// Official contract: the request accepts either "duration" (integer seconds) or
+// "frames" (frame count, duration = frames / 24 floored). The create response does
+// not echo it, so this is the create-time fallback used only when the query
+// response reports neither field. Returns 0 for the documented -1 sentinel and for
+// an absent/unusable value, which means "unknown" rather than a guessed duration.
+func SeedanceDurationSecondsFromRequest(body []byte) int {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return 0
+	}
+	if duration := gjson.GetBytes(body, "duration"); duration.Type == gjson.Number {
+		if seconds := int(duration.Int()); seconds > 0 {
+			return seconds
+		}
+	}
+	if frames := gjson.GetBytes(body, "frames"); frames.Type == gjson.Number {
+		if total := int(frames.Int()); total > 0 {
+			return total / seedanceFramesPerSecond
+		}
+	}
+	return 0
+}
+
 func ParseSeedanceRequest(body []byte) (GrokMediaRequestInfo, error) {
 	var info GrokMediaRequestInfo
 	if !gjson.ValidBytes(body) || !gjson.ParseBytes(body).IsObject() {
@@ -147,7 +244,22 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 		result.ResponseID = taskID
 		result.UpstreamModel = gjson.GetBytes(responseBody, "model").String()
 		if gjson.GetBytes(responseBody, "status").String() == "succeeded" {
+			// Official Ark reconciliation field: usage.completion_tokens is the
+			// billable token usage of the successful generation.
 			result.Usage.OutputTokens = max(0, int(gjson.GetBytes(responseBody, "usage.completion_tokens").Int()))
+			// The create response carries no duration, and the query response
+			// exposes EITHER top-level duration (integer seconds) OR top-level
+			// frames — never both. Official contract: duration = actual total
+			// frames / 24, floored. Duration is billable for per-second plans, so
+			// capture it here; when neither field is usable the value stays zero
+			// and the existing request-parameter fallback applies (never invent a
+			// duration, which would mis-bill an unbounded video).
+			result.VideoDurationSeconds = SeedanceDurationSecondsFromStatusBody(responseBody)
+			// C-1: 记录时长来源，供 media.seconds_source 如实标注为 upstream。
+			result.VideoDurationFromStatus = result.VideoDurationSeconds > 0
+			// Resolution is billed per tier; the query response carries it officially.
+			// Empty stays empty so callers fail closed rather than assume 480p.
+			result.VideoResolution = SeedanceResolutionFromStatusBody(responseBody)
 		}
 	}
 	writeGrokMediaResponse(c, resp, responseBody, s.responseHeaderFilter)

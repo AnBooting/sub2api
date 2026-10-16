@@ -71,8 +71,21 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 	firstClientMessage []byte,
 	hooks *OpenAIWSIngressHooks,
 ) (returnErr error) {
+	logicalOffset := 0
+	if hooks != nil {
+		logicalOffset = hooks.LogicalTurnOffset
+	}
+	hooks = hooks.WithLogicalTurnOffset()
 	if s == nil {
 		return errors.New("service is nil")
+	}
+	resolveTurnContext := func(turn int) context.Context {
+		if hooks != nil && hooks.TurnContext != nil {
+			if turnCtx := hooks.TurnContext(turn); turnCtx != nil {
+				return turnCtx
+			}
+		}
+		return ctx
 	}
 	if c == nil {
 		return errors.New("gin context is nil")
@@ -261,6 +274,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				fmt.Sprintf("unsupported websocket request type: %s", eventType),
 				nil,
 			)
+		}
+		// Covers first and every subsequent accepted model frame before any upstream
+		// WS/HTTP bridge write; raw tools are checked before account aliasing.
+		if err := CheckArtexWSRequest(s.cfg, trimmed); err != nil {
+			return openAIWSClientPayload{}, err
 		}
 		requestedReasoningEffort := CanonicalRequestedReasoningEffort(normalized, strings.TrimSpace(values[1].String()))
 		if next, policyErr := applyOpenAIWSReasoningEffortPolicy(normalized, hooks); policyErr != nil {
@@ -677,7 +695,7 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				}
 			}
 			result, bridgeErr := s.proxyOpenAIWSHTTPBridgeTurn(
-				ctx,
+				resolveTurnContext(turn),
 				c,
 				account,
 				token,
@@ -963,7 +981,11 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 		}
 		turnStart := time.Now()
 		wroteDownstream := false
-		if err := lease.WriteJSONWithContextTimeout(ctx, json.RawMessage(payload), s.openAIWSWriteTimeout()); err != nil {
+		turnSendCtx := resolveTurnContext(turn)
+		if err := allowUpstreamSend(turnSendCtx); err != nil {
+			return nil, NewRequestAttemptBudgetFailoverError()
+		}
+		if err := lease.WriteJSONWithContextTimeout(turnSendCtx, json.RawMessage(payload), s.openAIWSWriteTimeout()); err != nil {
 			return nil, wrapOpenAIWSIngressTurnError(
 				"write_upstream",
 				fmt.Errorf("write upstream websocket request: %w", err),
@@ -1829,8 +1851,8 @@ func (s *OpenAIGatewayService) ProxyResponsesWebSocketFromClient(
 				continue
 			}
 			finalErr := relayErr
-			if unwrapped := errors.Unwrap(relayErr); unwrapped != nil {
-				finalErr = unwrapped
+			if turn+logicalOffset > 1 {
+				finalErr = newOpenAIWSNativeResumeError(relayErr, turn+logicalOffset, currentClientPayload, resolveTurnContext(turn), currentOriginalModel)
 			}
 			if hooks != nil && hooks.AfterTurn != nil {
 				hooks.AfterTurn(turn, nil, finalErr)

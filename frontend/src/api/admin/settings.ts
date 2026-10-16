@@ -11,6 +11,7 @@ import type {
   CustomMenuItem,
   LoginAgreementDocument,
   NotifyEmailEntry,
+  SchedulingStrategy,
 } from "@/types";
 import type { RechargeBonusTier } from "@/utils/rechargeBonus";
 
@@ -403,6 +404,7 @@ export function deriveWeChatConnectStoredMode(
  * System settings interface
  */
 export interface SystemSettings {
+  scheduling_strategy?: SchedulingStrategy;
   // Registration settings
   registration_enabled: boolean;
   email_verify_enabled: boolean;
@@ -611,6 +613,10 @@ export interface SystemSettings {
   // Per-platform account auto-pause thresholds (100 = disabled)
   account_scheduling_thresholds: AccountSchedulingThresholdsMap;
 
+  // Gateway unified retry budget (C-8). Both must be > 0; backend falls back to 16 / 600.
+  gateway_max_attempts_per_request: number;
+  gateway_request_budget_seconds: number;
+
   // Identity patch configuration (Claude -> Gemini)
   enable_identity_patch: boolean;
   identity_patch_prompt: string;
@@ -762,6 +768,7 @@ export interface SystemSettings {
 }
 
 export interface UpdateSettingsRequest {
+  scheduling_strategy?: SchedulingStrategy;
   registration_enabled?: boolean;
   email_verify_enabled?: boolean;
   registration_email_suffix_whitelist?: string[];
@@ -948,6 +955,9 @@ export interface UpdateSettingsRequest {
   grok_cross_client_model_map_enabled?: boolean;
   grok_default_base_url_mode?: string;
   account_scheduling_thresholds?: AccountSchedulingThresholdsMap;
+  // Gateway unified retry budget (C-8). Backend rejects explicit values <= 0.
+  gateway_max_attempts_per_request?: number;
+  gateway_request_budget_seconds?: number;
   enable_identity_patch?: boolean;
   identity_patch_prompt?: string;
   ops_monitoring_enabled?: boolean;

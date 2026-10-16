@@ -6,7 +6,23 @@ const (
 	VideoBillingResolution480P  = "480p"
 	VideoBillingResolution720P  = "720p"
 	VideoBillingResolution1080P = "1080p"
+	// VideoBillingResolution4K is a real Ark Seedance tier: the official price table
+	// lists 4k rates (PRD 22:54, "2.0 -> 46/28、51/31、4k 26/16"). It was missing from
+	// the enumerations, so an operator could not enter a 4k unit price at all and the
+	// serializer silently dropped it. Adding the tier here keeps every enumeration in
+	// sync through VideoBillingResolutionTiers.
+	VideoBillingResolution4K = "4k"
 )
+
+// VideoBillingResolutionTiers 是受支持的分辨率档位，按从低到高排列。
+// 所有「遍历所有档位」的代码都应使用它，避免新增档位时漏改某一处——4k 正是因为
+// 三处独立的字面量列表而缺失的。
+var VideoBillingResolutionTiers = []string{
+	VideoBillingResolution480P,
+	VideoBillingResolution720P,
+	VideoBillingResolution1080P,
+	VideoBillingResolution4K,
+}
 
 // xAI 视频生成按秒计费，duration 请求参数允许 1-15 秒；未指定时上游默认生成 8 秒。
 // 计费时长必须与上游实际消耗对齐，否则用户可通过拉长 duration 套利（提交时长由用户控制）。
@@ -42,6 +58,8 @@ func LookupVideoBillingResolution(resolution string) (string, bool) {
 		return VideoBillingResolution720P, true
 	case "1080", "1080p", "full_hd", "full-hd", "fhd":
 		return VideoBillingResolution1080P, true
+	case "2160", "2160p", "4k", "uhd", "ultra_hd", "ultra-hd":
+		return VideoBillingResolution4K, true
 	default:
 		return "", false
 	}

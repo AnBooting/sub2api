@@ -270,6 +270,9 @@ func (s *SettingService) InitializeDefaultSettings(ctx context.Context) error {
 		SettingKeyOpenAIAdvancedSchedulerWeightSessionSticky:         "",
 
 		SettingKeyAllowUserViewErrorRequests: "false",
+
+		// 调度策略（C-4/C-8）：默认 balanced。
+		SettingKeySchedulingStrategy: DefaultSchedulingStrategySetting(),
 	}
 
 	return s.settingRepo.SetMultiple(ctx, defaults)
@@ -988,6 +991,43 @@ func (s *SettingService) parseSettings(settings map[string]string) *SystemSettin
 			slog.Warn("[Setting] parseSettings: unmarshal account_scheduling_thresholds failed", "error", err)
 		} else {
 			result.AccountSchedulingThresholds = thresholds
+		}
+	}
+
+	// gateway 统一重试预算（C-8）：缺省/解析失败/非正数一律回退默认 16 / 600。
+	result.GatewayMaxAttemptsPerRequest, result.GatewayRequestBudgetSeconds = defaultGatewayRequestAttemptBudgetLimits()
+	if raw, ok := settings[SettingKeyGatewayMaxAttemptsPerRequest]; ok {
+		switch v, err := strconv.Atoi(strings.TrimSpace(raw)); {
+		case err != nil:
+			slog.Warn("[Setting] parseSettings: invalid gateway_max_attempts_per_request, using default",
+				"value", raw, "default", result.GatewayMaxAttemptsPerRequest, "error", err)
+		case v <= 0:
+			slog.Warn("[Setting] parseSettings: non-positive gateway_max_attempts_per_request, using default",
+				"value", v, "default", result.GatewayMaxAttemptsPerRequest)
+		default:
+			result.GatewayMaxAttemptsPerRequest = v
+		}
+	}
+	if raw, ok := settings[SettingKeyGatewayRequestBudgetSeconds]; ok {
+		switch v, err := strconv.Atoi(strings.TrimSpace(raw)); {
+		case err != nil:
+			slog.Warn("[Setting] parseSettings: invalid gateway_request_budget_seconds, using default",
+				"value", raw, "default", result.GatewayRequestBudgetSeconds, "error", err)
+		case v <= 0:
+			slog.Warn("[Setting] parseSettings: non-positive gateway_request_budget_seconds, using default",
+				"value", v, "default", result.GatewayRequestBudgetSeconds)
+		default:
+			result.GatewayRequestBudgetSeconds = v
+		}
+	}
+
+	// 调度策略（C-4/C-8）：缺省/非法存量值一律回落默认 balanced。
+	// 非法值不静默变成某个具体策略，只回落到 C-4 明文默认值。
+	result.SchedulingStrategy = string(NormalizeSchedulingStrategy(settings[SettingKeySchedulingStrategy]))
+	if raw := strings.TrimSpace(settings[SettingKeySchedulingStrategy]); raw != "" {
+		if _, ok := ParseSchedulingStrategy(raw); !ok {
+			slog.Warn("[Setting] parseSettings: invalid scheduling_strategy, using default",
+				"value", raw, "default", DefaultSchedulingStrategy)
 		}
 	}
 

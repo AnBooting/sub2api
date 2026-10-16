@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
 	"github.com/Wei-Shaw/sub2api/ent/user"
@@ -82,6 +83,20 @@ func (_c *APIKeyCreate) SetKey(v string) *APIKeyCreate {
 // SetName sets the "name" field.
 func (_c *APIKeyCreate) SetName(v string) *APIKeyCreate {
 	_c.mutation.SetName(v)
+	return _c
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (_c *APIKeyCreate) SetGroupChainRevision(v int64) *APIKeyCreate {
+	_c.mutation.SetGroupChainRevision(v)
+	return _c
+}
+
+// SetNillableGroupChainRevision sets the "group_chain_revision" field if the given value is not nil.
+func (_c *APIKeyCreate) SetNillableGroupChainRevision(v *int64) *APIKeyCreate {
+	if v != nil {
+		_c.SetGroupChainRevision(*v)
+	}
 	return _c
 }
 
@@ -332,6 +347,21 @@ func (_c *APIKeyCreate) AddUsageLogs(v ...*UsageLog) *APIKeyCreate {
 	return _c.AddUsageLogIDs(ids...)
 }
 
+// AddGroupLinkIDs adds the "group_links" edge to the APIKeyGroupLink entity by IDs.
+func (_c *APIKeyCreate) AddGroupLinkIDs(ids ...int64) *APIKeyCreate {
+	_c.mutation.AddGroupLinkIDs(ids...)
+	return _c
+}
+
+// AddGroupLinks adds the "group_links" edges to the APIKeyGroupLink entity.
+func (_c *APIKeyCreate) AddGroupLinks(v ...*APIKeyGroupLink) *APIKeyCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddGroupLinkIDs(ids...)
+}
+
 // Mutation returns the APIKeyMutation object of the builder.
 func (_c *APIKeyCreate) Mutation() *APIKeyMutation {
 	return _c.mutation
@@ -382,6 +412,10 @@ func (_c *APIKeyCreate) defaults() error {
 		}
 		v := apikey.DefaultUpdatedAt()
 		_c.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := _c.mutation.GroupChainRevision(); !ok {
+		v := apikey.DefaultGroupChainRevision
+		_c.mutation.SetGroupChainRevision(v)
 	}
 	if _, ok := _c.mutation.Status(); !ok {
 		v := apikey.DefaultStatus
@@ -447,6 +481,14 @@ func (_c *APIKeyCreate) check() error {
 	if v, ok := _c.mutation.Name(); ok {
 		if err := apikey.NameValidator(v); err != nil {
 			return &ValidationError{Name: "name", err: fmt.Errorf(`ent: validator failed for field "APIKey.name": %w`, err)}
+		}
+	}
+	if _, ok := _c.mutation.GroupChainRevision(); !ok {
+		return &ValidationError{Name: "group_chain_revision", err: errors.New(`ent: missing required field "APIKey.group_chain_revision"`)}
+	}
+	if v, ok := _c.mutation.GroupChainRevision(); ok {
+		if err := apikey.GroupChainRevisionValidator(v); err != nil {
+			return &ValidationError{Name: "group_chain_revision", err: fmt.Errorf(`ent: validator failed for field "APIKey.group_chain_revision": %w`, err)}
 		}
 	}
 	if _, ok := _c.mutation.Status(); !ok {
@@ -530,6 +572,10 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.Name(); ok {
 		_spec.SetField(apikey.FieldName, field.TypeString, value)
 		_node.Name = value
+	}
+	if value, ok := _c.mutation.GroupChainRevision(); ok {
+		_spec.SetField(apikey.FieldGroupChainRevision, field.TypeInt64, value)
+		_node.GroupChainRevision = value
 	}
 	if value, ok := _c.mutation.Status(); ok {
 		_spec.SetField(apikey.FieldStatus, field.TypeString, value)
@@ -638,6 +684,22 @@ func (_c *APIKeyCreate) createSpec() (*APIKey, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(usagelog.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.GroupLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   apikey.GroupLinksTable,
+			Columns: []string{apikey.GroupLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -760,6 +822,24 @@ func (u *APIKeyUpsert) SetName(v string) *APIKeyUpsert {
 // UpdateName sets the "name" field to the value that was provided on create.
 func (u *APIKeyUpsert) UpdateName() *APIKeyUpsert {
 	u.SetExcluded(apikey.FieldName)
+	return u
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (u *APIKeyUpsert) SetGroupChainRevision(v int64) *APIKeyUpsert {
+	u.Set(apikey.FieldGroupChainRevision, v)
+	return u
+}
+
+// UpdateGroupChainRevision sets the "group_chain_revision" field to the value that was provided on create.
+func (u *APIKeyUpsert) UpdateGroupChainRevision() *APIKeyUpsert {
+	u.SetExcluded(apikey.FieldGroupChainRevision)
+	return u
+}
+
+// AddGroupChainRevision adds v to the "group_chain_revision" field.
+func (u *APIKeyUpsert) AddGroupChainRevision(v int64) *APIKeyUpsert {
+	u.Add(apikey.FieldGroupChainRevision, v)
 	return u
 }
 
@@ -1182,6 +1262,27 @@ func (u *APIKeyUpsertOne) SetName(v string) *APIKeyUpsertOne {
 func (u *APIKeyUpsertOne) UpdateName() *APIKeyUpsertOne {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (u *APIKeyUpsertOne) SetGroupChainRevision(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetGroupChainRevision(v)
+	})
+}
+
+// AddGroupChainRevision adds v to the "group_chain_revision" field.
+func (u *APIKeyUpsertOne) AddGroupChainRevision(v int64) *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddGroupChainRevision(v)
+	})
+}
+
+// UpdateGroupChainRevision sets the "group_chain_revision" field to the value that was provided on create.
+func (u *APIKeyUpsertOne) UpdateGroupChainRevision() *APIKeyUpsertOne {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateGroupChainRevision()
 	})
 }
 
@@ -1820,6 +1921,27 @@ func (u *APIKeyUpsertBulk) SetName(v string) *APIKeyUpsertBulk {
 func (u *APIKeyUpsertBulk) UpdateName() *APIKeyUpsertBulk {
 	return u.Update(func(s *APIKeyUpsert) {
 		s.UpdateName()
+	})
+}
+
+// SetGroupChainRevision sets the "group_chain_revision" field.
+func (u *APIKeyUpsertBulk) SetGroupChainRevision(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.SetGroupChainRevision(v)
+	})
+}
+
+// AddGroupChainRevision adds v to the "group_chain_revision" field.
+func (u *APIKeyUpsertBulk) AddGroupChainRevision(v int64) *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.AddGroupChainRevision(v)
+	})
+}
+
+// UpdateGroupChainRevision sets the "group_chain_revision" field to the value that was provided on create.
+func (u *APIKeyUpsertBulk) UpdateGroupChainRevision() *APIKeyUpsertBulk {
+	return u.Update(func(s *APIKeyUpsert) {
+		s.UpdateGroupChainRevision()
 	})
 }
 

@@ -983,6 +983,7 @@ const (
 
 // GatewayConfig API网关相关配置
 type GatewayConfig struct {
+	ArtexGuard ArtexGuardConfig `mapstructure:"artex_guard"`
 	// 等待上游响应头的超时时间（秒），0表示无超时
 	// 注意：这不影响流式数据传输，只控制等待响应头的时间
 	ResponseHeaderTimeout int `mapstructure:"response_header_timeout"`
@@ -2531,6 +2532,7 @@ func setDefaults() {
 	viper.SetDefault("gateway.image_concurrency.max_waiting_requests", 100)
 	viper.SetDefault("gateway.antigravity_fallback_cooldown_minutes", 1)
 	viper.SetDefault("gateway.antigravity_extra_retries", 10)
+	viper.SetDefault("gateway.artex_guard.mode", ArtexGuardEnforce)
 	viper.SetDefault("gateway.max_body_size", int64(256*1024*1024))
 	viper.SetDefault("gateway.text_max_body_size", int64(32*1024*1024))
 	viper.SetDefault("gateway.upstream_response_read_max_bytes", DefaultUpstreamResponseReadMaxBytes)
@@ -3345,6 +3347,9 @@ func (c *Config) Validate() error {
 	}
 	if c.Idempotency.CleanupBatchSize <= 0 {
 		return fmt.Errorf("idempotency.cleanup_batch_size must be positive")
+	}
+	if err := c.Gateway.ArtexGuard.Validate(); err != nil {
+		return err
 	}
 	if c.Gateway.MaxBodySize <= 0 {
 		return fmt.Errorf("gateway.max_body_size must be positive")

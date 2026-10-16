@@ -998,7 +998,7 @@ func (c *concurrencyCache) GetAccountsLoadBatch(ctx context.Context, accounts []
 		}
 		loadRate := 0
 		if ac.maxConcurrency > 0 {
-			loadRate = (currentConcurrency + waitingCount) * 100 / ac.maxConcurrency
+			loadRate = currentConcurrency * 100 / ac.maxConcurrency
 		}
 		loadMap[ac.id] = &service.AccountLoadInfo{
 			AccountID:          ac.id,

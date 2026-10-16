@@ -413,6 +413,17 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_MAX_REASONING_EFFORT_OVER_LIMIT", "%v", err)
 	}
+	// 调度策略（C-4）：空值表示未配置，落库默认 inherit（随全局）。
+	// 非法值直接拒绝，不静默回落（与「存储层默认 inherit」区分开：前者是缺省，后者是脏输入）。
+	schedulingStrategy := SchedulingStrategyInherit
+	if strings.TrimSpace(input.SchedulingStrategy) != "" {
+		parsed, ok := ParseGroupSchedulingStrategy(input.SchedulingStrategy)
+		if !ok {
+			return nil, infraerrors.New(http.StatusBadRequest, "INVALID_SCHEDULING_STRATEGY",
+				"group scheduling_strategy must be one of inherit, stable, balanced, latency")
+		}
+		schedulingStrategy = parsed
+	}
 	reasoningEffortMappings, err := NormalizeReasoningEffortMappings(platform, input.ReasoningEffortMappings)
 	if err != nil {
 		return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
@@ -597,6 +608,7 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		VideoPrice720P:                  videoPrice720P,
 		VideoPrice1080P:                 videoPrice1080P,
 		VideoModelPrices:                NormalizeVideoModelPrices(input.VideoModelPrices),
+		VideoPricePlans:                 NormalizeVideoPricePlans(input.VideoPricePlans),
 		WebSearchPricePerCall:           webSearchPricePerCall,
 		SearchPricePer1k:                searchPricePer1k,
 		AudioRealtimePricePerMin:        audioRealtimePricePerMin,
@@ -624,6 +636,9 @@ func (s *adminServiceImpl) CreateGroup(ctx context.Context, input *CreateGroupIn
 		MaxReasoningEffort:          maxReasoningEffort,
 		MaxReasoningEffortOverLimit: maxReasoningEffortOverLimit,
 		ReasoningEffortMappings:     reasoningEffortMappings,
+		SchedulingStrategy:          schedulingStrategy,
+		// AllowHighAvailability 由管理员显式开启；默认关闭，用户仍需在自己的 Key 上主动授权。
+		AllowHighAvailability: input.AllowHighAvailability,
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)
@@ -918,6 +933,10 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 	if input.VideoModelPrices != nil {
 		group.VideoModelPrices = NormalizeVideoModelPrices(input.VideoModelPrices)
 	}
+	// nil = leave unchanged; empty map = clear the metering plans (fail closed again).
+	if input.VideoPricePlans != nil {
+		group.VideoPricePlans = NormalizeVideoPricePlans(*input.VideoPricePlans)
+	}
 	if input.WebSearchPricePerCall != nil {
 		group.WebSearchPricePerCall = normalizePrice(input.WebSearchPricePerCall)
 	}
@@ -1039,6 +1058,24 @@ func (s *adminServiceImpl) UpdateGroup(ctx context.Context, id int64, input *Upd
 			return nil, infraerrors.Newf(http.StatusBadRequest, "INVALID_REASONING_EFFORT_MAPPING", "%v", err)
 		}
 		group.ReasoningEffortMappings = reasoningEffortMappings
+	}
+	// AllowHighAvailability：nil 表示未提供该字段，保持原值不动；显式 false 可关闭。
+	if input.AllowHighAvailability != nil {
+		group.AllowHighAvailability = *input.AllowHighAvailability
+	}
+	// 调度策略（C-4）：nil 表示未提供该字段，保持原值不动；显式空串与其它非法值一律
+	// 400 拒绝（不静默当成 inherit，避免运维以为「清空」已生效）；值大小写/首尾空白
+	// 由 ParseGroupSchedulingStrategy 归一。存量脏值在更新时收敛为 inherit，
+	// 不静默当成某个具体策略。
+	if input.SchedulingStrategy != nil {
+		parsed, ok := ParseGroupSchedulingStrategy(*input.SchedulingStrategy)
+		if !ok {
+			return nil, infraerrors.New(http.StatusBadRequest, "INVALID_SCHEDULING_STRATEGY",
+				"group scheduling_strategy must be one of inherit, stable, balanced, latency")
+		}
+		group.SchedulingStrategy = parsed
+	} else if _, ok := ParseGroupSchedulingStrategy(group.SchedulingStrategy); !ok {
+		group.SchedulingStrategy = SchedulingStrategyInherit
 	}
 	sanitizeGroupMessagesDispatchFields(group)
 	sanitizeGroupOpenAIFast(group)
@@ -1426,6 +1463,93 @@ func (s *adminServiceImpl) AdminUpdateAPIKeyGroupID(ctx context.Context, keyID i
 	}
 
 	result.APIKey = apiKey
+	return result, nil
+}
+
+// AdminUpdateAPIKeyGroups replaces only normal bindings. CAS precedes every grant and write.
+func (s *adminServiceImpl) AdminUpdateAPIKeyGroups(ctx context.Context, keyID int64, input AdminUpdateAPIKeyGroupsInput) (*AdminUpdateAPIKeyGroupIDResult, error) {
+	if input.ExpectedGroupChainRevision == nil {
+		return nil, ErrGroupChainConflict
+	}
+	// 管理员路径允许保留/创建 role=ha 链接（管理员配置可作兜底的分组）；
+	// 用户路径仍是 normalOnly=true，不能自助伪造 role=ha。
+	links, err := NormalizeAPIKeyGroupLinks(input.Groups, false)
+	if err != nil {
+		return nil, err
+	}
+	repo, ok := s.apiKeyRepo.(APIKeyGroupChainTxRepository)
+	if !ok {
+		return nil, infraerrors.InternalServer("GROUP_CHAIN_TRANSACTION_UNAVAILABLE", "group chain transaction is not configured")
+	}
+	result := &AdminUpdateAPIKeyGroupIDResult{}
+	err = repo.WithGroupChainTransaction(ctx, keyID, input.ExpectedGroupChainRevision, func(txCtx context.Context, key *APIKey) error {
+		// Check all candidates before granting any exclusive group.
+		groups := make([]*Group, 0, len(links))
+		for _, link := range links {
+			group, err := s.groupRepo.GetByID(txCtx, link.GroupID)
+			if err != nil {
+				return err
+			}
+			if !group.IsActive() {
+				return infraerrors.BadRequest("GROUP_NOT_ACTIVE", "target group is not active")
+			}
+			if group.IsSubscriptionType() {
+				if s.userSubRepo == nil {
+					return infraerrors.InternalServer("SUBSCRIPTION_REPOSITORY_UNAVAILABLE", "subscription repository is not configured")
+				}
+				if _, err := s.userSubRepo.GetActiveByUserIDAndGroupID(txCtx, key.UserID, group.ID); err != nil {
+					if errors.Is(err, ErrSubscriptionNotFound) {
+						return infraerrors.BadRequest("SUBSCRIPTION_REQUIRED", "user does not have an active subscription for this group")
+					}
+					return err
+				}
+			}
+			groups = append(groups, group)
+		}
+		// 解析出最终链（normal 替换 + 保留未声明变更的 ha），普通组不得与 HA 组 ID 冲突。
+		// 授权时间戳沿用 DB；管理员不能代替用户开启。
+		resolved, err := ResolveAdminAPIKeyGroupChain(key.Groups, links)
+		if err != nil {
+			return err
+		}
+		for _, group := range groups {
+			if group.IsExclusive && !group.IsSubscriptionType() {
+				if err := s.userRepo.AddGroupToAllowedGroups(txCtx, key.UserID, group.ID); err != nil {
+					return fmt.Errorf("add group to user allowed groups: %w", err)
+				}
+				result.AutoGrantedGroupAccess = true
+				id := group.ID
+				result.GrantedGroupID = &id
+				result.GrantedGroupName = group.Name
+			}
+		}
+		key.Groups = resolved
+		// 管理员路径允许写 role=ha，因此不再用 NormalGroupsOnly 丢弃 HA 链接。
+		fields := APIKeyUpdateFields{Groups: true, AllowHADeclaration: true, ExpectedGroupChainRevision: input.ExpectedGroupChainRevision}
+		if input.ResetRateLimitUsage {
+			key.Usage5h = 0
+			key.Usage1d = 0
+			key.Usage7d = 0
+			key.Window5hStart = nil
+			key.Window1dStart = nil
+			key.Window7dStart = nil
+			fields.RateLimitUsage = true
+		}
+		if err := s.apiKeyRepo.Update(txCtx, key, fields); err != nil {
+			return err
+		}
+		result.APIKey = key
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if s.authCacheInvalidator != nil {
+		s.authCacheInvalidator.InvalidateAuthCacheByKey(ctx, result.APIKey.Key)
+	}
+	if input.ResetRateLimitUsage && s.billingCacheService != nil {
+		_ = s.billingCacheService.InvalidateAPIKeyRateLimit(ctx, keyID)
+	}
 	return result, nil
 }
 

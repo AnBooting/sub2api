@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defineComponent, h } from "vue";
+import { createPinia } from "pinia";
 import { flushPromises, mount } from "@vue/test-utils";
 
 import enCommon from "@/i18n/locales/en/common";
@@ -129,6 +130,29 @@ vi.mock("@/stores", () => ({
   }),
 }));
 
+// The real pricing panel imports the direct module, not the stores barrel.
+// Preserve both module paths on the same app-store test contract.
+vi.mock("@/stores/app", () => ({
+  useAppStore: () => ({ showError, showSuccess, showWarning: vi.fn(), showInfo: vi.fn(), fetchPublicSettings }),
+}));
+
+// Keep the real affiliate watcher and pricing panel hermetic. Named and default
+// affiliate exports must alias the same API object for direct and barrel users.
+const affiliateListUsers = vi.hoisted(() => vi.fn());
+vi.mock("@/api/admin/affiliates", () => {
+  const api = { listUsers: affiliateListUsers };
+  return { affiliatesAPI: api, default: api };
+});
+const pricingAPI = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn() }));
+vi.mock("@/api/admin/pricing", () => ({ getPricingControls: pricingAPI.get, updatePricingControls: pricingAPI.update, refreshPricing: pricingAPI.refresh }));
+const pricingStatus = { remote_enabled: false, native_cny_enabled: false, usd_model_count: 10, cny_model_count: 0, usd_last_updated: "", cny_last_updated: "", cny_error: "", deepseek_holidays: {}, deepseek_calendar_year_missing: true };
+beforeEach(() => {
+  affiliateListUsers.mockReset().mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20, pages: 0 });
+  pricingAPI.get.mockReset().mockResolvedValue({ ...pricingStatus });
+  pricingAPI.update.mockReset().mockImplementation(async (controls) => ({ ...pricingStatus, ...controls }));
+  pricingAPI.refresh.mockReset().mockResolvedValue({ ...pricingStatus });
+});
+
 vi.mock("@/stores/adminSettings", () => ({
   useAdminSettingsStore: () => ({
     fetch: adminSettingsFetch,
@@ -230,6 +254,17 @@ vi.mock("vue-i18n", async () => {
     "admin.settings.upstreamBillingProbe.intervalHint": "范围 5–1440 分钟。",
     "admin.settings.upstreamBillingProbe.saved": "上游倍率自动探测设置已保存",
     "admin.settings.upstreamBillingProbe.saveFailed": "保存上游倍率自动探测设置失败",
+    "admin.settings.scheduling.requestBudgetTitle": "统一重试预算",
+    "admin.settings.scheduling.requestBudgetDescription":
+      "同一逻辑请求在内部换号、换组时共用的上游发送上限与总耗时预算。仅统计真实上游推理发送，选号与预检不计入。",
+    "admin.settings.scheduling.maxAttemptsPerRequest": "单请求最大尝试次数",
+    "admin.settings.scheduling.maxAttemptsPerRequestHint":
+      "默认 16。必须为大于 0 的整数，且与下方时间预算同时生效，任一耗尽即停止重试。",
+    "admin.settings.scheduling.requestBudgetSeconds": "单请求时间预算（秒）",
+    "admin.settings.scheduling.requestBudgetSecondsHint":
+      "默认 600 秒。必须为大于 0 的整数，超时后不再发起新的上游尝试。",
+    "admin.settings.scheduling.requestBudgetInvalid":
+      "单请求最大尝试次数与时间预算都必须是大于 0 的整数。",
     "admin.settings.openaiFastPolicy.summaryTargetModels": "目标模型",
     "admin.settings.openaiFastPolicy.summaryAllModels": "全部模型",
     "admin.settings.openaiFastPolicy.summaryOtherModels": "其他模型",
@@ -465,6 +500,8 @@ const baseSettingsResponse = {
   min_claude_code_version: "",
   max_claude_code_version: "",
   allow_ungrouped_key_scheduling: false,
+  gateway_max_attempts_per_request: 16,
+  gateway_request_budget_seconds: 600,
   openai_ttft_mode: "semantic",
   enable_fingerprint_unification: true,
   enable_metadata_passthrough: false,
@@ -550,8 +587,10 @@ const baseSettingsResponse = {
 function mountView() {
   return mount(SettingsView, {
     global: {
+      plugins: [createPinia()],
       stubs: {
         AppLayout: AppLayoutStub,
+        RouterLink: { template: '<a><slot /></a>' },
         Select: SelectStub,
         Toggle: ToggleStub,
         Icon: true,
@@ -563,7 +602,8 @@ function mountView() {
         ProxySelector: true,
         ImageUpload: ImageUploadStub,
         BackupSettings: true,
-        PricingSettingsPanel: true,
+        // The real panel is exercised below: its @/stores/app and @/api/admin/pricing
+        // dependencies are mocked at module scope, so it must not be stubbed here.
       },
     },
   });
@@ -723,6 +763,38 @@ describe("admin SettingsView payment visible method controls", () => {
     });
     fetchPublicSettings.mockResolvedValue(undefined);
     adminSettingsFetch.mockResolvedValue(undefined);
+  });
+
+  it("keeps the real pricing panel mounted with its direct-store and API fixture dependencies", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+    expect(pricingAPI.get).toHaveBeenCalled();
+    expect(wrapper.find('[data-testid="calendar-year-missing"]').exists()).toBe(true);
+    expect(wrapper.find('[data-testid="calendar-draft"]').exists()).toBe(true);
+    await wrapper.get('[data-testid="native-cny-toggle"]').setValue(true);
+    await flushPromises();
+    expect(pricingAPI.update).toHaveBeenCalledWith({ remote_enabled: false, native_cny_enabled: true });
+    expect(fetchPublicSettings).toHaveBeenCalledWith(true);
+    wrapper.unmount();
+  });
+
+  it("saves global strategy and request budgets while displaying only the server-saved effective strategy", async () => {
+    getSettings.mockResolvedValue({ ...baseSettingsResponse, scheduling_strategy: "stable", gateway_max_attempts_per_request: 16, gateway_request_budget_seconds: 600 });
+    const wrapper = mountView();
+    await flushPromises();
+    await openGatewayTab(wrapper);
+    const selector = wrapper.findComponent({ name: "SchedulingStrategySelect" });
+    expect(selector.props("effectiveStrategy")).toBe("stable");
+    await selector.get("select").setValue("latency");
+    expect(selector.props("modelValue")).toBe("latency");
+    expect(selector.props("effectiveStrategy")).toBe("stable");
+    await wrapper.get('[data-test="gateway-max-attempts"]').setValue("12");
+    await wrapper.get('[data-test="gateway-request-budget"]').setValue("300");
+    await wrapper.get("form").trigger("submit.prevent");
+    await flushPromises();
+    expect(updateSettings).toHaveBeenCalledWith(expect.objectContaining({ scheduling_strategy: "latency", gateway_max_attempts_per_request: 12, gateway_request_budget_seconds: 300 }));
+    expect(selector.props("effectiveStrategy")).toBe("latency");
+    wrapper.unmount();
   });
 
   it("loads and saves the open button visibility for each custom menu", async () => {
@@ -1218,6 +1290,8 @@ describe("admin SettingsView payment visible method controls", () => {
         affiliate_admin_recharge_enabled: true,
       }),
     );
+    expect(affiliateListUsers).toHaveBeenCalledTimes(1);
+    expect(affiliateListUsers).toHaveBeenCalledWith({ page: 1, page_size: 20, search: "" });
   });
 
   it("submits Anthropic cache TTL injection gateway setting", async () => {
@@ -1316,6 +1390,57 @@ describe("admin SettingsView payment visible method controls", () => {
     );
   });
 
+  it("loads and submits the gateway unified retry budget settings", async () => {
+    getSettings.mockResolvedValueOnce({
+      ...baseSettingsResponse,
+      gateway_max_attempts_per_request: 32,
+      gateway_request_budget_seconds: 900,
+    });
+
+    const wrapper = mountView();
+    await flushPromises();
+
+    const maxAttemptsInput = wrapper.get<HTMLInputElement>(
+      '[data-testid="gateway-max-attempts-per-request"]',
+    );
+    const budgetSecondsInput = wrapper.get<HTMLInputElement>(
+      '[data-testid="gateway-request-budget-seconds"]',
+    );
+    expect(maxAttemptsInput.element.value).toBe("32");
+    expect(budgetSecondsInput.element.value).toBe("900");
+    expect(maxAttemptsInput.attributes("min")).toBe("1");
+
+    await maxAttemptsInput.setValue("8");
+    await budgetSecondsInput.setValue("300");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).toHaveBeenCalledTimes(1);
+    expect(updateSettings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gateway_max_attempts_per_request: 8,
+        gateway_request_budget_seconds: 300,
+      }),
+    );
+  });
+
+  it("rejects a non-positive gateway retry budget before saving", async () => {
+    const wrapper = mountView();
+    await flushPromises();
+
+    const budgetSecondsInput = wrapper.get<HTMLInputElement>(
+      '[data-testid="gateway-request-budget-seconds"]',
+    );
+    await budgetSecondsInput.setValue("0");
+    await wrapper.find("form").trigger("submit.prevent");
+    await flushPromises();
+
+    expect(updateSettings).not.toHaveBeenCalled();
+    expect(showError).toHaveBeenCalledWith(
+      "单请求最大尝试次数与时间预算都必须是大于 0 的整数。",
+    );
+  });
+
   it("updates provider enablement immediately and reloads providers", async () => {
     const provider = {
       id: 7,
@@ -1353,8 +1478,10 @@ describe("admin SettingsView payment visible method controls", () => {
 
     const wrapper = mount(SettingsView, {
       global: {
+        plugins: [createPinia()],
         stubs: {
           AppLayout: AppLayoutStub,
+          RouterLink: { template: '<a><slot /></a>' },
           Select: SelectStub,
           Toggle: ToggleStub,
           Icon: true,
@@ -1700,8 +1827,10 @@ describe("admin SettingsView payment visible method controls", () => {
 
     const wrapper = mount(SettingsView, {
       global: {
+        plugins: [createPinia()],
         stubs: {
           AppLayout: AppLayoutStub,
+          RouterLink: { template: '<a><slot /></a>' },
           Select: SelectStub,
           Toggle: ToggleStub,
           Icon: true,

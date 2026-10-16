@@ -5020,7 +5020,7 @@
                 </div>
                 <Toggle v-model="form.allow_ungrouped_key_scheduling" />
               </div>
-
+              <SchedulingStrategySelect :model-value="form.scheduling_strategy" @update:model-value="(value) => { if (value !== 'inherit') form.scheduling_strategy = value }" :effective-strategy="savedSchedulingStrategy" :disabled="saving" />
               <div class="border-t border-gray-100 pt-4 dark:border-dark-700">
                 <div class="mb-3">
                   <label class="font-medium text-gray-900 dark:text-white">
@@ -5268,6 +5268,67 @@
                       type="text"
                     />
                   </label>
+                </div>
+              </div>
+
+              <!-- 统一重试预算（C-8）：单请求上游发送次数与总耗时预算 -->
+              <div class="border-t border-gray-100 pt-5 dark:border-dark-700">
+                <div>
+                  <label
+                    class="text-sm font-medium text-gray-700 dark:text-gray-300"
+                  >
+                    {{ t("admin.settings.scheduling.requestBudgetTitle") }}
+                  </label>
+                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                    {{ t("admin.settings.scheduling.requestBudgetDescription") }}
+                  </p>
+                </div>
+
+                <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      for="gateway-max-attempts-per-request"
+                    >
+                      {{ t("admin.settings.scheduling.maxAttemptsPerRequest") }}
+                    </label>
+                    <input
+                      id="gateway-max-attempts-per-request"
+                      v-model.number="form.gateway_max_attempts_per_request"
+                      class="input w-full"
+                      data-testid="gateway-max-attempts-per-request"
+                      data-test="gateway-max-attempts"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="16"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.scheduling.maxAttemptsPerRequestHint") }}
+                    </p>
+                  </div>
+                  <div>
+                    <label
+                      class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300"
+                      for="gateway-request-budget-seconds"
+                    >
+                      {{ t("admin.settings.scheduling.requestBudgetSeconds") }}
+                    </label>
+                    <input
+                      id="gateway-request-budget-seconds"
+                      v-model.number="form.gateway_request_budget_seconds"
+                      class="input w-full"
+                      data-testid="gateway-request-budget-seconds"
+                      data-test="gateway-request-budget"
+                      type="number"
+                      min="1"
+                      step="1"
+                      placeholder="600"
+                    />
+                    <p class="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {{ t("admin.settings.scheduling.requestBudgetSecondsHint") }}
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -9056,6 +9117,7 @@ import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSi
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
 import { useAppStore } from "@/stores";
 import PricingSettingsPanel from "@/components/admin/PricingSettingsPanel.vue";
+import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelect.vue";
 import { useAdminSettingsStore } from "@/stores/adminSettings";
 import { normalizeVisibleMethod } from "@/components/payment/paymentFlow";
 import {
@@ -9170,6 +9232,7 @@ function handleSettingsTabKeydown(event: KeyboardEvent, tab: SettingsTab): void 
 const { copyToClipboard } = useClipboard();
 
 const loading = ref(true);
+const savedSchedulingStrategy = ref<import("@/types").SchedulingStrategy>();
 const loadFailed = ref(false);
 const saving = ref(false);
 const testingSmtp = ref(false);
@@ -9767,6 +9830,9 @@ type SettingsForm = Omit<
   // 系统全局平台限额 map；form 内始终归一化为全部平台对象（模板非空绑定依赖此不变量）
   default_platform_quotas: DefaultPlatformQuotasMap;
   account_scheduling_thresholds: ReturnType<typeof normalizeAccountSchedulingThresholdsMap>;
+  scheduling_strategy: import("@/types").SchedulingStrategy;
+  gateway_max_attempts_per_request: number;
+  gateway_request_budget_seconds: number;
 };
 
 const schedulingThresholdPlatforms = SCHEDULING_THRESHOLD_PLATFORMS;
@@ -9801,6 +9867,9 @@ const form = reactive<SettingsForm>({
   default_balance: 0,
   default_platform_quotas: normalizePlatformQuotasMap() as DefaultPlatformQuotasMap,
   account_scheduling_thresholds: normalizeAccountSchedulingThresholdsMap(),
+  // gateway 统一重试预算（C-8）：默认值与后端 defaultGatewayRequestAttemptBudgetLimits 一致
+  gateway_max_attempts_per_request: 16,
+  gateway_request_budget_seconds: 600,
   affiliate_rebate_rate: 20,
   affiliate_rebate_freeze_hours: 0,
   affiliate_rebate_duration_days: 0,
@@ -9810,6 +9879,7 @@ const form = reactive<SettingsForm>({
   default_subscriptions: [],
   force_email_on_third_party_signup: false,
   default_user_rpm_limit: 0,
+  scheduling_strategy: "balanced",
   site_name: "Sub2API",
   site_logo: "",
   site_subtitle: "Subscription to API Conversion Platform",
@@ -11051,6 +11121,7 @@ async function loadSettings() {
   loadFailed.value = false;
   try {
     const settings = await adminAPI.settings.getSettings();
+    savedSchedulingStrategy.value = settings.scheduling_strategy;
     settings.payment_load_balance_strategy =
       settings.payment_load_balance_strategy || "round-robin";
     // Only assign non-null values from backend (null means unconfigured, keep defaults)
@@ -11469,6 +11540,22 @@ async function saveSettings() {
     form.claude_oauth_system_prompt_blocks =
       claudeOAuthSystemPromptBlocksJSON;
 
+    // gateway 统一重试预算（C-8）：后端对显式提供的值要求 > 0，前端先拦下空值/小数/非正数，
+    // 避免整次保存被 400 拒绝。后端未设置范围上限，这里只校验下界与整数。
+    const gatewayMaxAttempts = Number(form.gateway_max_attempts_per_request);
+    const gatewayBudgetSeconds = Number(form.gateway_request_budget_seconds);
+    if (
+      !Number.isInteger(gatewayMaxAttempts) ||
+      gatewayMaxAttempts <= 0 ||
+      !Number.isInteger(gatewayBudgetSeconds) ||
+      gatewayBudgetSeconds <= 0
+    ) {
+      appStore.showError(t("admin.settings.scheduling.requestBudgetInvalid"));
+      return;
+    }
+    form.gateway_max_attempts_per_request = gatewayMaxAttempts;
+    form.gateway_request_budget_seconds = gatewayBudgetSeconds;
+
     const oauthSchedulingRate = form.openai_oauth_scheduling_rate_multiplier;
     if (
       oauthSchedulingRate !== "" &&
@@ -11517,6 +11604,7 @@ async function saveSettings() {
       default_subscriptions: normalizedDefaultSubscriptions,
       force_email_on_third_party_signup: form.force_email_on_third_party_signup,
       default_user_rpm_limit: form.default_user_rpm_limit,
+      scheduling_strategy: form.scheduling_strategy,
       site_name: form.site_name,
       site_logo: form.site_logo,
       site_subtitle: form.site_subtitle,
@@ -11774,6 +11862,8 @@ async function saveSettings() {
         form.openai_advanced_scheduler_weight_previous_response.trim(),
       openai_advanced_scheduler_weight_session_sticky:
         form.openai_advanced_scheduler_weight_session_sticky.trim(),
+      gateway_max_attempts_per_request: gatewayMaxAttempts,
+      gateway_request_budget_seconds: gatewayBudgetSeconds,
       // 余额、订阅到期与账号限额通知
       balance_low_notify_enabled: form.balance_low_notify_enabled,
       balance_low_notify_threshold:
@@ -11849,6 +11939,7 @@ async function saveSettings() {
     const updated = await settingsStepUp.run(() =>
       adminAPI.settings.updateSettings(payload),
     );
+    savedSchedulingStrategy.value = updated.scheduling_strategy;
     for (const [key, value] of Object.entries(updated)) {
       if (key === "openai_fast_policy_settings") continue;
       if (value !== null && value !== undefined) {

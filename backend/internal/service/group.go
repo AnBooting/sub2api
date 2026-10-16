@@ -59,6 +59,12 @@ type Group struct {
 	// (groups.video_model_prices JSONB). Shape: family → resolution → USD/s.
 	// When set for a model, overrides VideoPrice* for that model only.
 	VideoModelPrices map[string]map[string]float64
+	// VideoPricePlans declares, per model family, the metering mode and unit price
+	// (groups.video_price_plans JSONB, PRD-06/K-4). Unlike VideoModelPrices this is
+	// not implicitly per-second: Ark Seedance bills per token, xAI Grok per second
+	// and MiniMax per request. An absent plan means "not configured" and callers
+	// must fail closed rather than guess a tariff.
+	VideoPricePlans map[string]domain.VideoPricePlan
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；
 	// nil 表示使用默认价 defaultWebSearchPricePerCall（官方 $10/1000 次）。
 	WebSearchPricePerCall *float64
@@ -131,6 +137,17 @@ type Group struct {
 	ProfitControlEnabled bool
 	ProfitMinMargin      float64 // 最低毛利率，小数存储（0.30=30%）
 	ProfitSafetyBuffer   float64 // 安全缓冲，小数，与 margin 相加后从 D 中扣除
+
+	// SchedulingStrategy 分组级调度策略覆盖（C-4）：inherit（默认，随全局）
+	// 或 stable/balanced/latency。只决定调度策略名，不改并发硬上限与 C-5 分类。
+	SchedulingStrategy string
+
+	// AllowHighAvailability marks this group as usable as a user-authorized
+	// high-availability fallback (PRD-04/TS-04). The admin decides which groups may
+	// serve that role; the user still has to opt in per API key (EnabledByUserAt).
+	// Supported models reuse ModelAllowlist and the multiplier reuses
+	// RateMultiplier, so no additional admin surface is needed.
+	AllowHighAvailability bool
 
 	CreatedAt time.Time
 	UpdatedAt time.Time

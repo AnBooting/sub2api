@@ -54,6 +54,9 @@ func TestOpenAIResponsesWebSocket_CompositeAlias(t *testing.T) {
 						secondPayload: `{"type":"response.create","input":"again"}`,
 						group:         compositeWSGroup("public-alias"), accountPlatform: platform, ingressMode: mode,
 						compositeResolver: compositeWSResolver(platform, endpoint, upstream),
+						// 测试 fixture 定价（非产品价）：锁价要求客户价可确定性识别，
+						// 别名与路由目标名均不在内置价表内。
+						channelModelPricing: []service.ChannelModelPricing{wsFixtureTokenPricing([]string{upstream}, 1e-6, 2e-6)},
 					})
 					require.Len(t, got.upstreamPayloads, 2)
 					for i, payload := range got.upstreamPayloads {
@@ -125,6 +128,10 @@ func TestOpenAIResponsesWebSocket_CompositeChannelBilling(t *testing.T) {
 				compositeResolver: service.NewCompositeRouteResolver(&compositeWSRouteRepo{routes: []service.CompositeModelRoute{{PublicModel: "gpt-5.6-sol", MatchType: service.CompositeRouteMatchExact, TargetPlatform: service.PlatformOpenAI, Endpoint: service.CompositeRouteEndpointResponses, UpstreamModel: "route-target"}}}),
 				channelMapping:    map[string]string{"route-target": "gpt-5.4"}, billingModelSource: source,
 				accountModelMapping: map[string]any{"gpt-5.4": "gpt-5.4"},
+				// 测试 fixture 定价（非产品价）：Requested 源按请求模型 route-target
+				// 计价（5e-6/30e-6 → 40e-6 成本），其余源按渠道映射后的 gpt-5.4
+				// 内置价（2.5e-6/15e-6 → 20e-6 成本）。
+				channelModelPricing: []service.ChannelModelPricing{wsFixtureTokenPricing([]string{"route-target"}, 5e-6, 30e-6)},
 			})
 			for i, log := range got.logs {
 				require.Equal(t, "gpt-5.4", gjson.GetBytes(got.upstreamPayloads[i], "model").String())

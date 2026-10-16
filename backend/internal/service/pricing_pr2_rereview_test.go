@@ -131,7 +131,7 @@ func TestPR2RereviewGatewayCalendarFrozenThroughEstimateAndRecordUsage(t *testin
 					}
 					deps := shared.inflightEstimateDeps()
 					if gateway == "openai" {
-						deps = openai.inflightEstimateDeps()
+						deps = openai.inflightEstimateDeps(InflightEstimateRequest{Model: "deepseek-flash"})
 					}
 					oldCtx := capture()
 					oldRules := RequestPricingSnapshotFromContext(oldCtx)

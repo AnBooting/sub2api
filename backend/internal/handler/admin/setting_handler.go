@@ -401,6 +401,10 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 
 		AccountSchedulingThresholds: settings.AccountSchedulingThresholds,
 		AllowUserViewErrorRequests:  settings.AllowUserViewErrorRequests,
+
+		GatewayMaxAttemptsPerRequest: settings.GatewayMaxAttemptsPerRequest,
+		GatewayRequestBudgetSeconds:  settings.GatewayRequestBudgetSeconds,
+		SchedulingStrategy:           settings.SchedulingStrategy,
 	}
 
 	// OpenAI fast policy (stored under a dedicated setting key)

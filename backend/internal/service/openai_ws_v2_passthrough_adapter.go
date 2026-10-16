@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	openaiwsv2 "github.com/Wei-Shaw/sub2api/internal/service/openai_ws_v2"
@@ -688,6 +689,10 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if err := validateOpenAIWSBearerToken(account, token); err != nil {
 		return err
 	}
+	artexSessionGuard := newArtexWSSessionGuard(config.ResolveArtexGuardMode(s.cfg))
+	if err := artexSessionGuard.CheckBeforeSend(firstClientMessage); err != nil {
+		return err
+	}
 	if isOpenAIResponsesLiteWebSocketPayload(firstClientMessage) {
 		liteFirstMessage, _, liteErr := normalizeOpenAIResponsesLitePayloadForAccount(firstClientMessage, account)
 		if liteErr != nil {
@@ -921,7 +926,7 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 	if !ok {
 		return errors.New("openai ws passthrough upstream connection does not support frame relay")
 	}
-	relayUpstreamFrameConn := &openAIWSPassthroughFirstOutputFrameConn{
+	firstOutputFrameConn := &openAIWSPassthroughFirstOutputFrameConn{
 		inner:             upstreamFrameConn,
 		activeReadTimeout: s.openAIWSPassthroughIdleTimeout(),
 		deadlineChanged:   make(chan struct{}, 1),
@@ -949,6 +954,13 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 			}
 		},
 	}
+	relayUpstreamFrameConn := openaiwsv2.FrameConn(firstOutputFrameConn)
+	if hooks != nil && hooks.TurnContext != nil {
+		relayUpstreamFrameConn = &openAIWSTurnBudgetFrameConn{
+			inner:   firstOutputFrameConn,
+			resolve: hooks.TurnContext,
+		}
+	}
 
 	completedTurns := atomic.Int32{}
 	turnLifecycle := newOpenAIWSPassthroughTurnLifecycle(true)
@@ -959,6 +971,8 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		interTurnIdleTimeout: s.openAIWSIngressInterTurnIdleTimeout(),
 		interTurnStarted:     make(chan struct{}, 1),
 		restoreResponseModel: func(payload []byte) []byte {
+			// Actual remote success echo, never optimistic local session state.
+			artexSessionGuard.ObserveUpstream(payload)
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			if !openAIWSEventMayContainModel(eventType) {
 				return payload
@@ -979,6 +993,9 @@ func (s *OpenAIGatewayService) proxyResponsesWebSocketV2Passthrough(
 		filter: func(msgType coderws.MessageType, payload []byte) (out []byte, blocked *OpenAIFastBlockedError, filterErr error) {
 			if msgType != coderws.MessageText && msgType != coderws.MessageBinary {
 				return payload, nil, nil
+			}
+			if err := artexSessionGuard.CheckBeforeSend(payload); err != nil {
+				return payload, nil, err
 			}
 			eventType := strings.TrimSpace(gjson.GetBytes(payload, "type").String())
 			isResponseCreate := eventType == "response.create"

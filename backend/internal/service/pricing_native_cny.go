@@ -19,19 +19,6 @@ import (
 const nativeCNYDefaultURL = "https://basellm.github.io/llm-metadata/api/all.json"
 const nativeCNYSupplementDefaultURL = "https://raw.githubusercontent.com/szp2005/llm-prices-cn/main/prices.json"
 
-// Runtime validation also protects old/imported cards that bypass save-time checks.
-func validateManualCNYTokenPricing(p *ChannelModelPricing) error {
-	if p == nil || p.Currency != "CNY" {
-		return nil
-	}
-	for _, price := range []*float64{p.InputPrice, p.OutputPrice, p.CacheReadPrice, p.CacheWritePrice} {
-		if price == nil || math.IsNaN(*price) || math.IsInf(*price, 0) || *price < 0 {
-			return fmt.Errorf("%w: manual CNY token pricing requires explicit input, output, cache read and cache write prices", ErrModelPricingUnavailable)
-		}
-	}
-	return nil
-}
-
 // NativeRates are always original CNY per million tokens, never converted USD.
 type NativeRates struct {
 	Input      *float64 `json:"input"`
@@ -65,6 +52,7 @@ type NativeCNYCard struct {
 	Provider  string          `json:"provider"`
 	Source    string          `json:"source"`
 	FetchedAt time.Time       `json:"fetched_at"`
+	deepSeek  bool
 }
 
 func nativeModelKey(name string) string {
@@ -132,6 +120,9 @@ func validNativeRates(r NativeRates, complete bool) bool {
 	return true
 }
 func validNativeCard(c *NativeCNYCard) bool {
+	if c == nil {
+		return false
+	}
 	if !validNativeRates(c.NativeRates, true) {
 		return false
 	}
@@ -147,6 +138,9 @@ func validNativeCard(c *NativeCNYCard) bool {
 		return false
 	}
 	if c.Schedule != nil {
+		if !validNativeScheduleWindows(c.Schedule) {
+			return false
+		}
 		if _, err := time.LoadLocation(c.Schedule.Timezone); err != nil {
 			return false
 		}
@@ -309,34 +303,26 @@ func nativeMinute(clock string) (int, bool) {
 }
 func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 	rates, tiers := c.NativeRates, c.Tiers
-	if c.Schedule != nil && !(strings.EqualFold(c.Provider, "deepseek") && deepseekOffPeakDay(at, c.holidayCalendar)) {
+	deepSeek := c.deepSeek || strings.EqualFold(c.Provider, "deepseek")
+	period := DeepSeekPricingPeriod{}
+	if deepSeek {
+		period = deepseekPricingPeriodWithCalendar(at, c.holidayCalendar)
+	}
+	matchedWindow := false
+	if c.Schedule != nil && (!deepSeek || period.Label == "peak") {
 		loc, _ := time.LoadLocation(c.Schedule.Timezone)
 		now := at.In(loc)
-		minute := now.Hour()*60 + now.Minute()
 		for _, w := range c.Schedule.Windows {
-			day := false
-			for _, d := range w.Weekdays {
-				if d == int(now.Weekday()) {
-					day = true
+			if nativeWindowMatches(w, int(now.Weekday()), now.Hour()*60+now.Minute()) {
+				if deepSeek {
+					rates = scaleNativeRates(rates, period.multiplier())
+					tiers = scaleNativeTiers(tiers, period.multiplier())
 				}
-			}
-			if !day {
-				continue
-			}
-			matched := false
-			for _, hours := range w.HourRanges {
-				parts := strings.Split(hours, "-")
-				start, _ := nativeMinute(parts[0])
-				end, _ := nativeMinute(parts[1])
-				if (start < end && minute >= start && minute < end) || (start > end && (minute >= start || minute < end)) {
-					matched = true
-				}
-			}
-			if matched {
 				rates = mergeNativeRates(rates, w.NativeRates)
 				if len(w.Tiers) > 0 {
 					tiers = w.Tiers
 				}
+				matchedWindow = true
 				break
 			}
 		}
@@ -347,6 +333,11 @@ func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 		if contextTokens > tier.Tier.Size {
 			rates = mergeNativeRates(rates, tier.NativeRates)
 		}
+	}
+	// Absolute native peak windows already contain the peak price. If the
+	// source only supplies base rates, apply the approved 2x policy once.
+	if deepSeek && !matchedWindow {
+		rates = scaleNativeRates(rates, period.multiplier())
 	}
 	return rates
 }
@@ -402,7 +393,7 @@ func (s *PricingService) syncNativeCNY(force bool) (resultErr error) {
 	s.mu.RLock()
 	last := s.nativeCNYUpdated
 	s.mu.RUnlock()
-	interval := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	interval := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 	if interval < time.Hour {
 		interval = 24 * time.Hour
 	}
@@ -503,17 +494,18 @@ func (s *PricingService) nativePricingAt(model string, at time.Time) (*ModelPric
 	s.mu.RLock()
 	card := s.nativeCNYCards[nativeModelKey(model)]
 	s.mu.RUnlock()
-	if card == nil {
-		return nil, fmt.Errorf("%w: no original CNY price for %s", ErrModelPricingUnavailable, model)
+	if !validNativeCard(card) {
+		return nil, fmt.Errorf("%w: no valid original CNY price for %s", ErrModelPricingUnavailable, model)
 	}
 	if at.IsZero() {
 		at = time.Now()
 	}
-	if strings.EqualFold(card.Provider, "deepseek") {
-		clonedCard := *card
-		clonedCard.holidayCalendar = s.deepseekCalendarAt(at)
-		card = &clonedCard
+	clone := *card
+	clone.deepSeek = isDeepSeekModel(model) || strings.EqualFold(card.Provider, "deepseek")
+	if clone.deepSeek {
+		clone.holidayCalendar = s.deepseekCalendarAt(at)
 	}
+	card = &clone
 	rates := card.ratesAt(0, at)
 	p := &ModelPricing{Currency: "CNY", PricingSource: card.Source, NativeCard: card, NativePricingAt: at, CacheCreationPriceExplicit: true}
 	applyNativeRates(p, rates)
@@ -536,7 +528,7 @@ func applyNativeRates(p *ModelPricing, r NativeRates) {
 }
 
 func freezeNativeDeepseekCalendar(p *ModelPricing, calendar *deepseekHolidayCalendar) *ModelPricing {
-	if p == nil || p.NativeCard == nil || !strings.EqualFold(p.NativeCard.Provider, "deepseek") {
+	if p == nil || p.NativeCard == nil || (!p.NativeCard.deepSeek && !strings.EqualFold(p.NativeCard.Provider, "deepseek")) {
 		return p
 	}
 	cloned := *p
@@ -550,7 +542,13 @@ func freezeNativeDeepseekCalendar(p *ModelPricing, calendar *deepseekHolidayCale
 var missingNativeCachePriceWarned sync.Map
 
 func resolveNativeTokenPricing(p *ModelPricing, tokens UsageTokens, at time.Time) (*ModelPricing, error) {
-	if p.NativeCard == nil {
+	if p == nil {
+		return nil, ErrModelPricingUnavailable
+	}
+	if p.tokenPricingError != nil {
+		return nil, p.tokenPricingError
+	}
+	if p.NativeCard == nil || p.manualTokenPricing {
 		return p, nil
 	}
 	if at.IsZero() {

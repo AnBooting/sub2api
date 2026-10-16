@@ -12,6 +12,7 @@ import (
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 const (
@@ -659,7 +660,7 @@ func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account
 		Kind:      "credential_failover",
 		Message:   class.message,
 	})
-	return &UpstreamFailoverError{
+	failoverErr := &UpstreamFailoverError{
 		Stage:             GatewayFailureStageAccountAuth,
 		Scope:             class.scope,
 		Reason:            class.reason,
@@ -667,4 +668,8 @@ func (s *OpenAIGatewayService) newGrokCredentialFailover(c *gin.Context, account
 		ClientStatusCode:  http.StatusServiceUnavailable,
 		ClientMessage:     GrokCredentialUnavailableClientMessage,
 	}
+	// TS-02 S5：出口统一记录 C-5 分类（凭据阶段覆盖 Grok 全部 reason/scope/action）。
+	failoverErr.FailureClass = failoverErr.Classify()
+	logGatewayFailureClass(failoverErr, "gateway.grok_credential_failure", zap.Int64("account_id", account.ID))
+	return failoverErr
 }

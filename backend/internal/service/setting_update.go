@@ -557,9 +557,40 @@ func (s *SettingService) buildSystemSettingsUpdates(ctx context.Context, setting
 		updates[SettingKeyAccountSchedulingThresholds] = string(blob)
 	}
 
+	// gateway 统一重试预算（C-8）。service 层的 SystemSettings 是普通结构体，
+	// 零值表示「调用方未提供」（见上方 OmittedSettingKeys 的既有约定），因此这里
+	// 只跳过写入、不报错；「显式传非正值必须 400」的拒绝放在 handler 层，
+	// 那里的 *int 指针能区分「未提供」与「显式 0」。
+	// 拒绝的理由：S1 的 fail-closed 语义下 maxSends<=0 或 window<=0 等于拒绝所有发送，
+	// 不能让站长把全量请求配死（0 不是"不限制"的表示方式，不限制 = 不挂预算）。
+	if settings.GatewayMaxAttemptsPerRequest > 0 {
+		updates[SettingKeyGatewayMaxAttemptsPerRequest] = strconv.Itoa(settings.GatewayMaxAttemptsPerRequest)
+	}
+	if settings.GatewayRequestBudgetSeconds > 0 {
+		updates[SettingKeyGatewayRequestBudgetSeconds] = strconv.Itoa(settings.GatewayRequestBudgetSeconds)
+	}
+
+	// 调度策略（C-4/C-8）。service 层的 SystemSettings 是普通结构体，空字符串表示
+	// 「调用方未提供」（见 OmittedSettingKeys 的既有约定），因此空值只跳过写入、不报错；
+	// 「显式传非法值必须 400」放在 handler 层，那里的指针能区分「未提供」与「显式空串」。
+	if raw := strings.TrimSpace(settings.SchedulingStrategy); raw != "" {
+		strategy, ok := ParseSchedulingStrategy(raw)
+		if !ok {
+			return nil, infraerrors.BadRequest("INVALID_SCHEDULING_STRATEGY",
+				"scheduling_strategy must be one of stable, balanced, latency")
+		}
+		updates[SettingKeySchedulingStrategy] = string(strategy)
+	}
+
 	updates[SettingKeyAllowUserViewErrorRequests] = strconv.FormatBool(settings.AllowUserViewErrorRequests)
 
 	return updates, nil
+}
+
+// defaultGatewayRequestAttemptBudgetLimits 返回 C-8 契约默认值：16 次发送 / 600 秒窗口。
+// 复用 S1 的代码常量作为单一事实源。
+func defaultGatewayRequestAttemptBudgetLimits() (int, int) {
+	return DefaultRequestAttemptBudgetSends, int(DefaultRequestAttemptBudgetWindow / time.Second)
 }
 
 func defaultAccountSchedulingThresholds() map[string]int {
@@ -798,6 +829,30 @@ func (s *SettingService) refreshCachedSettings(settings *SystemSettings) {
 		// Partial/omitted payload: clear cache so the next hot-path read reloads from DB.
 		accountSchedulingThresholdsCache.Store(&cachedAccountSchedulingThresholds{})
 	}
+	// 两个键共用同一个 singleflight key（SettingKeyGatewayMaxAttemptsPerRequest），Forget 一次即可。
+	gatewayRequestAttemptBudgetLimitsSF.Forget(SettingKeyGatewayMaxAttemptsPerRequest)
+	if settings.GatewayMaxAttemptsPerRequest > 0 && settings.GatewayRequestBudgetSeconds > 0 {
+		gatewayRequestAttemptBudgetLimitsCache.Store(&cachedGatewayRequestAttemptBudgetLimits{
+			maxSends:  settings.GatewayMaxAttemptsPerRequest,
+			window:    time.Duration(settings.GatewayRequestBudgetSeconds) * time.Second,
+			expiresAt: time.Now().Add(gatewayRequestAttemptBudgetLimitsCacheTTL).UnixNano(),
+		})
+	} else {
+		// Partial/omitted payload: clear cache so the next hot-path read reloads from DB.
+		gatewayRequestAttemptBudgetLimitsCache.Store(&cachedGatewayRequestAttemptBudgetLimits{})
+	}
+	// 调度策略（C-4/C-8）：写透缓存，与 gateway 重试预算同一模式。
+	schedulingStrategySF.Forget(SettingKeySchedulingStrategy)
+	if strategy, ok := ParseSchedulingStrategy(settings.SchedulingStrategy); ok {
+		schedulingStrategyCache.Store(&cachedSchedulingStrategy{
+			strategy:  strategy,
+			expiresAt: time.Now().Add(schedulingStrategyCacheTTL).UnixNano(),
+		})
+	} else {
+		// Partial/omitted payload: clear cache so the next read reloads from DB.
+		schedulingStrategyCache.Store(&cachedSchedulingStrategy{})
+	}
+
 	if s.cfg != nil {
 		s.cfg.SetForwardedClientIPSettings(settings.APIKeyACLTrustForwardedIP, settings.ForwardedClientIPHeaders)
 	}

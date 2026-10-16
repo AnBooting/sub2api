@@ -162,21 +162,7 @@
                 class="-mx-2 -my-1 flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 transition-all duration-200 hover:bg-gray-100 dark:hover:bg-dark-700"
                 :title="t('keys.clickToChangeGroup')"
               >
-                <GroupBadge
-                  v-if="row.group"
-                  :name="row.group.name"
-                  :platform="row.group.platform"
-                  :subscription-type="row.group.subscription_type"
-                  :rate-multiplier="row.group.rate_multiplier"
-                  :user-rate-multiplier="userGroupRates[row.group.id]"
-                  :peak-rate-enabled="row.group.peak_rate_enabled"
-                  :peak-start="row.group.peak_start"
-                  :peak-end="row.group.peak_end"
-                  :peak-rate-multiplier="row.group.peak_rate_multiplier"
-                />
-                <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{
-                  t('keys.noGroup')
-                }}</span>
+<KeyGroupChain :api-key="row" :groups="groups" :user-rates="userGroupRates" />
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{ t('keys.selectGroup') }}</span>
                 <svg
                   class="h-3.5 w-3.5 text-gray-400 opacity-60 transition-opacity group-hover/dropdown:opacity-100"
@@ -213,13 +199,13 @@
               <div class="flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.today') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  {{ formatBillingAmount((usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4)) }}
+                  {{ formatCustomerCredit((usageStats[row.id]?.today_actual_cost ?? 0).toFixed(4)) }}
                 </span>
               </div>
               <div class="mt-0.5 flex items-center gap-1.5">
                 <span class="text-gray-500 dark:text-gray-400">{{ t('keys.total') }}:</span>
                 <span class="font-medium text-gray-900 dark:text-white">
-                  {{ formatBillingAmount((usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4)) }}
+                  {{ formatCustomerCredit((usageStats[row.id]?.total_actual_cost ?? 0).toFixed(4)) }}
                 </span>
               </div>
               <!-- Quota progress (if quota is set) -->
@@ -232,7 +218,7 @@
                     row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
                     'text-gray-900 dark:text-white'
                   ]">
-                    {{ formatBillingAmount(row.quota_used?.toFixed(2) || '0.00') }} / {{ formatBillingAmount(row.quota?.toFixed(2)) }}
+                    {{ formatCustomerCredit(row.quota_used?.toFixed(2) || '0.00') }} / {{ formatCustomerCredit(row.quota?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -262,7 +248,7 @@
                     row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatBillingAmount(row.usage_5h?.toFixed(2) || '0.00') }}/{{ formatBillingAmount(row.rate_limit_5h?.toFixed(2)) }}
+                    {{ formatCustomerCredit(row.usage_5h?.toFixed(2) || '0.00') }}/{{ formatCustomerCredit(row.rate_limit_5h?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -290,7 +276,7 @@
                     row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatBillingAmount(row.usage_1d?.toFixed(2) || '0.00') }}/{{ formatBillingAmount(row.rate_limit_1d?.toFixed(2)) }}
+                    {{ formatCustomerCredit(row.usage_1d?.toFixed(2) || '0.00') }}/{{ formatCustomerCredit(row.rate_limit_1d?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -318,7 +304,7 @@
                     row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                     'text-gray-700 dark:text-gray-300'
                   ]">
-                    {{ formatBillingAmount(row.usage_7d?.toFixed(2) || '0.00') }}/{{ formatBillingAmount(row.rate_limit_7d?.toFixed(2)) }}
+                    {{ formatCustomerCredit(row.usage_7d?.toFixed(2) || '0.00') }}/{{ formatCustomerCredit(row.rate_limit_7d?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
@@ -540,6 +526,7 @@
             id="key-form-group"
             :aria-label="t('keys.groupLabel')"
             v-model="formData.group_id"
+            @update:model-value="setSingleFormGroup"
             :options="formGroupOptions"
             :placeholder="t('keys.selectGroup')"
             :empty-text="t('common.noGroupsAvailable')"
@@ -579,6 +566,26 @@
             </template>
           </Select>
         </div>
+
+        <p class="input-hint">{{ t('keys.chain.singleHint') }}</p>
+        <GroupChainEditor
+          :model-value="formData.group_ids"
+          :groups="groups"
+          :user-rates="userGroupRates"
+          :disabled="submitting"
+          @update:model-value="setFormGroupChain"
+        />
+        <div v-if="showEditModal && selectedKey?.groups?.some((entry) => entry.role === 'ha')" class="text-xs text-gray-500">
+          <KeyGroupChain :api-key="{ ...selectedKey!, group_id: null, groups: selectedKey!.groups!.filter((entry) => entry.role === 'ha') }" :groups="groups" />
+        </div>
+        <!-- PRD-04/TS-04：用户主动开启/关闭高可用兜底分组。仅在编辑已有 Key 时出现，
+             因为授权对象是具体的 Key。 -->
+        <KeyHAGroupOptIn
+          v-if="showEditModal && selectedKey"
+          :api-key-id="selectedKey.id"
+          :disabled="submitting"
+          @changed="onHAChanged"
+        />
 
         <!-- Custom Key Section (only for create) -->
         <div v-if="!showEditModal" class="space-y-3">
@@ -695,13 +702,13 @@
           <div class="space-y-4">
             <div>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingCreditsEnabled ? t('admin.settings.pricing.creditUnit') : '$' }}</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ t('common.creditUnit') }}</span>
                 <input
                   v-model.number="formData.quota"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input pl-20"
                   :placeholder="t('keys.quotaAmountPlaceholder')"
                 />
               </div>
@@ -714,11 +721,11 @@
               <div class="flex items-center gap-2">
                 <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700">
                   <span class="font-medium text-gray-900 dark:text-white">
-                    {{ formatBillingAmount(selectedKey.quota_used?.toFixed(4) || '0.0000') }}
+                    {{ formatCustomerCredit(selectedKey.quota_used?.toFixed(4) || '0.0000') }}
                   </span>
                   <span class="mx-2 text-gray-400">/</span>
                   <span class="text-gray-500 dark:text-gray-400">
-                    {{ formatBillingAmount(selectedKey.quota?.toFixed(2) || '0.00') }}
+                    {{ formatCustomerCredit(selectedKey.quota?.toFixed(2) || '0.00') }}
                   </span>
                 </div>
                 <button
@@ -761,13 +768,13 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit5h') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingCreditsEnabled ? t('admin.settings.pricing.creditUnit') : '$' }}</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ t('common.creditUnit') }}</span>
                 <input
                   v-model.number="formData.rate_limit_5h"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input pl-20"
                   :placeholder="'0'"
                 />
               </div>
@@ -781,11 +788,11 @@
                       selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatBillingAmount(selectedKey.usage_5h?.toFixed(4) || '0.0000') }}
+                      {{ formatCustomerCredit(selectedKey.usage_5h?.toFixed(4) || '0.0000') }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatBillingAmount(selectedKey.rate_limit_5h?.toFixed(2) || '0.00') }}
+                      {{ formatCustomerCredit(selectedKey.rate_limit_5h?.toFixed(2) || '0.00') }}
                     </span>
                   </div>
                 </div>
@@ -807,13 +814,13 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit1d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingCreditsEnabled ? t('admin.settings.pricing.creditUnit') : '$' }}</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ t('common.creditUnit') }}</span>
                 <input
                   v-model.number="formData.rate_limit_1d"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input pl-20"
                   :placeholder="'0'"
                 />
               </div>
@@ -827,11 +834,11 @@
                       selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatBillingAmount(selectedKey.usage_1d?.toFixed(4) || '0.0000') }}
+                      {{ formatCustomerCredit(selectedKey.usage_1d?.toFixed(4) || '0.0000') }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatBillingAmount(selectedKey.rate_limit_1d?.toFixed(2) || '0.00') }}
+                      {{ formatCustomerCredit(selectedKey.rate_limit_1d?.toFixed(2) || '0.00') }}
                     </span>
                   </div>
                 </div>
@@ -853,13 +860,13 @@
             <div>
               <label class="input-label">{{ t('keys.rateLimit7d') }}</label>
               <div class="relative">
-                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ billingCreditsEnabled ? t('admin.settings.pricing.creditUnit') : '$' }}</span>
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">{{ t('common.creditUnit') }}</span>
                 <input
                   v-model.number="formData.rate_limit_7d"
                   type="number"
                   step="0.01"
                   min="0"
-                  class="input pl-7"
+                  class="input pl-20"
                   :placeholder="'0'"
                 />
               </div>
@@ -873,11 +880,11 @@
                       selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
                       'text-gray-900 dark:text-white'
                     ]">
-                      {{ formatBillingAmount(selectedKey.usage_7d?.toFixed(4) || '0.0000') }}
+                      {{ formatCustomerCredit(selectedKey.usage_7d?.toFixed(4) || '0.0000') }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
                     <span class="text-gray-500 dark:text-gray-400">
-                      {{ formatBillingAmount(selectedKey.rate_limit_7d?.toFixed(2) || '0.00') }}
+                      {{ formatCustomerCredit(selectedKey.rate_limit_7d?.toFixed(2) || '0.00') }}
                     </span>
                   </div>
                 </div>
@@ -1029,6 +1036,7 @@
       :show="showBulkEditModal"
       :selected-keys="selectedApiKeys"
       :groups="groups"
+      :user-rates="userGroupRates"
       @close="showBulkEditModal = false"
       @updated="handleBulkUpdated"
     />
@@ -1155,6 +1163,8 @@
             />
           </div>
         </div>
+        <p class="px-3 py-2 text-xs text-gray-500">{{ t('keys.chain.singleHint') }}</p>
+        <button type="button" class="btn btn-secondary mx-3 my-2" @click="editKey(selectedKeyForGroup!); groupSelectorKeyId = null">{{ t('keys.chain.edit') }}</button>
         <!-- Group list -->
         <div class="max-h-80 overflow-y-auto p-1.5">
           <button
@@ -1199,7 +1209,7 @@
 </template>
 
 <script setup lang="ts">
-import { billingCreditsEnabled, formatBillingAmount } from '@/utils/billingCredits'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 	import { ref, reactive, computed, watch, onMounted, onUnmounted, type ComponentPublicInstance } from 'vue'
 	import { useI18n } from 'vue-i18n'
 	import { useAppStore } from '@/stores/app'
@@ -1212,6 +1222,10 @@ import { keysAPI, authAPI, usageAPI, userGroupsAPI } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
+import GroupChainEditor from '@/components/keys/GroupChainEditor.vue'
+import KeyGroupChain from '@/components/keys/KeyGroupChain.vue'
+import KeyHAGroupOptIn from '@/components/keys/KeyHAGroupOptIn.vue'
+import { normalGroupIds, normalGroupEntries, replaceNormalGroups, isGroupChainConflict } from '@/utils/keyGroupChain'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
 	import BaseDialog from '@/components/common/BaseDialog.vue'
@@ -1433,6 +1447,7 @@ const setGroupButtonRef = (keyId: number, el: Element | ComponentPublicInstance 
 const formData = ref({
   name: '',
   group_id: null as number | null,
+  group_ids: [] as number[],
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1540,10 +1555,16 @@ const formGroupOptions = computed(() => showEditModal.value
   : groupOptions.value.filter((group) => getKeyGroupProvider(group.platform) === createProvider.value)
 )
 
+const setFormGroupChain = (ids: number[]) => {
+  formData.value.group_ids = ids
+  formData.value.group_id = ids[0] ?? null
+}
+const setSingleFormGroup = (value: string | number | boolean | null) => {
+  setFormGroupChain(typeof value === 'number' ? [value] : [])
+}
 const selectCreateProvider = (provider: KeyGroupProvider) => {
   if (createProvider.value === provider) return
   createProvider.value = provider
-  formData.value.group_id = null
 }
 
 // Also handles groups arriving after the create dialog has already opened.
@@ -1552,9 +1573,7 @@ watch([showCreateModal, createProviderOptions], ([isOpen, providers], [wasOpen])
   if (!wasOpen || !providers.some((provider) => provider.value === createProvider.value && provider.count > 0)) {
     selectCreateProvider(providers.find((provider) => provider.count > 0)?.value ?? 'anthropic')
   }
-  if (!formGroupOptions.value.some((group) => group.value === formData.value.group_id)) {
-    formData.value.group_id = null
-  }
+
 })
 
 // Group dropdown search
@@ -1668,6 +1687,17 @@ const openUseKeyModal = (key: ApiKey) => {
   showUseKeyModal.value = true
 }
 
+// HA consent lives on the key row (enabled_by_user_at), so the cached list entry is
+// stale after a toggle. Re-read the key so the displayed HA chain matches the server
+// instead of the pre-toggle copy.
+const onHAChanged = async () => {
+  if (!selectedKey.value) return
+  const keyID = selectedKey.value.id
+  await loadApiKeys()
+  const refreshed = apiKeys.value.find((entry) => entry.id === keyID)
+  if (refreshed) selectedKey.value = refreshed
+}
+
 const closeUseKeyModal = () => {
   showUseKeyModal.value = false
   selectedKey.value = null
@@ -1700,7 +1730,8 @@ const editKey = (key: ApiKey) => {
   const hasExpiration = !!key.expires_at
   formData.value = {
     name: key.name,
-    group_id: key.group_id,
+    group_id: normalGroupIds(key)[0] ?? null,
+    group_ids: normalGroupIds(key),
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1770,7 +1801,7 @@ const openGroupSelector = (key: ApiKey) => {
 const changeGroup = async (key: ApiKey, newGroupId: number | null) => {
   groupSelectorKeyId.value = null
   dropdownPosition.value = null
-  if (key.group_id === newGroupId) return
+  if (normalGroupIds(key).length <= 1 && key.group_id === newGroupId) return
 
   try {
     await keysAPI.update(key.id, { group_id: newGroupId })
@@ -1799,8 +1830,7 @@ const confirmDelete = (key: ApiKey) => {
 }
 
 const handleSubmit = async () => {
-  // Validate group_id is required
-  if (formData.value.group_id === null) {
+  if (!showEditModal.value && formData.value.group_ids.length === 0 && formData.value.group_id === null) {
     appStore.showError(t('keys.groupRequired'))
     return
   }
@@ -1857,7 +1887,8 @@ const handleSubmit = async () => {
     if (showEditModal.value && selectedKey.value) {
       const updates: UpdateApiKeyRequest = {
         name: formData.value.name,
-        group_id: formData.value.group_id,
+        expected_group_chain_revision: selectedKey.value.group_chain_revision,
+        groups: replaceNormalGroups(formData.value.group_ids.length ? formData.value.group_ids : (formData.value.group_id ? [formData.value.group_id] : []), selectedKey.value.groups),
         ip_whitelist: ipWhitelist,
         ip_blacklist: ipBlacklist,
         quota: quota,
@@ -1881,7 +1912,8 @@ const handleSubmit = async () => {
         ipBlacklist,
         quota,
         expiresInDays,
-        rateLimitData
+        rateLimitData,
+        normalGroupEntries(formData.value.group_ids.length ? formData.value.group_ids : (formData.value.group_id ? [formData.value.group_id] : []))
       )
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
@@ -1892,7 +1924,7 @@ const handleSubmit = async () => {
     closeModals()
     loadApiKeys()
   } catch (error: any) {
-    const errorMsg = error.response?.data?.detail || t('keys.failedToSave')
+    const errorMsg = showEditModal.value && isGroupChainConflict(error) ? t('keys.chain.conflict') : (error.response?.data?.detail || error.message || t('keys.failedToSave'))
     appStore.showError(errorMsg)
     // Don't advance tour on error
   } finally {
@@ -1927,6 +1959,7 @@ const closeModals = () => {
   formData.value = {
     name: '',
     group_id: null,
+    group_ids: [],
     status: 'active',
     use_custom_key: false,
     custom_key: '',

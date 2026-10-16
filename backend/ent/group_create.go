@@ -14,6 +14,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
 	"github.com/Wei-Shaw/sub2api/ent/usagelog"
@@ -490,6 +491,26 @@ func (_c *GroupCreate) SetVideoModelPrices(v map[string]map[string]float64) *Gro
 	return _c
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (_c *GroupCreate) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupCreate {
+	_c.mutation.SetVideoPricePlans(v)
+	return _c
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (_c *GroupCreate) SetAllowHighAvailability(v bool) *GroupCreate {
+	_c.mutation.SetAllowHighAvailability(v)
+	return _c
+}
+
+// SetNillableAllowHighAvailability sets the "allow_high_availability" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableAllowHighAvailability(v *bool) *GroupCreate {
+	if v != nil {
+		_c.SetAllowHighAvailability(*v)
+	}
+	return _c
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_c *GroupCreate) SetWebSearchPricePerCall(v float64) *GroupCreate {
 	_c.mutation.SetWebSearchPricePerCall(v)
@@ -906,6 +927,20 @@ func (_c *GroupCreate) SetNillableProfitSafetyBuffer(v *float64) *GroupCreate {
 	return _c
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (_c *GroupCreate) SetSchedulingStrategy(v string) *GroupCreate {
+	_c.mutation.SetSchedulingStrategy(v)
+	return _c
+}
+
+// SetNillableSchedulingStrategy sets the "scheduling_strategy" field if the given value is not nil.
+func (_c *GroupCreate) SetNillableSchedulingStrategy(v *string) *GroupCreate {
+	if v != nil {
+		_c.SetSchedulingStrategy(*v)
+	}
+	return _c
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_c *GroupCreate) AddAPIKeyIDs(ids ...int64) *GroupCreate {
 	_c.mutation.AddAPIKeyIDs(ids...)
@@ -919,6 +954,21 @@ func (_c *GroupCreate) AddAPIKeys(v ...*APIKey) *GroupCreate {
 		ids[i] = v[i].ID
 	}
 	return _c.AddAPIKeyIDs(ids...)
+}
+
+// AddAPIKeyLinkIDs adds the "api_key_links" edge to the APIKeyGroupLink entity by IDs.
+func (_c *GroupCreate) AddAPIKeyLinkIDs(ids ...int64) *GroupCreate {
+	_c.mutation.AddAPIKeyLinkIDs(ids...)
+	return _c
+}
+
+// AddAPIKeyLinks adds the "api_key_links" edges to the APIKeyGroupLink entity.
+func (_c *GroupCreate) AddAPIKeyLinks(v ...*APIKeyGroupLink) *GroupCreate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _c.AddAPIKeyLinkIDs(ids...)
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
@@ -1119,6 +1169,14 @@ func (_c *GroupCreate) defaults() error {
 		v := group.DefaultVideoRateMultiplier
 		_c.mutation.SetVideoRateMultiplier(v)
 	}
+	if _, ok := _c.mutation.VideoPricePlans(); !ok {
+		v := group.DefaultVideoPricePlans
+		_c.mutation.SetVideoPricePlans(v)
+	}
+	if _, ok := _c.mutation.AllowHighAvailability(); !ok {
+		v := group.DefaultAllowHighAvailability
+		_c.mutation.SetAllowHighAvailability(v)
+	}
 	if _, ok := _c.mutation.LongContextPricingEnabled(); !ok {
 		v := group.DefaultLongContextPricingEnabled
 		_c.mutation.SetLongContextPricingEnabled(v)
@@ -1210,6 +1268,10 @@ func (_c *GroupCreate) defaults() error {
 	if _, ok := _c.mutation.ProfitSafetyBuffer(); !ok {
 		v := group.DefaultProfitSafetyBuffer
 		_c.mutation.SetProfitSafetyBuffer(v)
+	}
+	if _, ok := _c.mutation.SchedulingStrategy(); !ok {
+		v := group.DefaultSchedulingStrategy
+		_c.mutation.SetSchedulingStrategy(v)
 	}
 	return nil
 }
@@ -1314,6 +1376,12 @@ func (_c *GroupCreate) check() error {
 	if _, ok := _c.mutation.VideoRateMultiplier(); !ok {
 		return &ValidationError{Name: "video_rate_multiplier", err: errors.New(`ent: missing required field "Group.video_rate_multiplier"`)}
 	}
+	if _, ok := _c.mutation.VideoPricePlans(); !ok {
+		return &ValidationError{Name: "video_price_plans", err: errors.New(`ent: missing required field "Group.video_price_plans"`)}
+	}
+	if _, ok := _c.mutation.AllowHighAvailability(); !ok {
+		return &ValidationError{Name: "allow_high_availability", err: errors.New(`ent: missing required field "Group.allow_high_availability"`)}
+	}
 	if v, ok := _c.mutation.SearchPricePer1k(); ok {
 		if err := group.SearchPricePer1kValidator(v); err != nil {
 			return &ValidationError{Name: "search_price_per_1k", err: fmt.Errorf(`ent: validator failed for field "Group.search_price_per_1k": %w`, err)}
@@ -1417,6 +1485,14 @@ func (_c *GroupCreate) check() error {
 	}
 	if _, ok := _c.mutation.ProfitSafetyBuffer(); !ok {
 		return &ValidationError{Name: "profit_safety_buffer", err: errors.New(`ent: missing required field "Group.profit_safety_buffer"`)}
+	}
+	if _, ok := _c.mutation.SchedulingStrategy(); !ok {
+		return &ValidationError{Name: "scheduling_strategy", err: errors.New(`ent: missing required field "Group.scheduling_strategy"`)}
+	}
+	if v, ok := _c.mutation.SchedulingStrategy(); ok {
+		if err := group.SchedulingStrategyValidator(v); err != nil {
+			return &ValidationError{Name: "scheduling_strategy", err: fmt.Errorf(`ent: validator failed for field "Group.scheduling_strategy": %w`, err)}
+		}
 	}
 	return nil
 }
@@ -1581,6 +1657,14 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldVideoModelPrices, field.TypeJSON, value)
 		_node.VideoModelPrices = value
 	}
+	if value, ok := _c.mutation.VideoPricePlans(); ok {
+		_spec.SetField(group.FieldVideoPricePlans, field.TypeJSON, value)
+		_node.VideoPricePlans = value
+	}
+	if value, ok := _c.mutation.AllowHighAvailability(); ok {
+		_spec.SetField(group.FieldAllowHighAvailability, field.TypeBool, value)
+		_node.AllowHighAvailability = value
+	}
 	if value, ok := _c.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
 		_node.WebSearchPricePerCall = &value
@@ -1709,6 +1793,10 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 		_spec.SetField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 		_node.ProfitSafetyBuffer = value
 	}
+	if value, ok := _c.mutation.SchedulingStrategy(); ok {
+		_spec.SetField(group.FieldSchedulingStrategy, field.TypeString, value)
+		_node.SchedulingStrategy = value
+	}
 	if nodes := _c.mutation.APIKeysIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1718,6 +1806,22 @@ func (_c *GroupCreate) createSpec() (*Group, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := _c.mutation.APIKeyLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -2417,6 +2521,30 @@ func (u *GroupUpsert) ClearVideoModelPrices() *GroupUpsert {
 	return u
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (u *GroupUpsert) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpsert {
+	u.Set(group.FieldVideoPricePlans, v)
+	return u
+}
+
+// UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateVideoPricePlans() *GroupUpsert {
+	u.SetExcluded(group.FieldVideoPricePlans)
+	return u
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (u *GroupUpsert) SetAllowHighAvailability(v bool) *GroupUpsert {
+	u.Set(group.FieldAllowHighAvailability, v)
+	return u
+}
+
+// UpdateAllowHighAvailability sets the "allow_high_availability" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateAllowHighAvailability() *GroupUpsert {
+	u.SetExcluded(group.FieldAllowHighAvailability)
+	return u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (u *GroupUpsert) SetWebSearchPricePerCall(v float64) *GroupUpsert {
 	u.Set(group.FieldWebSearchPricePerCall, v)
@@ -2918,6 +3046,18 @@ func (u *GroupUpsert) UpdateProfitSafetyBuffer() *GroupUpsert {
 // AddProfitSafetyBuffer adds v to the "profit_safety_buffer" field.
 func (u *GroupUpsert) AddProfitSafetyBuffer(v float64) *GroupUpsert {
 	u.Add(group.FieldProfitSafetyBuffer, v)
+	return u
+}
+
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (u *GroupUpsert) SetSchedulingStrategy(v string) *GroupUpsert {
+	u.Set(group.FieldSchedulingStrategy, v)
+	return u
+}
+
+// UpdateSchedulingStrategy sets the "scheduling_strategy" field to the value that was provided on create.
+func (u *GroupUpsert) UpdateSchedulingStrategy() *GroupUpsert {
+	u.SetExcluded(group.FieldSchedulingStrategy)
 	return u
 }
 
@@ -3613,6 +3753,34 @@ func (u *GroupUpsertOne) ClearVideoModelPrices() *GroupUpsertOne {
 	})
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (u *GroupUpsertOne) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetVideoPricePlans(v)
+	})
+}
+
+// UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateVideoPricePlans() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateVideoPricePlans()
+	})
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (u *GroupUpsertOne) SetAllowHighAvailability(v bool) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowHighAvailability(v)
+	})
+}
+
+// UpdateAllowHighAvailability sets the "allow_high_availability" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateAllowHighAvailability() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowHighAvailability()
+	})
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (u *GroupUpsertOne) SetWebSearchPricePerCall(v float64) *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
@@ -4198,6 +4366,20 @@ func (u *GroupUpsertOne) AddProfitSafetyBuffer(v float64) *GroupUpsertOne {
 func (u *GroupUpsertOne) UpdateProfitSafetyBuffer() *GroupUpsertOne {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateProfitSafetyBuffer()
+	})
+}
+
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (u *GroupUpsertOne) SetSchedulingStrategy(v string) *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSchedulingStrategy(v)
+	})
+}
+
+// UpdateSchedulingStrategy sets the "scheduling_strategy" field to the value that was provided on create.
+func (u *GroupUpsertOne) UpdateSchedulingStrategy() *GroupUpsertOne {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSchedulingStrategy()
 	})
 }
 
@@ -5059,6 +5241,34 @@ func (u *GroupUpsertBulk) ClearVideoModelPrices() *GroupUpsertBulk {
 	})
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (u *GroupUpsertBulk) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetVideoPricePlans(v)
+	})
+}
+
+// UpdateVideoPricePlans sets the "video_price_plans" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateVideoPricePlans() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateVideoPricePlans()
+	})
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (u *GroupUpsertBulk) SetAllowHighAvailability(v bool) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetAllowHighAvailability(v)
+	})
+}
+
+// UpdateAllowHighAvailability sets the "allow_high_availability" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateAllowHighAvailability() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateAllowHighAvailability()
+	})
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (u *GroupUpsertBulk) SetWebSearchPricePerCall(v float64) *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
@@ -5644,6 +5854,20 @@ func (u *GroupUpsertBulk) AddProfitSafetyBuffer(v float64) *GroupUpsertBulk {
 func (u *GroupUpsertBulk) UpdateProfitSafetyBuffer() *GroupUpsertBulk {
 	return u.Update(func(s *GroupUpsert) {
 		s.UpdateProfitSafetyBuffer()
+	})
+}
+
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (u *GroupUpsertBulk) SetSchedulingStrategy(v string) *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.SetSchedulingStrategy(v)
+	})
+}
+
+// UpdateSchedulingStrategy sets the "scheduling_strategy" field to the value that was provided on create.
+func (u *GroupUpsertBulk) UpdateSchedulingStrategy() *GroupUpsertBulk {
+	return u.Update(func(s *GroupUpsert) {
+		s.UpdateSchedulingStrategy()
 	})
 }
 

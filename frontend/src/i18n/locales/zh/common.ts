@@ -1,5 +1,6 @@
 export default {
   common: {
+    creditUnit: 'Credit',
     loading: '加载中...',
     submitting: '提交中...',
     justNow: '刚刚',

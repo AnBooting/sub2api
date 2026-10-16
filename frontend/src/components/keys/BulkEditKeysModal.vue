@@ -24,6 +24,7 @@
           <Select
             v-if="enabled.group_id"
             v-model="groupId"
+            @update:model-value="(value) => groupIds = typeof value === 'number' ? [value] : []"
             :options="groupOptions"
             :placeholder="t('keys.selectGroup')"
             :disabled="submitting"
@@ -31,6 +32,8 @@
             searchable
             data-test="group-input"
           />
+          <p v-if="enabled.group_id" class="input-hint">{{ t('keys.chain.singleHint') }}</p>
+          <GroupChainEditor v-if="enabled.group_id" v-model="groupIds" :groups="groups" :user-rates="userRates" :disabled="submitting" />
         </div>
 
         <div class="space-y-2">
@@ -155,6 +158,8 @@ import { keysAPI } from '@/api'
 import { useAppStore } from '@/stores/app'
 import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
+import GroupChainEditor from './GroupChainEditor.vue'
+import { normalGroupEntries, isGroupChainConflict } from '@/utils/keyGroupChain'
 import type { ApiKey, Group, UpdateApiKeyRequest } from '@/types'
 
 type SelectedKey = Pick<ApiKey, 'id' | 'name'>
@@ -162,11 +167,12 @@ type LimitField = 'quota' | 'rate_limit_5h' | 'rate_limit_1d' | 'rate_limit_7d'
 type IPField = 'ip_whitelist' | 'ip_blacklist'
 type EditableField = LimitField | IPField | 'group_id' | 'status' | 'expires_at'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   show: boolean
   selectedKeys: SelectedKey[]
   groups: Group[]
-}>()
+  userRates?: Record<number, number>
+}>(), { userRates: () => ({}) })
 const emit = defineEmits<{
   close: []
   updated: [succeededIds: number[]]
@@ -189,6 +195,7 @@ const enabled = reactive<Record<EditableField, boolean>>({
   ip_blacklist: false
 })
 const groupId = ref<number | null>(null)
+const groupIds = ref<number[]>([])
 const status = ref<'active' | 'inactive'>('active')
 const limits = reactive<Record<LimitField, string | number>>({
   quota: '', rate_limit_5h: '', rate_limit_1d: '', rate_limit_7d: ''
@@ -206,16 +213,14 @@ const ipFields: Array<{ key: IPField; label: string }> = [
   { key: 'ip_whitelist', label: 'keys.ipWhitelist' },
   { key: 'ip_blacklist', label: 'keys.ipBlacklist' }
 ]
-const groupOptions = computed(() => props.groups.map((group) => ({ value: group.id, label: group.name })))
+const groupOptions = computed(() => props.groups.map((group) => ({ value: group.id, label: `${group.name} · ${props.userRates[group.id] ?? group.rate_multiplier}x` })))
 const statusOptions = computed(() => [
   { value: 'active', label: t('keys.enable') },
   { value: 'inactive', label: t('keys.disable') }
 ])
 
 const validationError = computed(() => {
-  if (enabled.group_id && !props.groups.some((group) => group.id === groupId.value)) {
-    return t('keys.groupRequired')
-  }
+
   for (const { key } of limitFields) {
     if (!enabled[key]) continue
     const value = String(limits[key]).trim()
@@ -241,6 +246,7 @@ watch(() => props.show, (show) => {
   for (const { key } of limitFields) limits[key] = ''
   for (const { key } of ipFields) ipLists[key] = ''
   groupId.value = null
+  groupIds.value = []
   status.value = 'active'
   neverExpires.value = false
   expirationDate.value = ''
@@ -251,6 +257,7 @@ const close = () => {
 }
 
 const errorMessage = (error: unknown): string => {
+  if (isGroupChainConflict(error)) return t('keys.chain.conflict')
   const message = (error as { message?: unknown } | null)?.message
   return typeof message === 'string' && message ? message : t('keys.failedToSave')
 }
@@ -258,7 +265,7 @@ const errorMessage = (error: unknown): string => {
 const submit = async () => {
   if (!canSubmit.value) return
   const updates: UpdateApiKeyRequest = {}
-  if (enabled.group_id) updates.group_id = groupId.value
+  if (enabled.group_id) updates.groups = normalGroupEntries(groupIds.value)
   if (enabled.status) updates.status = status.value
   for (const { key } of limitFields) {
     if (enabled[key]) updates[key] = Number(limits[key])

@@ -1,0 +1,87 @@
+package handler
+
+import (
+	"github.com/Wei-Shaw/sub2api/internal/service"
+	"github.com/gin-gonic/gin"
+	"net/http"
+)
+
+// authorizeOpenAIResponsesGroup reloads execution policy without refreezing prices.
+func (h *OpenAIGatewayHandler) authorizeOpenAIResponsesGroup(c *gin.Context, original *service.APIKey, id int64, normalIDs []int64, model string, streamStarted bool, crossFamily ...bool) (*service.APIKey, *service.UserSubscription, bool) {
+	return authorizeChatExecutionGroup(c, h.apiKeyService, h.subscriptionService, original, id, normalIDs, model, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, len(crossFamily) > 0 && crossFamily[0])
+}
+
+// authorizeOpenAIResponsesGroupCandidate is the HA-aware form: isHA selects the HA
+// authorization gate and ids is the matching frozen allow-set. Every other policy
+// check is shared with the normal path, so a fallback cannot bypass them.
+func (h *OpenAIGatewayHandler) authorizeOpenAIResponsesGroupCandidate(c *gin.Context, original *service.APIKey, id int64, isHA bool, normalIDs, haIDs []int64, model string, streamStarted bool, crossFamily ...bool) (*service.APIKey, *service.UserSubscription, bool) {
+	ids := normalIDs
+	if isHA {
+		ids = haIDs
+	}
+	return authorizeChatExecutionGroupCandidate(c, h.apiKeyService, h.subscriptionService, original, id, ids, model, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, len(crossFamily) > 0 && crossFamily[0], isHA)
+}
+
+func authorizeChatExecutionGroup(c *gin.Context, keys *service.APIKeyService, subscriptions *service.SubscriptionService, original *service.APIKey, id int64, normalIDs []int64, model string, writeError func(int, string, string), chat bool) (*service.APIKey, *service.UserSubscription, bool) {
+	return authorizeChatExecutionGroupCandidate(c, keys, subscriptions, original, id, normalIDs, model, writeError, chat, false)
+}
+
+// authorizeChatExecutionGroupCandidate is the single policy surface for OpenAI-family
+// cross-family chains. isHA selects the HA authorization gate; the platform,
+// Claude-Code, model-allowlist and subscription checks are identical for both.
+func authorizeChatExecutionGroupCandidate(c *gin.Context, keys *service.APIKeyService, subscriptions *service.SubscriptionService, original *service.APIKey, id int64, ids []int64, model string, writeError func(int, string, string), chat, isHA bool) (*service.APIKey, *service.UserSubscription, bool) {
+	fail := func(err error) (*service.APIKey, *service.UserSubscription, bool) {
+		status, code, message, _ := billingErrorDetails(err)
+		writeError(status, code, message)
+		return nil, nil, false
+	}
+	if keys == nil {
+		return fail(service.ErrBillingServiceUnavailable)
+	}
+	var key *service.APIKey
+	var sub *service.UserSubscription
+	var err error
+	if isHA {
+		key, sub, err = keys.AuthorizeHAGroupExecution(c.Request.Context(), original.ID, original.UserID, id, ids)
+	} else {
+		key, sub, err = keys.AuthorizeNormalGroupExecution(c.Request.Context(), original.ID, original.UserID, id, ids)
+	}
+	if err != nil {
+		return fail(err)
+	}
+	if key.Group.Platform != service.PlatformOpenAI && !(chat && key.Group.Platform == service.PlatformAnthropic) {
+		writeError(http.StatusServiceUnavailable, "no_available_group", "This forwarding family is not supported by the requested endpoint")
+		return nil, nil, false
+	}
+	if key.Group.ClaudeCodeOnly {
+		writeError(http.StatusForbidden, "permission_error", "This group is restricted to Claude Code clients")
+		return nil, nil, false
+	}
+	if !key.Group.ModelAllowlist.Allows(model) {
+		writeError(http.StatusNotFound, "model_not_allowed", "Model is not available for this group")
+		return nil, nil, false
+	}
+	if sub != nil {
+		if subscriptions == nil {
+			return fail(service.ErrBillingServiceUnavailable)
+		}
+		maintenance, e := subscriptions.ValidateAndCheckLimits(sub, key.Group)
+		if e != nil {
+			return fail(e)
+		}
+		if maintenance {
+			sub, e = subscriptions.EnsureWindowMaintenance(c.Request.Context(), sub)
+			if e != nil {
+				return fail(e)
+			}
+			if sub == nil || sub.UserID != key.UserID || sub.GroupID != key.Group.ID {
+				return fail(service.ErrSubscriptionInvalid)
+			}
+			_, e = subscriptions.ValidateAndCheckLimits(sub, key.Group)
+			if e != nil {
+				return fail(e)
+			}
+		}
+	}
+	return key, sub, true
+}

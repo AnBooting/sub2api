@@ -107,7 +107,7 @@ export interface AdminUser extends User {
   last_used_at?: string | null
   // 用户专属分组倍率配置 (group_id -> rate_multiplier)
   group_rates?: Record<number, number>
-  // 为 true 时该用户仅可使用 allowed_groups 中列出的公开分组。
+  // 历史兼容字段；通用公开标准组访问不再受此值限制。
   // 管理侧权限开关，普通用户接口不返回。
   restrict_public_groups?: boolean
   // 当前并发数（仅管理员列表接口返回）
@@ -547,6 +547,30 @@ export type GroupPlatform = AccountPlatform | 'composite'
 
 export type VideoModelPrices = Record<string, Record<string, number>>
 
+/**
+ * 视频计费计量模式（PRD-06 / K-4）。
+ * 不同上游官方口径不同：Ark Seedance 按 token、xAI Grok 按秒、MiniMax 按次，
+ * 所以「一个模型一种模式」必须显式声明，而不是把所有视频都当成按秒。
+ */
+export type VideoBillingMode = 'per_request' | 'per_second' | 'per_token'
+
+/** 按 token 计费时的单价分档（元/百万 token），按「输出分辨率 × 输入是否含视频」区分。 */
+export interface VideoTokenPrice {
+  with_input_video?: number
+  without_input_video?: number
+}
+
+/** 单个模型族的视频计费计划；单价全部由管理员填写，不配置即拒绝放行。 */
+export interface VideoPricePlan {
+  mode?: VideoBillingMode
+  per_request_price?: number
+  per_second_prices?: Record<string, number>
+  per_token_prices?: Record<string, VideoTokenPrice>
+}
+
+/** 模型族 -> 计费计划。 */
+export type VideoPricePlans = Record<string, VideoPricePlan>
+
 export type SubscriptionType = 'standard' | 'subscription'
 
 export interface OpenAIMessagesDispatchModelConfig {
@@ -565,7 +589,12 @@ export interface ReasoningEffortMapping {
   model?: string
 }
 
+export type SchedulingStrategy = 'balanced' | 'stable' | 'latency'
+export type GroupSchedulingStrategy = 'inherit' | SchedulingStrategy
+
 export interface Group {
+  scheduling_strategy?: GroupSchedulingStrategy
+  effective_scheduling_strategy?: SchedulingStrategy
   id: number
   name: string
   description: string | null
@@ -599,6 +628,10 @@ export interface Group {
   video_price_1080p: number | null
   // Optional model-family x resolution overrides for Grok video pricing.
   video_model_prices?: VideoModelPrices
+  // 视频计费计划（PRD-06/K-4）：按模型族声明计量模式与单价。
+  video_price_plans?: VideoPricePlans
+  // HA 兜底分组标记（PRD-04）：管理员标记后，用户可在自己的 Key 上主动开启。
+  allow_high_availability?: boolean
   // Codex 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01
   web_search_price_per_call: number | null
   // Grok Voice 显式定价（分组级）
@@ -731,7 +764,18 @@ export interface CompositeRouteDecision {
   reason?: string
 }
 
+export interface ApiKeyGroup {
+  group_id: number
+  role: 'normal' | 'ha'
+  position: number
+  enabled_by_user_at?: string | null
+}
+
+export type ApiKeyGroupInput = Pick<ApiKeyGroup, 'group_id' | 'role' | 'position'>
+
 export interface ApiKey {
+  group_chain_revision: number
+  groups?: ApiKeyGroup[]
   id: number
   user_id: number
   key: string
@@ -764,6 +808,7 @@ export interface ApiKey {
 }
 
 export interface CreateApiKeyRequest {
+  groups?: ApiKeyGroupInput[]
   name: string
   group_id?: number | null
   custom_key?: string // Optional custom API Key
@@ -777,6 +822,8 @@ export interface CreateApiKeyRequest {
 }
 
 export interface UpdateApiKeyRequest {
+  expected_group_chain_revision?: number
+  groups?: ApiKeyGroupInput[]
   name?: string
   group_id?: number | null
   status?: 'active' | 'inactive'
@@ -792,6 +839,7 @@ export interface UpdateApiKeyRequest {
 }
 
 export interface CreateGroupRequest {
+  scheduling_strategy?: GroupSchedulingStrategy
   name: string
   description?: string | null
   platform?: GroupPlatform
@@ -820,6 +868,8 @@ export interface CreateGroupRequest {
   video_price_720p?: number | null
   video_price_1080p?: number | null
   video_model_prices?: VideoModelPrices
+  video_price_plans?: VideoPricePlans
+  allow_high_availability?: boolean
   web_search_price_per_call?: number | null
   search_price_per_1k?: number | null
   audio_realtime_price_per_min?: number | null
@@ -857,6 +907,7 @@ export interface CreateGroupRequest {
 }
 
 export interface UpdateGroupRequest {
+  scheduling_strategy?: GroupSchedulingStrategy
   name?: string
   description?: string | null
   platform?: GroupPlatform
@@ -886,6 +937,8 @@ export interface UpdateGroupRequest {
   video_price_720p?: number | null
   video_price_1080p?: number | null
   video_model_prices?: VideoModelPrices
+  video_price_plans?: VideoPricePlans
+  allow_high_availability?: boolean
   web_search_price_per_call?: number | null
   search_price_per_1k?: number | null
   audio_realtime_price_per_min?: number | null
@@ -1745,8 +1798,44 @@ export type UsageRequestType = 'unknown' | 'sync' | 'stream' | 'ws_v2' | 'cyber'
 export type ImageSizeSource = 'output' | 'input' | 'default' | 'legacy'
 export type ImageSizeBreakdown = Record<string, number>
 
+export interface PricingSnapshotItem {
+  kind: 'input' | 'output' | 'cache_read' | 'cache_write' | 'cache_write_1h' | 'image' | 'video_request' | 'video_second' | string
+  base_credit_price?: number | string | null
+  usage?: number | string | null
+  normalized_usage?: number | string | null
+  subtotal?: number | string | null
+}
+export interface PricingSnapshotV2 {
+  v: 2
+  quota_unit: 'credits'
+  request_started_at?: string | null
+  price_version?: string | null
+  source?: string | null
+  currency?: string | null
+  unit?: string | null
+  period?: { label?: string; timezone?: string; window?: string } | null
+  items?: PricingSnapshotItem[] | null
+  served_group_id?: number | null
+  group_multiplier?: number | string | null
+  total_credit?: number | string | null
+  media?: { mode?: string; billable_count?: number | null; billable_seconds?: number | null; seconds_source?: string | null } | null
+}
+export interface PricingSnapshotLegacy {
+  v?: 1
+  currency?: string
+  source?: string
+  quota_unit?: string
+  input_per_token?: number
+  output_per_token?: number
+  cache_read_per_token?: number
+  cache_write_per_token?: number
+}
 export interface UsageLog {
-  pricing_snapshot?: { currency: 'CNY' | 'USD'; source: string; quota_unit: string; input_per_token?: number; output_per_token?: number; cache_read_per_token?: number; cache_write_per_token?: number }
+  requested_group_id?: number | null
+  served_group_id?: number | null
+  failover?: 'none' | 'account' | 'group' | 'ha' | null
+  attempt_count?: number | null
+  pricing_snapshot?: PricingSnapshotV2 | PricingSnapshotLegacy | null
   id: number
   user_id: number
   api_key_id: number

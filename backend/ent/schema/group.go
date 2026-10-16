@@ -154,6 +154,22 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("按模型族和分辨率覆盖视频每秒价格"),
+		// 视频计费计划 (added by migration 247)：按模型族声明计量模式
+		// （per_request / per_second / per_token）与单价，替代「所有视频都按秒」的隐含假设。
+		// Non-optional WITH a default: migration 247 creates this column as
+		// JSONB NOT NULL DEFAULT '{}', so declaring it Optional() made ent model a
+		// nullable column, generate dead IsNil/NotNil predicates (IS NULL can never
+		// match, IS NOT NULL matches everything) and a Clear method that would emit
+		// SET video_price_plans = NULL and fail on the not-null constraint.
+		// "Unconfigured" is the empty object / a missing family key, not SQL NULL.
+		field.JSON("video_price_plans", map[string]domain.VideoPricePlan{}).
+			Default(map[string]domain.VideoPricePlan{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("按模型族的视频计费计划：模式 + 单价；未配置必须 fail closed"),
+		// HA 兜底分组标记 (added by migration 246)。
+		field.Bool("allow_high_availability").
+			Default(false).
+			Comment("是否可作为用户主动开启的高可用兜底分组（PRD-04）"),
 		field.Float("web_search_price_per_call").
 			Optional().
 			Nillable().
@@ -303,12 +319,22 @@ func (Group) Fields() []ent.Field {
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(0).
 			Comment("安全缓冲，小数；与 margin 相加后从下游倍率中扣除，默认 0"),
+
+		// 分组级调度策略覆盖（added by migration 245，C-4）：
+		// inherit（默认，随全局 scheduling.strategy）或 stable/balanced/latency。
+		field.String("scheduling_strategy").
+			MaxLen(20).
+			Default(domain.SchedulingStrategyInherit).
+			Comment("分组调度策略覆盖：inherit/stable/balanced/latency；inherit 表示随全局策略"),
 	}
 }
 
 func (Group) Edges() []ent.Edge {
 	return []ent.Edge{
 		edge.To("api_keys", APIKey.Type),
+		// See api_key.go: the cascade must be declared on the parent's edge.To.
+		edge.To("api_key_links", APIKeyGroupLink.Type).
+			Annotations(entsql.OnDelete(entsql.Cascade)),
 		edge.To("redeem_codes", RedeemCode.Type),
 		edge.To("subscriptions", UserSubscription.Type),
 		edge.To("usage_logs", UsageLog.Type),

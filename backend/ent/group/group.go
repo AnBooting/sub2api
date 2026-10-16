@@ -84,6 +84,10 @@ const (
 	FieldVideoPrice1080p = "video_price_1080p"
 	// FieldVideoModelPrices holds the string denoting the video_model_prices field in the database.
 	FieldVideoModelPrices = "video_model_prices"
+	// FieldVideoPricePlans holds the string denoting the video_price_plans field in the database.
+	FieldVideoPricePlans = "video_price_plans"
+	// FieldAllowHighAvailability holds the string denoting the allow_high_availability field in the database.
+	FieldAllowHighAvailability = "allow_high_availability"
 	// FieldWebSearchPricePerCall holds the string denoting the web_search_price_per_call field in the database.
 	FieldWebSearchPricePerCall = "web_search_price_per_call"
 	// FieldSearchPricePer1k holds the string denoting the search_price_per_1k field in the database.
@@ -148,8 +152,12 @@ const (
 	FieldProfitMinMargin = "profit_min_margin"
 	// FieldProfitSafetyBuffer holds the string denoting the profit_safety_buffer field in the database.
 	FieldProfitSafetyBuffer = "profit_safety_buffer"
+	// FieldSchedulingStrategy holds the string denoting the scheduling_strategy field in the database.
+	FieldSchedulingStrategy = "scheduling_strategy"
 	// EdgeAPIKeys holds the string denoting the api_keys edge name in mutations.
 	EdgeAPIKeys = "api_keys"
+	// EdgeAPIKeyLinks holds the string denoting the api_key_links edge name in mutations.
+	EdgeAPIKeyLinks = "api_key_links"
 	// EdgeRedeemCodes holds the string denoting the redeem_codes edge name in mutations.
 	EdgeRedeemCodes = "redeem_codes"
 	// EdgeSubscriptions holds the string denoting the subscriptions edge name in mutations.
@@ -173,6 +181,13 @@ const (
 	APIKeysInverseTable = "api_keys"
 	// APIKeysColumn is the table column denoting the api_keys relation/edge.
 	APIKeysColumn = "group_id"
+	// APIKeyLinksTable is the table that holds the api_key_links relation/edge.
+	APIKeyLinksTable = "api_key_group_links"
+	// APIKeyLinksInverseTable is the table name for the APIKeyGroupLink entity.
+	// It exists in this package in order to avoid circular dependency with the "apikeygrouplink" package.
+	APIKeyLinksInverseTable = "api_key_group_links"
+	// APIKeyLinksColumn is the table column denoting the api_key_links relation/edge.
+	APIKeyLinksColumn = "group_id"
 	// RedeemCodesTable is the table that holds the redeem_codes relation/edge.
 	RedeemCodesTable = "redeem_codes"
 	// RedeemCodesInverseTable is the table name for the RedeemCode entity.
@@ -257,6 +272,8 @@ var Columns = []string{
 	FieldVideoPrice720p,
 	FieldVideoPrice1080p,
 	FieldVideoModelPrices,
+	FieldVideoPricePlans,
+	FieldAllowHighAvailability,
 	FieldWebSearchPricePerCall,
 	FieldSearchPricePer1k,
 	FieldAudioRealtimePricePerMin,
@@ -289,6 +306,7 @@ var Columns = []string{
 	FieldProfitControlEnabled,
 	FieldProfitMinMargin,
 	FieldProfitSafetyBuffer,
+	FieldSchedulingStrategy,
 }
 
 var (
@@ -374,6 +392,10 @@ var (
 	DefaultVideoRateIndependent bool
 	// DefaultVideoRateMultiplier holds the default value on creation for the "video_rate_multiplier" field.
 	DefaultVideoRateMultiplier float64
+	// DefaultVideoPricePlans holds the default value on creation for the "video_price_plans" field.
+	DefaultVideoPricePlans map[string]domain.VideoPricePlan
+	// DefaultAllowHighAvailability holds the default value on creation for the "allow_high_availability" field.
+	DefaultAllowHighAvailability bool
 	// SearchPricePer1kValidator is a validator for the "search_price_per_1k" field. It is called by the builders before save.
 	SearchPricePer1kValidator func(float64) error
 	// AudioRealtimePricePerMinValidator is a validator for the "audio_realtime_price_per_min" field. It is called by the builders before save.
@@ -434,6 +456,10 @@ var (
 	DefaultProfitMinMargin float64
 	// DefaultProfitSafetyBuffer holds the default value on creation for the "profit_safety_buffer" field.
 	DefaultProfitSafetyBuffer float64
+	// DefaultSchedulingStrategy holds the default value on creation for the "scheduling_strategy" field.
+	DefaultSchedulingStrategy string
+	// SchedulingStrategyValidator is a validator for the "scheduling_strategy" field. It is called by the builders before save.
+	SchedulingStrategyValidator func(string) error
 )
 
 // OrderOption defines the ordering options for the Group queries.
@@ -609,6 +635,11 @@ func ByVideoPrice1080p(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldVideoPrice1080p, opts...).ToFunc()
 }
 
+// ByAllowHighAvailability orders the results by the allow_high_availability field.
+func ByAllowHighAvailability(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllowHighAvailability, opts...).ToFunc()
+}
+
 // ByWebSearchPricePerCall orders the results by the web_search_price_per_call field.
 func ByWebSearchPricePerCall(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldWebSearchPricePerCall, opts...).ToFunc()
@@ -734,6 +765,11 @@ func ByProfitSafetyBuffer(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldProfitSafetyBuffer, opts...).ToFunc()
 }
 
+// BySchedulingStrategy orders the results by the scheduling_strategy field.
+func BySchedulingStrategy(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldSchedulingStrategy, opts...).ToFunc()
+}
+
 // ByAPIKeysCount orders the results by api_keys count.
 func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
 	return func(s *sql.Selector) {
@@ -745,6 +781,20 @@ func ByAPIKeysCount(opts ...sql.OrderTermOption) OrderOption {
 func ByAPIKeys(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 	return func(s *sql.Selector) {
 		sqlgraph.OrderByNeighborTerms(s, newAPIKeysStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
+
+// ByAPIKeyLinksCount orders the results by api_key_links count.
+func ByAPIKeyLinksCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newAPIKeyLinksStep(), opts...)
+	}
+}
+
+// ByAPIKeyLinks orders the results by api_key_links terms.
+func ByAPIKeyLinks(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newAPIKeyLinksStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
 
@@ -850,6 +900,13 @@ func newAPIKeysStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(APIKeysInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, APIKeysTable, APIKeysColumn),
+	)
+}
+func newAPIKeyLinksStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(APIKeyLinksInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, APIKeyLinksTable, APIKeyLinksColumn),
 	)
 }
 func newRedeemCodesStep() *sqlgraph.Step {

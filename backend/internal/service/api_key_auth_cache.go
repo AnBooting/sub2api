@@ -1,19 +1,25 @@
 package service
 
-import "time"
+import (
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/domain"
+)
 
 // APIKeyAuthSnapshot API Key 认证缓存快照（仅包含认证所需字段）
 type APIKeyAuthSnapshot struct {
-	Version     int                      `json:"version"`
-	APIKeyID    int64                    `json:"api_key_id"`
-	UserID      int64                    `json:"user_id"`
-	GroupID     *int64                   `json:"group_id,omitempty"`
-	Name        string                   `json:"name"`
-	Status      string                   `json:"status"`
-	IPWhitelist []string                 `json:"ip_whitelist,omitempty"`
-	IPBlacklist []string                 `json:"ip_blacklist,omitempty"`
-	User        APIKeyAuthUserSnapshot   `json:"user"`
-	Group       *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
+	Version            int                           `json:"version"`
+	APIKeyID           int64                         `json:"api_key_id"`
+	UserID             int64                         `json:"user_id"`
+	GroupID            *int64                        `json:"group_id,omitempty"`
+	GroupChainRevision int64                         `json:"group_chain_revision"`
+	Groups             []APIKeyAuthGroupLinkSnapshot `json:"groups"`
+	Name               string                        `json:"name"`
+	Status             string                        `json:"status"`
+	IPWhitelist        []string                      `json:"ip_whitelist,omitempty"`
+	IPBlacklist        []string                      `json:"ip_blacklist,omitempty"`
+	User               APIKeyAuthUserSnapshot        `json:"user"`
+	Group              *APIKeyAuthGroupSnapshot      `json:"group,omitempty"`
 
 	// Quota fields for API Key independent quota feature
 	Quota     float64 `json:"quota"`      // Quota limit in USD (0 = unlimited)
@@ -26,6 +32,14 @@ type APIKeyAuthSnapshot struct {
 	RateLimit5h float64 `json:"rate_limit_5h"`
 	RateLimit1d float64 `json:"rate_limit_1d"`
 	RateLimit7d float64 `json:"rate_limit_7d"`
+}
+
+type APIKeyAuthGroupLinkSnapshot struct {
+	GroupID         int64                    `json:"group_id"`
+	Role            string                   `json:"role"`
+	Position        int                      `json:"position"`
+	EnabledByUserAt *time.Time               `json:"enabled_by_user_at,omitempty"`
+	Group           *APIKeyAuthGroupSnapshot `json:"group,omitempty"`
 }
 
 // APIKeyAuthUserSnapshot 用户快照
@@ -80,6 +94,7 @@ type APIKeyAuthGroupSnapshot struct {
 	VideoPrice720P                  *float64                      `json:"video_price_720p,omitempty"`
 	VideoPrice1080P                 *float64                      `json:"video_price_1080p,omitempty"`
 	VideoModelPrices                map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	VideoPricePlans                 map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
 	WebSearchPricePerCall           *float64                      `json:"web_search_price_per_call,omitempty"`
 	SearchPricePer1k                *float64                      `json:"search_price_per_1k,omitempty"`
 	AudioRealtimePricePerMin        *float64                      `json:"audio_realtime_price_per_min,omitempty"`
@@ -140,6 +155,11 @@ type APIKeyAuthGroupSnapshot struct {
 	ProfitControlEnabled bool    `json:"profit_control_enabled"`
 	ProfitMinMargin      float64 `json:"profit_min_margin"`
 	ProfitSafetyBuffer   float64 `json:"profit_safety_buffer"`
+
+	// SchedulingStrategy 分组级调度策略覆盖（C-4）：inherit 或 stable/balanced/latency。
+	// 与利润控制字段同理，调度路径从认证中间件放入 ctx 的 Group 直接读取本快照，
+	// 漏掉本字段会让分组覆盖静默失效（GetByKeyForAuth 投影与快照版本必须同步）。
+	SchedulingStrategy string `json:"scheduling_strategy,omitempty"`
 }
 
 // APIKeyAuthCacheEntry 缓存条目，支持负缓存

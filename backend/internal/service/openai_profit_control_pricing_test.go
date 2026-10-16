@@ -252,6 +252,38 @@ func TestProfitControl_TurnPricingContext(t *testing.T) {
 	})
 }
 
+// TestProfitControl_LockedTurnPricingUsesBundleStartedAt 锁定 recon §1.4-7：锁价
+// turn 的 WithOpenAITurnPricingContext 必须取 bundle 的 StartedAt 作为 pricingAt
+// （准入阈值与计费同刻），无 bundle 时才回退当前时刻。
+func TestProfitControl_LockedTurnPricingUsesBundleStartedAt(t *testing.T) {
+	svc := &OpenAIGatewayService{}
+	groupID := int64(66)
+	billing := newTestBillingService()
+	one, zero := 1e-6, 0.0
+	group := &Group{ID: groupID, Platform: PlatformOpenAI, RateMultiplier: 3, ProfitControlEnabled: true, ProfitMinMargin: 0,
+		ModelPricing: []ChannelModelPricing{{Models: []string{"gpt-5.6-sol"}, InputPrice: &one, OutputPrice: &one, CacheReadPrice: &zero, CacheWritePrice: &zero}}}
+	deps := inflightEstimateDeps{billing: billing, accountMappingSnapshot: func(context.Context, *APIKey, string) (map[int64]requestAccountMapping, error) {
+		return map[int64]requestAccountMapping{11: {Model: "gpt-5.6-sol"}}, nil
+	}}
+	ctx, request, err := deps.prepareRequestBilling(context.Background(), &APIKey{GroupID: requestPricingTestInt64(groupID), Group: group}, InflightEstimateRequest{Model: "gpt-5.6-sol"})
+	require.NoError(t, err)
+	ctx, err = WithGatewayRequestBillingAccount(ctx, groupID, 11)
+	require.NoError(t, err)
+	turnCtx, turnAt := svc.WithOpenAITurnPricingContext(ctx, &groupID)
+	require.Equal(t, request.StartedAt(), turnAt,
+		"锁价 turn 的定价时刻必须与计费同源（bundle StartedAt）")
+	require.Equal(t, request.StartedAt(), OpenAIPricingAtFromContext(turnCtx))
+	// 无 bundle 时保持既有"按当前时刻重取"语义：取到的时刻必须落在本次调用
+	// 的时间窗内（即重新读时钟），而不是复用任何既有 bundle 的定价时刻。
+	before := time.Now()
+	plainCtx, plainAt := svc.WithOpenAITurnPricingContext(context.Background(), &groupID)
+	after := time.Now()
+	require.False(t, plainAt.IsZero())
+	require.False(t, plainAt.Before(before), "未锁价 turn 的定价时刻必须由本次调用重新取得")
+	require.False(t, plainAt.After(after), "未锁价 turn 的定价时刻必须由本次调用重新取得")
+	require.Equal(t, plainAt, OpenAIPricingAtFromContext(plainCtx))
+}
+
 // 无门时准入后绑定回退官方 eager 语义：等待/抢槽路径不得因利润控制关闭而
 // 失去粘性绑定（评审 M-Bind 回归锚点）。
 func TestOpenAIProfitControlAfterAdmissionBindEagerWithoutGate(t *testing.T) {

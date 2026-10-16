@@ -79,7 +79,7 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 	}
 
 	// 发送请求
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	resp, err := sendUpstreamWithBudget(s.httpUpstream, req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
 		logger.LegacyPrintf("service.antigravity_gateway", "%s upstream request failed: %v", prefix, err)
 		return nil, fmt.Errorf("upstream request failed: %w", err)
@@ -101,7 +101,8 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 		_, _ = c.Writer.Write(respBody)
 
 		return &ForwardResult{
-			Model: originalModel,
+			Model:         originalModel,
+			UpstreamModel: originalModel,
 		}, nil
 	}
 
@@ -143,7 +144,12 @@ func (s *AntigravityGatewayService) ForwardUpstream(ctx context.Context, c *gin.
 	logger.LegacyPrintf("service.antigravity_gateway", "%s status=success duration_ms=%d", prefix, duration.Milliseconds())
 
 	return &ForwardResult{
-		Model:                         originalModel,
+		Model: originalModel,
+		// 透传路径不做任何账号映射改写：出站模型就是 originalModel。这里必须显式
+		// 声明，否则请求锁价的等值核对（frozen account model vs result.UpstreamModel）
+		// 会拿空串比较而 fail-closed——用户拿到 200 响应却整笔零计费。
+		// 同文件族的 Forward（antigravity_gateway_claude.go）一直是这么设的，此处属漏设。
+		UpstreamModel:                 originalModel,
 		UpstreamResponseModel:         observedUpstreamResponseModel(c),
 		UpstreamResponseModelConflict: observedUpstreamResponseModelConflict(c),
 		Stream:                        claudeReq.Stream,

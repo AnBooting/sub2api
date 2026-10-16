@@ -53,16 +53,16 @@ func TestUserCanBindGroup(t *testing.T) {
 			want:    true,
 		},
 		{
-			name:    "a restricted user loses the public groups not listed for them",
+			name:    "legacy restriction no longer hides an unlisted public group",
 			user:    User{RestrictPublicGroups: true, AllowedGroups: []int64{publicGroupA}},
 			groupID: publicGroupB,
-			want:    false,
+			want:    true,
 		},
 		{
-			name:    "a restricted user with no list keeps no public group",
+			name:    "legacy restriction with no list still keeps public groups",
 			user:    User{RestrictPublicGroups: true},
 			groupID: publicGroupA,
-			want:    false,
+			want:    true,
 		},
 		{
 			name:        "restricting public groups does not widen exclusive access",

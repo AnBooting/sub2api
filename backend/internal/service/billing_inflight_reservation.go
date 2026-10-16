@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/google/uuid"
 )
@@ -309,9 +310,17 @@ const (
 type InflightEstimateRequest struct {
 	PricingAt time.Time
 	Model     string
-	BodyBytes int
-	MaxTokens int
-	Kind      InflightEstimateKind
+	// RequireCompact 为 true 时（/compact 请求），账号级上游模型按 compact 链
+	// 解析，与调度器准入口径一致；冻结表必须与实际转发模型同源，否则用量核对
+	// 会拒绝"actual upstream model differs from the frozen account model"。
+	RequireCompact bool
+	BodyBytes      int
+	MaxTokens      int
+	Kind           InflightEstimateKind
+	// RequireWSIngressModel 为 true 时，账号→上游模型按"本账号实际会走的 WS ingress
+	// 适配器"口径解析：passthrough ingress 只替换认证、不套用账号 model_mapping，
+	// 而 ctx_pool ingress 会套。HTTP 单请求恒为 false（沿用 HTTP 转发口径）。
+	RequireWSIngressModel bool
 	// Units 按次/按张数量（<=0 视为 1）。
 	Units int
 	// SearchCalls 叠加的搜索次数（按分组 search_price_per_1k 计）。
@@ -336,7 +345,8 @@ type inflightEstimateDeps struct {
 	// 即账号映射后的模型），因此这里取所有候选映射模型的最高估算。
 	// 仅在首选/渠道候选均无法定价（或 composite 分组）时才调用；实现只读调度器快照，
 	// 不在请求路径上直接查库，也不按模型名缓存（内存不随请求模型名增长）。
-	accountMappedModels func(ctx context.Context, apiKey *APIKey, model string) []string
+	accountMappedModels    func(ctx context.Context, apiKey *APIKey, model string) []string
+	accountMappingSnapshot func(ctx context.Context, apiKey *APIKey, model string) (map[int64]requestAccountMapping, error)
 }
 
 // inflightSnapshotLister 调度器快照读取（与账号选择同源：Redis 快照，未命中时由快照服务自身回源并回填）。
@@ -672,16 +682,18 @@ func (s *GatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d.userGroupRate = s.getUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
-		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
-			func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
-				accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
-				return accounts, err
-			},
-			func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
-				platform, forced, err := s.resolvePlatform(ctx, apiKey.GroupID, apiKey.Group, model)
-				return platform, forced, err == nil
-			},
-		)
+		list := func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
+			accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
+			return accounts, err
+		}
+		platformFor := func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
+			platform, forced, err := s.resolvePlatform(ctx, apiKey.GroupID, apiKey.Group, model)
+			return platform, forced, err == nil
+		}
+		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		// 共享网关（/v1/messages 及后续 Chat Completions / Gemini 入口）的账号→上游模型
+		// 链必须与 GatewayService.Forward 同源，否则实际成功的请求会在落账时模型核对失败。
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, resolveGatewayRequestAccountUpstreamModel)
 	}
 	return d
 }
@@ -712,6 +724,9 @@ func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, 
 			if resolved != nil && resolved.pricingError != nil {
 				return resolved.pricingError
 			}
+			if resolved != nil && resolved.BasePricing != nil && resolved.BasePricing.tokenPricingError != nil {
+				return resolved.BasePricing.tokenPricingError
+			}
 			if !requiresNative {
 				continue
 			}
@@ -739,14 +754,54 @@ func (s *GatewayService) ValidateNativePricingRequest(ctx context.Context, apiKe
 	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
 }
 
+// PrepareRequestBilling freezes pricing rules once before the first account selection.
+func (s *GatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(ctx, key, req)
+}
+
+// RefreezeRequestBilling 是共享网关显式换分组/换请求模型的强制重冻入口（Messages 的
+// prompt-too-long fallback 分组）：先逻辑剥离 ctx 上的旧 bundle 再冻结，避免
+// prepareRequestBilling 的幂等复用把新分组的账号映射/价格绑到旧 bundle 上。
+// 单请求内的 failover 重试仍走 PrepareRequestBilling 的幂等语义，不得改用本函数。
+func (s *GatewayService) RefreezeRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(withoutGatewayRequestBilling(ctx), key, req)
+}
+
+func (s *OpenAIGatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps(req).prepareRequestBilling(ctx, key, req)
+}
+
+// RefreezeRequestBilling 是长连接按 turn 强制重冻的入口：先逻辑剥离 ctx 上已
+// 存在的冻结 bundle，再走同一套 prepareRequestBilling 冻结流程。
+//
+// prepareRequestBilling 对已有 bundle 的幂等复用是 HTTP 单请求 failover 的既有
+// 契约（同一逻辑请求重入必须复用同一份价），这里不能改动它。WS 每个 turn 是
+// 独立计费单元，且允许连接内换模型/换分组，必须产出新的 bundle 与新的
+// startedAt；因此由调用方显式重置后再冻结。
+func (s *OpenAIGatewayService) RefreezeRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps(req).prepareRequestBilling(withoutGatewayRequestBilling(ctx), key, req)
+}
+
 func (s *OpenAIGatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
 	if s == nil {
 		return nil
 	}
-	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
+	return s.inflightEstimateDeps(req).validateNativePricingRequest(ctx, apiKey, req)
 }
 
-func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
+func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest) inflightEstimateDeps {
 	d := inflightEstimateDeps{cfg: s.cfg, billing: s.billingService, resolver: s.resolver}
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
@@ -754,19 +809,43 @@ func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d.userGroupRate = s.ResolveUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
-		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
-			func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
-				accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
-				return accounts, err
-			},
-			func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
-				platform := PlatformOpenAI
-				if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
-					platform = apiKey.Group.Platform
+		list := func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
+			accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
+			return accounts, err
+		}
+		platformFor := func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
+			platform := PlatformOpenAI
+			if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
+				platform = apiKey.Group.Platform
+			}
+			if !req.RequireCompact && !req.RequireWSIngressModel {
+				// Only known HTTP forwarding families may retain their own bucket.
+				if domain.UsesOpenAIGateway(platform) || platform == PlatformAnthropic || platform == PlatformGemini || platform == PlatformAntigravity {
+					return platform, false, true
 				}
-				return NormalizeOpenAICompatiblePlatform(platform), false, true
-			},
-		)
+				return "", false, false
+			}
+			return NormalizeOpenAICompatiblePlatform(platform), false, true
+		}
+		requireCompact := req.RequireCompact
+		requireWSIngressModel := req.RequireWSIngressModel
+		wsIngressDefaultMode := ""
+		if s.cfg != nil {
+			wsIngressDefaultMode = s.cfg.Gateway.OpenAIWS.IngressModeDefault
+		}
+		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		// 冻结表中的账号上游模型必须与调度准入、实际转发同口径：
+		// /compact 请求按 compact 链解析；WS 请求按本账号实际会走的 ingress 适配器
+		// 解析（passthrough 不套账号映射）；其余按普通 HTTP 链解析。
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(ctx context.Context, account *Account, model string) string {
+			if requireWSIngressModel {
+				return resolveOpenAIAccountWSIngressUpstreamModel(account, model, wsIngressDefaultMode)
+			}
+			if !requireCompact {
+				return resolveGatewayRequestAccountUpstreamModel(ctx, account, model)
+			}
+			return resolveOpenAIAccountUpstreamModelForRequest(account, model, requireCompact)
+		})
 	}
 	return d
 }
@@ -776,5 +855,5 @@ func (s *OpenAIGatewayService) EstimateInflightReservation(ctx context.Context, 
 	if s == nil {
 		return 0, false
 	}
-	return s.inflightEstimateDeps().estimate(ctx, apiKey, req)
+	return s.inflightEstimateDeps(req).estimate(ctx, apiKey, req)
 }

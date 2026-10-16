@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -60,6 +59,39 @@ func newDeepseekCalendar(dates []string) (*deepseekHolidayCalendar, error) {
 	return c, nil
 }
 
+// Both admin APIs publish the same immutable calendar. An explicit empty year
+// remains covered; omitted years use the built-in table where available.
+func calendarByYear(calendar *deepseekHolidayCalendar) map[string][]string {
+	result := make(map[string][]string, len(calendar.years))
+	for year := range calendar.years {
+		result[fmt.Sprintf("%04d", year)] = []string{}
+	}
+	for _, date := range calendar.dates {
+		result[date[:4]] = append(result[date[:4]], date)
+	}
+	return result
+}
+
+func deepseekCalendarFromYears(holidays map[string][]string) *deepseekHolidayCalendar {
+	calendar := &deepseekHolidayCalendar{dates: []string{}, holidays: make(map[string]bool), years: make(map[int]bool)}
+	for year, days := range holidays {
+		y, _ := time.Parse("2006", year) // The shared validator checked canonical years.
+		calendar.years[y.Year()] = true
+		for _, day := range days {
+			calendar.dates = append(calendar.dates, day)
+			calendar.holidays[day] = true
+		}
+	}
+	sort.Strings(calendar.dates)
+	return calendar
+}
+
+func deepseekPricingPeriodWithCalendar(at time.Time, calendar *deepseekHolidayCalendar) DeepSeekPricingPeriod {
+	year := at.In(deepSeekLocation).Year()
+	calendar = effectiveDeepseekCalendar(calendar, year)
+	return chooseDeepSeekPricingPeriod(at, calendarByYear(calendar))
+}
+
 func (s *PricingService) deepseekCalendar() *deepseekHolidayCalendar {
 	if s == nil {
 		return defaultDeepseekCalendar
@@ -83,18 +115,9 @@ func (s *PricingService) UpdateDeepseekHolidays(ctx context.Context, dates []str
 	} else if !calendar.years[time.Now().In(time.FixedZone("Asia/Shanghai", 8*3600)).Year()] {
 		return fmt.Errorf("%w: dates must cover the current Beijing billing year", ErrInvalidDeepseekHolidays)
 	}
-	s.calendarWriteMu.Lock()
-	defer s.calendarWriteMu.Unlock()
-	if s.settingsRepo != nil {
-		body, _ := json.Marshal(calendar.dates)
-		if err := s.settingsRepo.Set(ctx, SettingKeyDeepseekHolidays, string(body)); err != nil {
-			return err
-		}
+	if err := s.updateControls(ctx, PricingControls{DeepSeekHolidays: calendarByYear(calendar)}, true); err != nil {
+		return err
 	}
-	s.calendarMu.Lock()
-	s.holidayCalendar = calendar
-	s.calendarError = ""
-	s.calendarMu.Unlock()
 	s.recordPricingSyncResult("DeepSeek calendar", nil)
 	for year := range calendar.years {
 		s.recordPricingSyncResult(fmt.Sprintf("DeepSeek calendar %d", year), nil)

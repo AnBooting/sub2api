@@ -418,6 +418,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
@@ -835,7 +836,7 @@ const showDailyUsage = computed(() => Boolean(resultData.value && Array.isArray(
 
 function usd(value: number | null | undefined): string {
   if (value == null || value < 0) return '-'
-  return '$' + Number(value).toFixed(2)
+  return formatCustomerCredit(value)
 }
 
 function fmtNum(val: number | null | undefined): string {

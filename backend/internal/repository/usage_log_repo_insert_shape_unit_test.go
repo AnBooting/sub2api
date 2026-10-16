@@ -50,6 +50,12 @@ func requireStaticInsertMatchesArgTypes(t *testing.T, query string) {
 		}
 	}
 	require.Equal(t, want, columns, "INSERT column list must match usageLogInsertArgTypes")
+	named := strings.Split(usageLogSelectColumns, ", ")[1:]
+	actual := strings.Split(m[1], ",")
+	for i := range actual {
+		actual[i] = strings.TrimSpace(actual[i])
+	}
+	require.Equal(t, named, actual, "SQL insertion order must match named scan contract, not just column count")
 
 	seen := make(map[int]struct{}, want)
 	for _, ph := range usageLogPlaceholderRe.FindAllStringSubmatch(m[2], -1) {
@@ -129,7 +135,7 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 	})
 	require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 
-	idx := len(prepared.args) - 5
+	idx := usageLogNamedInsertArgIndex(t, "upstream_request_id")
 	arg, ok := prepared.args[idx].(sql.NullString)
 	require.True(t, ok, "upstream_request_id arg should be sql.NullString, got %T", prepared.args[idx])
 	require.True(t, arg.Valid)
@@ -147,8 +153,35 @@ func TestPrepareUsageLogInsert_UpstreamRequestIDArgWiring(t *testing.T) {
 func TestPrepareUsageLogInsert_PricingSnapshotJSONBWiring(t *testing.T) {
 	value := `{"currency":"CNY","source":"fixture","actual_cost":1.2,"quota_unit":"credits"}`
 	prepared := prepareUsageLogInsert(&service.UsageLog{UserID: 1, APIKeyID: 2, Model: "glm-test", RequestID: "snapshot", PricingSnapshot: []byte(value), CreatedAt: time.Now().UTC()})
-	idx := len(prepared.args) - 1
+	idx := usageLogNamedInsertArgIndex(t, "pricing_snapshot")
 	require.Equal(t, "jsonb", usageLogInsertArgTypes[idx])
 	require.JSONEq(t, value, prepared.args[idx].(string))
 	require.Contains(t, usageLogSelectColumns, "pricing_snapshot")
+}
+
+func TestUsageLogBatchInsertNamedColumnContracts(t *testing.T) {
+	log := &service.UsageLog{UserID: 1, APIKeyID: 2, AccountID: 3, RequestID: "named-batch", Model: "model", CreatedAt: time.Now().UTC()}
+	prepared := prepareUsageLogInsert(log)
+	key := usageLogBatchKey(log.RequestID, log.APIKeyID)
+	batch, args := buildUsageLogBatchInsertQuery([]string{key}, map[string]usageLogInsertPrepared{key: prepared})
+	best, bestArgs := buildUsageLogBestEffortInsertQuery([]usageLogInsertPrepared{prepared})
+	require.Equal(t, 0, args[0])
+	require.Equal(t, prepared.args, args[1:])
+	require.Equal(t, prepared.args, bestArgs)
+	named := strings.Split(usageLogSelectColumns, ", ")[1:]
+	listRe := regexp.MustCompile(`(?s)(?:INSERT INTO usage_logs|WITH input)\s*\((.*?)\)`)
+	for _, query := range []string{batch, best} {
+		lists := listRe.FindAllStringSubmatch(query, -1)
+		require.NotEmpty(t, lists)
+		for _, match := range lists {
+			actual := strings.Split(match[1], ",")
+			for i := range actual {
+				actual[i] = strings.TrimSpace(actual[i])
+			}
+			if len(actual) == len(named)+1 && actual[0] == "input_idx" {
+				actual = actual[1:]
+			}
+			require.Equal(t, named, actual, "every input/insert list must agree with args and scan order")
+		}
+	}
 }

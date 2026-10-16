@@ -184,6 +184,62 @@ func (_c *UsageLogCreate) SetNillableGroupID(v *int64) *UsageLogCreate {
 	return _c
 }
 
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (_c *UsageLogCreate) SetRequestedGroupID(v int64) *UsageLogCreate {
+	_c.mutation.SetRequestedGroupID(v)
+	return _c
+}
+
+// SetNillableRequestedGroupID sets the "requested_group_id" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableRequestedGroupID(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetRequestedGroupID(*v)
+	}
+	return _c
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (_c *UsageLogCreate) SetServedGroupID(v int64) *UsageLogCreate {
+	_c.mutation.SetServedGroupID(v)
+	return _c
+}
+
+// SetNillableServedGroupID sets the "served_group_id" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableServedGroupID(v *int64) *UsageLogCreate {
+	if v != nil {
+		_c.SetServedGroupID(*v)
+	}
+	return _c
+}
+
+// SetFailover sets the "failover" field.
+func (_c *UsageLogCreate) SetFailover(v usagelog.Failover) *UsageLogCreate {
+	_c.mutation.SetFailover(v)
+	return _c
+}
+
+// SetNillableFailover sets the "failover" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableFailover(v *usagelog.Failover) *UsageLogCreate {
+	if v != nil {
+		_c.SetFailover(*v)
+	}
+	return _c
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (_c *UsageLogCreate) SetAttemptCount(v int) *UsageLogCreate {
+	_c.mutation.SetAttemptCount(v)
+	return _c
+}
+
+// SetNillableAttemptCount sets the "attempt_count" field if the given value is not nil.
+func (_c *UsageLogCreate) SetNillableAttemptCount(v *int) *UsageLogCreate {
+	if v != nil {
+		_c.SetAttemptCount(*v)
+	}
+	return _c
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_c *UsageLogCreate) SetSubscriptionID(v int64) *UsageLogCreate {
 	_c.mutation.SetSubscriptionID(v)
@@ -843,6 +899,16 @@ func (_c *UsageLogCreate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _c.mutation.Failover(); ok {
+		if err := usagelog.FailoverValidator(v); err != nil {
+			return &ValidationError{Name: "failover", err: fmt.Errorf(`ent: validator failed for field "UsageLog.failover": %w`, err)}
+		}
+	}
+	if v, ok := _c.mutation.AttemptCount(); ok {
+		if err := usagelog.AttemptCountValidator(v); err != nil {
+			return &ValidationError{Name: "attempt_count", err: fmt.Errorf(`ent: validator failed for field "UsageLog.attempt_count": %w`, err)}
+		}
+	}
 	if _, ok := _c.mutation.InputTokens(); !ok {
 		return &ValidationError{Name: "input_tokens", err: errors.New(`ent: missing required field "UsageLog.input_tokens"`)}
 	}
@@ -1013,6 +1079,22 @@ func (_c *UsageLogCreate) createSpec() (*UsageLog, *sqlgraph.CreateSpec) {
 	if value, ok := _c.mutation.BillingMode(); ok {
 		_spec.SetField(usagelog.FieldBillingMode, field.TypeString, value)
 		_node.BillingMode = &value
+	}
+	if value, ok := _c.mutation.RequestedGroupID(); ok {
+		_spec.SetField(usagelog.FieldRequestedGroupID, field.TypeInt64, value)
+		_node.RequestedGroupID = &value
+	}
+	if value, ok := _c.mutation.ServedGroupID(); ok {
+		_spec.SetField(usagelog.FieldServedGroupID, field.TypeInt64, value)
+		_node.ServedGroupID = &value
+	}
+	if value, ok := _c.mutation.Failover(); ok {
+		_spec.SetField(usagelog.FieldFailover, field.TypeEnum, value)
+		_node.Failover = &value
+	}
+	if value, ok := _c.mutation.AttemptCount(); ok {
+		_spec.SetField(usagelog.FieldAttemptCount, field.TypeInt, value)
+		_node.AttemptCount = &value
 	}
 	if value, ok := _c.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
@@ -1508,6 +1590,96 @@ func (u *UsageLogUpsert) UpdateGroupID() *UsageLogUpsert {
 // ClearGroupID clears the value of the "group_id" field.
 func (u *UsageLogUpsert) ClearGroupID() *UsageLogUpsert {
 	u.SetNull(usagelog.FieldGroupID)
+	return u
+}
+
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (u *UsageLogUpsert) SetRequestedGroupID(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldRequestedGroupID, v)
+	return u
+}
+
+// UpdateRequestedGroupID sets the "requested_group_id" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateRequestedGroupID() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldRequestedGroupID)
+	return u
+}
+
+// AddRequestedGroupID adds v to the "requested_group_id" field.
+func (u *UsageLogUpsert) AddRequestedGroupID(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldRequestedGroupID, v)
+	return u
+}
+
+// ClearRequestedGroupID clears the value of the "requested_group_id" field.
+func (u *UsageLogUpsert) ClearRequestedGroupID() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldRequestedGroupID)
+	return u
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (u *UsageLogUpsert) SetServedGroupID(v int64) *UsageLogUpsert {
+	u.Set(usagelog.FieldServedGroupID, v)
+	return u
+}
+
+// UpdateServedGroupID sets the "served_group_id" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateServedGroupID() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldServedGroupID)
+	return u
+}
+
+// AddServedGroupID adds v to the "served_group_id" field.
+func (u *UsageLogUpsert) AddServedGroupID(v int64) *UsageLogUpsert {
+	u.Add(usagelog.FieldServedGroupID, v)
+	return u
+}
+
+// ClearServedGroupID clears the value of the "served_group_id" field.
+func (u *UsageLogUpsert) ClearServedGroupID() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldServedGroupID)
+	return u
+}
+
+// SetFailover sets the "failover" field.
+func (u *UsageLogUpsert) SetFailover(v usagelog.Failover) *UsageLogUpsert {
+	u.Set(usagelog.FieldFailover, v)
+	return u
+}
+
+// UpdateFailover sets the "failover" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateFailover() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldFailover)
+	return u
+}
+
+// ClearFailover clears the value of the "failover" field.
+func (u *UsageLogUpsert) ClearFailover() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldFailover)
+	return u
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (u *UsageLogUpsert) SetAttemptCount(v int) *UsageLogUpsert {
+	u.Set(usagelog.FieldAttemptCount, v)
+	return u
+}
+
+// UpdateAttemptCount sets the "attempt_count" field to the value that was provided on create.
+func (u *UsageLogUpsert) UpdateAttemptCount() *UsageLogUpsert {
+	u.SetExcluded(usagelog.FieldAttemptCount)
+	return u
+}
+
+// AddAttemptCount adds v to the "attempt_count" field.
+func (u *UsageLogUpsert) AddAttemptCount(v int) *UsageLogUpsert {
+	u.Add(usagelog.FieldAttemptCount, v)
+	return u
+}
+
+// ClearAttemptCount clears the value of the "attempt_count" field.
+func (u *UsageLogUpsert) ClearAttemptCount() *UsageLogUpsert {
+	u.SetNull(usagelog.FieldAttemptCount)
 	return u
 }
 
@@ -2419,6 +2591,111 @@ func (u *UsageLogUpsertOne) UpdateGroupID() *UsageLogUpsertOne {
 func (u *UsageLogUpsertOne) ClearGroupID() *UsageLogUpsertOne {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (u *UsageLogUpsertOne) SetRequestedGroupID(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetRequestedGroupID(v)
+	})
+}
+
+// AddRequestedGroupID adds v to the "requested_group_id" field.
+func (u *UsageLogUpsertOne) AddRequestedGroupID(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddRequestedGroupID(v)
+	})
+}
+
+// UpdateRequestedGroupID sets the "requested_group_id" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateRequestedGroupID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateRequestedGroupID()
+	})
+}
+
+// ClearRequestedGroupID clears the value of the "requested_group_id" field.
+func (u *UsageLogUpsertOne) ClearRequestedGroupID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearRequestedGroupID()
+	})
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (u *UsageLogUpsertOne) SetServedGroupID(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetServedGroupID(v)
+	})
+}
+
+// AddServedGroupID adds v to the "served_group_id" field.
+func (u *UsageLogUpsertOne) AddServedGroupID(v int64) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddServedGroupID(v)
+	})
+}
+
+// UpdateServedGroupID sets the "served_group_id" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateServedGroupID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateServedGroupID()
+	})
+}
+
+// ClearServedGroupID clears the value of the "served_group_id" field.
+func (u *UsageLogUpsertOne) ClearServedGroupID() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearServedGroupID()
+	})
+}
+
+// SetFailover sets the "failover" field.
+func (u *UsageLogUpsertOne) SetFailover(v usagelog.Failover) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetFailover(v)
+	})
+}
+
+// UpdateFailover sets the "failover" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateFailover() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateFailover()
+	})
+}
+
+// ClearFailover clears the value of the "failover" field.
+func (u *UsageLogUpsertOne) ClearFailover() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearFailover()
+	})
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (u *UsageLogUpsertOne) SetAttemptCount(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetAttemptCount(v)
+	})
+}
+
+// AddAttemptCount adds v to the "attempt_count" field.
+func (u *UsageLogUpsertOne) AddAttemptCount(v int) *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddAttemptCount(v)
+	})
+}
+
+// UpdateAttemptCount sets the "attempt_count" field to the value that was provided on create.
+func (u *UsageLogUpsertOne) UpdateAttemptCount() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateAttemptCount()
+	})
+}
+
+// ClearAttemptCount clears the value of the "attempt_count" field.
+func (u *UsageLogUpsertOne) ClearAttemptCount() *UsageLogUpsertOne {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearAttemptCount()
 	})
 }
 
@@ -3596,6 +3873,111 @@ func (u *UsageLogUpsertBulk) UpdateGroupID() *UsageLogUpsertBulk {
 func (u *UsageLogUpsertBulk) ClearGroupID() *UsageLogUpsertBulk {
 	return u.Update(func(s *UsageLogUpsert) {
 		s.ClearGroupID()
+	})
+}
+
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (u *UsageLogUpsertBulk) SetRequestedGroupID(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetRequestedGroupID(v)
+	})
+}
+
+// AddRequestedGroupID adds v to the "requested_group_id" field.
+func (u *UsageLogUpsertBulk) AddRequestedGroupID(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddRequestedGroupID(v)
+	})
+}
+
+// UpdateRequestedGroupID sets the "requested_group_id" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateRequestedGroupID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateRequestedGroupID()
+	})
+}
+
+// ClearRequestedGroupID clears the value of the "requested_group_id" field.
+func (u *UsageLogUpsertBulk) ClearRequestedGroupID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearRequestedGroupID()
+	})
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (u *UsageLogUpsertBulk) SetServedGroupID(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetServedGroupID(v)
+	})
+}
+
+// AddServedGroupID adds v to the "served_group_id" field.
+func (u *UsageLogUpsertBulk) AddServedGroupID(v int64) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddServedGroupID(v)
+	})
+}
+
+// UpdateServedGroupID sets the "served_group_id" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateServedGroupID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateServedGroupID()
+	})
+}
+
+// ClearServedGroupID clears the value of the "served_group_id" field.
+func (u *UsageLogUpsertBulk) ClearServedGroupID() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearServedGroupID()
+	})
+}
+
+// SetFailover sets the "failover" field.
+func (u *UsageLogUpsertBulk) SetFailover(v usagelog.Failover) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetFailover(v)
+	})
+}
+
+// UpdateFailover sets the "failover" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateFailover() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateFailover()
+	})
+}
+
+// ClearFailover clears the value of the "failover" field.
+func (u *UsageLogUpsertBulk) ClearFailover() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearFailover()
+	})
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (u *UsageLogUpsertBulk) SetAttemptCount(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.SetAttemptCount(v)
+	})
+}
+
+// AddAttemptCount adds v to the "attempt_count" field.
+func (u *UsageLogUpsertBulk) AddAttemptCount(v int) *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.AddAttemptCount(v)
+	})
+}
+
+// UpdateAttemptCount sets the "attempt_count" field to the value that was provided on create.
+func (u *UsageLogUpsertBulk) UpdateAttemptCount() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.UpdateAttemptCount()
+	})
+}
+
+// ClearAttemptCount clears the value of the "attempt_count" field.
+func (u *UsageLogUpsertBulk) ClearAttemptCount() *UsageLogUpsertBulk {
+	return u.Update(func(s *UsageLogUpsert) {
+		s.ClearAttemptCount()
 	})
 }
 

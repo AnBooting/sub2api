@@ -53,6 +53,7 @@ type ResolvedPricing struct {
 type ModelPricingResolver struct {
 	channelService *ChannelService
 	billingService *BillingService
+	pricingAt      time.Time // fixed only on request-owned immutable resolvers
 }
 
 // NewModelPricingResolver 创建定价解析器实例
@@ -61,6 +62,13 @@ func NewModelPricingResolver(channelService *ChannelService, billingService *Bil
 		channelService: channelService,
 		billingService: billingService,
 	}
+}
+
+func (r *ModelPricingResolver) pricingInstant() time.Time {
+	if !r.pricingAt.IsZero() {
+		return r.pricingAt
+	}
+	return time.Now()
 }
 
 // PricingInput 定价解析输入
@@ -75,6 +83,9 @@ type PricingInput struct {
 // 1. 获取基础定价（LiteLLM → Fallback）
 // 2. 如果指定了 GroupID，查找渠道定价并覆盖
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
+	if input.PricingAt.IsZero() {
+		input.PricingAt = r.pricingAt
+	}
 	input.PricingAt = requestPricingAt(ctx, input.PricingAt)
 	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
 	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
@@ -140,7 +151,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 }
 
 func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string, times ...time.Time) *ResolvedPricing {
-	at := time.Now()
+	at := r.pricingInstant()
 	if len(times) > 0 && !times[0].IsZero() {
 		at = times[0]
 	}
@@ -187,7 +198,7 @@ func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
 func (r *ModelPricingResolver) resolveBasePricing(model string, times ...time.Time) (*ModelPricing, string) {
-	at := time.Now()
+	at := r.pricingInstant()
 	if len(times) > 0 && !times[0].IsZero() {
 		at = times[0]
 	}
@@ -226,8 +237,9 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 
 // applyTokenOverrides 应用 token 模式的渠道覆盖
 func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing, models ...string) {
-	if err := validateManualCNYTokenPricing(chPricing); err != nil {
-		resolved.BasePricing, resolved.Intervals = nil, nil
+	if err := manualTokenPricingError(chPricing); err != nil {
+		resolved.BasePricing = &ModelPricing{Currency: "CNY", tokenPricingError: err}
+		resolved.Intervals = nil
 		resolved.pricingError = err
 		return
 	}

@@ -1,3 +1,5 @@
+import { formatCustomerCredit } from './billingCredits'
+
 export const TOKENS_PER_MILLION = 1_000_000
 
 interface TokenPriceFormatOptions {
@@ -31,6 +33,10 @@ export function calculateTokenPricePerMillion(
   }
 
   return unitPrice * TOKENS_PER_MILLION
+}
+
+export function formatCustomerTokenPricePerMillion(cost: number | null | undefined, tokens: number | null | undefined): string {
+  return formatCustomerCredit(calculateTokenPricePerMillion(cost, tokens), 4)
 }
 
 export function formatTokenPricePerMillion(

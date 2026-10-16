@@ -261,9 +261,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.daily_usage_usd?.toFixed(2) || '0.00' }}
+                    {{ formatCustomerCredit(row.daily_usage_usd ?? 0) }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.daily_limit_usd?.toFixed(2) }}
+                    {{ formatCustomerCredit(row.group?.daily_limit_usd) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.daily_window_start">
@@ -298,9 +298,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.weekly_usage_usd?.toFixed(2) || '0.00' }}
+                    {{ formatCustomerCredit(row.weekly_usage_usd ?? 0) }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.weekly_limit_usd?.toFixed(2) }}
+                    {{ formatCustomerCredit(row.group?.weekly_limit_usd) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.weekly_window_start">
@@ -335,9 +335,9 @@
                     ></div>
                   </div>
                   <span class="usage-amount">
-                    ${{ row.monthly_usage_usd?.toFixed(2) || '0.00' }}
+                    {{ formatCustomerCredit(row.monthly_usage_usd ?? 0) }}
                     <span class="text-gray-400">/</span>
-                    ${{ row.group?.monthly_limit_usd?.toFixed(2) }}
+                    {{ formatCustomerCredit(row.group?.monthly_limit_usd) }}
                   </span>
                 </div>
                 <div class="reset-info" v-if="row.monthly_window_start">
@@ -841,6 +841,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { adminAPI } from '@/api/admin'

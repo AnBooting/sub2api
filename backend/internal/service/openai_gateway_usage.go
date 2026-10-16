@@ -15,6 +15,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
+	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
 
@@ -43,6 +44,9 @@ type OpenAIRecordUsageInput struct {
 	// Responses handler from stream=true + compaction_trigger. It never stores
 	// the request payload and does not replace the transport request type.
 	NativeCompactionV2 bool
+	// RoutingUsage 是可选不可变 C6 路由事实；nil 保持历史 NULL，非 nil 时在
+	// RecordUsage 任何副作用之前校验并与冻结/认证分组事实核对。
+	RoutingUsage *RoutingUsageMetadata
 	ChannelUsageFields
 }
 
@@ -157,6 +161,10 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if input == nil {
 		return errors.New("openai usage input is nil")
 	}
+	routingUsage := cloneRoutingUsageMetadata(input.RoutingUsage)
+	if err := validateRoutingUsageFacts(ctx, input.APIKey, routingUsage); err != nil {
+		return err
+	}
 	result := input.Result
 	if result == nil {
 		return errors.New("openai usage result is nil")
@@ -175,6 +183,18 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	}
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
+	} else if canonicalSeedanceVideoPriceFamily(result.Model) != "" || canonicalSeedanceVideoPriceFamily(result.BillingModel) != "" {
+		// PRD-06/K-4: carry the create-time "request included a video input" fact
+		// from the deferred pending snapshot into the per-token price tier. The
+		// status response cannot reveal it and the create-time context does not
+		// survive to this async billing task, so the snapshot is the only source.
+		// A miss stays false (higher-priced cell) rather than granting a discount.
+		if user != nil && apiKey != nil {
+			taskID := strings.TrimPrefix(strings.TrimSpace(result.ResponseID), "seedance:")
+			if s.GrokVideoPendingHasInputVideo(ctx, taskID, user.ID, apiKey.ID) {
+				ctx = WithVideoPlanInputVideoFact(ctx, true)
+			}
+		}
 	}
 	logServiceTierBillingDowngrade("service.openai_gateway", account, result.RequestID, ApplyOpenAIServiceTierBillingResolution(billingAccount, result))
 
@@ -196,119 +216,115 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageOutputTokens:    result.Usage.ImageOutputTokens,
 	}
 
-	// Get rate multiplier
-	multiplier := 1.0
-	if s.cfg != nil {
-		multiplier = s.cfg.Default.RateMultiplier
-	}
-	if apiKey.GroupID != nil && apiKey.Group != nil {
-		multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
-	}
-	// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。
-	// 高峰因子按请求级 PricingAt 现算（与利润门 D 同源同刻，跨峰谷请求不中途
-	// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
-	// Resolve，以免污染 user:group 倍率缓存。
-	baseMultiplier := multiplier
-	pricingAt := requestPricingAt(ctx, input.PricingAt)
-	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
-	multiplier, imageMultiplier := computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
-	videoMultiplier := resolveVideoRateMultiplier(apiKey, baseMultiplier)
-
+	requestPricing := GatewayRequestBillingFromContext(ctx)
+	var multiplier, imageMultiplier, videoMultiplier, baseMultiplier float64
+	var pricingAt time.Time
 	var cost *CostBreakdown
-	billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
-	if result.BillingModel != "" {
-		billingModel = strings.TrimSpace(result.BillingModel)
-	}
-	if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" && input.ChannelMappedModel != input.OriginalModel {
-		billingModel = input.ChannelMappedModel
-	}
-	if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
-		billingModel = input.OriginalModel
-	}
-	billingModels := usageBillingModelCandidates(
-		billingModel,
-		result.BillingModel,
-		input.ChannelMappedModel,
-		input.OriginalModel,
-		result.UpstreamModel,
-		result.Model,
-	)
-	billingModels = s.filterCNProviderBillingModelCandidates(ctx, account, apiKey, billingModels)
+	var billingModels []string
 	serviceTier := ""
 	if result.ServiceTier != nil {
 		serviceTier = strings.TrimSpace(*result.ServiceTier)
 	}
 	longContextBillingGate := openAILongContextBillingGate(billingAccount)
-	cost, err = s.calculateOpenAIRecordUsageCost(
-		ctx,
-		result,
-		apiKey,
-		billingModels,
-		multiplier,
-		imageMultiplier,
-		videoMultiplier,
-		baseMultiplier,
-		tokens,
-		serviceTier,
-		longContextBillingGate,
-		pricingAt,
-	)
-	if err != nil {
-		for _, model := range billingModels {
-			if s.billingService.pricingService.RequiresNativeCNY(model) {
-				return err
-			}
+	if requestPricing != nil {
+		facts, known := gatewayRequestBillingAccountFromContext(ctx)
+		if !known || facts.accountID != account.ID {
+			return fmt.Errorf("%w: missing actual account execution facts", ErrModelPricingUnavailable)
 		}
-		if !isUsagePricingUnavailableError(err) {
+		expected, _, modelErr := frozenGatewayRequestAccountModel(ctx, account.ID)
+		if modelErr != nil {
+			return modelErr
+		}
+		if strings.TrimSpace(result.UpstreamModel) != expected {
+			return fmt.Errorf("%w: actual upstream model differs from the frozen account model", ErrModelPricingUnavailable)
+		}
+		mapping, mapErr := requestPricing.MappingFor(facts.groupID)
+		if mapErr != nil {
+			return mapErr
+		}
+		if mapping.BillingModelSource == BillingModelSourceResponse && result.UpstreamResponseModelConflict {
+			return fmt.Errorf("%w: conflicting upstream response model", ErrModelPricingUnavailable)
+		}
+		scope, scopeErr := requestPricing.ScopeFor(facts.groupID, result.UpstreamModel, result.UpstreamResponseModel)
+		if scopeErr != nil {
+			return scopeErr
+		}
+		quote, quoteErr := requestPricing.PricingFor(scope)
+		if quoteErr != nil {
+			return quoteErr
+		}
+		// 按次计数类（image/video/audio/web_search/search）不再整笔拒绝：由锁价消费者
+		// 按冻结快照分派计价。价格、层级与倍率全部取自冻结 bundle（冻结分组快照 +
+		// 冻结解析结果 + 冻结计费服务快照），严禁 apiKeyWithFreshGroupMediaPricing
+		// 之类的记账时刻回源取价。按次卡缺价 fail-closed；分组标量维度（web search /
+		// search / 音频）未配置时沿用 legacy 默认价并记 WARN（口径详见
+		// calculateLockedRequestUsageCost 的注释）。
+		group := requestPricing.candidates[facts.groupID].group
+		baseMultiplier = quote.BaseMultiplier()
+		// 按次媒体倍率与 legacy 同口径：分组开启 ImageRateIndependent /
+		// VideoRateIndependent 时用分组独立的 Image/VideoRateMultiplier，否则为基础
+		// 倍率（均不含高峰因子）。取值来自冻结分组克隆，冻结后的实时改动不影响本请求。
+		imageMultiplier = resolveImageRateMultiplier(&APIKey{Group: group}, baseMultiplier)
+		videoMultiplier = resolveVideoRateMultiplier(&APIKey{Group: group}, baseMultiplier)
+		costInput := CostInput{SelectedAccountID: account.ID, Tokens: tokens, ServiceTier: serviceTier, ReasoningEffort: optionalStringValue(result.ReasoningEffort)}
+		cost, err = calculateLockedRequestUsageCost(quote, group, result, costInput, baseMultiplier, imageMultiplier, videoMultiplier)
+		if err != nil {
 			return err
-		}
-		logger.L().With(
-			zap.String("component", "service.openai_gateway"),
-			zap.Strings("billing_models", billingModels),
-			zap.String("requested_model", input.OriginalModel),
-			zap.String("mapped_model", input.ChannelMappedModel),
-			zap.String("upstream_model", result.UpstreamModel),
-			zap.Int64("api_key_id", apiKey.ID),
-			zap.Int64("account_id", account.ID),
-		).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(err))
-		cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
-	}
-	// response_model：按上游成功响应自报的模型计费（渠道显式开启才生效）。
-	// 采纳条件见 responseModelBillingDeclaration + hasIdentifiedOpenAIResponsePricing
-	// + responseModelBillingAdoptable。任一条件不满足都静默回落基线，即开启本模式前的
-	// 既有行为。响应模型与基线同名时直接跳过：重算必然同价，白跑一次定价解析。
-	baselineBillingModel := firstUsageBillingModel(billingModels)
-	if responseModel := responseModelBillingDeclaration(
-		input.BillingModelSource,
-		result.UpstreamResponseModel,
-		result.UpstreamResponseModelConflict,
-		result.ImageCount > 0 || result.VideoCount > 0 || result.WebSearchCalls > 0 ||
-			result.AudioUsage != nil || result.SearchCount > 0,
-	); responseModel != "" && !strings.EqualFold(responseModel, baselineBillingModel) {
-		if identified, responseChannelPriced := s.hasIdentifiedOpenAIResponsePricing(ctx, responseModel, apiKey); identified {
-			responseModels := s.filterCNProviderBillingModelCandidates(ctx, account, apiKey, usageBillingModelCandidates(responseModel))
-			responseCost, responseErr := s.calculateOpenAIRecordUsageCost(
-				ctx, result, apiKey, responseModels, multiplier, imageMultiplier,
-				videoMultiplier, baseMultiplier, tokens, serviceTier, longContextBillingGate, pricingAt,
-			)
-			// 基线定价源以 baselineBillingModel 为准：它正是 calculateOpenAIRecordUsageCost
-			// 内部做渠道定价判断时使用的模型，且"首候选有渠道价"必然意味着首候选就是实际
-			// 定价基准（有渠道价就一定能算出价，循环不会落到后续候选）。
-			baselineChannelPriced := s.resolveOpenAIChannelPricing(ctx, baselineBillingModel, apiKey) != nil
-			if responseErr == nil && responseModelBillingAdoptable(cost, responseCost, baselineChannelPriced, responseChannelPriced) {
-				logResponseModelBillingApplied("service.openai_gateway", account, result.RequestID,
-					baselineBillingModel, responseModel, cost, responseCost)
-				billingModels = responseModels
-				cost = responseCost
+		} // no live fallback or missing-price zero-cost log
+		multiplier = quote.EffectiveMultiplier()
+		pricingAt = requestPricing.StartedAt()
+		billingModels = []string{scope.BillingModel}
+		if group != nil && group.FreeOpenAIFast && billingAccount.IsOpenAI() && groupSupportsOpenAIFast(group.Platform) && (normalizeBillingServiceTier(serviceTier) == "priority" || normalizeBillingServiceTier(serviceTier) == "fast") {
+			costInput.ServiceTier = ""
+			standard, standardErr := calculateLockedRequestUsageCost(quote, group, result, costInput, baseMultiplier, imageMultiplier, videoMultiplier)
+			if standardErr != nil {
+				return standardErr
 			}
+			cost.ActualCost = standard.ActualCost
 		}
-	}
+	} else {
+		// Get rate multiplier
+		multiplier = 1.0
+		if s.cfg != nil {
+			multiplier = s.cfg.Default.RateMultiplier
+		}
+		if apiKey.GroupID != nil && apiKey.Group != nil {
+			multiplier = s.ResolveUserGroupRateMultiplier(ctx, user.ID, *apiKey.GroupID, apiKey.Group.RateMultiplier)
+		}
+		// token 倍率叠加高峰因子（token 计费含图片 token，图片按次倍率不受影响）。
+		// 高峰因子按请求级 PricingAt 现算（与利润门 D 同源同刻，跨峰谷请求不中途
+		// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
+		// Resolve，以免污染 user:group 倍率缓存。
+		baseMultiplier = multiplier
+		pricingAt = requestPricingAt(ctx, input.PricingAt)
+		ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
+		multiplier, imageMultiplier = computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
+		videoMultiplier = resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
-	// Free Fast changes only the customer charge. Keep priority TotalCost and
-	// service_tier for upstream accounting, but evaluate ActualCost once more at
-	// the Standard tier using the same channel, peak, and long-context policy.
-	if groupBillsOpenAIFastAtStandard(apiKey, billingAccount, serviceTier) {
-		standardCost, standardErr := s.calculateOpenAIRecordUsageCost(
+		billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
+		if result.BillingModel != "" {
+			billingModel = strings.TrimSpace(result.BillingModel)
+		}
+		if input.BillingModelSource == BillingModelSourceChannelMapped && input.ChannelMappedModel != "" && input.ChannelMappedModel != input.OriginalModel {
+			billingModel = input.ChannelMappedModel
+		}
+		if input.BillingModelSource == BillingModelSourceRequested && input.OriginalModel != "" {
+			billingModel = input.OriginalModel
+		}
+		billingModels = usageBillingModelCandidates(
+			billingModel,
+			result.BillingModel,
+			input.ChannelMappedModel,
+			input.OriginalModel,
+			result.UpstreamModel,
+			result.Model,
+		)
+		billingModels = s.filterCNProviderBillingModelCandidates(ctx, account, apiKey, billingModels)
+		if result.ServiceTier != nil {
+			serviceTier = strings.TrimSpace(*result.ServiceTier)
+		}
+		longContextBillingGate = openAILongContextBillingGate(billingAccount)
+		cost, err = s.calculateOpenAIRecordUsageCost(
 			ctx,
 			result,
 			apiKey,
@@ -318,18 +334,89 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			videoMultiplier,
 			baseMultiplier,
 			tokens,
-			"",
+			serviceTier,
 			longContextBillingGate,
 			pricingAt,
 		)
-		if standardErr != nil && !isUsagePricingUnavailableError(standardErr) {
-			return standardErr
+		if err != nil {
+			for _, model := range billingModels {
+				if s.billingService.pricingService.RequiresNativeCNY(model) {
+					return err
+				}
+			}
+			if !isUsagePricingUnavailableError(err) {
+				return err
+			}
+			logger.L().With(
+				zap.String("component", "service.openai_gateway"),
+				zap.Strings("billing_models", billingModels),
+				zap.String("requested_model", input.OriginalModel),
+				zap.String("mapped_model", input.ChannelMappedModel),
+				zap.String("upstream_model", result.UpstreamModel),
+				zap.Int64("api_key_id", apiKey.ID),
+				zap.Int64("account_id", account.ID),
+			).Warn("openai_usage.pricing_missing_record_zero_cost", zap.Error(err))
+			cost = &CostBreakdown{BillingMode: string(BillingModeToken)}
 		}
-		// Missing pricing already fell back to a zero-cost log above; keep that
-		// usage row instead of dropping it on the Standard re-evaluation.
-		if standardErr == nil && cost != nil && standardCost != nil {
-			cost.ActualCost = standardCost.ActualCost
+		// response_model：按上游成功响应自报的模型计费（渠道显式开启才生效）。
+		// 采纳条件见 responseModelBillingDeclaration + hasIdentifiedOpenAIResponsePricing
+		// + responseModelBillingAdoptable。任一条件不满足都静默回落基线，即开启本模式前的
+		// 既有行为。响应模型与基线同名时直接跳过：重算必然同价，白跑一次定价解析。
+		baselineBillingModel := firstUsageBillingModel(billingModels)
+		if responseModel := responseModelBillingDeclaration(
+			input.BillingModelSource,
+			result.UpstreamResponseModel,
+			result.UpstreamResponseModelConflict,
+			result.ImageCount > 0 || result.VideoCount > 0 || result.WebSearchCalls > 0 ||
+				result.AudioUsage != nil || result.SearchCount > 0,
+		); responseModel != "" && !strings.EqualFold(responseModel, baselineBillingModel) {
+			if identified, responseChannelPriced := s.hasIdentifiedOpenAIResponsePricing(ctx, responseModel, apiKey); identified {
+				responseModels := s.filterCNProviderBillingModelCandidates(ctx, account, apiKey, usageBillingModelCandidates(responseModel))
+				responseCost, responseErr := s.calculateOpenAIRecordUsageCost(
+					ctx, result, apiKey, responseModels, multiplier, imageMultiplier,
+					videoMultiplier, baseMultiplier, tokens, serviceTier, longContextBillingGate, pricingAt,
+				)
+				// 基线定价源以 baselineBillingModel 为准：它正是 calculateOpenAIRecordUsageCost
+				// 内部做渠道定价判断时使用的模型，且"首候选有渠道价"必然意味着首候选就是实际
+				// 定价基准（有渠道价就一定能算出价，循环不会落到后续候选）。
+				baselineChannelPriced := s.resolveOpenAIChannelPricing(ctx, baselineBillingModel, apiKey) != nil
+				if responseErr == nil && responseModelBillingAdoptable(cost, responseCost, baselineChannelPriced, responseChannelPriced) {
+					logResponseModelBillingApplied("service.openai_gateway", account, result.RequestID,
+						baselineBillingModel, responseModel, cost, responseCost)
+					billingModels = responseModels
+					cost = responseCost
+				}
+			}
 		}
+
+		// Free Fast changes only the customer charge. Keep priority TotalCost and
+		// service_tier for upstream accounting, but evaluate ActualCost once more at
+		// the Standard tier using the same channel, peak, and long-context policy.
+		if groupBillsOpenAIFastAtStandard(apiKey, billingAccount, serviceTier) {
+			standardCost, standardErr := s.calculateOpenAIRecordUsageCost(
+				ctx,
+				result,
+				apiKey,
+				billingModels,
+				multiplier,
+				imageMultiplier,
+				videoMultiplier,
+				baseMultiplier,
+				tokens,
+				"",
+				longContextBillingGate,
+				pricingAt,
+			)
+			if standardErr != nil && !isUsagePricingUnavailableError(standardErr) {
+				return standardErr
+			}
+			// Missing pricing already fell back to a zero-cost log above; keep that
+			// usage row instead of dropping it on the Standard re-evaluation.
+			if standardErr == nil && cost != nil && standardCost != nil {
+				cost.ActualCost = standardCost.ActualCost
+			}
+		}
+
 	}
 
 	// Determine billing type
@@ -343,6 +430,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	durationMs := int(result.Duration.Milliseconds())
 	accountRateMultiplier := account.BillingRateMultiplier()
 	requestID := resolveUsageBillingRequestID(ctx, result.RequestID)
+	if requestPricing != nil {
+		requestID = requestPricing.RequestID()
+	}
 	if result.OpenAIWSMode {
 		if upstreamRequestID := strings.TrimSpace(result.RequestID); upstreamRequestID != "" {
 			requestID = upstreamRequestID
@@ -415,14 +505,37 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ImageSizeBreakdown:       imageSizeBreakdown,
 		NativeCompactionV2:       input.NativeCompactionV2,
 	}
+	routingUsage.apply(usageLog)
 	isVideoUsage := isGrokVideoUsageResult(result, billingModels)
+	videoDurationSeconds := 0
 	if isVideoUsage {
 		usageLog.VideoCount = result.VideoCount
 		usageLog.VideoResolution = optionalTrimmedStringPtr(NormalizeVideoBillingResolutionOrDefault(result.VideoResolution))
-		videoDurationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
+		videoDurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
 		usageLog.VideoDurationSeconds = &videoDurationSeconds
 	}
 	if cost != nil {
+		// C-1: 补齐锁价快照的路由与媒体事实，使账单可脱离当前状态复算。
+		// served_group_id 优先取本次实际服务组，退回请求的组。
+		if usageLog.ServedGroupID != nil {
+			cost.ServedGroupID = usageLog.ServedGroupID
+		} else if usageLog.GroupID != nil {
+			cost.ServedGroupID = usageLog.GroupID
+		}
+		if cost.RequestStartedAt.IsZero() {
+			cost.RequestStartedAt = usageLog.CreatedAt
+		}
+		if cost.PriceVersion == "" && cost.PricingSnapshot != nil && !cost.PricingSnapshot.NativePricingAt.IsZero() {
+			cost.PriceVersion = nativeCNYPriceVersion(cost.PricingSnapshot)
+		}
+		if isVideoUsage {
+			cost.Media = &PricingSnapshotMedia{
+				Mode:            mediaBillingModeForSnapshot(cost),
+				BillableCount:   usageLog.VideoCount,
+				BillableSeconds: float64(videoDurationSeconds),
+				SecondsSource:   videoSecondsSource(result),
+			}
+		}
 		usageLog.InputCost = cost.InputCost
 		usageLog.PricingSnapshot = costPricingSnapshot(cost)
 		usageLog.ImageInputCost = cost.ImageInputCost
@@ -481,7 +594,13 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	// 添加 SessionID（客户端显式会话标识；缺失/无效时保持 nil）
 	usageLog.SessionID = optionalTrimmedStringPtr(input.SessionID)
 
-	if apiKey.GroupID != nil {
+	if requestPricing != nil {
+		facts, _ := gatewayRequestBillingAccountFromContext(ctx)
+		if facts.groupID != 0 {
+			groupID := facts.groupID
+			usageLog.GroupID = &groupID
+		}
+	} else if apiKey.GroupID != nil {
 		usageLog.GroupID = apiKey.GroupID
 	}
 	if subscription != nil {
@@ -534,6 +653,237 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	writeUsageLogBestEffort(ctx, s.usageLogRepo, usageLog, "service.openai_gateway")
 
 	return nil
+}
+
+// calculateLockedRequestUsageCost 是请求锁价消费者的用量计价分派：token 维度走
+// 冻结 quote（LockedRequestPricing.Calculate），按次计数维度按 legacy
+// calculateOpenAIRecordUsageCost 的口径映射到冻结按次卡或冻结分组标量价。
+//
+// 冻结边界：只读冻结 bundle——frozenGroup 是请求建立时克隆的分组快照，quote 内的
+// 解析结果/倍率/计费服务同为冻结快照。此处不得调用 apiKeyWithFreshGroupMediaPricing
+// 之类的记账时刻回源取价。
+//
+// 价格缺失时的行为（与 legacy 的默认语义一致，不是一律 fail-closed）：
+//   - 按次卡维度（图片/视频，以及音频的 per_request 卡）：冻结卡拿不出所需价格时
+//     返回 ErrModelPricingUnavailable，不落零价账。准入契约
+//     （requestResolvedPricingAvailability）只保证 per_request/image/video 模式有卡，
+//     卡本身缺层级价时在这里 fail-closed。
+//   - 分组标量维度（WebSearch / SearchCount / 音频 realtime-tts-stt）：未配置时沿用
+//     legacy 的内置默认价（0.01 / 5.0 per 1k / 0.05-15-0.10），显式 0 仍按免费。
+//     冻结快照看起来缺这些字段（groupMediaPricingLooksIncomplete）时额外记一条 WARN：
+//     legacy 会经由 apiKeyWithFreshGroupMediaPricing 回源补价，锁价路径禁止回源，只能
+//     按默认价结算。未知音频模式无价可循，仍然 fail-closed。
+//
+// 分派顺序与 legacy 一致：WebSearchCalls（独占）→ 视频 → 音频 → 图片 → token
+// （SearchCount 为叠加附加费，不替代 token 费）。token 计费模式下 legacy 同样不做
+// 按次图片/视频计费（见 calculateOpenAIRecordUsageCost 的模式判断），此处保持相同口径，
+// 因此不得重复计费同一用量。
+//
+// 与 legacy 显式不同的两点（有意取舍，不随 live 回源/默认价回落）：
+//  1. 视频：legacy 在“分组按次卡模式不是 video”时会先用分组标量视频价
+//     （video_price_*），再退到内置默认视频价；锁价路径只用冻结按次卡
+//     （CalculateWithRate），绝不回落到默认视频价。用例
+//     TestLockedMediaVideoPrefersFrozenCardOverGroupScalar 固定该差异。
+//  2. 图片/视频倍率不做回源，但保留分组的独立倍率口径（见下方 image/videoRate）。
+func calculateLockedRequestUsageCost(
+	quote *LockedRequestPricing,
+	frozenGroup *Group,
+	result *OpenAIForwardResult,
+	input CostInput,
+	baseMultiplier float64,
+	imageRate float64,
+	videoRate float64,
+) (*CostBreakdown, error) {
+	if quote == nil {
+		return nil, fmt.Errorf("%w: frozen request pricing quote is missing", ErrModelPricingUnavailable)
+	}
+	frozenBilling := quote.FrozenBilling()
+	if frozenBilling == nil {
+		return nil, fmt.Errorf("%w: frozen billing snapshot is missing", ErrModelPricingUnavailable)
+	}
+	mode := quote.Mode()
+
+	// Codex alpha/search 网页搜索：legacy 为独占按次口径（上游不返回 token 字段），
+	// 单价取冻结分组覆盖价，未配置时沿用 0.01 默认价。
+	if result != nil && result.WebSearchCalls > 0 {
+		var price *float64
+		if frozenGroup != nil {
+			price = frozenGroup.WebSearchPricePerCall
+		}
+		if price == nil {
+			lockedMediaWarnIncompleteSnapshot(frozenGroup, "web_search")
+		}
+		searchCost := frozenBilling.CalculateWebSearchCost(result.WebSearchCalls, price, baseMultiplier)
+		// C-1: a search-only bill still needs a v2 item, otherwise the whole snapshot
+		// falls back to v1 and the frontend reports the lock price as missing.
+		if searchCost != nil && searchCost.TotalCost != 0 {
+			searchCost.Unit = "per_call"
+			searchCost.PricingItems = append(searchCost.PricingItems, CostBreakdownItem{
+				Kind:            "search",
+				BaseCreditPrice: searchCost.TotalCost / float64(result.WebSearchCalls),
+				Usage:           float64(result.WebSearchCalls),
+				NormalizedUsage: float64(result.WebSearchCalls),
+				Subtotal:        searchCost.TotalCost,
+			})
+		}
+		return searchCost, nil
+	}
+
+	// 视频：VideoCount 即权威（isGrokVideoUsageResult）。冻结卡非 token 模式时按
+	// legacy 的 Grok/视频口径映射为「次数 × 时长」与分辨率层级，倍率用视频倍率
+	// （分组 VideoRateIndependent 时取 VideoRateMultiplier）；token 模式保持
+	// token 计费（legacy 同口径）。分组标量视频价/默认价回落按上文声明不参与。
+	if isGrokVideoUsageResult(result, nil) && mode != BillingModeToken {
+		videoCount := result.VideoCount
+		if videoCount <= 0 {
+			videoCount = 1
+		}
+		durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
+		units := float64(videoCount)
+		if mode == BillingModeVideo {
+			// 视频卡按秒计价：UsageUnits = 条数 × 秒数。
+			units = float64(videoCount * durationSeconds)
+		}
+		input.RequestCount = videoCount
+		input.UsageUnits = units
+		input.SizeTier = NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
+		cost, err := quote.CalculateWithRate(input, videoRate)
+		if err != nil {
+			return nil, err
+		}
+		cost.BillingMode = string(BillingModeVideo)
+		return cost, nil
+	}
+
+	// 音频：冻结卡为 per_request 时按 UsageUnits + 模式层级计费（倍率同 legacy =
+	// 基础倍率）；否则沿用 legacy 的冻结分组标量价（realtime/tts/stt，未配置时用内置
+	// 默认价）。未知模式无价可循，fail-closed 而不是零价落账。
+	if result != nil && result.AudioUsage != nil {
+		if mode == BillingModePerRequest {
+			input.UsageUnits = result.AudioUsage.DurationOrUnits
+			input.SizeTier = result.AudioUsage.Mode
+			return quote.Calculate(input)
+		}
+		switch strings.ToLower(strings.TrimSpace(result.AudioUsage.Mode)) {
+		case "realtime", "tts", "stt":
+		default:
+			return nil, fmt.Errorf("%w: unknown audio billing mode %q", ErrModelPricingUnavailable, result.AudioUsage.Mode)
+		}
+		audioConfig := lockedGroupAudioPriceConfig(frozenGroup)
+		if !lockedGroupAudioPriceConfigured(audioConfig, result.AudioUsage.Mode) {
+			lockedMediaWarnIncompleteSnapshot(frozenGroup, "audio")
+		}
+		return frozenBilling.CalculateAudioCost(
+			result.AudioUsage.Mode,
+			result.AudioUsage.DurationOrUnits,
+			audioConfig,
+			baseMultiplier,
+		), nil
+	}
+
+	// 图片按次：冻结卡非 token 模式时按 legacy 的「次数 + 尺寸层级」口径计费
+	// （层级判定口径见 NormalizeImageBillingTierOrDefault），倍率用图片倍率（分组
+	// ImageRateIndependent 时取 ImageRateMultiplier）；token 模式保持 token 计费
+	// （含 ImageInputTokens/ImageOutputTokens/ImageCacheReadTokens 图文分价）。
+	if result != nil && result.ImageCount > 0 && mode != BillingModeToken {
+		input.RequestCount = result.ImageCount
+		input.SizeTier = NormalizeImageBillingTierOrDefault(result.ImageSize)
+		return quote.CalculateWithRate(input, imageRate)
+	}
+
+	// token 计费；SearchCount 与其相加（legacy 的叠加口径，不替换 token 费）。
+	cost, err := quote.Calculate(input)
+	if err != nil {
+		return nil, err
+	}
+	if result != nil && result.SearchCount > 0 {
+		var price *float64
+		if frozenGroup != nil {
+			price = frozenGroup.GetSearchPricePer1k()
+		}
+		if price == nil {
+			lockedMediaWarnIncompleteSnapshot(frozenGroup, "search")
+		}
+		mergeSearchSurcharge(cost, frozenBilling.CalculateSearchCost(result.SearchCount, price, baseMultiplier), result.SearchCount)
+	}
+	return cost, nil
+}
+
+// mergeSearchSurcharge folds a per-call search surcharge into a token breakdown.
+//
+// C-1 requires the stored snapshot to satisfy
+// total_credit == group_multiplier x sum(items[].subtotal) (11-共享契约.md:47), and
+// group_multiplier is derived as ActualCost/TotalCost. Adding the surcharge to
+// TotalCost/ActualCost alone therefore dilutes the multiplier and breaks the check the
+// frontend uses to validate a snapshot. The surcharge is a real billable item, so it
+// gets its own item; subtotals stay pre-multiplier like every other item.
+//
+// unit becomes "per_call": the mixed bill is dominated by neither token nor call
+// pricing, and the per-item facts are what the snapshot is read for.
+func mergeSearchSurcharge(cost *CostBreakdown, searchCost *CostBreakdown, callCount int) {
+	if cost == nil || searchCost == nil || callCount <= 0 {
+		return
+	}
+	if searchCost.TotalCost == 0 && searchCost.ActualCost == 0 {
+		return
+	}
+	if cost.Unit == "" {
+		cost.Unit = "per_call"
+	}
+	cost.PricingItems = append(cost.PricingItems, CostBreakdownItem{
+		Kind:            "search",
+		BaseCreditPrice: searchCost.TotalCost / float64(callCount),
+		Usage:           float64(callCount),
+		NormalizedUsage: float64(callCount),
+		Subtotal:        searchCost.TotalCost,
+	})
+	cost.TotalCost += searchCost.TotalCost
+	cost.ActualCost += searchCost.ActualCost
+}
+
+// lockedMediaWarnIncompleteSnapshot 在冻结分组快照看起来缺少媒体/搜索/语音标量价、
+// 该维度只能按内置默认价结算时记一条 WARN。legacy 在这条路径上会通过
+// apiKeyWithFreshGroupMediaPricing 回源查库补价，锁价路径禁止回源，只告警不改价。
+func lockedMediaWarnIncompleteSnapshot(frozenGroup *Group, dimension string) {
+	if frozenGroup == nil || !groupMediaPricingLooksIncomplete(frozenGroup) {
+		return
+	}
+	logger.L().With(
+		zap.String("component", "service.openai_gateway"),
+		zap.String("dimension", dimension),
+		zap.Int64("group_id", frozenGroup.ID),
+	).Warn("openai_usage.locked_media_frozen_snapshot_incomplete_default_price")
+}
+
+// lockedGroupAudioPriceConfigured 判断冻结分组是否显式配置了该音频模式的标量价。
+// 未配置时 CalculateAudioCost 会用内置默认价（legacy 同语义）。
+func lockedGroupAudioPriceConfigured(config *audioPriceConfig, mode string) bool {
+	if config == nil {
+		return false
+	}
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "realtime":
+		return config.RealtimePerMin != nil
+	case "tts":
+		return config.TTSPerMChars != nil
+	case "stt":
+		return config.STTPerHour != nil
+	default:
+		return false
+	}
+}
+
+// lockedGroupAudioPriceConfig 从冻结分组快照取音频标量价（realtime/tts/stt）。
+// 与 legacy 的 groupAudioPriceConfigFromAPIKey 同字段，但只读冻结快照，不回源。
+func lockedGroupAudioPriceConfig(frozenGroup *Group) *audioPriceConfig {
+	if frozenGroup == nil {
+		return nil
+	}
+	return &audioPriceConfig{
+		RealtimePerMin: frozenGroup.AudioRealtimePricePerMin,
+		TTSPerMChars:   frozenGroup.AudioTTSPricePerMillionChars,
+		STTPerHour:     frozenGroup.AudioSTTPricePerHour,
+	}
 }
 
 // hasIdentifiedOpenAIResponsePricing 判断上游自报的响应模型是否可以作为计费基准，
@@ -590,9 +940,27 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 		//（用户专属 > 分组 rate_multiplier > 系统默认），与分组表单的价格预览承诺一致。
 		return s.billingService.CalculateWebSearchCost(result.WebSearchCalls, webSearchPricePerCallFromAPIKey(apiKey), webSearchMultiplier), nil
 	}
+	// PRD-06/K-4: Ark Seedance bills per token (or per request/second) through the
+	// operator's video price plan, not through the LLM token table. Seedance results
+	// carry token usage but no VideoCount, so they would otherwise never reach the
+	// video cost path. A configured plan therefore takes precedence here; without a
+	// plan the legacy token settlement is preserved unchanged.
+	if seedanceVideoPricingAvailable(apiKey, billingModel) {
+		planCost, hasPlan := s.calculateOpenAIVideoPlanCost(ctx, apiKey, billingModel, result, videoMultiplier)
+		if hasPlan {
+			if planCost == nil {
+				return nil, fmt.Errorf("%w: video price plan is missing a usable tier for model %q", ErrModelPricingUnavailable, billingModel)
+			}
+			return planCost, nil
+		}
+	}
 	if isGrokVideoUsageResult(result, billingModels) {
 		if resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey); resolved == nil || resolved.Mode != BillingModeToken {
-			return s.calculateOpenAIVideoCost(ctx, billingModel, apiKey, result, videoMultiplier), nil
+			// PRD-06/K-4: a missing video tariff is an error, not a zero price. The
+			// caller's missing-pricing branch records the zero-cost row with a
+			// warning, which is the existing fail-closed contract; it never reaches
+			// getDefaultVideoPrice's image-price fallback.
+			return s.calculateOpenAIVideoCost(ctx, billingModel, apiKey, result, videoMultiplier)
 		}
 	}
 	if result != nil && result.AudioUsage != nil {
@@ -687,6 +1055,41 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	tokenCost.TotalCost += searchCost.TotalCost
 	tokenCost.ActualCost += searchCost.ActualCost
 	return tokenCost, nil
+}
+
+// hasSeedanceVideoPlan reports whether the group declares a Seedance video price
+// plan for this model. It is the routing gate that lets Ark Seedance results reach
+// the plan cost path even though they carry no VideoCount.
+func hasSeedanceVideoPlan(apiKey *APIKey, billingModel string) bool {
+	if apiKey == nil || apiKey.Group == nil {
+		return false
+	}
+	if canonicalSeedanceVideoPriceFamily(billingModel) == "" {
+		return false
+	}
+	return GroupHasVideoPricePlan(apiKey.Group, billingModel)
+}
+
+// seedanceVideoPricingAvailable reports whether a Seedance result can be priced for
+// this group, which is exactly the set the create-time gate accepts
+// (GroupHasSeedanceVideoPrice: a metering plan OR the legacy per-model slots).
+//
+// The routing gate must use this rather than hasSeedanceVideoPlan alone. Otherwise a
+// group configured with only the legacy per-model slots passes the create gate,
+// generates upstream, and then never enters the video cost path — it falls through to
+// LLM token billing and is recorded at zero cost with a warning. Keeping the two sets
+// equal is the point of SeedanceLegacyPerSecondPlan.
+func seedanceVideoPricingAvailable(apiKey *APIKey, billingModel string) bool {
+	if apiKey == nil || apiKey.Group == nil {
+		return false
+	}
+	if canonicalSeedanceVideoPriceFamily(billingModel) == "" {
+		return false
+	}
+	if GroupHasVideoPricePlan(apiKey.Group, billingModel) {
+		return true
+	}
+	return SeedanceLegacyPerSecondPlan(apiKey.Group, billingModel) != nil
 }
 
 func isGrokVideoBillingModel(model string) bool {
@@ -811,13 +1214,177 @@ func (s *OpenAIGatewayService) calculateOpenAIImageCost(
 	return s.billingService.CalculateImageCost(billingModel, sizeTier, result.ImageCount, groupConfig, multiplier)
 }
 
+// ---- PRD-06/K-4 video price plans on the real billing path ----
+
+// videoBillingPlanTokenUsage reports the completion-token usage that Ark bills
+// for one video task. Ark reconciles on usage.completion_tokens (the whole
+// generation), so the value must reach the plan path. A legacy per-second caller
+// that carries no token usage must not be silently priced as zero.
+func videoBillingPlanTokenUsage(result *OpenAIForwardResult) int {
+	if result == nil {
+		return 0
+	}
+	if result.Usage.OutputTokens > 0 {
+		return result.Usage.OutputTokens
+	}
+	return 0
+}
+
+// videoPlanInputVideoCtxKey carries "the request included a video input" — the
+// second dimension of Ark's per-token price table — from the usage-record input
+// down to the plan cost calculation.
+//
+// It travels on the context because the flag is known at the media handler (from
+// the create body / pending snapshot) while the cost is computed later inside
+// RecordUsage, and OpenAIForwardResult deliberately stays outside this change.
+type videoPlanInputVideoCtxKey struct{}
+
+// WithVideoPlanInputVideoFact records whether the request carried a video input.
+// The default (absent value) is false: without proof we bill the higher
+// without-input-video cell instead of granting a discount on a guess.
+func WithVideoPlanInputVideoFact(ctx context.Context, hasInputVideo bool) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return context.WithValue(ctx, videoPlanInputVideoCtxKey{}, hasInputVideo)
+}
+
+func videoPlanInputVideoFromContext(ctx context.Context) bool {
+	if ctx == nil {
+		return false
+	}
+	hasInputVideo, _ := ctx.Value(videoPlanInputVideoCtxKey{}).(bool)
+	return hasInputVideo
+}
+
+// calculateOpenAIVideoPlanCost prices a video result with the group's
+// video_price_plans entry when one is configured.
+//
+// Contract (TS-06):
+//   - A configured plan always wins over the legacy per-second tariff and over the
+//     bundled defaults, so an operator who moved a family to per_token/per_request
+//     is never billed by the old per-second path.
+//   - A plan whose mode is valid but whose tier/token usage is missing fails closed
+//     with ErrModelPricingUnavailable. It must NOT fall back to the per-second rate
+//     or to getDefaultVideoPrice (which ends in the image price).
+//   - No plan at all returns (nil, false): the caller keeps the existing path, which
+//     is what keeps Grok's per_second behavior unchanged.
+func (s *OpenAIGatewayService) calculateOpenAIVideoPlanCost(
+	ctx context.Context,
+	apiKey *APIKey,
+	billingModel string,
+	result *OpenAIForwardResult,
+	multiplier float64,
+) (*CostBreakdown, bool) {
+	plan := videoPlanFromAPIKey(apiKey, billingModel)
+	if plan == nil {
+		// B-4: the create-time gate (GroupHasSeedanceVideoPrice) also accepts the legacy
+		// per-model / flat video price columns for Seedance. Settlement must cover the
+		// same set, otherwise a group that passes the gate with only those slots would be
+		// accepted, generate upstream, and then record zero cost. Synthesize the
+		// equivalent per_second plan so "passes the gate" and "can settle" stay equal.
+		// Still fail closed: a group with no usable slot yields nil and keeps the
+		// existing (nil, false) behaviour.
+		if apiKey != nil {
+			plan = SeedanceLegacyPerSecondPlan(apiKey.Group, billingModel)
+		}
+		if plan == nil {
+			return nil, false
+		}
+	}
+	cost, err := s.billingService.CalculateVideoCostFromPlan(VideoCostInput{
+		Model:            billingModel,
+		Resolution:       result.VideoResolution,
+		VideoCount:       result.VideoCount,
+		DurationSeconds:  result.VideoDurationSeconds,
+		CompletionTokens: videoBillingPlanTokenUsage(result),
+		HasInputVideo:    videoPlanInputVideoFromContext(ctx),
+		Plan:             plan,
+		RateMultiplier:   multiplier,
+	})
+	if err != nil {
+		// Fail closed: return a nil-cost signal so the caller records an
+		// unavailable-pricing outcome instead of inventing a tariff.
+		logger.L().With(
+			zap.String("component", "service.openai_gateway"),
+			zap.String("model", billingModel),
+			zap.String("video_billing_mode", string(plan.Mode)),
+			zap.Int("video_count", result.VideoCount),
+			zap.Int("completion_tokens", result.Usage.OutputTokens),
+		).Warn("openai_usage.video_price_plan_failed_closed", zap.Error(err))
+		return nil, true
+	}
+	return cost, true
+}
+
+// seedanceHasVideoInput reports whether a Seedance create request carried a video
+// input (content[].video_url or a draft_task). It is deliberately conservative:
+// anything it cannot prove counts as "no video input", which bills the higher
+// without-input-video cell instead of granting a discount we cannot justify.
+func seedanceHasVideoInput(body []byte) bool {
+	if len(body) == 0 || !gjson.ValidBytes(body) {
+		return false
+	}
+	content := gjson.GetBytes(body, "content")
+	if !content.IsArray() {
+		return false
+	}
+	for _, item := range content.Array() {
+		switch strings.TrimSpace(item.Get("type").String()) {
+		case "video_url", "draft_task":
+			return true
+		}
+	}
+	return false
+}
+
+// SeedanceRequestHasVideoInput reports whether an Ark Seedance create body carried
+// a video input, for the create-time pending snapshot. Conservative: only an
+// explicit content[].video_url / draft_task counts; anything unprovable is false,
+// which bills the higher without-input-video token cell.
+func SeedanceRequestHasVideoInput(body []byte) bool {
+	return seedanceHasVideoInput(body)
+}
+
+// GetDefaultVideoPriceForModel exposes the bundled video default for diagnostics
+// and tests. It exists so callers can assert that a model without any configured
+// plan is NOT silently priced through the image fallback.
+func (s *BillingService) GetDefaultVideoPriceForModel(model, resolution string) float64 {
+	return s.getDefaultVideoPrice(model, resolution)
+}
+
+// calculateOpenAIVideoCost prices one async video result.
+//
+// It returns ErrModelPricingUnavailable (wrapped) when the result must not be
+// priced: the caller's existing missing-pricing handling records a zero-cost row
+// with a warning rather than inventing a tariff. Returning an error — instead of a
+// nil breakdown or a guessed price — is what keeps a plan-less or
+// partially-priced video out of the image-price fallback (TS-06).
 func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	ctx context.Context,
 	billingModel string,
 	apiKey *APIKey,
 	result *OpenAIForwardResult,
 	multiplier float64,
-) *CostBreakdown {
+) (*CostBreakdown, error) {
+	// PRD-06/K-4: an operator-set video price plan is the authoritative tariff for
+	// its family. It is consulted FIRST so a group that moved a model to
+	// per_token/per_request is never billed by the legacy per-second path — and so a
+	// plan whose tier is missing fails closed instead of reaching the image-price
+	// fallback at the bottom of getDefaultVideoPrice.
+	if planCost, hasPlan := s.calculateOpenAIVideoPlanCost(ctx, apiKey, billingModel, result, multiplier); hasPlan {
+		if planCost == nil {
+			return nil, fmt.Errorf("%w: video price plan is missing a usable tier for model %q", ErrModelPricingUnavailable, billingModel)
+		}
+		return planCost, nil
+	}
+	// Seedance has no bundled default price. Without a plan or an operator-set slot
+	// the request must not be priced through getDefaultVideoPrice, whose last resort
+	// is the image price (TS-06 forbids that fallback).
+	if canonicalSeedanceVideoPriceFamily(billingModel) != "" && !GroupHasSeedanceVideoPrice(apiKey.Group) {
+		return nil, fmt.Errorf("%w: no Seedance price configured for model %q", ErrModelPricingUnavailable, billingModel)
+	}
+
 	videoCount := result.VideoCount
 	if videoCount <= 0 {
 		videoCount = 1
@@ -834,18 +1401,18 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 			ReasoningEffort: optionalStringValue(result.ReasoningEffort),
 		})
 		if err == nil {
-			return cost
+			return cost, nil
 		}
 	}
 	groupConfig := videoPriceConfigFromAPIKey(apiKey)
 	if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
+		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
 	}
 	if refreshed := s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey); refreshed != apiKey {
 		apiKey = refreshed
 		groupConfig = videoPriceConfigFromAPIKey(apiKey)
 		if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
+			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
 		}
 	}
 	if resolved != nil && resolved.Source == PricingSourceChannel &&
@@ -871,12 +1438,20 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 		})
 		if err == nil {
 			cost.BillingMode = string(BillingModeVideo)
-			return cost
+			return cost, nil
 		}
 		logger.LegacyPrintf("service.openai_gateway", "Calculate video channel cost failed: %v", err)
 	}
 
-	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier)
+	// Last guard: the remaining fallback (CalculateVideoCost → getVideoUnitPrice →
+	// getDefaultVideoPrice) ends in the image price. That is acceptable only for a
+	// model with a real bundled video default (Grok). Seedance is caught above, so
+	// reaching here means no bundled video tariff exists: fail closed instead of
+	// borrowing the image tariff.
+	if _, bundled := getDefaultGrokImagineVideoPrice(billingModel, resolution); !bundled {
+		return nil, fmt.Errorf("%w: no video price configured for model %q", ErrModelPricingUnavailable, billingModel)
+	}
+	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
 }
 
 func (s *OpenAIGatewayService) apiKeyWithFreshGroupMediaPricing(ctx context.Context, apiKey *APIKey) *APIKey {
@@ -918,6 +1493,13 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 	}
 	// Any first-class pricing field present means the projection is not a blank shell.
 	if len(group.VideoModelPrices) > 0 {
+		return false
+	}
+	// VideoPricePlans is a first-class pricing source too (the metering plans for
+	// per_request / per_second / per_token). Omitting it made a group configured only
+	// with plans look like a blank shell, so the fresh-group reload was skipped and the
+	// second-chance pricing guard lost its input.
+	if len(group.VideoPricePlans) > 0 {
 		return false
 	}
 	if len(group.ModelPricing) > 0 || group.LongContextPricingEnabled {

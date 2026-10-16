@@ -291,6 +291,107 @@ func (_u *UsageLogUpdate) ClearGroupID() *UsageLogUpdate {
 	return _u
 }
 
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (_u *UsageLogUpdate) SetRequestedGroupID(v int64) *UsageLogUpdate {
+	_u.mutation.ResetRequestedGroupID()
+	_u.mutation.SetRequestedGroupID(v)
+	return _u
+}
+
+// SetNillableRequestedGroupID sets the "requested_group_id" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableRequestedGroupID(v *int64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetRequestedGroupID(*v)
+	}
+	return _u
+}
+
+// AddRequestedGroupID adds value to the "requested_group_id" field.
+func (_u *UsageLogUpdate) AddRequestedGroupID(v int64) *UsageLogUpdate {
+	_u.mutation.AddRequestedGroupID(v)
+	return _u
+}
+
+// ClearRequestedGroupID clears the value of the "requested_group_id" field.
+func (_u *UsageLogUpdate) ClearRequestedGroupID() *UsageLogUpdate {
+	_u.mutation.ClearRequestedGroupID()
+	return _u
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (_u *UsageLogUpdate) SetServedGroupID(v int64) *UsageLogUpdate {
+	_u.mutation.ResetServedGroupID()
+	_u.mutation.SetServedGroupID(v)
+	return _u
+}
+
+// SetNillableServedGroupID sets the "served_group_id" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableServedGroupID(v *int64) *UsageLogUpdate {
+	if v != nil {
+		_u.SetServedGroupID(*v)
+	}
+	return _u
+}
+
+// AddServedGroupID adds value to the "served_group_id" field.
+func (_u *UsageLogUpdate) AddServedGroupID(v int64) *UsageLogUpdate {
+	_u.mutation.AddServedGroupID(v)
+	return _u
+}
+
+// ClearServedGroupID clears the value of the "served_group_id" field.
+func (_u *UsageLogUpdate) ClearServedGroupID() *UsageLogUpdate {
+	_u.mutation.ClearServedGroupID()
+	return _u
+}
+
+// SetFailover sets the "failover" field.
+func (_u *UsageLogUpdate) SetFailover(v usagelog.Failover) *UsageLogUpdate {
+	_u.mutation.SetFailover(v)
+	return _u
+}
+
+// SetNillableFailover sets the "failover" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableFailover(v *usagelog.Failover) *UsageLogUpdate {
+	if v != nil {
+		_u.SetFailover(*v)
+	}
+	return _u
+}
+
+// ClearFailover clears the value of the "failover" field.
+func (_u *UsageLogUpdate) ClearFailover() *UsageLogUpdate {
+	_u.mutation.ClearFailover()
+	return _u
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (_u *UsageLogUpdate) SetAttemptCount(v int) *UsageLogUpdate {
+	_u.mutation.ResetAttemptCount()
+	_u.mutation.SetAttemptCount(v)
+	return _u
+}
+
+// SetNillableAttemptCount sets the "attempt_count" field if the given value is not nil.
+func (_u *UsageLogUpdate) SetNillableAttemptCount(v *int) *UsageLogUpdate {
+	if v != nil {
+		_u.SetAttemptCount(*v)
+	}
+	return _u
+}
+
+// AddAttemptCount adds value to the "attempt_count" field.
+func (_u *UsageLogUpdate) AddAttemptCount(v int) *UsageLogUpdate {
+	_u.mutation.AddAttemptCount(v)
+	return _u
+}
+
+// ClearAttemptCount clears the value of the "attempt_count" field.
+func (_u *UsageLogUpdate) ClearAttemptCount() *UsageLogUpdate {
+	_u.mutation.ClearAttemptCount()
+	return _u
+}
+
 // SetSubscriptionID sets the "subscription_id" field.
 func (_u *UsageLogUpdate) SetSubscriptionID(v int64) *UsageLogUpdate {
 	_u.mutation.SetSubscriptionID(v)
@@ -1096,6 +1197,16 @@ func (_u *UsageLogUpdate) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Failover(); ok {
+		if err := usagelog.FailoverValidator(v); err != nil {
+			return &ValidationError{Name: "failover", err: fmt.Errorf(`ent: validator failed for field "UsageLog.failover": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AttemptCount(); ok {
+		if err := usagelog.AttemptCountValidator(v); err != nil {
+			return &ValidationError{Name: "attempt_count", err: fmt.Errorf(`ent: validator failed for field "UsageLog.attempt_count": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.UserAgent(); ok {
 		if err := usagelog.UserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "user_agent", err: fmt.Errorf(`ent: validator failed for field "UsageLog.user_agent": %w`, err)}
@@ -1211,6 +1322,39 @@ func (_u *UsageLogUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.RequestedGroupID(); ok {
+		_spec.SetField(usagelog.FieldRequestedGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRequestedGroupID(); ok {
+		_spec.AddField(usagelog.FieldRequestedGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.RequestedGroupIDCleared() {
+		_spec.ClearField(usagelog.FieldRequestedGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ServedGroupID(); ok {
+		_spec.SetField(usagelog.FieldServedGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedServedGroupID(); ok {
+		_spec.AddField(usagelog.FieldServedGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.ServedGroupIDCleared() {
+		_spec.ClearField(usagelog.FieldServedGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.Failover(); ok {
+		_spec.SetField(usagelog.FieldFailover, field.TypeEnum, value)
+	}
+	if _u.mutation.FailoverCleared() {
+		_spec.ClearField(usagelog.FieldFailover, field.TypeEnum)
+	}
+	if value, ok := _u.mutation.AttemptCount(); ok {
+		_spec.SetField(usagelog.FieldAttemptCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedAttemptCount(); ok {
+		_spec.AddField(usagelog.FieldAttemptCount, field.TypeInt, value)
+	}
+	if _u.mutation.AttemptCountCleared() {
+		_spec.ClearField(usagelog.FieldAttemptCount, field.TypeInt)
 	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
@@ -1831,6 +1975,107 @@ func (_u *UsageLogUpdateOne) SetNillableGroupID(v *int64) *UsageLogUpdateOne {
 // ClearGroupID clears the value of the "group_id" field.
 func (_u *UsageLogUpdateOne) ClearGroupID() *UsageLogUpdateOne {
 	_u.mutation.ClearGroupID()
+	return _u
+}
+
+// SetRequestedGroupID sets the "requested_group_id" field.
+func (_u *UsageLogUpdateOne) SetRequestedGroupID(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetRequestedGroupID()
+	_u.mutation.SetRequestedGroupID(v)
+	return _u
+}
+
+// SetNillableRequestedGroupID sets the "requested_group_id" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableRequestedGroupID(v *int64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetRequestedGroupID(*v)
+	}
+	return _u
+}
+
+// AddRequestedGroupID adds value to the "requested_group_id" field.
+func (_u *UsageLogUpdateOne) AddRequestedGroupID(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddRequestedGroupID(v)
+	return _u
+}
+
+// ClearRequestedGroupID clears the value of the "requested_group_id" field.
+func (_u *UsageLogUpdateOne) ClearRequestedGroupID() *UsageLogUpdateOne {
+	_u.mutation.ClearRequestedGroupID()
+	return _u
+}
+
+// SetServedGroupID sets the "served_group_id" field.
+func (_u *UsageLogUpdateOne) SetServedGroupID(v int64) *UsageLogUpdateOne {
+	_u.mutation.ResetServedGroupID()
+	_u.mutation.SetServedGroupID(v)
+	return _u
+}
+
+// SetNillableServedGroupID sets the "served_group_id" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableServedGroupID(v *int64) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetServedGroupID(*v)
+	}
+	return _u
+}
+
+// AddServedGroupID adds value to the "served_group_id" field.
+func (_u *UsageLogUpdateOne) AddServedGroupID(v int64) *UsageLogUpdateOne {
+	_u.mutation.AddServedGroupID(v)
+	return _u
+}
+
+// ClearServedGroupID clears the value of the "served_group_id" field.
+func (_u *UsageLogUpdateOne) ClearServedGroupID() *UsageLogUpdateOne {
+	_u.mutation.ClearServedGroupID()
+	return _u
+}
+
+// SetFailover sets the "failover" field.
+func (_u *UsageLogUpdateOne) SetFailover(v usagelog.Failover) *UsageLogUpdateOne {
+	_u.mutation.SetFailover(v)
+	return _u
+}
+
+// SetNillableFailover sets the "failover" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableFailover(v *usagelog.Failover) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetFailover(*v)
+	}
+	return _u
+}
+
+// ClearFailover clears the value of the "failover" field.
+func (_u *UsageLogUpdateOne) ClearFailover() *UsageLogUpdateOne {
+	_u.mutation.ClearFailover()
+	return _u
+}
+
+// SetAttemptCount sets the "attempt_count" field.
+func (_u *UsageLogUpdateOne) SetAttemptCount(v int) *UsageLogUpdateOne {
+	_u.mutation.ResetAttemptCount()
+	_u.mutation.SetAttemptCount(v)
+	return _u
+}
+
+// SetNillableAttemptCount sets the "attempt_count" field if the given value is not nil.
+func (_u *UsageLogUpdateOne) SetNillableAttemptCount(v *int) *UsageLogUpdateOne {
+	if v != nil {
+		_u.SetAttemptCount(*v)
+	}
+	return _u
+}
+
+// AddAttemptCount adds value to the "attempt_count" field.
+func (_u *UsageLogUpdateOne) AddAttemptCount(v int) *UsageLogUpdateOne {
+	_u.mutation.AddAttemptCount(v)
+	return _u
+}
+
+// ClearAttemptCount clears the value of the "attempt_count" field.
+func (_u *UsageLogUpdateOne) ClearAttemptCount() *UsageLogUpdateOne {
+	_u.mutation.ClearAttemptCount()
 	return _u
 }
 
@@ -2652,6 +2897,16 @@ func (_u *UsageLogUpdateOne) check() error {
 			return &ValidationError{Name: "billing_mode", err: fmt.Errorf(`ent: validator failed for field "UsageLog.billing_mode": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.Failover(); ok {
+		if err := usagelog.FailoverValidator(v); err != nil {
+			return &ValidationError{Name: "failover", err: fmt.Errorf(`ent: validator failed for field "UsageLog.failover": %w`, err)}
+		}
+	}
+	if v, ok := _u.mutation.AttemptCount(); ok {
+		if err := usagelog.AttemptCountValidator(v); err != nil {
+			return &ValidationError{Name: "attempt_count", err: fmt.Errorf(`ent: validator failed for field "UsageLog.attempt_count": %w`, err)}
+		}
+	}
 	if v, ok := _u.mutation.UserAgent(); ok {
 		if err := usagelog.UserAgentValidator(v); err != nil {
 			return &ValidationError{Name: "user_agent", err: fmt.Errorf(`ent: validator failed for field "UsageLog.user_agent": %w`, err)}
@@ -2784,6 +3039,39 @@ func (_u *UsageLogUpdateOne) sqlSave(ctx context.Context) (_node *UsageLog, err 
 	}
 	if _u.mutation.BillingModeCleared() {
 		_spec.ClearField(usagelog.FieldBillingMode, field.TypeString)
+	}
+	if value, ok := _u.mutation.RequestedGroupID(); ok {
+		_spec.SetField(usagelog.FieldRequestedGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedRequestedGroupID(); ok {
+		_spec.AddField(usagelog.FieldRequestedGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.RequestedGroupIDCleared() {
+		_spec.ClearField(usagelog.FieldRequestedGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.ServedGroupID(); ok {
+		_spec.SetField(usagelog.FieldServedGroupID, field.TypeInt64, value)
+	}
+	if value, ok := _u.mutation.AddedServedGroupID(); ok {
+		_spec.AddField(usagelog.FieldServedGroupID, field.TypeInt64, value)
+	}
+	if _u.mutation.ServedGroupIDCleared() {
+		_spec.ClearField(usagelog.FieldServedGroupID, field.TypeInt64)
+	}
+	if value, ok := _u.mutation.Failover(); ok {
+		_spec.SetField(usagelog.FieldFailover, field.TypeEnum, value)
+	}
+	if _u.mutation.FailoverCleared() {
+		_spec.ClearField(usagelog.FieldFailover, field.TypeEnum)
+	}
+	if value, ok := _u.mutation.AttemptCount(); ok {
+		_spec.SetField(usagelog.FieldAttemptCount, field.TypeInt, value)
+	}
+	if value, ok := _u.mutation.AddedAttemptCount(); ok {
+		_spec.AddField(usagelog.FieldAttemptCount, field.TypeInt, value)
+	}
+	if _u.mutation.AttemptCountCleared() {
+		_spec.ClearField(usagelog.FieldAttemptCount, field.TypeInt)
 	}
 	if value, ok := _u.mutation.InputTokens(); ok {
 		_spec.SetField(usagelog.FieldInputTokens, field.TypeInt, value)
