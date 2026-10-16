@@ -192,3 +192,18 @@ func TestGatewayBindStickySession_GroupOverrideUsesProfileTTL(t *testing.T) {
 	require.NoError(t, svc.BindStickySession(groupCtxWithStrategy(string(SchedulingStrategyLatency)), nil, "session", 1))
 	require.Equal(t, schedulingLatencyStickyReuseTTL, cache.bindTTL)
 }
+
+
+func TestOpenAIStickyAffinityTTL_ProfileAndExplicitConfig(t *testing.T) {
+	base := &OpenAIGatewayService{}
+	base.settingService = newSettingServiceForSchedulingStrategyTest(t, map[string]string{
+		SettingKeySchedulingStrategy: string(SchedulingStrategyLatency),
+	})
+	require.Equal(t, schedulingLatencyStickyReuseTTL, base.openAIStickyAffinityTTL(context.Background()))
+
+	withCfg := &OpenAIGatewayService{cfg: &config.Config{Gateway: config.GatewayConfig{OpenAIWS: config.GatewayOpenAIWSConfig{StickySessionTTLSeconds: 180}}}}
+	withCfg.settingService = newSettingServiceForSchedulingStrategyTest(t, map[string]string{
+		SettingKeySchedulingStrategy: string(SchedulingStrategyStable),
+	})
+	require.Equal(t, 180*time.Second, withCfg.openAIStickyAffinityTTL(context.Background()))
+}
