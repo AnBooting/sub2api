@@ -43,6 +43,9 @@ type ResolvedPricing struct {
 	channelPricing *ChannelModelPricing
 
 	longContextPricingEnabled bool
+	pricingAt                 time.Time
+	pricingError              error
+	deepseekCalendar          *deepseekHolidayCalendar
 }
 
 // ModelPricingResolver 统一模型定价解析器。
@@ -70,15 +73,20 @@ func (r *ModelPricingResolver) pricingInstant() time.Time {
 
 // PricingInput 定价解析输入
 type PricingInput struct {
-	Model   string
-	GroupID *int64 // nil 表示不检查渠道
-	Group   *Group
+	Model     string
+	GroupID   *int64 // nil 表示不检查渠道
+	Group     *Group
+	PricingAt time.Time
 }
 
 // Resolve 解析模型定价。
 // 1. 获取基础定价（LiteLLM → Fallback）
 // 2. 如果指定了 GroupID，查找渠道定价并覆盖
 func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) *ResolvedPricing {
+	if input.PricingAt.IsZero() {
+		input.PricingAt = r.pricingAt
+	}
+	input.PricingAt = requestPricingAt(ctx, input.PricingAt)
 	longContextPricingEnabled := input.Group == nil || input.Group.LongContextPricingEnabled
 	if groupPricing := matchGroupModelPricing(input.Group, input.Model); groupPricing != nil {
 		// Group token cards only override the first-tier / flat rates.
@@ -88,7 +96,7 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 			stripped.Intervals = nil
 			groupPricing = &stripped
 		}
-		resolved := r.resolveConfiguredPricing(groupPricing, input.Model, PricingSourceGroup)
+		resolved := r.resolveConfiguredPricing(groupPricing, input.Model, PricingSourceGroup, input.PricingAt)
 		resolved.longContextPricingEnabled = longContextPricingEnabled
 		return resolved
 	}
@@ -115,10 +123,17 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	}
 
 	// 1. 获取基础定价
-	basePricing, source := r.resolveBasePricing(input.Model)
+	basePricing, source := r.resolveBasePricing(input.Model, input.PricingAt)
+	var calendar *deepseekHolidayCalendar
+	if isDeepSeekModel(input.Model) || (basePricing != nil && basePricing.NativeCard != nil && strings.EqualFold(basePricing.NativeCard.Provider, "deepseek")) {
+		calendar = requestDeepseekCalendar(ctx, r.billingService.pricingService, input.PricingAt)
+		basePricing = freezeNativeDeepseekCalendar(basePricing, calendar)
+	}
 
 	resolved := &ResolvedPricing{
 		Mode:                   BillingModeToken,
+		pricingAt:              input.PricingAt,
+		deepseekCalendar:       calendar,
 		BasePricing:            basePricing,
 		Source:                 source,
 		SupportsCacheBreakdown: basePricing != nil && basePricing.SupportsCacheBreakdown,
@@ -126,28 +141,33 @@ func (r *ModelPricingResolver) Resolve(ctx context.Context, input PricingInput) 
 	resolved.longContextPricingEnabled = longContextPricingEnabled
 
 	// 2. 如果有 GroupID，尝试渠道覆盖
-	if chPricing != nil {
+	if chPricing != nil && (hasChannelTokenOverrides(chPricing) || chPricing.Currency == "CNY") {
 		resolved.Source = PricingSourceChannel
 		resolved.channelPricing = chPricing
 		r.applyTokenOverrides(chPricing, resolved, input.Model)
-	} else if input.GroupID != nil && r.channelService != nil {
-		r.applyChannelOverrides(ctx, *input.GroupID, input.Model, resolved)
 	}
 
 	return resolved
 }
 
-func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string) *ResolvedPricing {
+func (r *ModelPricingResolver) resolveConfiguredPricing(config *ChannelModelPricing, model, source string, times ...time.Time) *ResolvedPricing {
+	at := r.pricingInstant()
+	if len(times) > 0 && !times[0].IsZero() {
+		at = times[0]
+	}
 	mode := config.BillingMode
 	if mode == "" {
 		mode = BillingModeToken
 	}
-	resolved := &ResolvedPricing{Mode: mode, Source: source, channelPricing: config}
+	resolved := &ResolvedPricing{Mode: mode, Source: source, channelPricing: config, pricingAt: at}
 	if mode == BillingModePerRequest || mode == BillingModeImage || mode == BillingModeVideo {
 		r.applyRequestTierOverrides(config, resolved)
 		return resolved
 	}
-	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, r.pricingInstant())
+	resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, at)
+	if config.Currency == "CNY" {
+		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
+	}
 	resolved.SupportsCacheBreakdown = resolved.BasePricing != nil && resolved.BasePricing.SupportsCacheBreakdown
 	r.applyTokenOverrides(config, resolved, model)
 	return resolved
@@ -177,8 +197,12 @@ func matchGroupModelPricing(group *Group, model string) *ChannelModelPricing {
 }
 
 // resolveBasePricing 从 LiteLLM 或 Fallback 获取基础定价
-func (r *ModelPricingResolver) resolveBasePricing(model string) (*ModelPricing, string) {
-	pricing, err := r.billingService.getModelPricingAt(model, r.pricingInstant())
+func (r *ModelPricingResolver) resolveBasePricing(model string, times ...time.Time) (*ModelPricing, string) {
+	at := r.pricingInstant()
+	if len(times) > 0 && !times[0].IsZero() {
+		at = times[0]
+	}
+	pricing, err := r.billingService.getModelPricingAt(model, at)
 	if err != nil {
 		slog.Debug("failed to get model pricing from LiteLLM, using fallback",
 			"model", model, "error", err)
@@ -211,35 +235,13 @@ func (r *ModelPricingResolver) lookupChannelPricingNormalized(ctx context.Contex
 	return r.channelService.GetChannelModelPricing(ctx, groupID, normalized)
 }
 
-// applyChannelOverrides 应用渠道定价覆盖
-func (r *ModelPricingResolver) applyChannelOverrides(ctx context.Context, groupID int64, model string, resolved *ResolvedPricing) {
-	chPricing := r.lookupChannelPricingNormalized(ctx, groupID, model)
-	if chPricing == nil {
-		return
-	}
-
-	resolved.Source = PricingSourceChannel
-	resolved.channelPricing = chPricing
-	resolved.Mode = chPricing.BillingMode
-	if resolved.Mode == "" {
-		resolved.Mode = BillingModeToken
-	}
-
-	switch resolved.Mode {
-	case BillingModeToken:
-		r.applyTokenOverrides(chPricing, resolved, model)
-	case BillingModePerRequest, BillingModeImage, BillingModeVideo:
-		r.applyRequestTierOverrides(chPricing, resolved)
-	}
-}
-
 // applyTokenOverrides 应用 token 模式的渠道覆盖
 func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricing, resolved *ResolvedPricing, models ...string) {
-	if chPricing != nil && chPricing.Currency == "CNY" {
-		if err := manualTokenPricingError(chPricing); err != nil {
-			resolved.BasePricing = &ModelPricing{Currency: "CNY", tokenPricingError: err}
-			return
-		}
+	if err := manualTokenPricingError(chPricing); err != nil {
+		resolved.BasePricing = &ModelPricing{Currency: "CNY", tokenPricingError: err}
+		resolved.Intervals = nil
+		resolved.pricingError = err
+		return
 	}
 	// A model-only rule is an allowlist/display entry, not a currency override.
 	// Preserve native CNY pricing and unavailable pricing instead of coercing an
@@ -253,15 +255,9 @@ func (r *ModelPricingResolver) applyTokenOverrides(chPricing *ChannelModelPricin
 	}
 	// Never inherit USD cache fields into a manual CNY card or vice versa.
 	if chPricing.Currency == "CNY" {
-		resolved.BasePricing = nil
-		if r.billingService.pricingService != nil {
-			resolved.BasePricing, _ = r.billingService.pricingService.nativePricingAt(model, r.pricingInstant())
-		}
-		if resolved.BasePricing == nil {
-			resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
-		}
+		resolved.BasePricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
 	} else if resolved.BasePricing != nil && resolved.BasePricing.Currency == "CNY" {
-		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, r.pricingInstant())
+		resolved.BasePricing, _ = r.billingService.getUSDModelPricingAt(model, resolved.pricingAt)
 	}
 	if resolved.BasePricing == nil {
 		resolved.BasePricing = &ModelPricing{}
@@ -348,6 +344,9 @@ func filterValidIntervals(intervals []PricingInterval) []PricingInterval {
 // GetIntervalPricing 根据 context token 数获取区间定价。
 // 如果有区间列表，找到匹配区间并构造 ModelPricing；否则直接返回 BasePricing。
 func (r *ModelPricingResolver) GetIntervalPricing(resolved *ResolvedPricing, totalContextTokens int) *ModelPricing {
+	if resolved.pricingError != nil {
+		return nil
+	}
 	if len(resolved.Intervals) == 0 {
 		return resolved.BasePricing
 	}

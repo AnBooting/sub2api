@@ -54,11 +54,6 @@ func (p *ModelPricing) DefaultPricingSnapshot() ModelDefaultPricing {
 		if at.IsZero() {
 			at = time.Now()
 		}
-		// Only DeepSeek manual cards automatically reapply the official peak
-		// policy. Other native schedules retain their current-window snapshot.
-		if base.deepSeek {
-			base.Schedule, base.deepSeek = nil, false
-		}
 		rates := base.ratesAt(0, at)
 		result.CacheReadPrice, result.CacheWritePrice = nativePerToken(rates.CacheRead), nativePerToken(rates.CacheWrite)
 		if !validNativeRates(rates, true) {

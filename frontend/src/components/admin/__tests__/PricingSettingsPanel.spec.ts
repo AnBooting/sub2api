@@ -1,17 +1,44 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { enableAutoUnmount, flushPromises, mount } from '@vue/test-utils'
 import PricingSettingsPanel from '../PricingSettingsPanel.vue'
-const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn() }))
+const api = vi.hoisted(() => ({ get: vi.fn(), update: vi.fn(), refresh: vi.fn(), holidays: vi.fn(), stepUp: vi.fn((action: () => Promise<unknown>) => action()) }))
+vi.mock('@/composables/useStepUp', () => ({ useStepUp: () => ({ run: api.stepUp }), isStepUpCancelled: () => false, isStepUpBlocked: () => false, stepUpBlockReason: () => '' }))
+vi.mock('@/components/auth/TotpStepUpDialog.vue', () => ({ default: { template: '<div />' } }))
+vi.mock('@/api/admin/pricing', () => ({ getPricingControls: api.get, updatePricingControls: api.update, refreshPricing: api.refresh, updateDeepseekHolidays: api.holidays }))
 const app = vi.hoisted(() => ({ fetchPublicSettings: vi.fn(), showSuccess: vi.fn() }))
-vi.mock('@/api/admin/pricing', () => ({ getPricingControls: api.get, updatePricingControls: api.update, refreshPricing: api.refresh }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => app }))
 vi.mock('@/utils/format', () => ({ formatDateTime: (value: string) => value }))
 enableAutoUnmount(afterEach)
 const initial = { remote_enabled: true, native_cny_enabled: false, usd_model_count: 10, cny_model_count: 0, usd_last_updated: '', cny_last_updated: '', cny_error: '' }
-beforeEach(() => { vi.resetAllMocks(); api.get.mockResolvedValue({ ...initial }); api.update.mockImplementation(async (controls) => ({ ...initial, ...controls })); api.refresh.mockResolvedValue({ ...initial }); app.fetchPublicSettings.mockResolvedValue(undefined) })
+beforeEach(() => { vi.resetAllMocks(); api.stepUp.mockImplementation((action) => action()); api.get.mockResolvedValue({ ...initial }); api.update.mockImplementation(async (controls) => ({ ...initial, ...controls })); api.refresh.mockResolvedValue({ ...initial }); app.fetchPublicSettings.mockResolvedValue(undefined) })
 afterEach(() => vi.useRealTimers())
 describe('pricing switches', () => {
+  it('edits the yearly calendar through step-up without changing pricing switches', async () => {
+    api.get.mockResolvedValue({ ...initial, deepseek_holidays: { '2026': ['2026-10-01'] }, deepseek_calendar_year_missing: false })
+    api.update.mockResolvedValue({ ...initial, deepseek_holidays: { '2026': ['2026-10-01', '2026-10-02'] }, deepseek_calendar_year_missing: false })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    await wrapper.get('[data-testid="calendar-draft"]').setValue('{"2026":["2026-10-01","2026-10-02"]}')
+    await wrapper.get('[data-testid="calendar-save"]').trigger('click'); await flushPromises()
+    expect(api.update).toHaveBeenCalledWith({ remote_enabled: true, native_cny_enabled: false, deepseek_holidays: { '2026': ['2026-10-01', '2026-10-02'] } })
+    expect(api.stepUp).toHaveBeenCalledTimes(1)
+  })
+  it('keeps calendar edits when the server rejects the save', async () => {
+    api.get.mockResolvedValue({ ...initial, deepseek_holidays: {}, deepseek_calendar_year_missing: false })
+    api.update.mockRejectedValue({ response: { data: { message: 'calendar save failed' } } })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    const draft = '{"2026":["2026-12-01"]}'
+    await wrapper.get('[data-testid="calendar-draft"]').setValue(draft)
+    await wrapper.get('[data-testid="calendar-save"]').trigger('click'); await flushPromises()
+    expect(wrapper.get('[data-testid="calendar-error"]').text()).toBe('calendar save failed')
+    expect((wrapper.get('[data-testid="calendar-draft"]').element as HTMLTextAreaElement).value).toBe(draft)
+  })
+  it('shows calendar coverage and operational errors', async () => {
+    api.get.mockResolvedValue({ ...initial, deepseek_calendar_years: [2026], deepseek_calendar_error: 'peak pricing disabled' })
+    const wrapper = mount(PricingSettingsPanel); await flushPromises()
+    expect(wrapper.text()).toContain('2026')
+    expect(wrapper.get('[role="alert"]').text()).toBe('peak pricing disabled')
+  })
   it('disables all pulls while a manual refresh is still running', async () => {
     let finish!: (value: unknown) => void
     api.refresh.mockImplementation(() => new Promise(resolve => { finish = resolve }))
@@ -233,4 +260,3 @@ describe('pricing sync interval (PRD-01/K-6)', () => {
     expect((wrapper.get('[data-testid="sync-interval-input"]').element as HTMLInputElement).value).toBe('3')
   })
 })
-

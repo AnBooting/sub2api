@@ -62,6 +62,7 @@ type CyberPolicyUsageInput struct {
 	Stream       bool
 	InputTokens  int
 	OutputTokens int
+	PricingAt    time.Time
 	// 渠道归因与请求级 meta，使 cyber 计费行与正常 RecordUsage 行口径一致
 	// （否则 cyber 行 channel_id 等为空，渠道维度统计会遗漏 cyber 命中）。
 	InboundEndpoint    string
@@ -110,6 +111,7 @@ func (s *OpenAIGatewayService) RecordCyberPolicyUsageLog(ctx context.Context, in
 		ChannelUsageFields: in.ChannelUsageFields,
 		CyberBlocked:       true,
 		NativeCompactionV2: in.NativeCompactionV2,
+		PricingAt:          requestPricingAt(ctx, in.PricingAt),
 	}); err != nil {
 		logger.LegacyPrintf("service.openai_gateway", "cyber usage record failed: request_id=%s err=%v", in.RequestID, err)
 	}
@@ -294,7 +296,8 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		// 变价）；未装配 PricingAt 的路径回退记录时刻，保持既有行为。不并入上面的
 		// Resolve，以免污染 user:group 倍率缓存。
 		baseMultiplier = multiplier
-		pricingAt = openAIUsagePricingAt(input)
+		pricingAt = requestPricingAt(ctx, input.PricingAt)
+		ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 		multiplier, imageMultiplier = computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
 		videoMultiplier = resolveVideoRateMultiplier(apiKey, baseMultiplier)
 
@@ -927,6 +930,8 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	longContextBillingGate *bool,
 	pricingAt time.Time,
 ) (*CostBreakdown, error) {
+	pricingAt = requestPricingAt(ctx, pricingAt)
+	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	billingModel := firstUsageBillingModel(billingModels)
 	if result != nil && result.WebSearchCalls > 0 {
 		// Codex alpha/search 网页搜索按次计费：上游不返回 usage/token 字段，单价只取
@@ -1137,6 +1142,11 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageTokenCost(
 			ServiceTier: serviceTier, ReasoningEffort: reasoningEffort, Resolver: s.resolver,
 			LongContextBillingEnabled: longContextBillingGate,
 		})
+	}
+	if RequestPricingSnapshotFromContext(ctx) != nil {
+		return s.billingService.CalculateCostUnified(CostInput{Ctx: ctx, Model: billingModel, Group: apiKey.Group,
+			Tokens: tokens, RateMultiplier: multiplier, PricingAt: pricingAt, ServiceTier: serviceTier,
+			ReasoningEffort: reasoningEffort, Resolver: NewModelPricingResolver(nil, s.billingService), LongContextBillingEnabled: longContextBillingGate})
 	}
 	return s.billingService.calculateCostWithServiceTierPolicy(
 		billingModel,
@@ -1506,7 +1516,6 @@ func groupMediaPricingLooksIncomplete(group *Group) bool {
 		group.VideoPrice480P == nil && group.VideoPrice720P == nil && group.VideoPrice1080P == nil
 }
 
-
 // filterCNProviderBillingModelCandidates 过滤国产供应商（kimi/zhipu/deepseek）
 // 账号的计费候选模型名：claude-* 候选仅在运营者显式配置了分组/渠道定价时保留。
 //
@@ -1542,7 +1551,7 @@ func (s *OpenAIGatewayService) resolveOpenAIChannelPricing(ctx context.Context, 
 		return nil
 	}
 	gid := apiKey.Group.ID
-	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group})
+	resolved := s.resolver.Resolve(ctx, PricingInput{Model: billingModel, GroupID: &gid, Group: apiKey.Group, PricingAt: requestPricingAt(ctx, time.Time{})})
 	if resolved.Source == PricingSourceGroup || resolved.Source == PricingSourceChannel {
 		return resolved
 	}

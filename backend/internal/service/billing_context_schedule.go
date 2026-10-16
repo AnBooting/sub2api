@@ -98,7 +98,7 @@ func (s *BillingService) ResolveContextPricingSchedule(ctx context.Context, reso
 		ctx = WithResolvedTargetPlatform(ctx, in.Platform)
 	}
 
-	pricingInput := PricingInput{Model: in.Model, Group: in.Group}
+	pricingInput := PricingInput{Model: in.Model, Group: in.Group, PricingAt: at}
 	if in.Group != nil {
 		gid := in.Group.ID
 		pricingInput.GroupID = &gid

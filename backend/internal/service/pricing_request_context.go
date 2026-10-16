@@ -436,7 +436,15 @@ func (d inflightEstimateDeps) prepareRequestBilling(ctx context.Context, key *AP
 	if previous := GatewayRequestBillingFromContext(ctx); previous != nil {
 		return ctx, previous, nil
 	}
-	startedAt := timezone.Now()
+	startedAt := req.PricingAt
+	if startedAt.IsZero() {
+		if gatewayRequestBillingReset(ctx) {
+			// A new WS turn must not inherit the preceding turn's timestamp.
+			startedAt = timezone.Now()
+		} else {
+			startedAt = requestPricingAt(ctx, time.Time{})
+		}
+	}
 	billing := cloneRequestBillingService(d.billing)
 	var liveChannels *ChannelService
 	if d.resolver != nil {

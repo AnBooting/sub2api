@@ -236,10 +236,10 @@ type PricingSnapshotPeriod struct {
 
 // CostBreakdown 费用明细
 type CostBreakdown struct {
-	PricingError              error
-	PricingCurrency           string
-	PricingSource             string
-	PricingSnapshot           *ModelPricing
+	PricingError    error
+	PricingCurrency string
+	PricingSource   string
+	PricingSnapshot *ModelPricing
 	// ---- C-1 锁价快照（pricing_snapshot v2）事实 ----
 	// PricingItems 为按分项的计价明细；为空时 costPricingSnapshot 退回 v1 形态。
 	PricingItems []CostBreakdownItem
@@ -255,8 +255,8 @@ type CostBreakdown struct {
 	// Media 仅媒体计费填充。
 	Media *PricingSnapshotMedia
 	// ServedGroupID 是实际服务组（C-6 served_group_id 的快照副本）。
-	ServedGroupID *int64
-	Unit          string
+	ServedGroupID             *int64
+	Unit                      string
 	InputCost                 float64 // 文本输入费用（不含图片输入，图片输入单独记入 ImageInputCost）
 	ImageInputCost            float64 // 图片输入 token 费用（如 gpt-image-2 图片编辑）
 	OutputCost                float64
@@ -391,7 +391,7 @@ func isDeepSeekModel(model string) bool {
 // Weekends, including make-up workdays, remain offpeak. Configured holidays
 // use the same chooser through BillingService.deepSeekPricingPeriodAt.
 func deepseekPeakMultiplierAt(now time.Time) float64 {
-	return chooseDeepSeekPricingPeriod(now, nil).multiplier()
+	return deepseekPeakMultiplierWithCalendar(now, defaultDeepseekCalendar)
 }
 
 // Official Pro-to-Flash routing takes effect at Beijing 2026-09-14 12:00.
@@ -1492,23 +1492,19 @@ func (s *BillingService) getUSDModelPricingAt(model string, pricingAt time.Time)
 // GetModelPricingWithChannel 获取模型定价，渠道配置的价格覆盖默认值。
 // 与其他 token 字段一致，渠道留空的图片输入/输出价沿用目录价，见 applyChannelImagePriceOverrides。
 func (s *BillingService) GetModelPricingWithChannel(model string, channelPricing *ChannelModelPricing) (*ModelPricing, error) {
+	return s.getModelPricingWithChannelAt(model, channelPricing, timezone.Now())
+}
+
+func (s *BillingService) getModelPricingWithChannelAt(model string, channelPricing *ChannelModelPricing, pricingAt time.Time) (*ModelPricing, error) {
 	if err := manualTokenPricingError(channelPricing); err != nil {
 		return nil, err
 	}
 	if !hasChannelTokenOverrides(channelPricing) {
-		return s.GetModelPricing(model)
+		return s.getModelPricingAt(model, pricingAt)
 	}
-	pricing, err := s.getUSDModelPricingAt(model, time.Now())
+	pricing, err := s.getUSDModelPricingAt(model, pricingAt)
 	if channelPricing.Currency == "CNY" {
-		// Preserve a native schedule as policy provenance. The manual card is
-		// complete, so its prices do not inherit native or USD dimensions.
-		pricing = nil
-		if s.pricingService != nil {
-			pricing, _ = s.pricingService.nativePricingAt(model, time.Now())
-		}
-		if pricing == nil {
-			pricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
-		}
+		pricing = &ModelPricing{Currency: "CNY", CacheCreationPriceExplicit: true}
 		err = nil
 	}
 	if err != nil {
@@ -1608,13 +1604,16 @@ type CostInput struct {
 // CalculateCostUnified 统一计费入口，支持三种计费模式。
 // 使用 ModelPricingResolver 解析定价，然后根据 BillingMode 分发计算。
 func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, error) {
+	if input.Resolver == nil && (input.Resolved != nil || RequestPricingSnapshotFromContext(input.Ctx) != nil) {
+		input.Resolver = NewModelPricingResolver(nil, s)
+	}
 	if input.Resolver == nil {
 		// 无 Resolver，回退到旧路径
 		applyLongContextBilling := true
 		if input.LongContextBillingEnabled != nil {
 			applyLongContextBilling = *input.LongContextBillingEnabled
 		}
-		pricing, err := s.GetModelPricing(input.Model)
+		pricing, err := s.getModelPricingAt(input.Model, input.PricingAt)
 		if err != nil {
 			return nil, err
 		}
@@ -1631,10 +1630,14 @@ func (s *BillingService) CalculateCostUnified(input CostInput) (*CostBreakdown, 
 	resolved := input.Resolved
 	if resolved == nil {
 		resolved = input.Resolver.Resolve(input.Ctx, PricingInput{
-			Model:   input.Model,
-			GroupID: input.GroupID,
-			Group:   input.Group,
+			Model:     input.Model,
+			GroupID:   input.GroupID,
+			Group:     input.Group,
+			PricingAt: input.PricingAt,
 		})
+	}
+	if resolved.pricingError != nil {
+		return nil, resolved.pricingError
 	}
 
 	// 保存时强制 > 0；若仍有负数泄漏（缓存/迁移残留），按 0 处理避免按 1x 误扣。
@@ -1687,6 +1690,9 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 同源），零值回退当前时刻。
 	pricingAt := input.PricingAt
 	if pricingAt.IsZero() {
+		pricingAt = resolved.pricingAt
+	}
+	if pricingAt.IsZero() {
 		pricingAt = timezone.Now()
 	}
 
@@ -1699,17 +1705,25 @@ func (s *BillingService) calculateTokenCost(resolved *ResolvedPricing, input Cos
 	// 内部已强制过）；分组/渠道自定义定价保留运营者配置，不强制覆盖官方价。
 	pricing = s.applyModelSpecificPricingPolicyEx(input.Model, pricing, resolved.Source == PricingSourceLiteLLM, pricingAt)
 
-	// Manual/channel cards store offpeak base rates too. Native absolute
-	// schedule prices have already selected their period and must not be doubled.
-	if isDeepSeekModel(input.Model) && (pricing.NativeCard == nil || pricing.manualTokenPricing) {
-		pricing = scaleDeepSeekTokenPricing(pricing, s.deepSeekPricingPeriodAt(pricingAt).multiplier())
+	// DeepSeek 模型默认价卡按官方峰谷口径调整：高峰时段（01:00–04:00 与
+	// 06:00–10:00 UTC，仅工作日；北京时间周末全天低谷）按 2× 低谷价计费。
+	// 仅作用于默认价卡（Source=LiteLLM，无分组/渠道自定义定价）——分组/渠道
+	// 自定义定价保持运营者语义，不叠加。先克隆再乘，避免污染共享 fallbackPrices 指针。
+	if pricing.Currency != "CNY" && resolved.Source == PricingSourceLiteLLM && isDeepSeekModel(input.Model) {
+		calendar := resolved.deepseekCalendar
+		if calendar == nil {
+			calendar = requestDeepseekCalendar(input.Ctx, s.pricingService, pricingAt)
+		}
+		if mult := deepseekPeakMultiplierWithCalendar(pricingAt, calendar); mult > 1 {
+			pricing = scaleDeepSeekTokenPricing(pricing, mult)
+		}
 	}
 
 	// 官方长上下文阶梯仅在无区间定价时应用（区间定价已包含上下文分层）。
 	applyLongCtx := len(resolved.Intervals) == 0 && contextTierPricingEnabled
 
 	breakdown := s.computeTokenBreakdown(pricing, input.Tokens, input.RateMultiplier, input.ServiceTier, applyLongCtx)
-	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, input.PricingAt))
+	applyCostBreakdownMultiplier(breakdown, resolvedChannelTimeMultiplier(resolved, pricingAt))
 	applyCostBreakdownMultiplier(breakdown, reasoningEffortBillingMultiplier(input.ReasoningEffort, pricing.ReasoningEffortMultipliers))
 	return breakdown, nil
 }
@@ -2083,13 +2097,6 @@ func (s *BillingService) calculateCostInternalWithPolicy(
 	pricing, err = resolveNativeTokenPricing(pricing, tokens, time.Time{})
 	if err != nil {
 		return nil, err
-	}
-	if channelPricing != nil && isDeepSeekModel(model) && pricing.manualTokenPricing {
-		at := pricing.NativePricingAt
-		if at.IsZero() {
-			at = timezone.Now()
-		}
-		pricing = scaleDeepSeekTokenPricing(pricing, s.deepSeekPricingPeriodAt(at).multiplier())
 	}
 	return s.computeTokenBreakdown(pricing, tokens, rateMultiplier, serviceTier, longContextBillingEnabled), nil
 }

@@ -275,6 +275,7 @@ func usageRecordContext(parent context.Context, base context.Context) context.Co
 	if parent == nil {
 		return base
 	}
+	base = service.WithRequestPricingSnapshot(base, service.RequestPricingSnapshotFromContext(parent))
 	if clientRequestID, _ := parent.Value(ctxkey.ClientRequestID).(string); strings.TrimSpace(clientRequestID) != "" {
 		base = context.WithValue(base, ctxkey.ClientRequestID, strings.TrimSpace(clientRequestID))
 	}
@@ -2490,23 +2491,38 @@ const (
 // 写入上游前调用 BeforeTurn，按当时的利润门复核并冻结定价。绝不能用建连时刻
 // 初始化，否则会把长连接的所有 turn 钉死在建连时的峰谷因子。
 type openAIWSTurnPricing struct {
-	mu sync.Mutex
-	at time.Time
+	mu    sync.Mutex
+	at    time.Time
+	rules *service.RequestPricingSnapshot
 }
 
-func (p *openAIWSTurnPricing) freeze(at time.Time) {
+func (p *openAIWSTurnPricing) freeze(at time.Time, snapshots ...*service.RequestPricingSnapshot) {
 	p.mu.Lock()
 	p.at = at
+	if len(snapshots) > 0 {
+		p.rules = snapshots[0]
+	}
 	p.mu.Unlock()
 }
 
+func (p *openAIWSTurnPricing) currentSnapshot() *service.RequestPricingSnapshot {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.rules
+}
+
 func (p *openAIWSTurnPricing) currentOr(fallback time.Time) time.Time {
+	at, _ := p.currentPricingOr(fallback)
+	return at
+}
+
+func (p *openAIWSTurnPricing) currentPricingOr(fallback time.Time) (time.Time, *service.RequestPricingSnapshot) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if !p.at.IsZero() {
-		return p.at
+		return p.at, p.rules
 	}
-	return fallback
+	return fallback, p.rules
 }
 
 // openAIWSTurnAPIKeyLookup 是后续 turn 重取 API Key 认证快照的入口
@@ -3612,7 +3628,9 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 			return normalGroupTerminal
 		}
 		for _, check := range []func() error{
-			func() error { return h.billingCacheService.CheckFinancialEligibility(ctx, nextKey.User, nextKey, nextKey.Group, nextSub, service.QuotaPlatform(ctx, nextKey)) },
+			func() error {
+				return h.billingCacheService.CheckFinancialEligibility(ctx, nextKey.User, nextKey, nextKey.Group, nextSub, service.QuotaPlatform(ctx, nextKey))
+			},
 			func() error { return h.billingCacheService.CheckGroupRPMEligibility(ctx, nextKey.User, nextKey.Group) },
 		} {
 			if checkErr := check(); checkErr != nil {
@@ -4160,8 +4178,14 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 					turnUpstreamModel = turnRequestedModel
 				}
 				turnUsageFields := turnMapping.ToUsageFields(turnRequestedModel, turnUpstreamModel)
+				turnExecution := turnExecutions.get(turn, newOpenAIWSTurnExecution(turnBillingCtxs.forTurn(turn, ctx), apiKey, subscription, account, turnStart))
+				turnRecordPricingAt := turnExecution.pricingAt
+				if turnRecordPricingAt.IsZero() {
+					turnRecordPricingAt = turnStart
+				}
+				turnRecordCtx := turnExecution.ctx
 				cyberMarked := service.GetOpsCyberPolicy(c) != nil
-				h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, turnRequestedModel, turnErr != nil, cyberBlockBody, turnUsageFields, requestPayloadHash)
+				h.recordCyberPolicyIfMarked(c, apiKey, account, subscription, turnRequestedModel, turnErr != nil, cyberBlockBody, turnUsageFields, requestPayloadHash, cyberUsagePricing{ctx: turnRecordCtx, at: turnRecordPricingAt})
 				cyberBlockedThisConn, cyberBlockPendingAfterFailover = advanceOpenAIWSCyberBlockState(
 					cyberBlockedThisConn,
 					cyberBlockPendingAfterFailover,
@@ -4205,7 +4229,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				inboundEndpoint := GetInboundEndpoint(c)
 				upstreamEndpoint := resolveOpenAIUpstreamEndpoint(c, account, result)
 				sessionID := service.ExtractClientSessionID(c)
-				turnRecordPricingAt := turnStart
 				turnBillingAPIKey := turnBillingAPIKeys.forTurn(turn, apiKey)
 				cyberBlocked := service.GetOpsCyberPolicy(c) != nil
 				// 用量落账的 parent 必须是本 turn 的 ctx：锁价 bundle 与账号事实按
@@ -5455,11 +5478,15 @@ func (h *OpenAIGatewayHandler) enqueueCyberSessionBlockedOpsEntry(c *gin.Context
 	enqueueOpsErrorLog(h.opsService, buildCyberSessionBlockedOpsEntry(meta))
 }
 
-// recordCyberPolicyIfMarked 在 gateway forward 返回后检查 cyber 标记，异步写风控日志/邮件，
-// 并在 forward 返回错误时写一条 tokens=0 用量行。标记由 gateway 服务层在透传 cyber 后设置；
-// 当前请求已发给用户，本方法只做事后记录，不影响响应。forwardErrored 为 true 时才写用量行，
-// 避免与正常 RecordUsage(forward 成功路径)重复。每请求至多记录一次。
-func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string) {
+type cyberUsagePricing struct {
+	ctx context.Context
+	at  time.Time
+}
+
+// recordCyberPolicyIfMarked records marked forward errors using upstream usage.
+// WebSocket callers provide the turn's pricing instant and calendar snapshot.
+// Successful forwards use the normal RecordUsage path to avoid double billing.
+func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey *service.APIKey, account *service.Account, subscription *service.UserSubscription, model string, forwardErrored bool, cyberBlockBody []byte, channelFields service.ChannelUsageFields, requestPayloadHash string, pricing ...cyberUsagePricing) {
 	mark := service.GetOpsCyberPolicy(c)
 	if mark == nil {
 		return
@@ -5511,6 +5538,11 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	if c.Request != nil {
 		requestCtx = c.Request.Context()
 	}
+	pricingCtx := requestCtx
+	pricingAt := service.OpenAIPricingAtFromContext(pricingCtx)
+	if len(pricing) > 0 {
+		pricingCtx, pricingAt = pricing[0].ctx, pricing[0].at
+	}
 	platform := resolveOpsPlatform(requestCtx, apiKey, guessPlatformFromPath(requestPath))
 	var clientRequestID, userAgent, clientIPStr string
 	if c.Request != nil {
@@ -5554,6 +5586,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 	go func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
+		ctx = usageRecordContext(pricingCtx, ctx)
 		if cmSvc != nil {
 			cmSvc.RecordCyberPolicyEvent(ctx, service.CyberPolicyRecordInput{
 				LogOnly:         cyberLogOnly,
@@ -5575,6 +5608,7 @@ func (h *OpenAIGatewayHandler) recordCyberPolicyIfMarked(c *gin.Context, apiKey 
 		}
 		if forwardErrored && gwSvc != nil {
 			gwSvc.RecordCyberPolicyUsageLog(ctx, service.CyberPolicyUsageInput{
+				PricingAt:          pricingAt,
 				APIKey:             apiKey,
 				Account:            account,
 				Subscription:       subscription,

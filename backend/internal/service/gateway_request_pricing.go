@@ -141,6 +141,73 @@ func TransferGatewayRequestPricingContext(base, parent context.Context) context.
 
 type gatewayTokenRequestPricingAtCtxKey struct{}
 type gatewayTokenRequestBillingGroupCtxKey struct{}
+type requestPricingSnapshotCtxKey struct{}
+
+// RequestPricingSnapshot holds immutable calendar rules captured at admission.
+// It does not claim to freeze unrelated catalogue updates or group settings.
+type RequestPricingSnapshot struct {
+	deepseekCalendar *deepseekHolidayCalendar
+}
+
+func RequestPricingSnapshotFromContext(ctx context.Context) *RequestPricingSnapshot {
+	if ctx == nil {
+		return nil
+	}
+	snapshot, _ := ctx.Value(requestPricingSnapshotCtxKey{}).(*RequestPricingSnapshot)
+	return snapshot
+}
+
+func WithRequestPricingSnapshot(ctx context.Context, snapshot *RequestPricingSnapshot) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if snapshot == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, requestPricingSnapshotCtxKey{}, snapshot)
+}
+
+func captureRequestPricingSnapshot(ctx context.Context, billing *BillingService) context.Context {
+	if request := GatewayRequestBillingFromContext(ctx); request != nil {
+		billing = request.billing
+	}
+	var pricing *PricingService
+	if billing != nil {
+		pricing = billing.pricingService
+	}
+	return WithRequestPricingSnapshot(ctx, &RequestPricingSnapshot{deepseekCalendar: pricing.deepseekCalendar()})
+}
+
+func requestDeepseekCalendar(ctx context.Context, pricing *PricingService, at time.Time) *deepseekHolidayCalendar {
+	if snapshot := RequestPricingSnapshotFromContext(ctx); snapshot != nil {
+		return effectiveDeepseekCalendar(snapshot.deepseekCalendar, at.In(time.FixedZone("Asia/Shanghai", 8*3600)).Year())
+	}
+	return pricing.deepseekCalendarAt(at)
+}
+
+func (s *GatewayService) WithGatewayTokenRequestPricing(ctx context.Context) (context.Context, time.Time) {
+	ctx, at := WithGatewayTokenRequestPricing(ctx)
+	var billing *BillingService
+	if s != nil {
+		billing = s.billingService
+	}
+	return captureRequestPricingSnapshot(ctx, billing), at
+}
+
+func requestPricingAt(ctx context.Context, explicit time.Time) time.Time {
+	if !explicit.IsZero() {
+		return explicit
+	}
+	if at := GatewayTokenRequestPricingAtFromContext(ctx); !at.IsZero() {
+		return at
+	}
+	if ctx != nil {
+		if at, ok := openAIPricingAtFromContext(ctx); ok {
+			return at
+		}
+	}
+	return timezone.Now()
+}
 
 // WithGatewayTokenRequestPricing marks a shared-gateway request as token billed
 // and freezes the downstream pricing instant for its whole lifetime. Media and

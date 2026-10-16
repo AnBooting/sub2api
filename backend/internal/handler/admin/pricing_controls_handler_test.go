@@ -47,6 +47,29 @@ func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 	require.Equal(t, http.StatusConflict, blocked.Code)
 }
 
+func TestDeepseekHolidayHTTPValidation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	h := NewChannelHandler(nil, nil, pricing, nil)
+	router := gin.New()
+	router.PUT("/holidays", h.UpdateDeepseekHolidays)
+	for _, body := range []string{`{}`, `{"dates":null}`, `{"dates":["2026-02-30"]}`} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/holidays", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusBadRequest, rec.Code)
+	}
+	for _, body := range []string{`{"dates":["2026-10-02","2026-10-01"]}`, `{"dates":[]}`} {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodPut, "/holidays", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		router.ServeHTTP(rec, req)
+		require.Equal(t, http.StatusOK, rec.Code)
+	}
+	require.Contains(t, pricing.DeepseekHolidayDates(), "2026-10-01", "empty list restores built-in holidays")
+}
+
 func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})

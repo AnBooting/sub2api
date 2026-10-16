@@ -134,13 +134,11 @@ func TestPricingSafetyDeepSeekManualChannelAndNativePeriods(t *testing.T) {
 					require.NoError(t, billing.pricingService.UpdateControls(context.Background(), PricingControls{NativeCNYEnabled: true, DeepSeekHolidays: calendar}))
 					cost, err := billing.CalculateCostUnified(CostInput{Ctx: context.Background(), Model: "deepseek-flash", GroupID: key.GroupID, Group: key.Group, Resolver: resolver, Tokens: UsageTokens{InputTokens: 1_000_000}, RateMultiplier: 3, PricingAt: peak})
 					require.NoError(t, err)
-					want := 6.0
-					if holiday {
-						want = 3
-					}
+					// PRD-05 2.11: operator prices do not inherit official peak rules.
+					want := 3.0
 					require.Equal(t, want, cost.ActualCost)
 					if currency == "CNY" {
-						require.NotNil(t, cost.PricingSnapshot.NativeCard, "preserve native schedule provenance")
+						require.Nil(t, cost.PricingSnapshot.NativeCard, "manual prices do not inherit official schedules")
 					}
 				}
 			})
@@ -168,15 +166,15 @@ func TestPricingSafetyDeepSeekManualChannelAndNativePeriods(t *testing.T) {
 	}
 }
 
-func TestPricingSafetyNativeDefaultSnapshotIsOffpeak(t *testing.T) {
+func TestPricingSafetyNativeDefaultSnapshotUsesCurrentWindow(t *testing.T) {
 	billing := newNativeBillingTest(t)
 	p, err := billing.pricingService.nativePricingAt("deepseek-flash", time.Date(2026, 10, 12, 10, 0, 0, 0, deepSeekLocation))
 	require.NoError(t, err)
 	require.Equal(t, 2e-6, p.InputPricePerToken)
 	base := p.DefaultPricingSnapshot()
-	require.Equal(t, 1e-6, base.InputPrice)
-	require.Equal(t, 4e-6, base.OutputPrice)
-	require.Equal(t, 0.02/1e6, *base.CacheReadPrice)
+	require.Equal(t, 2e-6, base.InputPrice)
+	require.Equal(t, 8e-6, base.OutputPrice)
+	require.Equal(t, 0.04/1e6, *base.CacheReadPrice)
 	require.Nil(t, base.CacheWritePrice, "unsupported native cache dimension remains missing")
 }
 
@@ -253,7 +251,7 @@ func TestPricingSafetyNativePeakPolicyWithoutWindowsAndWithTiers(t *testing.T) {
 				if tokens > 100 {
 					want = three
 				}
-				want *= chooseDeepSeekPricingPeriod(at, nil).multiplier()
+				want *= deepseekPeakMultiplierAt(at)
 				require.Equal(t, want/1e6, pricing.InputPricePerToken, "absolute=%t hour=%d tokens=%d", absolute, hour, tokens)
 			}
 		}
@@ -264,7 +262,7 @@ func TestPricingSafetyNativePeakPolicyWithoutWindowsAndWithTiers(t *testing.T) {
 	require.Zero(t, pricing.InputPricePerToken, "the 2x policy preserves a complete explicit-zero native card")
 }
 
-func TestPricingSafetyDeepSeekOffpeakAutofillThenPeakDoesNotDouble(t *testing.T) {
+func TestPricingSafetyDeepSeekCurrentAutofillThenPeakDoesNotDouble(t *testing.T) {
 	billing := newNativeBillingTest(t)
 	zero := 0.0
 	billing.pricingService.nativeCNYCards["deepseekflash"].CacheWrite = &zero
@@ -274,12 +272,12 @@ func TestPricingSafetyDeepSeekOffpeakAutofillThenPeakDoesNotDouble(t *testing.T)
 	require.Equal(t, 2e-6, pricing.InputPricePerToken)
 	snapshot := pricing.DefaultPricingSnapshot()
 	require.True(t, snapshot.SnapshotReady)
-	require.Equal(t, 1e-6, snapshot.InputPrice)
+	require.Equal(t, 2e-6, snapshot.InputPrice)
 	card := ChannelModelPricing{Models: []string{"deepseek-flash"}, Currency: snapshot.Currency, InputPrice: &snapshot.InputPrice, OutputPrice: &snapshot.OutputPrice, CacheReadPrice: snapshot.CacheReadPrice, CacheWritePrice: snapshot.CacheWritePrice}
 	resolver, key := pricingSafetyResolver(t, billing, "deepseek-flash", "group", card)
 	cost, err := billing.CalculateCostUnified(CostInput{Ctx: context.Background(), Model: "deepseek-flash", GroupID: key.GroupID, Group: key.Group, Resolver: resolver, Tokens: UsageTokens{InputTokens: 1_000_000}, RateMultiplier: 1, PricingAt: peak})
 	require.NoError(t, err)
-	require.Equal(t, 2.0, cost.ActualCost, "offpeak autofill followed by peak billing is 2x, never 4x")
+	require.Equal(t, 2.0, cost.ActualCost, "current-window autofill keeps its saved price without another official multiplier")
 }
 
 func TestPricingSafetyNativeSnapshotMissingTokenRatesIsNotReady(t *testing.T) {
@@ -313,8 +311,9 @@ func TestPricingSafetyCalendarCanonicalYearNullAndEmptyObject(t *testing.T) {
 	// Preserve original JSON semantics: null is not an explicitly maintained [].
 	repo := &pricingSettingsRepo{values: map[string]string{SettingKeyPricingControls: `{"deepseek_holidays":{"2026":null}}`}}
 	pricing.settingsRepo = repo
-	require.ErrorIs(t, pricing.loadControls(context.Background()), ErrInvalidDeepSeekHolidays)
-	require.Equal(t, valid, pricing.GetControls())
+	require.NoError(t, pricing.loadControls(context.Background()))
+	require.NotEmpty(t, pricing.GetPricingControlStatus()["deepseek_calendar_error"])
+	require.Equal(t, defaultDeepseekCalendar.dates, pricing.DeepseekHolidayDates())
 	repo.values[SettingKeyPricingControls] = `{"deepseek_holidays":{"2026":[]}}`
 	require.NoError(t, pricing.loadControls(context.Background()))
 	require.NotNil(t, pricing.GetControls().DeepSeekHolidays["2026"])

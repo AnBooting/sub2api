@@ -8,6 +8,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 // RegisterAdminRoutes 注册管理员路由
@@ -113,7 +114,7 @@ func RegisterAdminRoutes(
 		registerScheduledTestRoutes(admin, h)
 
 		// 渠道管理
-		registerChannelRoutes(admin, h)
+		registerChannelRoutes(admin, h, stepUpAuth)
 
 		// 渠道监控
 		registerChannelMonitorRoutes(admin, h, settingService)
@@ -778,14 +779,25 @@ func registerPluginRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAut
 	}
 }
 
-func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+func registerChannelRoutes(admin *gin.RouterGroup, h *handler.Handlers, stepUpAuth middleware.StepUpAuthMiddleware) {
 	channels := admin.Group("/channels")
 	{
 		channels.GET("", h.Admin.Channel.List)
 		channels.GET("/model-pricing", h.Admin.Channel.GetModelDefaultPricing)
+		channels.PUT("/pricing/holidays", gin.HandlerFunc(stepUpAuth), h.Admin.Channel.UpdateDeepseekHolidays)
 		channels.GET("/pricing/sync-models", h.Admin.Channel.SyncPricingModels)
 		channels.GET("/pricing/settings", h.Admin.Channel.GetPricingControls)
-		channels.PUT("/pricing/settings", h.Admin.Channel.UpdatePricingControls)
+		channels.PUT("/pricing/settings", func(c *gin.Context) {
+			var fields map[string]any
+			if err := c.ShouldBindBodyWith(&fields, binding.JSON); err != nil {
+				response.BadRequest(c, "invalid pricing settings")
+				c.Abort()
+				return
+			}
+			if _, changesCalendar := fields["deepseek_holidays"]; changesCalendar {
+				stepUpAuth(c)
+			}
+		}, h.Admin.Channel.UpdatePricingControls)
 		channels.POST("/pricing/refresh", h.Admin.Channel.RefreshPricing)
 		channels.GET("/:id", h.Admin.Channel.GetByID)
 		channels.POST("", h.Admin.Channel.Create)

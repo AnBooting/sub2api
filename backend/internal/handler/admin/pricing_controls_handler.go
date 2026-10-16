@@ -7,11 +7,37 @@ import (
 	"net/http"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
+	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
 )
 
 func (h *ChannelHandler) GetPricingControls(c *gin.Context) {
+	response.Success(c, h.pricingService.GetPricingControlStatus())
+}
+
+func (h *ChannelHandler) UpdateDeepseekHolidays(c *gin.Context) {
+	var req struct {
+		Dates *[]string `json:"dates" binding:"required"`
+	}
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
+		response.BadRequest(c, "dates must be a list of YYYY-MM-DD holiday dates")
+		return
+	}
+	before := h.pricingService.DeepseekHolidayDates()
+	beforeCalendar := h.pricingService.GetControls().DeepSeekHolidays
+	if err := h.pricingService.UpdateDeepseekHolidays(c.Request.Context(), *req.Dates); err != nil {
+		if errors.Is(err, service.ErrInvalidDeepseekHolidays) {
+			response.BadRequest(c, err.Error())
+		} else {
+			response.InternalError(c, "could not save holiday calendar")
+		}
+		return
+	}
+	middleware.SetAuditAction(c, "admin.pricing.holidays.update")
+	middleware.SetAuditHolidayCalendar(c, before, h.pricingService.DeepseekHolidayDates())
+	middleware.SetAuditHolidayCalendarYears(c, beforeCalendar, h.pricingService.GetControls().DeepSeekHolidays)
 	response.Success(c, h.pricingService.GetPricingControlStatus())
 }
 
@@ -25,7 +51,7 @@ func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 		// default" is expressed by omitting the field, and a real period is >= 1h.
 		UpdateIntervalHours *int `json:"update_interval_hours"`
 	}
-	if err := c.ShouldBindJSON(&req); err != nil {
+	if err := c.ShouldBindBodyWith(&req, binding.JSON); err != nil {
 		response.BadRequest(c, "both pricing switches are required")
 		return
 	}
@@ -50,6 +76,7 @@ func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 	// This snapshot only decides whether to schedule a refresh. Calendar omission
 	// is resolved atomically by UpdateControls, not against this earlier read.
 	before := h.pricingService.GetControls()
+	beforeDates := h.pricingService.DeepseekHolidayDates()
 	if err := h.pricingService.UpdateControls(c.Request.Context(), controls); err != nil {
 		if errors.Is(err, service.ErrInvalidDeepSeekHolidays) {
 			response.BadRequest(c, err.Error())
@@ -61,6 +88,11 @@ func (h *ChannelHandler) UpdatePricingControls(c *gin.Context) {
 		}
 		response.Error(c, http.StatusInternalServerError, err.Error())
 		return
+	}
+	if controls.DeepSeekHolidays != nil {
+		middleware.SetAuditAction(c, "admin.pricing.holidays.update")
+		middleware.SetAuditHolidayCalendar(c, beforeDates, h.pricingService.DeepseekHolidayDates())
+		middleware.SetAuditHolidayCalendarYears(c, before.DeepSeekHolidays, h.pricingService.GetControls().DeepSeekHolidays)
 	}
 	if controls.RemoteEnabled && controls.NativeCNYEnabled && (!before.NativeCNYEnabled || !before.RemoteEnabled) {
 		h.pricingService.RefreshNativeCNY()

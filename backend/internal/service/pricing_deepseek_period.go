@@ -1,19 +1,14 @@
 package service
 
 import (
-	"errors"
 	"fmt"
-	"log/slog"
 	"strconv"
-	"sync"
 	"time"
 )
 
 // Only administrator-maintained statutory holidays are recorded. Weekend make-up
 // workdays are intentionally not a separate calendar: weekends remain offpeak.
-var ErrInvalidDeepSeekHolidays = errors.New("invalid DeepSeek holiday calendar")
-
-var deepSeekMissingCalendarWarnings sync.Map
+var ErrInvalidDeepSeekHolidays = ErrInvalidDeepseekHolidays
 
 func cloneDeepSeekHolidays(holidays map[string][]string) map[string][]string {
 	clone := make(map[string][]string, len(holidays))
@@ -51,6 +46,9 @@ func chooseDeepSeekPricingPeriod(at time.Time, holidays map[string][]string) Dee
 	year := fmt.Sprintf("%04d", local.Year())
 	days, known := holidays[year]
 	period := DeepSeekPricingPeriod{Label: "offpeak", Timezone: "Asia/Shanghai", CalendarYearMissing: !known}
+	if !known {
+		return period
+	}
 	for _, day := range days {
 		if day == local.Format("2006-01-02") {
 			return period
@@ -76,24 +74,12 @@ func (p DeepSeekPricingPeriod) multiplier() float64 {
 	return 1
 }
 
-func warnMissingDeepSeekCalendar(period DeepSeekPricingPeriod, at time.Time) {
-	if !period.CalendarYearMissing {
-		return
-	}
-	year := at.In(deepSeekLocation).Year()
-	if _, seen := deepSeekMissingCalendarWarnings.LoadOrStore(year, struct{}{}); !seen {
-		slog.Warn("DeepSeek holiday calendar missing; using weekday/weekend pricing without guessing holidays", "year", year)
-	}
-}
-
 func (s *BillingService) deepSeekPricingPeriodAt(at time.Time) DeepSeekPricingPeriod {
-	var holidays map[string][]string
+	calendar := defaultDeepseekCalendar
 	if s != nil && s.pricingService != nil {
-		holidays = s.pricingService.GetControls().DeepSeekHolidays
+		calendar = s.pricingService.deepseekCalendarAt(at)
 	}
-	period := chooseDeepSeekPricingPeriod(at, holidays)
-	warnMissingDeepSeekCalendar(period, at)
-	return period
+	return deepseekPricingPeriodWithCalendar(at, calendar)
 }
 
 func scaleNativeRates(rates NativeRates, multiplier float64) NativeRates {

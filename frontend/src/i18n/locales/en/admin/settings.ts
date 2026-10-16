@@ -1,14 +1,15 @@
 export default {
     settings: {
 	  pricing: {
+	    calendarYears: 'Calendar coverage years',
       calendar: {
         "title": "DeepSeek statutory holiday calendar",
         "rules": "Timezone: Asia/Shanghai. Maintained statutory holidays take off-peak precedence. Weekends, including makeup-work weekends, remain off-peak. Non-holiday weekdays use peak windows [09:00,12:00) and [14:00,18:00); all other times are off-peak. This editor does not calculate the current price or period.",
         "unsupported": "The backend does not provide both calendar and year-state fields. Calendar support is unconfirmed; editing is unavailable. Existing pricing switches remain available.",
-        "yearMissing": "The server reports that the current Shanghai year has no maintained holiday calendar. That year is unknown. Administrators must verify and maintain dates rather than assume there are no holidays.",
-        "yearMaintained": "The server reports that the current Shanghai year is maintained; an explicit empty date array counts as maintained.",
+        "yearMissing": "The current Shanghai year has no custom or built-in holiday coverage. Official peak pricing is disabled; maintain the complete year to restore it.",
+        "yearMaintained": "The current Shanghai year is covered by custom or built-in dates; an explicit empty date array also counts as maintained.",
         "editorLabel": "Statutory holidays by year (JSON)",
-        "editorHelp": "Use an object mapping four-digit years to date arrays. Dates must be valid YYYY-MM-DD, match the year, and have no duplicates. Do not enter makeup-work days. A year with [] is explicitly maintained with no holidays; an absent year is unknown. Entering and saving {'{'}{'}'} explicitly clears all years. No statutory dates are supplied automatically.",
+        "editorHelp": "Use an object mapping four-digit years to date arrays. Dates must be valid YYYY-MM-DD, match the year, and have no duplicates. Do not enter makeup-work days. A year with [] is explicitly maintained with no holidays. Missing years use the built-in 2026 calendar; years absent from both disable official peak pricing. Saving {'{'}{'}'} removes custom overrides and restores the built-in fallback. Custom prices follow operator settings.",
         "unsaved": "Unsaved draft. Polling, pricing refreshes, and switch saves preserve it. The draft is not effective yet.",
         "save": "Save calendar",
         "resetDraft": "Discard draft and restore server value",

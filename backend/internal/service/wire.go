@@ -35,9 +35,12 @@ type BuildInfo struct {
 }
 
 // ProvidePricingService creates and initializes PricingService
-func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient, settingsRepo SettingRepository) (*PricingService, error) {
+func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient, settingsRepo SettingRepository, emailService *EmailService) (*PricingService, error) {
 	svc := NewPricingService(cfg, remoteClient)
 	svc.settingsRepo = settingsRepo
+	if emailService != nil {
+		svc.alertSender = emailService
+	}
 	if err := svc.loadControls(context.Background()); err != nil {
 		return nil, err // Never fall back to enabled remote access on a settings read failure.
 	}

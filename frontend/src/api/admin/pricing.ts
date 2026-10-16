@@ -11,6 +11,9 @@ export interface PricingControls {
   update_interval_hours?: number
 }
 export interface PricingStatus extends PricingControls {
+	deepseek_calendar_years?: number[]
+	deepseek_calendar_error?: string
+	usd_error?: string
   // Optional for an older backend: absence is unsupported/unknown, never false.
   deepseek_calendar_year_missing?: boolean
   // The period actually in effect (stored override, else the config default).
@@ -30,4 +33,8 @@ export async function updatePricingControls(controls: PricingControls): Promise<
 }
 export async function refreshPricing(): Promise<PricingStatus> {
   return (await apiClient.post<PricingStatus>(`${path}/refresh`, undefined, { timeout: 65000 })).data
+}
+
+export async function updateDeepseekHolidays(dates: string[]): Promise<PricingStatus> {
+  return (await apiClient.put<PricingStatus>(`${path}/holidays`, { dates })).data
 }

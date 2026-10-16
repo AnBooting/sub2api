@@ -529,7 +529,8 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	}}
 	groups := []Group{{ID: 10, Name: "cn", Platform: PlatformDeepseek, RateMultiplier: 1, LongContextPricingEnabled: true}}
 	svc := newPlazaServiceWithBilling(channels, groups, map[int64]string{10: PlatformDeepseek}, nil)
-	out, err := svc.ListGroups(context.Background())
+	ctx := context.WithValue(context.Background(), gatewayTokenRequestPricingAtCtxKey{}, time.Date(2026, 10, 12, 18, 0, 0, 0, time.UTC))
+	out, err := svc.ListGroups(ctx)
 	require.NoError(t, err)
 	m := out[0].Models[0]
 	require.NotNil(t, m.TimePricing)
@@ -541,9 +542,9 @@ func TestListGroups_TimePricingPassthrough(t *testing.T) {
 	require.InDelta(t, 0.28e-6, *m.Pricing.InputPrice, 1e-15)
 }
 
-func TestListGroups_TimePricingDeepseekPeakDoublesDisplayPrice(t *testing.T) {
-	// 峰谷规则生效方向的确定性断言：注入固定高峰时点（北京周一 10:00），
-	// 渠道手动卡的标准价被官方高峰倍率 2x 缩放。不依赖跑测试的钟点。
+func TestListGroups_TimePricingDeepseekManualPriceRemainsOperatorDefined(t *testing.T) {
+	// PRD-05 §2.11：即使在固定官方高峰时点，渠道手工卡仍展示运营者售价。
+	// 渠道显式 time_pricing 另行返回，不混入标准价。
 	channels := []Channel{{
 		ID: 1, Name: "ch", Status: StatusActive, GroupIDs: []int64{10},
 		ModelPricing: []ChannelModelPricing{{
@@ -557,6 +558,6 @@ func TestListGroups_TimePricingDeepseekPeakDoublesDisplayPrice(t *testing.T) {
 	require.NoError(t, err)
 	m := out[0].Models[0]
 	require.NotNil(t, m.Pricing)
-	require.InDelta(t, 0.56e-6, *m.Pricing.InputPrice, 1e-15, "高峰窗口展示价 = 标准价 × 2")
-	require.InDelta(t, 0.84e-6, *m.Pricing.OutputPrice, 1e-15)
+	require.InDelta(t, 0.28e-6, *m.Pricing.InputPrice, 1e-15, "手工标准价不叠加官方峰谷倍率")
+	require.InDelta(t, 0.42e-6, *m.Pricing.OutputPrice, 1e-15)
 }

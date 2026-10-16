@@ -31,7 +31,6 @@ func cloneRequestNativeCard(source *NativeCNYCard) *NativeCNYCard {
 	out := *source
 	out.NativeRates = cloneRequestNativeRates(source.NativeRates)
 	out.Tiers = cloneRequestNativeTiers(source.Tiers)
-	out.holidays = cloneDeepSeekHolidays(source.holidays)
 	if source.Schedule != nil {
 		schedule := *source.Schedule
 		schedule.Windows = append([]NativeWindow(nil), source.Schedule.Windows...)
@@ -67,6 +66,7 @@ func cloneRequestPricingCatalog(source *PricingService) *PricingService {
 	defer source.mu.RUnlock()
 	controls := source.controlsLocked()
 	out := &PricingService{cfg: &config.Config{}, controls: &controls, pricingData: make(map[string]*LiteLLMModelPricing, len(source.pricingData)), nativeCNYCards: make(map[string]*NativeCNYCard, len(source.nativeCNYCards)), lastUpdated: source.lastUpdated, nativeCNYUpdated: source.nativeCNYUpdated, localHash: source.localHash, customFilesHash: source.customFilesHash}
+	out.holidayCalendar = source.deepseekCalendar()
 	for model, price := range source.pricingData {
 		if price != nil {
 			copy := *price
@@ -163,6 +163,7 @@ func requestCatalogVersion(billing *BillingService, channels *ChannelService, ca
 	data := map[string]any{"fallback": billing.fallbackPrices}
 	if pricing := billing.pricingService; pricing != nil {
 		data["usd"], data["native"], data["controls"] = pricing.pricingData, pricing.nativeCNYCards, pricing.controlsLocked()
+		data["deepseek_calendar"] = calendarByYear(pricing.deepseekCalendar())
 	}
 	if channels != nil {
 		cache := channels.frozenCache

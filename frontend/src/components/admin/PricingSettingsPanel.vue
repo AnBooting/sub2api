@@ -58,6 +58,9 @@
         </div>
         <p v-if="status.native_cny_enabled && !status.cny_model_count" class="text-sm text-amber-600">{{ t('admin.settings.pricing.noCNY') }}</p>
         <p v-if="status.cny_error" class="break-words text-sm text-amber-600">{{ status.cny_error }}</p>
+        <p v-if="status.usd_error" class="break-words text-sm text-amber-600">{{ status.usd_error }}</p>
+        <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.calendarYears') }}: {{ (status.deepseek_calendar_years || []).join(', ') }}</p>
+        <p v-if="status.deepseek_calendar_error" class="text-sm text-amber-600" role="alert">{{ status.deepseek_calendar_error }}</p>
         <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.sources') }} <a href="https://github.com/basellm/llm-metadata" target="_blank" rel="noopener noreferrer" class="underline">basellm</a> · <a href="https://llmabacus.com" target="_blank" rel="noopener noreferrer" class="underline">LLM Abacus</a></p>
         <button type="button" class="btn btn-secondary" :disabled="saving || refreshing || !status.remote_enabled" data-testid="refresh-pricing" @click="refresh">{{ t('admin.settings.pricing.refresh') }}</button>
         <section class="space-y-3 border-t border-gray-100 pt-5 dark:border-dark-700" aria-labelledby="deepseek-calendar-title" data-testid="deepseek-calendar">
@@ -84,7 +87,8 @@
         </section>
       </template>
       <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
-      <button v-if="!status && !loading" type="button" class="btn btn-secondary" @click="load">{{ t('admin.settings.pricing.retry') }}</button>
+      <button v-if="!status && !loading" type="button" class="btn btn-secondary" @click="load()">{{ t('admin.settings.pricing.retry') }}</button>
+      <TotpStepUpDialog :controller="holidayStepUp" />
     </div>
   </div>
 </template>
@@ -94,6 +98,8 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { formatDateTime } from '@/utils/format'
+import { useStepUp, isStepUpCancelled, isStepUpBlocked, stepUpBlockReason } from '@/composables/useStepUp'
+import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { parseDeepSeekCalendar, serializeDeepSeekCalendar, validateDeepSeekCalendar } from '@/utils/deepseekCalendar'
 import { getPricingControls, updatePricingControls, refreshPricing, type PricingStatus, type PricingControls } from '@/api/admin/pricing'
 
@@ -104,6 +110,7 @@ const saving = ref(false)
 const refreshing = ref(false)
 const loading = ref(true)
 const error = ref('')
+const holidayStepUp = useStepUp()
 const calendarDraft = ref('')
 const savedCalendarText = ref('')
 // PRD-01/K-6: the sync period is a stored override. The draft starts from the
@@ -193,14 +200,20 @@ async function saveCalendar() {
   revision++
   calendarError.value = ''
   try {
-    const next = await updatePricingControls({ remote_enabled: status.value.remote_enabled, native_cny_enabled: status.value.native_cny_enabled, deepseek_holidays: parsed.calendar })
+    const controls = { remote_enabled: status.value.remote_enabled, native_cny_enabled: status.value.native_cny_enabled, deepseek_holidays: parsed.calendar }
+    const next = await holidayStepUp.run(() => updatePricingControls(controls))
     if (disposed) return
     // A malformed/older response is not proof that the submitted calendar took effect.
     if (next.deepseek_holidays === undefined || typeof next.deepseek_calendar_year_missing !== 'boolean' || !validateDeepSeekCalendar(next.deepseek_holidays).ok) throw new Error(t('admin.settings.pricing.calendar.missingReadback'))
     applyStatus(next, true)
     await app.fetchPublicSettings(true)
     app.showSuccess(t('admin.settings.pricing.calendar.saved'))
-  } catch (err) { if (!disposed) calendarError.value = message(err) }
+  } catch (err) {
+    if (disposed || isStepUpCancelled(err)) return
+    calendarError.value = isStepUpBlocked(err)
+      ? t(stepUpBlockReason(err) === 'STEP_UP_ADMIN_API_KEY_FORBIDDEN' ? 'stepUp.adminApiKeyForbidden' : 'stepUp.notEnabled')
+      : message(err)
+  }
   finally { saving.value = false }
 }
 async function refresh() {

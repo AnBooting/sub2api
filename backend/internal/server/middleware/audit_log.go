@@ -33,6 +33,34 @@ func SetAuditAction(c *gin.Context, action string) {
 	c.Set(auditCtxKeyAction, action)
 }
 
+// SetAuditHolidayCalendar records validated, non-secret calendar snapshots.
+// Keep arrays out of the general-purpose scalar audit extra interface.
+func SetAuditHolidayCalendar(c *gin.Context, before, after []string) {
+	c.Set(auditCtxKeyExtra, map[string]any{
+		"old_dates": append([]string{}, before...),
+		"new_dates": append([]string{}, after...),
+	})
+}
+
+// Calendar year maps preserve the distinction between an absent and an empty
+// maintained year, which cannot be reconstructed from flattened date arrays.
+func SetAuditHolidayCalendarYears(c *gin.Context, before, after map[string][]string) {
+	clone := func(source map[string][]string) map[string][]string {
+		out := make(map[string][]string, len(source))
+		for year, dates := range source {
+			out[year] = append([]string{}, dates...)
+		}
+		return out
+	}
+	extra, _ := c.Get(auditCtxKeyExtra)
+	fields, _ := extra.(map[string]any)
+	if fields == nil {
+		fields = map[string]any{}
+	}
+	fields["old_calendar"], fields["new_calendar"] = clone(before), clone(after)
+	c.Set(auditCtxKeyExtra, fields)
+}
+
 // SetAuditActor 允许 handler 在认证上下文缺失时（如登录接口）补充操作者身份。
 func SetAuditActor(c *gin.Context, userID int64, email string) {
 	if userID > 0 {

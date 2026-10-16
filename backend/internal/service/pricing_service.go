@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -264,22 +265,31 @@ type LiteLLMRawEntry struct {
 
 // PricingService 动态价格服务
 type PricingService struct {
-	nativeCNYCards   map[string]*NativeCNYCard
-	nativeCNYUpdated time.Time
-	nativeCNYError   string
-	controlsMu       sync.Mutex
-	controls         *PricingControls
-	settingsRepo     SettingRepository
-	remoteGeneration uint64
-	remoteRequestID  uint64
-	remoteCancels    map[uint64]context.CancelFunc
-	stopping         bool
-	cfg              *config.Config
-	remoteClient     PricingRemoteClient
-	mu               sync.RWMutex
-	pricingData      map[string]*LiteLLMModelPricing
-	lastUpdated      time.Time
-	localHash        string
+	nativeCNYCards    map[string]*NativeCNYCard
+	nativeCNYUpdated  time.Time
+	nativeCNYError    string
+	controlsMu        sync.Mutex
+	controls          *PricingControls
+	holidayCalendar   *deepseekHolidayCalendar
+	calendarMu        sync.RWMutex
+	calendarWriteMu   sync.Mutex
+	calendarError     string
+	settingsRepo      SettingRepository
+	usdPricingError   string
+	alertsMu          sync.Mutex
+	syncAlertTimes    map[string]time.Time
+	alertSender       pricingAlertSender
+	alertEmailLimiter *slidingWindowLimiter
+	remoteGeneration  uint64
+	remoteRequestID   uint64
+	remoteCancels     map[uint64]context.CancelFunc
+	stopping          bool
+	cfg               *config.Config
+	remoteClient      PricingRemoteClient
+	mu                sync.RWMutex
+	pricingData       map[string]*LiteLLMModelPricing
+	lastUpdated       time.Time
+	localHash         string
 	// fallback/override 文件在最近一次成功重建时的内容指纹，定时器据此判断是否
 	// 需要从本地目录缓存重建叠加层。
 	customFilesHash string
@@ -307,6 +317,7 @@ func NewPricingService(cfg *config.Config, remoteClient PricingRemoteClient) *Pr
 
 // Initialize 初始化价格服务
 func (s *PricingService) Initialize() error {
+	s.checkDeepseekCalendarCoverage(time.Now())
 	// 确保数据目录存在
 	if err := os.MkdirAll(s.cfg.Pricing.DataDir, 0755); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
@@ -323,9 +334,7 @@ func (s *PricingService) Initialize() error {
 
 	// 启动定时更新
 	if s.RemotePullEnabled() && s.GetControls().NativeCNYEnabled {
-		if err := s.syncNativeCNY(false); err != nil {
-			s.recordNativeCNYError(err)
-		}
+		_ = s.syncNativeCNY(false)
 	}
 	s.startUpdateScheduler()
 
@@ -405,15 +414,14 @@ func (s *PricingService) startUpdateScheduler() {
 				ticker = time.NewTicker(s.schedulerInterval(hashInterval))
 				logger.LegacyPrintf("service.pricing", "[Pricing] Update scheduler rescheduled (check every %v)", s.schedulerInterval(hashInterval))
 			case <-ticker.C:
+				s.checkDeepseekCalendarCoverage(time.Now())
 				if s.RemotePullEnabled() && remoteEnabled {
 					if err := s.syncWithRemote(); err != nil {
 						logger.LegacyPrintf("service.pricing", "[Pricing] Sync failed: %v", err)
 					}
 				}
 				if s.RemotePullEnabled() {
-					if err := s.syncNativeCNY(false); err != nil {
-						s.recordNativeCNYError(err)
-					}
+					_ = s.syncNativeCNY(false)
 				}
 				if watchCustom {
 					s.reloadIfCustomFilesChanged()
@@ -454,6 +462,7 @@ func (s *PricingService) checkAndUpdatePricing() error {
 		remoteHash, err := s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash on startup: %v", err)
+			s.recordUSDPricingSyncResult(err)
 			return nil // 已加载本地文件，哈希获取失败不影响启动
 		}
 
@@ -495,12 +504,14 @@ func (s *PricingService) syncWithRemote() error {
 	if !s.RemotePullEnabled() {
 		return nil
 	}
+	s.checkDeepseekCalendarCoverage(time.Now())
 	// 如果配置了哈希URL，从远程获取哈希进行比对
 	if s.cfg.Pricing.HashURL != "" {
 		remoteHash, err := s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash: %v", err)
-			return nil // 哈希获取失败不影响正常使用
+			s.recordUSDPricingSyncResult(err)
+			return err // Retain prices, but do not report an unconfirmed sync as healthy.
 		}
 
 		s.mu.RLock()
@@ -513,6 +524,7 @@ func (s *PricingService) syncWithRemote() error {
 			return s.downloadPricingData()
 		}
 		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Hash check passed, no update needed")
+		s.recordUSDPricingSyncResult(nil)
 		return nil
 	}
 
@@ -531,6 +543,7 @@ func (s *PricingService) syncWithRemote() error {
 		return s.downloadPricingData()
 	}
 
+	s.recordUSDPricingSyncResult(nil)
 	return nil
 }
 
@@ -647,7 +660,8 @@ func (s *PricingService) reloadCustomPricingLayers() error {
 }
 
 // downloadPricingData 从远程下载价格数据
-func (s *PricingService) downloadPricingData() error {
+func (s *PricingService) downloadPricingData() (resultErr error) {
+	defer func() { s.recordUSDPricingSyncResult(resultErr) }()
 	ctx, finish, generation, err := s.beginRemoteRequest(30 * time.Second)
 	if err != nil {
 		return err
@@ -661,10 +675,12 @@ func (s *PricingService) downloadPricingData() error {
 
 	// 获取远程哈希（用于同步锚点，不作为完整性校验）
 	var remoteHash string
+	var hashErr error
 	if strings.TrimSpace(s.cfg.Pricing.HashURL) != "" {
 		remoteHash, err = s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash (continuing): %v", err)
+			hashErr = err
 		}
 	}
 
@@ -694,8 +710,8 @@ func (s *PricingService) downloadPricingData() error {
 		return ErrPricingPullDisabled
 	}
 	pricingFile := s.getPricingFilePath()
-	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save file: %v", err)
+	if err := writePricingCacheFile(pricingFile, body); err != nil {
+		return fmt.Errorf("save pricing cache: %w", err)
 	}
 
 	// 使用远程哈希作为同步锚点，防止重复下载
@@ -705,8 +721,8 @@ func (s *PricingService) downloadPricingData() error {
 		syncHash = remoteHash
 	}
 	hashFile := s.getHashFilePath()
-	if err := os.WriteFile(hashFile, []byte(syncHash+"\n"), 0644); err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save hash: %v", err)
+	if err := writePricingCacheFile(hashFile, []byte(syncHash+"\n")); err != nil {
+		return fmt.Errorf("save pricing hash: %w", err)
 	}
 
 	// 更新内存数据
@@ -719,7 +735,29 @@ func (s *PricingService) downloadPricingData() error {
 	s.mu.Unlock()
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Downloaded %d models successfully", len(data))
-	return nil
+	return hashErr
+}
+
+// Replace each cache file only after a complete write. A failed write cannot
+// truncate the previous prices, and temporary files are always cleaned up.
+func writePricingCacheFile(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".pricing-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
 // parsePricingData 解析价格数据（处理各种格式）
@@ -1259,7 +1297,11 @@ func (s *PricingService) fetchRemoteHash() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(hash), nil
+	hash = strings.TrimSpace(hash)
+	if hash == "" {
+		return "", errors.New("empty remote pricing hash")
+	}
+	return hash, nil
 }
 
 func (s *PricingService) validatePricingURL(raw string) (string, error) {
@@ -1795,7 +1837,6 @@ func (s *PricingService) ForceUpdate() error {
 		}
 	}
 	if err := s.syncNativeCNY(true); err != nil {
-		s.recordNativeCNYError(err)
 		return err
 	}
 	return usdErr

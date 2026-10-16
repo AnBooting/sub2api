@@ -137,6 +137,7 @@ func (s *OpenAIGatewayService) WithOpenAIRequestPricingContext(ctx context.Conte
 		pricingAt = request.StartedAt()
 	}
 	ctx = context.WithValue(ctx, openAIPricingAtCtxKey{}, pricingAt)
+	ctx = captureRequestPricingSnapshot(ctx, s.billingService)
 	return s.withOpenAIProfitControlGate(ctx, groupID), pricingAt
 }
 
@@ -162,6 +163,7 @@ func (s *OpenAIGatewayService) WithOpenAITurnPricingContext(ctx context.Context,
 		pricingAt = request.StartedAt()
 	}
 	ctx = context.WithValue(ctx, openAIPricingAtCtxKey{}, pricingAt)
+	ctx = captureRequestPricingSnapshot(ctx, s.billingService)
 	if _, suppressed := ctx.Value(openAIProfitControlSuppressCtxKey{}).(struct{}); suppressed {
 		return ctx, pricingAt
 	}
