@@ -118,6 +118,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 	}
 	ctx = s.withGroupContext(ctx, group)
 	ctx = s.withGatewayProfitControlGate(ctx, groupID)
+	profile := s.effectiveSchedulingProfile(ctx)
 
 	// Claude Code 限制可能已将 groupID 解析为 fallback group，
 	// 渠道限制预检查必须使用解析后的分组。
@@ -197,7 +198,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 						AccountID:      account.ID,
 						MaxConcurrency: account.Concurrency,
-						Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+						Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(profile, cfg)),
 						MaxWaiting:     cfg.StickySessionMaxWaiting,
 					})
 				}
@@ -400,7 +401,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 										return s.newSelectionResult(ctx, stickyAccount, false, nil, &AccountWaitPlan{
 											AccountID:      stickyAccountID,
 											MaxConcurrency: stickyAccount.Concurrency,
-											Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+											Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(profile, cfg)),
 											MaxWaiting:     cfg.StickySessionMaxWaiting,
 										})
 									}
@@ -512,7 +513,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 					return s.newSelectionResult(ctx, item.account, false, nil, &AccountWaitPlan{
 						AccountID:      item.account.ID,
 						MaxConcurrency: item.account.Concurrency,
-						Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+						Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(profile, cfg)),
 						MaxWaiting:     cfg.StickySessionMaxWaiting,
 					})
 				}
@@ -586,7 +587,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 								"result", "slot_acquired",
 							)
 							if s.cache != nil {
-								_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), sessionHash, stickySessionTTL)
+								_ = s.cache.RefreshSessionTTL(ctx, derefGroupID(groupID), sessionHash, s.effectiveSchedulingProfile(ctx).StickyReuseTTL)
 							}
 							return s.newSelectionResult(ctx, account, true, result.ReleaseFunc, nil)
 						}
@@ -611,7 +612,7 @@ func (s *GatewayService) SelectAccountWithLoadAwareness(ctx context.Context, gro
 							return s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 								AccountID:      accountID,
 								MaxConcurrency: account.Concurrency,
-								Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+								Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(profile, cfg)),
 								MaxWaiting:     cfg.StickySessionMaxWaiting,
 							})
 						}
@@ -824,6 +825,25 @@ func (s *GatewayService) tryAcquireByLegacyOrder(ctx context.Context, candidates
 	return nil, false, nil
 }
 
+// effectiveStickyWait 组合「策略等待上限」与「运维配置上限」，取两者较小值。
+//
+// 语义（C-4 / PRD-02 BE-06）：
+//   - 等待时长由**有效调度策略**决定（stable 30s / balanced 10s / latency 2s），
+//     这是站长可选的策略档位，不再写死一个全局秒数；
+//   - gateway.scheduling.sticky_session_wait_timeout 仍然是**运维安全上限**：
+//     显式调小它（例如 5s）依然生效，不会被策略放大。
+//
+// 取较小值意味着任何一方都不能把等待拉长到超过另一方，方向安全。注意这也意味着
+// 把该配置**调大**（例如 300s）不再能延长等待——策略档位是上界。这是本切片刻意
+// 的行为变化，与契约「不写死秒数、由策略映射」一致。
+func effectiveStickyWait(profile SchedulingStrategyProfile, cfg config.GatewaySchedulingConfig) time.Duration {
+	wait := profile.StickyWait
+	if cfg.StickySessionWaitTimeout > 0 && cfg.StickySessionWaitTimeout < wait {
+		return cfg.StickySessionWaitTimeout
+	}
+	return wait
+}
+
 // clampAccountWaitTimeout 把账号选号等待钳到单逻辑请求预算剩余时间（TS-02 S3b）。
 // nil 预算保持原等待；有预算且剩余时间更短时，等待不能超过请求总预算。
 func clampAccountWaitTimeout(ctx context.Context, timeout time.Duration) time.Duration {
@@ -831,6 +851,27 @@ func clampAccountWaitTimeout(ctx context.Context, timeout time.Duration) time.Du
 		return budget.Remaining()
 	}
 	return timeout
+}
+
+// effectiveSchedulingProfile 解析本次请求的**有效调度策略**参数（C-4 / PRD-02 BE-06）。
+//
+// 有效策略 = 分组覆盖值（ctx 里的 Group.SchedulingStrategy）非 inherit 时用它，
+// 否则随全局策略；全局读取失败/非法时回落 balanced。见
+// SettingService.EffectiveSchedulingStrategyProfile。
+//
+// 本方法只用于粘性 TTL 与粘性等待上限。ErrorToleranceAttempts 与
+// SwitchBackAfterRecovery 尚未接线（生产代码没有对应钩子：同账号重试上限是全局
+// maxRetryAttempts，且不存在「恢复回切」机制），属于已知缺口，不要以为它们已生效。
+// 任何策略都不得放宽并发硬上限与 C-5 分类（contract:88）。
+func (s *GatewayService) effectiveSchedulingProfile(ctx context.Context) SchedulingStrategyProfile {
+	var groupValue string
+	if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) {
+		groupValue = group.SchedulingStrategy
+	}
+	if s != nil && s.settingService != nil {
+		return s.settingService.EffectiveSchedulingStrategyProfile(ctx, groupValue)
+	}
+	return SchedulingStrategyProfileFor(NormalizeSchedulingStrategy(groupValue))
 }
 
 func (s *GatewayService) schedulingConfig() config.GatewaySchedulingConfig {

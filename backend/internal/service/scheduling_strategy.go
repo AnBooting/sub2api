@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"golang.org/x/sync/singleflight"
 )
 
 // TS-02（PRD-02）调度策略配置骨架（C-4，project-docs/prd/11-共享契约.md:81-88）。
 //
-// 本文件只做「存储 / 继承解析 / 缓存 / 常量映射」，**不接线到调度执行路径**：
-// 粘性、等待、错误容忍与回切行为仍由现有 Scheduler 决定，本切片不读取本表。
+// 本文件是「存储 / 继承解析 / 缓存 / 常量映射 + 调度参数接线」的事实源：
+// 粘性 TTL 与粘性等待上限由本表 profile 驱动（见 EffectiveSchedulingStrategyProfile），
+// 并发硬上限与 C-5 分类仍由现有 Scheduler 决定，本文件不触碰。
 // 硬边界：任何策略都不得放宽并发硬上限与 C-5 分类（contract:88），本文件也不得
 // 触碰 maxAccountSwitches、并发上限或故障分类。
 type SchedulingStrategy string
@@ -38,8 +40,11 @@ const DefaultSchedulingStrategy = SchedulingStrategyBalanced
 // SchedulingStrategyProfile 是「策略 → 底层参数」的映射表条目。表以代码常量落地并
 // 由评审固化（contract:88），不通过管理 API 暴露，站长只选择三个策略名。
 //
-// 字段语义（全部为后续接线切片提供只读常量，本切片不生效）：
+// 字段语义（其中 StickyReuseTTL / StickyWait 已接线到调度执行路径）：
 //   - StickyReuseTTL：会话已建立的亲和账号冷却后仍优先复用的时窗。
+//     R5 实际接线面：Anthropic 网关 TTL 使用本 profile；OpenAI 网关保留既有
+//     gateway.openai_ws.sticky_session_ttl_seconds（默认 3600）显式配置覆盖，
+//     不在本轮改变既有配置含义。
 //   - StickyWait：亲和账号满载/限流时，等待其释放容量的上限；到期即按现有
 //     调度逻辑换号。等待期间仍受并发硬上限约束，不构成额外并发额度。
 //   - ErrorToleranceAttempts：同一账号允许的连续可重试错误次数，达到即切换。
@@ -47,6 +52,10 @@ const DefaultSchedulingStrategy = SchedulingStrategyBalanced
 //     （latency 最低），balanced 居中。它只影响「何时换号」，不改变 C-5 分类，
 //     也不豁免 C-5 的 fail_client/fail_policy/fail_uncertain 不重试约束。
 //   - SwitchBackAfterRecovery：原优先账号恢复健康后，新请求是否回切原账号。
+//
+// 已知缺口（本轮不接线，不假装生效）：ErrorToleranceAttempts 与 SwitchBackAfterRecovery
+// 尚无生产执行钩子——同账号重试上限仍是全局常量 maxRetryAttempts=5，且没有
+// 「恢复回切」机制。字段仍保留在 profile 中供后续切片消费。
 type SchedulingStrategyProfile struct {
 	Strategy SchedulingStrategy
 
@@ -165,6 +174,10 @@ func ResolveSchedulingStrategy(groupValue, globalValue string) SchedulingStrateg
 
 // SchedulingStrategyProfileFor 返回策略对应的底层参数常量。未知策略按默认策略查表，
 // 保证调用方永远拿到一套完整参数。
+//
+// 默认行为变化（契约要求策略驱动，不写死秒数）：未配置/非法时回落 balanced，
+// 其 StickyReuseTTL=10m、StickyWait=10s；此前调度执行路径硬编码 1h / 45s。
+// 本函数在 R5 起已被网关调度路径调用。
 func SchedulingStrategyProfileFor(strategy SchedulingStrategy) SchedulingStrategyProfile {
 	if profile, ok := schedulingStrategyProfiles[strategy]; ok {
 		return profile
@@ -252,7 +265,29 @@ func (s *SettingService) SchedulingStrategy(ctx context.Context) SchedulingStrat
 // EffectiveSchedulingStrategy 解析某个分组在该全局策略下的有效策略。
 // 分组值直接来自 groups.scheduling_strategy（或认证缓存中的同名字段）。
 func (s *SettingService) EffectiveSchedulingStrategy(ctx context.Context, groupValue string) SchedulingStrategy {
+	if s == nil {
+		return ResolveSchedulingStrategy(groupValue, string(DefaultSchedulingStrategy))
+	}
 	return ResolveSchedulingStrategy(groupValue, string(s.SchedulingStrategy(ctx)))
+}
+
+// EffectiveSchedulingStrategyProfile 是 R5 接线入口：给定 ctx 与分组覆盖值，
+// 返回有效策略对应的底层参数 profile。
+//
+// 分组值取 ctx 里的 Group.SchedulingStrategy；ctx 无合法 Group、分组值为
+// inherit/空/非法存量值，或 settingService 缺失/读取失败/全局值非法时，
+// 一律按有效策略回落（balanced 兜底），且不 panic。
+func (s *SettingService) EffectiveSchedulingStrategyProfile(ctx context.Context, groupValue string) SchedulingStrategyProfile {
+	// ctx 可能是 nil（调用方疏漏）：ctx.Value 在 nil 接口上会 panic，热路径不接受。
+	// 无 ctx 就没有分组覆盖值，按随全局处理即可。
+	if ctx != nil {
+		if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) {
+			if groupValue == "" || groupValue == SchedulingStrategyInherit {
+				groupValue = group.SchedulingStrategy
+			}
+		}
+	}
+	return SchedulingStrategyProfileFor(s.EffectiveSchedulingStrategy(ctx, groupValue))
 }
 
 // DefaultSchedulingStrategySetting 返回写入 settings 表的默认值字符串。

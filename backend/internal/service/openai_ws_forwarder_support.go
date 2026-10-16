@@ -504,7 +504,7 @@ func (s *OpenAIGatewayService) selectAccountByPreviousResponseIDForCapability(
 			WaitPlan: &AccountWaitPlan{
 				AccountID:      accountID,
 				MaxConcurrency: account.Concurrency,
-				Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+				Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.effectiveSchedulingProfile(ctx), cfg)),
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
 		}), nil

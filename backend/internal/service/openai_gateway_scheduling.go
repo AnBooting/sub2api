@@ -15,6 +15,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/domain"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"github.com/gin-gonic/gin"
@@ -236,7 +237,9 @@ func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *i
 	if sessionHash == "" || accountID <= 0 {
 		return nil
 	}
-	ttl := openaiStickySessionTTL
+	// 显式配置的 OpenAIWS.StickySessionTTLSeconds 仍是最高优先（运维硬设定）；
+	// 未配置时由有效调度策略 profile 决定，不再固定 1 小时（C-4 / PRD-02 BE-06）。
+	ttl := s.effectiveSchedulingProfile(ctx).StickyReuseTTL
 	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
 		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
 	}
@@ -971,7 +974,7 @@ func (s *OpenAIGatewayService) selectAccountForModelWithExclusionsStickyHit(ctx 
 	// 终检否决的账号不得成为新的粘性目标；无门保持既有 eager 绑定与 TTL）
 	// Set sticky session binding (deferred until terminal admission under a profit gate)
 	if sessionHash != "" && !gatewayProfitControlGateActive(ctx) {
-		_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, selected.ID, openaiStickySessionTTL)
+		_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, selected.ID, s.effectiveSchedulingProfile(ctx).StickyReuseTTL)
 	}
 
 	return hydrated, false, nil
@@ -1039,7 +1042,7 @@ func (s *OpenAIGatewayService) tryStickySessionHit(ctx context.Context, groupID 
 
 	// 刷新会话 TTL 并返回账号
 	// Refresh session TTL and return account
-	_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, openaiStickySessionTTL)
+	_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, s.effectiveSchedulingProfile(ctx).StickyReuseTTL)
 	return account
 }
 
@@ -1199,7 +1202,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 				selection, selectErr := s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 					AccountID:      account.ID,
 					MaxConcurrency: account.Concurrency,
-					Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+					Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.effectiveSchedulingProfile(ctx), cfg)),
 					MaxWaiting:     cfg.StickySessionMaxWaiting,
 				})
 				return markStickySessionHit(selection, stickyHit), selectErr
@@ -1264,7 +1267,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 							if selectErr != nil {
 								return nil, selectErr
 							}
-							_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, openaiStickySessionTTL)
+							_ = s.refreshStickySessionTTL(ctx, groupID, sessionHash, s.effectiveSchedulingProfile(ctx).StickyReuseTTL)
 							return markStickySessionHit(selection, true), nil
 						}
 
@@ -1273,7 +1276,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 							selection, selectErr := s.newSelectionResult(ctx, account, false, nil, &AccountWaitPlan{
 								AccountID:      accountID,
 								MaxConcurrency: account.Concurrency,
-								Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+								Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.effectiveSchedulingProfile(ctx), cfg)),
 								MaxWaiting:     cfg.StickySessionMaxWaiting,
 							})
 							return markStickySessionHit(selection, true), selectErr
@@ -1434,7 +1437,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 					return nil, true, selectErr
 				}
 				if sessionHash != "" && !stickySpillover && !gatewayProfitControlGateActive(ctx) {
-					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
+					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, s.effectiveSchedulingProfile(ctx).StickyReuseTTL)
 				}
 				return selection, true, nil
 			}
@@ -1473,7 +1476,7 @@ func (s *OpenAIGatewayService) selectAccountWithLoadAwareness(ctx context.Contex
 					return nil, selectErr
 				}
 				if sessionHash != "" && !stickySpillover && !gatewayProfitControlGateActive(ctx) {
-					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, openaiStickySessionTTL)
+					_ = s.setStickySessionAccountID(ctx, groupID, sessionHash, fresh.ID, s.effectiveSchedulingProfile(ctx).StickyReuseTTL)
 				}
 				return selection, nil
 			}
@@ -1794,6 +1797,25 @@ func markStickySessionHit(selection *AccountSelectionResult, hit bool) *AccountS
 		selection.stickySessionHit = true
 	}
 	return selection
+}
+
+// effectiveSchedulingProfile 解析本次请求的**有效调度策略**参数（C-4 / PRD-02 BE-06）。
+//
+// 与 GatewayService 同名方法同口径：分组覆盖值非 inherit 时用它，否则随全局策略；
+// 缺失/非法一律回落 balanced。只用于粘性 TTL 与粘性等待上限。
+//
+// ErrorToleranceAttempts 与 SwitchBackAfterRecovery 尚未接线（没有对应钩子：
+// 同账号重试上限是全局 maxRetryAttempts，且不存在「恢复回切」机制），属已知缺口。
+// 任何策略都不得放宽并发硬上限与 C-5 分类（contract:88）。
+func (s *OpenAIGatewayService) effectiveSchedulingProfile(ctx context.Context) SchedulingStrategyProfile {
+	var groupValue string
+	if group, ok := ctx.Value(ctxkey.Group).(*Group); ok && IsGroupContextValid(group) {
+		groupValue = group.SchedulingStrategy
+	}
+	if s != nil && s.settingService != nil {
+		return s.settingService.EffectiveSchedulingStrategyProfile(ctx, groupValue)
+	}
+	return SchedulingStrategyProfileFor(NormalizeSchedulingStrategy(groupValue))
 }
 
 func (s *OpenAIGatewayService) schedulingConfig() config.GatewaySchedulingConfig {

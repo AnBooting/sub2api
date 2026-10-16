@@ -604,7 +604,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			WaitPlan: &AccountWaitPlan{
 				AccountID:      accountID,
 				MaxConcurrency: account.Concurrency,
-				Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+				Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.service.effectiveSchedulingProfile(ctx), cfg)),
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
 		}), false, nil
@@ -1341,7 +1341,7 @@ func (s *defaultOpenAIAccountScheduler) tryFallbackToWeightedSticky(
 				WaitPlan: &AccountWaitPlan{
 					AccountID:      account.ID,
 					MaxConcurrency: account.Concurrency,
-					Timeout:        clampAccountWaitTimeout(ctx, cfg.StickySessionWaitTimeout),
+					Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.service.effectiveSchedulingProfile(ctx), cfg)),
 					MaxWaiting:     cfg.StickySessionMaxWaiting,
 				},
 			}), nil
