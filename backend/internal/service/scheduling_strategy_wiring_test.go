@@ -194,6 +194,56 @@ func TestGatewayBindStickySession_GroupOverrideUsesProfileTTL(t *testing.T) {
 }
 
 
+// 回归：OpenAI 路径的策略接线在**生产默认配置**下必须生效。
+//
+// gateway.openai_ws.sticky_session_ttl_seconds 的 viper 默认值是 3600（非零），
+// 因此“> 0 就用配置”的写法会让策略分支在生产里永不执行——策略切到 latency 时
+// OpenAI 网关的亲和 TTL 仍是 1 小时，R5 在这条路径上等于没接线。
+//
+// 测试必须建模**生产默认**（3600），不能只测零值 config.Config{}：后者会让
+// 接线看起来正确，而生产走的是另一条分支。
+func TestOpenAIStickyTTLHonoursStrategyUnderProductionDefaultConfig(t *testing.T) {
+	// 生产默认：viper 注入 3600 秒。
+	prodDefault := &config.Config{}
+	prodDefault.Gateway.OpenAIWS.StickySessionTTLSeconds = 3600
+
+	for _, tc := range []struct {
+		strategy string
+		wantTTL  time.Duration
+	}{
+		{strategy: string(SchedulingStrategyStable), wantTTL: schedulingStableStickyReuseTTL},
+		{strategy: string(SchedulingStrategyBalanced), wantTTL: schedulingBalancedStickyReuseTTL},
+		{strategy: string(SchedulingStrategyLatency), wantTTL: schedulingLatencyStickyReuseTTL},
+	} {
+		t.Run(tc.strategy, func(t *testing.T) {
+			cache := &recordingGatewayCache{}
+			svc := &OpenAIGatewayService{cache: cache, cfg: prodDefault}
+			svc.settingService = newSettingServiceForSchedulingStrategyTest(t, map[string]string{
+				SettingKeySchedulingStrategy: tc.strategy,
+			})
+			require.NoError(t, svc.BindStickySession(context.Background(), nil, "session", 1))
+			require.Equal(t, tc.wantTTL, cache.bindTTL,
+				"生产默认配置下策略必须驱动 OpenAI 亲和 TTL")
+			require.Equal(t, tc.wantTTL, svc.openAIStickyAffinityTTL(context.Background()))
+		})
+	}
+}
+
+// 运维把配置**调小**时仍然生效（安全收紧），不得被策略放大。
+func TestOpenAIStickyTTLLetsOperatorTightenBelowStrategy(t *testing.T) {
+	tight := &config.Config{}
+	tight.Gateway.OpenAIWS.StickySessionTTLSeconds = 60
+
+	cache := &recordingGatewayCache{}
+	svc := &OpenAIGatewayService{cache: cache, cfg: tight}
+	svc.settingService = newSettingServiceForSchedulingStrategyTest(t, map[string]string{
+		SettingKeySchedulingStrategy: string(SchedulingStrategyStable), // 策略是 30m
+	})
+	require.NoError(t, svc.BindStickySession(context.Background(), nil, "session", 1))
+	require.Equal(t, 60*time.Second, cache.bindTTL, "运维收紧必须生效")
+	require.Equal(t, 60*time.Second, svc.openAIStickyAffinityTTL(context.Background()))
+}
+
 func TestOpenAIStickyAffinityTTL_ProfileAndExplicitConfig(t *testing.T) {
 	base := &OpenAIGatewayService{}
 	base.settingService = newSettingServiceForSchedulingStrategyTest(t, map[string]string{

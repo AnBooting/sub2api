@@ -844,6 +844,27 @@ func effectiveStickyWait(profile SchedulingStrategyProfile, cfg config.GatewaySc
 	return wait
 }
 
+// effectiveStickyReuseTTL 组合「策略亲和时长」与「运维配置上限」，取两者较小值。
+//
+// 与 effectiveStickyWait 同口径（C-4 / PRD-02 BE-06）：
+//   - 亲和时长由**有效调度策略**决定（stable 30m / balanced 10m / latency 2m）；
+//   - gateway.openai_ws.sticky_session_ttl_seconds 是运维安全上限，显式调小仍然生效，
+//     不会被策略放大。
+//
+// 必须取 min，不能写成「配置非零就覆盖」：该配置的 viper 默认值是 **3600（非零）**，
+// 「非零即覆盖」会让策略分支在生产里永不执行——策略切到 latency 时 OpenAI 网关的
+// 亲和 TTL 仍是 1 小时，接线等于没做（这正是本函数存在的原因）。
+// configuredSeconds <= 0 视为未配置。
+func effectiveStickyReuseTTL(profile SchedulingStrategyProfile, configuredSeconds int) time.Duration {
+	ttl := profile.StickyReuseTTL
+	if configuredSeconds > 0 {
+		if configured := time.Duration(configuredSeconds) * time.Second; configured < ttl {
+			return configured
+		}
+	}
+	return ttl
+}
+
 // clampAccountWaitTimeout 把账号选号等待钳到单逻辑请求预算剩余时间（TS-02 S3b）。
 // nil 预算保持原等待；有预算且剩余时间更短时，等待不能超过请求总预算。
 func clampAccountWaitTimeout(ctx context.Context, timeout time.Duration) time.Duration {

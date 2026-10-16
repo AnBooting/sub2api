@@ -2564,14 +2564,15 @@ func (s *OpenAIGatewayService) SnapshotOpenAIAccountSchedulerMetrics() OpenAIAcc
 
 // openAIStickyAffinityTTL 返回本次请求的粘性亲和 TTL。
 //
-// 优先级：运维显式配置 OpenAIWS.StickySessionTTLSeconds > 有效调度策略的
-// StickyReuseTTL。显式配置保持最高优先，避免把运维已经设定的值静默作废
-// （与 BindStickySession 同口径）；未配置时由策略档位决定（C-4 / PRD-02 BE-06）。
+// 与 BindStickySession 同口径：策略决定时长，OpenAIWS.StickySessionTTLSeconds
+// 是运维安全上限（取较小值）。必须取 min 而不是「非零即覆盖」，因为该配置默认
+// 3600（非零），后者会让策略在生产里永不生效——见 effectiveStickyReuseTTL。
 func (s *OpenAIGatewayService) openAIStickyAffinityTTL(ctx context.Context) time.Duration {
-	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
-		return time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+	var configuredSeconds int
+	if s != nil && s.cfg != nil {
+		configuredSeconds = s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds
 	}
-	return s.effectiveSchedulingProfile(ctx).StickyReuseTTL
+	return effectiveStickyReuseTTL(s.effectiveSchedulingProfile(ctx), configuredSeconds)
 }
 
 func (s *OpenAIGatewayService) openAIWSSessionStickyTTL() time.Duration {

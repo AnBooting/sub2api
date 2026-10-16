@@ -237,12 +237,14 @@ func (s *OpenAIGatewayService) BindStickySession(ctx context.Context, groupID *i
 	if sessionHash == "" || accountID <= 0 {
 		return nil
 	}
-	// 显式配置的 OpenAIWS.StickySessionTTLSeconds 仍是最高优先（运维硬设定）；
-	// 未配置时由有效调度策略 profile 决定，不再固定 1 小时（C-4 / PRD-02 BE-06）。
-	ttl := s.effectiveSchedulingProfile(ctx).StickyReuseTTL
-	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
-		ttl = time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+	// 亲和 TTL 由有效调度策略驱动，OpenAIWS.StickySessionTTLSeconds 作为运维
+	// **安全上限**（取较小值，调小生效）。注意该配置默认 3600，不能写成
+	// 「非零即覆盖」，否则策略永远不生效——见 effectiveStickyReuseTTL。
+	var configuredSeconds int
+	if s != nil && s.cfg != nil {
+		configuredSeconds = s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds
 	}
+	ttl := effectiveStickyReuseTTL(s.effectiveSchedulingProfile(ctx), configuredSeconds)
 	return s.setStickySessionAccountID(ctx, groupID, sessionHash, accountID, ttl)
 }
 
