@@ -57,19 +57,26 @@ func prepareSeedanceCompletionBilling(ctx context.Context, h *OpenAIGatewayHandl
 	if key != nil {
 		group = key.Group
 	}
-	if service.SeedanceCompletionRequiresTokens(group, model) && result.Usage.OutputTokens <= 0 {
+	merged := *result
+	pending.ApplyToVideoResult(&merged)
+	if service.SeedanceResultRequiresTokens(group, model, &merged) && result.Usage.OutputTokens <= 0 {
 		return nil
 	}
 	claimed, err := h.gatewayService.ClaimGrokVideoBilling(ctx, taskID, subject.UserID, key.ID)
 	if err != nil || !claimed {
 		return nil
 	}
-	merged := *result
 	merged.Model = pending.Model
 	merged.BillingModel = firstNonEmptyString(pending.BillingModel, pending.Model)
 	merged.UpstreamModel = firstNonEmptyString(pending.UpstreamModel, result.UpstreamModel)
 	merged.RequestID = service.StableGrokVideoBillingRequestID(taskID)
 	merged.ResponseID = taskID
+	if pending.VideoResolution != "" {
+		merged.VideoResolution = pending.VideoResolution
+	}
+	if merged.VideoDurationSeconds <= 0 {
+		merged.VideoDurationSeconds = pending.VideoDurationSeconds
+	}
 	merged.Duration = service.GrokVideoE2EDuration(pending.CreatedAt, time.Now())
 	return &merged
 }

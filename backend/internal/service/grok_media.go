@@ -396,16 +396,17 @@ type GrokVideoPendingBilling struct {
 	// not the latency of that single discovery request alone.
 	CreatedAt string `json:"created_at,omitempty"`
 
-	// FrozenVideoPlan / FrozenVideoMultiplier 是**受理时**解析好的报价与倍率。
+	// FrozenVideoPlan / FrozenVideoPricing 与倍率是请求上游前捕获、受理时持久化的报价。
 	//
 	// PRD-06 AC-B4 要求「模式或价表更新不改变已提交任务」。异步视频在受理后可能
 	// 数分钟到 24 小时才结算，其间管理员改价或改倍率不得改变已提交任务的扣费。
 	// 媒体链路没有接入 PrepareRequestBilling（RequestBillingContext 含指针，无法
 	// 跨异步边界持久化），因此这里把**已解析的结果**冻进快照：
-	//   - plan 覆盖三种模式（per_request / per_second / per_token）与分辨率分档；
+	//   - plan 覆盖视频三种模式；pricing 保留分组/渠道价卡的币种、档位与计量语义；
 	//   - 倍率是受理时该组对该 Key 的有效倍率（含分组覆盖与个性化折扣）。
 	// 结算时优先消费冻结值，缺失（历史任务）才回落到实时解析。
 	FrozenVideoPlan        *domain.VideoPricePlan `json:"frozen_video_plan,omitempty"`
+	FrozenVideoPricing     *FrozenVideoPricing    `json:"frozen_video_pricing,omitempty"`
 	FrozenVideoMultiplier  *float64               `json:"frozen_video_multiplier,omitempty"`
 	FrozenVideoPriceSource string                 `json:"frozen_video_price_source,omitempty"`
 }
@@ -699,7 +700,9 @@ func ExtractGrokVideoBillingFromStatusBody(statusBody []byte, pending *GrokVideo
 	if responseID == "" {
 		responseID = strings.TrimSpace(requestID)
 	}
+	usage, _ := extractOpenAIUsageFromJSONBytes(statusBody)
 	return &OpenAIForwardResult{
+		Usage:                usage,
 		ResponseID:           responseID,
 		Model:                model,
 		BillingModel:         billingModel,
@@ -985,6 +988,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		Duration:        time.Since(startTime),
 	}
 	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
+		result.Usage = billed.Usage
 		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
 		result.Model = billed.Model
 		result.BillingModel = billed.BillingModel

@@ -244,6 +244,7 @@ func (s *OpenAIGatewayService) ForwardSeedance(ctx context.Context, c *gin.Conte
 		result.ResponseID = taskID
 		result.UpstreamModel = gjson.GetBytes(responseBody, "model").String()
 		if gjson.GetBytes(responseBody, "status").String() == "succeeded" {
+			result.VideoTaskSucceeded = true
 			// Official Ark reconciliation field: usage.completion_tokens is the
 			// billable token usage of the successful generation.
 			result.Usage.OutputTokens = max(0, int(gjson.GetBytes(responseBody, "usage.completion_tokens").Int()))

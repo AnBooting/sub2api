@@ -107,6 +107,8 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	requestInfo := service.ParseGrokMediaRequest(contentType, body)
 	if endpoint == service.SeedanceEndpointCreate {
 		requestInfo, err = service.ParseSeedanceRequest(body)
+		requestInfo.Resolution = service.SeedanceResolutionFromRequest(body)
+		requestInfo.DurationSeconds = service.SeedanceDurationSecondsFromRequest(body)
 		if err != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 			return
@@ -223,8 +225,15 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	mediaEligibilityRejected := false
 	switchCount := 0
 	videoCreateStartedAt := ""
+	var videoQuote *service.GrokVideoPendingBilling
 	if isGrokVideoCreateEndpoint(endpoint) {
 		videoCreateStartedAt = service.GrokVideoPendingCreatedAtNow()
+		videoQuote, err = h.gatewayService.FreezeVideoBilling(requestCtx, apiKey, requestModel, requestInfo.Resolution,
+			endpoint.IsSeedance() && service.SeedanceRequestHasVideoInput(body))
+		if err != nil {
+			h.errorResponse(c, http.StatusServiceUnavailable, "pricing_unavailable", "Video price is not configured for the requested tier")
+			return
+		}
 	}
 	maxAccountSwitches := h.maxAccountSwitches
 	if maxAccountSwitches <= 0 {
@@ -499,14 +508,14 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			// model/duration/resolution so status can still price if upstream omits them.
 			// Retry once: missing pending causes silent underpricing (status omits resolution).
 			pending := service.GrokVideoPendingBilling{
-				Model:                requestModel,
-				BillingModel:         firstNonEmptyString(result.BillingModel, requestModel),
-				UpstreamModel:        result.UpstreamModel,
+				Model:         requestModel,
+				BillingModel:  firstNonEmptyString(result.BillingModel, requestModel),
+				UpstreamModel: result.UpstreamModel,
 				// PRD-06/K-4: the create response does not echo the resolution, so fall
 				// back to the requested tier (Ark accepts the same field). Billing is
 				// tiered by resolution; empty means unknown and callers fail closed
 				// rather than assume the cheapest tier.
-				VideoResolution:      firstNonEmptyString(result.VideoResolution, service.SeedanceResolutionFromRequest(body)),
+				VideoResolution: firstNonEmptyString(result.VideoResolution, service.SeedanceResolutionFromRequest(body)),
 				// Duration fallback chain: query response (handled by the caller when it
 				// merges) → create request → nothing. Ark returns duration only on the
 				// query response; snapshotting the requested value avoids inheriting
@@ -523,21 +532,11 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				// Wall-clock start for usage duration_ms: create accepted → first done discovery.
 				CreatedAt: videoCreateStartedAt,
 			}
-			// PRD-06 AC-B4: freeze the accepted quote and effective multiplier now, so a
-			// price or multiplier change during generation cannot alter this task's charge.
-			// The media path never enters PrepareRequestBilling (that context holds
-			// pointers and cannot cross the async boundary), so the resolved result is
-			// snapshotted instead. Missing freeze = historical task; settlement then falls
-			// back to live resolution exactly as before.
-			if plan, mult, source := service.FrozenVideoBillingForGroup(
-				apiKey.Group,
-				firstNonEmptyString(result.BillingModel, requestModel),
-				apiKey.Group.RateMultiplier,
-			); plan != nil {
-				pending.FrozenVideoPlan = plan
-				pending.FrozenVideoMultiplier = mult
-				pending.FrozenVideoPriceSource = source
-			}
+			// Persist the quote captured before forwarding, never re-resolve after acceptance.
+			pending.FrozenVideoPlan = videoQuote.FrozenVideoPlan
+			pending.FrozenVideoPricing = videoQuote.FrozenVideoPricing
+			pending.FrozenVideoMultiplier = videoQuote.FrozenVideoMultiplier
+			pending.FrozenVideoPriceSource = videoQuote.FrozenVideoPriceSource
 			if err := h.gatewayService.StoreGrokVideoPendingBilling(requestCtx, result.ResponseID, subject.UserID, apiKey.ID, pending); err != nil {
 				reqLog.Warn("grok_media.store_video_pending_billing_failed_retrying",
 					zap.Int64("account_id", account.ID),
@@ -578,6 +577,9 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 		// Status poll OR content download can observe official done+video.url.
 		// Both paths share the same claim key so the customer is charged once.
 		if endpoint == service.SeedanceEndpointStatus {
+			if !result.VideoTaskSucceeded {
+				return
+			} // Per-request/second quotes need no tokens, but still require success.
 			if billResult := prepareSeedanceCompletionBilling(requestCtx, h, apiKey, subject, requestID, result); billResult != nil {
 				recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, billResult, billResult.Model, body, requestID)
 			}
@@ -766,8 +768,7 @@ func prepareGrokVideoCompletionBilling(
 		}
 		// PRD-06 AC-B4: same freeze as the worker path — the client-poll settlement must
 		// charge the acceptance-time quote, not whatever the group publishes now.
-		merged.FrozenVideoPlan = pending.FrozenVideoPlan
-		merged.FrozenVideoMultiplier = pending.FrozenVideoMultiplier
+		pending.ApplyToVideoResult(&merged)
 	}
 	if strings.TrimSpace(merged.Model) == "" {
 		merged.Model = "grok-imagine-video"

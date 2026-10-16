@@ -304,11 +304,14 @@ type OpenAIForwardResult struct {
 	// FrozenVideoPlan / FrozenVideoMultiplier 是异步视频任务**受理时**冻结的报价
 	// 与有效倍率，由结算方从任务快照（Redis 或 video_tasks.billing_snapshot）填回。
 	//
-	// PRD-06 AC-B4：模式或价表更新不得改变已提交任务。这两个字段是内存态传递，
-	// 不参与 JSON 序列化；nil 表示没有冻结值（历史任务），此时结算回落到实时解析，
-	// 与修复前行为一致。
-	FrozenVideoPlan       *domain.VideoPricePlan
-	FrozenVideoMultiplier *float64
+	// PRD-06 AC-B4：报价字段由持久 pending 恢复，异步结算直接消费冻结值。
+	// plan/card、倍率与来源都缺失时才表示历史实时计价任务。
+	FrozenVideoPlan        *domain.VideoPricePlan
+	FrozenVideoMultiplier  *float64
+	FrozenVideoPricing     *FrozenVideoPricing
+	FrozenVideoPriceSource string
+	VideoHasInputVideo     *bool
+	VideoTaskSucceeded     bool // Seedance status must be terminal before claiming any metering mode.
 
 	wsReplayInput                []json.RawMessage
 	wsReplayInputExists          bool

@@ -181,6 +181,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 	if err != nil {
 		return err
 	}
+	if result.VideoHasInputVideo != nil {
+		ctx = WithVideoPlanInputVideoFact(ctx, *result.VideoHasInputVideo)
+	}
 	if !isGrokVideoUsageResult(result, nil) {
 		ApplyOpenAIImageBillingResolution(result)
 	} else if canonicalSeedanceVideoPriceFamily(result.Model) != "" || canonicalSeedanceVideoPriceFamily(result.BillingModel) != "" {
@@ -189,7 +192,7 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		// status response cannot reveal it and the create-time context does not
 		// survive to this async billing task, so the snapshot is the only source.
 		// A miss stays false (higher-priced cell) rather than granting a discount.
-		if user != nil && apiKey != nil {
+		if result.VideoHasInputVideo == nil && user != nil && apiKey != nil {
 			taskID := strings.TrimPrefix(strings.TrimSpace(result.ResponseID), "seedance:")
 			if s.GrokVideoPendingHasInputVideo(ctx, taskID, user.ID, apiKey.ID) {
 				ctx = WithVideoPlanInputVideoFact(ctx, true)
@@ -304,6 +307,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		// 改变已提交任务的扣费（PRD-06 AC-B4）。缺失时保持实时解析。
 		if result.FrozenVideoMultiplier != nil {
 			videoMultiplier = *result.FrozenVideoMultiplier
+			if result.FrozenVideoPricing != nil && result.FrozenVideoPricing.Mode == BillingModeToken {
+				multiplier = videoMultiplier
+			}
 		}
 
 		billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
@@ -344,6 +350,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 			pricingAt,
 		)
 		if err != nil {
+			if result.hasFrozenVideoQuote() {
+				return err
+			} // Accepted quote failures cannot become zero-cost success.
 			for _, model := range billingModels {
 				if s.billingService.pricingService.RequiresNativeCNY(model) {
 					return err
@@ -552,7 +561,9 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		usageLog.ActualCost = cost.ActualCost
 		usageLog.LongContextBillingApplied = cost.LongContextBillingApplied
 	}
-	if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
+	if result.hasFrozenVideoQuote() && result.FrozenVideoMultiplier != nil {
+		usageLog.RateMultiplier = *result.FrozenVideoMultiplier
+	} else if isVideoUsage && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = videoMultiplier
 	} else if result.ImageCount > 0 && (cost == nil || cost.BillingMode != string(BillingModeToken)) {
 		usageLog.RateMultiplier = imageMultiplier
@@ -938,6 +949,9 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	pricingAt = requestPricingAt(ctx, pricingAt)
 	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	billingModel := firstUsageBillingModel(billingModels)
+	if result.hasFrozenVideoQuote() {
+		return s.calculateFrozenVideoCost(ctx, result, tokens, serviceTier, longContextBillingGate)
+	}
 	if result != nil && result.WebSearchCalls > 0 {
 		// Codex alpha/search 网页搜索按次计费：上游不返回 usage/token 字段，单价只取
 		// 分组覆盖价（nil 时默认 0.01 = 官方 $10/1000 次），不参与渠道级模型定价。
@@ -1376,91 +1390,23 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoCost(
 	result *OpenAIForwardResult,
 	multiplier float64,
 ) (*CostBreakdown, error) {
-	// PRD-06/K-4: an operator-set video price plan is the authoritative tariff for
-	// its family. It is consulted FIRST so a group that moved a model to
-	// per_token/per_request is never billed by the legacy per-second path — and so a
-	// plan whose tier is missing fails closed instead of reaching the image-price
-	// fallback at the bottom of getDefaultVideoPrice.
-	if planCost, hasPlan := s.calculateOpenAIVideoPlanCost(ctx, apiKey, billingModel, result, multiplier); hasPlan {
-		if planCost == nil {
-			return nil, fmt.Errorf("%w: video price plan is missing a usable tier for model %q", ErrModelPricingUnavailable, billingModel)
-		}
-		return planCost, nil
+	if result.hasFrozenVideoQuote() {
+		return s.calculateFrozenVideoCost(ctx, result, UsageTokens{OutputTokens: result.Usage.OutputTokens}, "", nil)
 	}
-	// Seedance has no bundled default price. Without a plan or an operator-set slot
-	// the request must not be priced through getDefaultVideoPrice, whose last resort
-	// is the image price (TS-06 forbids that fallback).
-	if canonicalSeedanceVideoPriceFamily(billingModel) != "" && !GroupHasSeedanceVideoPrice(apiKey.Group) {
-		return nil, fmt.Errorf("%w: no Seedance price configured for model %q", ErrModelPricingUnavailable, billingModel)
+	plan, pricing, source, err := s.resolveVideoTariff(ctx, apiKey, billingModel, result.VideoResolution)
+	if err != nil {
+		return nil, err
 	}
-
-	videoCount := result.VideoCount
-	if videoCount <= 0 {
-		videoCount = 1
+	copy := *result
+	copy.BillingModel = billingModel
+	copy.FrozenVideoPlan = plan
+	copy.FrozenVideoPricing = pricing
+	copy.FrozenVideoMultiplier = &multiplier
+	copy.FrozenVideoPriceSource = source
+	if isGrokVideoBillingModel(billingModel) {
+		copy.VideoDurationSeconds = NormalizeVideoBillingDurationSecondsOrDefault(copy.VideoDurationSeconds)
 	}
-	resolution := NormalizeVideoBillingResolutionOrDefault(result.VideoResolution)
-	durationSeconds := NormalizeVideoBillingDurationSecondsOrDefault(result.VideoDurationSeconds)
-	resolved := s.resolveOpenAIChannelPricing(ctx, billingModel, apiKey)
-	if resolved != nil && resolved.Source == PricingSourceGroup && resolved.Mode == BillingModeVideo {
-		gid := apiKey.Group.ID
-		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx: ctx, Model: billingModel, GroupID: &gid, Group: apiKey.Group,
-			UsageUnits: float64(videoCount * durationSeconds), SizeTier: resolution,
-			RateMultiplier: multiplier, Resolver: s.resolver, Resolved: resolved,
-			ReasoningEffort: optionalStringValue(result.ReasoningEffort),
-		})
-		if err == nil {
-			return cost, nil
-		}
-	}
-	groupConfig := videoPriceConfigFromAPIKey(apiKey)
-	if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-		return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
-	}
-	if refreshed := s.apiKeyWithFreshGroupMediaPricing(ctx, apiKey); refreshed != apiKey {
-		apiKey = refreshed
-		groupConfig = videoPriceConfigFromAPIKey(apiKey)
-		if apiKeyHasConfiguredVideoPrice(apiKey, billingModel, resolution) {
-			return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
-		}
-	}
-	if resolved != nil && resolved.Source == PricingSourceChannel &&
-		(resolved.Mode == BillingModePerRequest || resolved.Mode == BillingModeImage || resolved.Mode == BillingModeVideo) {
-		// 渠道 per_request/image 定价保持"按请求次数"口径（价格由管理员按次配置），不乘视频时长。
-		gid := apiKey.Group.ID
-		units := float64(videoCount)
-		if resolved.Mode == BillingModeVideo {
-			units = float64(videoCount * durationSeconds)
-		}
-		cost, err := s.billingService.CalculateCostUnified(CostInput{
-			Ctx:             ctx,
-			Model:           billingModel,
-			GroupID:         &gid,
-			Group:           apiKey.Group,
-			RequestCount:    videoCount,
-			UsageUnits:      units,
-			SizeTier:        resolution,
-			ReasoningEffort: optionalStringValue(result.ReasoningEffort),
-			RateMultiplier:  multiplier,
-			Resolver:        s.resolver,
-			Resolved:        resolved,
-		})
-		if err == nil {
-			cost.BillingMode = string(BillingModeVideo)
-			return cost, nil
-		}
-		logger.LegacyPrintf("service.openai_gateway", "Calculate video channel cost failed: %v", err)
-	}
-
-	// Last guard: the remaining fallback (CalculateVideoCost → getVideoUnitPrice →
-	// getDefaultVideoPrice) ends in the image price. That is acceptable only for a
-	// model with a real bundled video default (Grok). Seedance is caught above, so
-	// reaching here means no bundled video tariff exists: fail closed instead of
-	// borrowing the image tariff.
-	if _, bundled := getDefaultGrokImagineVideoPrice(billingModel, resolution); !bundled {
-		return nil, fmt.Errorf("%w: no video price configured for model %q", ErrModelPricingUnavailable, billingModel)
-	}
-	return s.billingService.CalculateVideoCost(billingModel, resolution, videoCount, durationSeconds, groupConfig, multiplier), nil
+	return s.calculateFrozenVideoCost(ctx, &copy, UsageTokens{OutputTokens: result.Usage.OutputTokens}, "", nil)
 }
 
 func (s *OpenAIGatewayService) apiKeyWithFreshGroupMediaPricing(ctx context.Context, apiKey *APIKey) *APIKey {

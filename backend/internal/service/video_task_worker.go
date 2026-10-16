@@ -610,7 +610,7 @@ func (s *VideoTaskWorker) settleSuccess(ctx context.Context, task *VideoTask, ac
 	// Seedance per_token 计划需要 token 用量；缺失时不结算（保持 processing），
 	// 与 handler 的 fail-closed 门槛一致。
 	if strings.EqualFold(strings.TrimSpace(task.Platform), VideoTaskPlatformSeedance) &&
-		SeedanceCompletionRequiresTokens(settlementGroup, result.BillingModel) && result.Usage.OutputTokens <= 0 {
+		SeedanceResultRequiresTokens(settlementGroup, result.BillingModel, result) && result.Usage.OutputTokens <= 0 {
 		logger.L().Warn("video_task_worker.seedance_missing_token_usage",
 			zap.String("task_no", task.TaskNo))
 		return false
@@ -818,8 +818,7 @@ func buildVideoTaskSettlementResult(task *VideoTask, statusBody []byte, pending 
 		}
 		// PRD-06 AC-B4: carry the acceptance-time quote/multiplier into settlement so
 		// the charge matches what the operator published when the task was accepted.
-		result.FrozenVideoPlan = pending.FrozenVideoPlan
-		result.FrozenVideoMultiplier = pending.FrozenVideoMultiplier
+		pending.ApplyToVideoResult(result)
 	}
 	if strings.TrimSpace(result.Model) == "" {
 		result.Model = firstNonEmptyString(task.Model, task.BillingModel)

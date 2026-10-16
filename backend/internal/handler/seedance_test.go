@@ -34,7 +34,7 @@ func TestSeedanceHandlerLifecycleAndOwnership(t *testing.T) {
 		key.Group.Platform = service.PlatformOpenAI
 		body := ""
 		if method == http.MethodPost {
-			body = `{"model":"doubao-seedance","content":[{"type":"text","text":"waves"}]}`
+			body = `{"model":"doubao-seedance","resolution":"720p","content":[{"type":"text","text":"waves"}]}`
 		}
 		c.Request = httptest.NewRequest(method, "/api/v3/contents/generations/tasks", strings.NewReader(body))
 		c.Params = gin.Params{{Key: "task_id", Value: "task-ark"}}
@@ -52,6 +52,7 @@ func TestSeedanceHandlerLifecycleAndOwnership(t *testing.T) {
 		require.Equal(t, 200, w.Code, w.Body.String())
 		slots.assertReleased(t)
 	}
+	require.Empty(t, bindings.billed, "queued status cannot claim a frozen per-second task")
 	for _, other := range []string{"user", "key", "group", "task", "provider"} {
 		c, w = newContext(http.MethodGet)
 		key, _ := middleware.GetAPIKeyFromContext(c)
@@ -109,7 +110,7 @@ func TestSeedanceCreateFailsClosedWithoutConfiguredPrice(t *testing.T) {
 		key.Group.VideoPrice480P, key.Group.VideoPrice720P, key.Group.VideoPrice1080P = nil, nil, nil
 		body := ""
 		if method == http.MethodPost {
-			body = `{"model":"doubao-seedance","content":[{"type":"text","text":"waves"}]}`
+			body = `{"model":"doubao-seedance","resolution":"720p","content":[{"type":"text","text":"waves"}]}`
 		}
 		c.Request = httptest.NewRequest(method, "/api/v3/contents/generations/tasks", strings.NewReader(body))
 		c.Params = gin.Params{{Key: "task_id", Value: "task-ark"}}
