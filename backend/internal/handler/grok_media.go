@@ -523,6 +523,21 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 				// Wall-clock start for usage duration_ms: create accepted → first done discovery.
 				CreatedAt: videoCreateStartedAt,
 			}
+			// PRD-06 AC-B4: freeze the accepted quote and effective multiplier now, so a
+			// price or multiplier change during generation cannot alter this task's charge.
+			// The media path never enters PrepareRequestBilling (that context holds
+			// pointers and cannot cross the async boundary), so the resolved result is
+			// snapshotted instead. Missing freeze = historical task; settlement then falls
+			// back to live resolution exactly as before.
+			if plan, mult, source := service.FrozenVideoBillingForGroup(
+				apiKey.Group,
+				firstNonEmptyString(result.BillingModel, requestModel),
+				apiKey.Group.RateMultiplier,
+			); plan != nil {
+				pending.FrozenVideoPlan = plan
+				pending.FrozenVideoMultiplier = mult
+				pending.FrozenVideoPriceSource = source
+			}
 			if err := h.gatewayService.StoreGrokVideoPendingBilling(requestCtx, result.ResponseID, subject.UserID, apiKey.ID, pending); err != nil {
 				reqLog.Warn("grok_media.store_video_pending_billing_failed_retrying",
 					zap.Int64("account_id", account.ID),
@@ -749,6 +764,10 @@ func prepareGrokVideoCompletionBilling(
 		if strings.TrimSpace(merged.ResponseID) == "" {
 			merged.ResponseID = taskRequestID
 		}
+		// PRD-06 AC-B4: same freeze as the worker path — the client-poll settlement must
+		// charge the acceptance-time quote, not whatever the group publishes now.
+		merged.FrozenVideoPlan = pending.FrozenVideoPlan
+		merged.FrozenVideoMultiplier = pending.FrozenVideoMultiplier
 	}
 	if strings.TrimSpace(merged.Model) == "" {
 		merged.Model = "grok-imagine-video"

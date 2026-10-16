@@ -300,6 +300,11 @@ func (s *OpenAIGatewayService) RecordUsage(ctx context.Context, input *OpenAIRec
 		ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 		multiplier, imageMultiplier = computePeakAwareMultipliers(apiKey, baseMultiplier, pricingAt)
 		videoMultiplier = resolveVideoRateMultiplier(apiKey, baseMultiplier)
+		// 异步视频：倍率按**受理时**冻结值结算，管理员在任务执行期间改倍率不得
+		// 改变已提交任务的扣费（PRD-06 AC-B4）。缺失时保持实时解析。
+		if result.FrozenVideoMultiplier != nil {
+			videoMultiplier = *result.FrozenVideoMultiplier
+		}
 
 		billingModel := forwardResultBillingModel(result.Model, result.UpstreamModel)
 		if result.BillingModel != "" {
@@ -1276,7 +1281,11 @@ func (s *OpenAIGatewayService) calculateOpenAIVideoPlanCost(
 	result *OpenAIForwardResult,
 	multiplier float64,
 ) (*CostBreakdown, bool) {
-	plan := videoPlanFromAPIKey(apiKey, billingModel)
+	// 异步视频优先用**受理时**冻结的报价（PRD-06 AC-B4）；缺失才实时解析。
+	plan := result.FrozenVideoPlan
+	if plan == nil {
+		plan = videoPlanFromAPIKey(apiKey, billingModel)
+	}
 	if plan == nil {
 		// B-4: the create-time gate (GroupHasSeedanceVideoPrice) also accepts the legacy
 		// per-model / flat video price columns for Seedance. Settlement must cover the

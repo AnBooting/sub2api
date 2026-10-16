@@ -79,6 +79,62 @@ func videoPlanFromAPIKey(apiKey *APIKey, model string) *domain.VideoPricePlan {
 	return VideoPricePlanForGroup(apiKey.Group, model)
 }
 
+// FrozenVideoBillingForGroup resolves the video quote and effective multiplier to
+// freeze into an async task snapshot at acceptance time (PRD-06 AC-B4).
+//
+// Resolution order mirrors the settlement path exactly, so "frozen at accept" and
+// "resolved live at settle" agree for every configuration that can currently settle:
+//
+//  1. the operator's per-request/per-second/per-token plan (video_price_plans);
+//  2. the Seedance legacy per-model / flat price columns;
+//  3. the bundled Grok per-resolution defaults.
+//
+// Step 3 matters: Grok has no plan row, so without freezing the bundled default the
+// R3 scenario (Grok price changed mid-flight) would still settle at the live price.
+// Returns nil plan when nothing priceable is found — callers keep the existing
+// fail-closed behavior rather than inventing a price.
+func FrozenVideoBillingForGroup(group *Group, model string, effectiveGroupMultiplier float64) (*domain.VideoPricePlan, *float64, string) {
+	if group == nil {
+		return nil, nil, ""
+	}
+	plan := VideoPricePlanForGroup(group, model)
+	source := "plan"
+	if plan == nil {
+		plan = SeedanceLegacyPerSecondPlan(group, model)
+		source = "legacy_slot"
+	}
+	if plan == nil {
+		plan = bundledDefaultVideoPlan(model)
+		source = "bundled_default"
+	}
+	if plan == nil {
+		return nil, nil, ""
+	}
+	multiplier := resolveVideoRateMultiplier(&APIKey{Group: group}, effectiveGroupMultiplier)
+	return plan, &multiplier, source
+}
+
+// bundledDefaultVideoPlan materializes the built-in Grok per-resolution tariff as a
+// plan so it can be frozen like any operator-configured plan. Returns nil when the
+// model has no bundled default (fail closed).
+func bundledDefaultVideoPlan(model string) *domain.VideoPricePlan {
+	switch CanonicalVideoPriceFamily(model) {
+	case VideoPriceFamilyGrokImagineVideo, VideoPriceFamilyGrokImagineVideo15:
+	default:
+		return nil
+	}
+	prices := map[string]float64{}
+	for _, tier := range VideoBillingResolutionTiers {
+		if price, ok := getDefaultGrokImagineVideoPrice(model, tier); ok && price >= 0 {
+			prices[tier] = price
+		}
+	}
+	if len(prices) == 0 {
+		return nil
+	}
+	return &domain.VideoPricePlan{Mode: domain.VideoBillingModePerSecond, PerSecondPrices: prices}
+}
+
 func webSearchPricePerCallFromAPIKey(apiKey *APIKey) *float64 {
 	if apiKey == nil || apiKey.Group == nil {
 		return nil

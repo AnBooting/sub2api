@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -393,6 +395,19 @@ type GrokVideoPendingBilling struct {
 	// first official done+video.url observation (status poll or content download),
 	// not the latency of that single discovery request alone.
 	CreatedAt string `json:"created_at,omitempty"`
+
+	// FrozenVideoPlan / FrozenVideoMultiplier 是**受理时**解析好的报价与倍率。
+	//
+	// PRD-06 AC-B4 要求「模式或价表更新不改变已提交任务」。异步视频在受理后可能
+	// 数分钟到 24 小时才结算，其间管理员改价或改倍率不得改变已提交任务的扣费。
+	// 媒体链路没有接入 PrepareRequestBilling（RequestBillingContext 含指针，无法
+	// 跨异步边界持久化），因此这里把**已解析的结果**冻进快照：
+	//   - plan 覆盖三种模式（per_request / per_second / per_token）与分辨率分档；
+	//   - 倍率是受理时该组对该 Key 的有效倍率（含分组覆盖与个性化折扣）。
+	// 结算时优先消费冻结值，缺失（历史任务）才回落到实时解析。
+	FrozenVideoPlan        *domain.VideoPricePlan `json:"frozen_video_plan,omitempty"`
+	FrozenVideoMultiplier  *float64               `json:"frozen_video_multiplier,omitempty"`
+	FrozenVideoPriceSource string                 `json:"frozen_video_price_source,omitempty"`
 }
 
 // GrokVideoPendingCreatedAtNow formats a create-accept timestamp for pending billing.
@@ -523,6 +538,33 @@ func (s *OpenAIGatewayService) GrokVideoPendingHasInputVideo(
 		return false
 	}
 	return pending.HasInputVideo
+}
+
+// GrokVideoDurableSettlementExists reports whether this video task has already
+// been settled in the durable ledger (usage_billing_dedup / archive).
+//
+// This is deliberately separate from ClaimGrokVideoBilling: the Redis claim is a
+// short-lived in-flight placeholder held by whoever is *currently* settling, and
+// it is released again when that settlement fails. Only the dedup ledger proves a
+// debit was actually committed. Callers that see a failed claim must consult this
+// before concluding "someone else settled it" (PRD-06 §4: whether a client polls
+// must not decide whether a charge happens).
+//
+// Errors are returned rather than swallowed: the caller decides fail-open/closed,
+// and a broken ledger must not be mistaken for "not settled".
+func (s *OpenAIGatewayService) GrokVideoDurableSettlementExists(
+	ctx context.Context,
+	requestID string,
+	apiKeyID int64,
+) (bool, error) {
+	if s == nil || s.usageBillingRepo == nil {
+		return false, errors.New("usage billing repository is unavailable")
+	}
+	key := StableGrokVideoBillingRequestID(requestID)
+	if strings.TrimSpace(key) == "" {
+		return false, errors.New("grok video billing request id is invalid")
+	}
+	return s.usageBillingRepo.SettlementExists(ctx, key, apiKeyID)
 }
 
 // ClaimGrokVideoBilling returns true once for a completed video request so status
