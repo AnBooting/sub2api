@@ -476,7 +476,7 @@ export default {
       },
       scheduling: {
   "strategy": "调度策略",
-  "strategyHint": "策略仅影响候选排序与亲和，不放宽并发、安全重试或模型能力约束。",
+  "strategyHint": "策略影响会话复用时长与粘性等待上限，不放宽并发、安全重试或模型能力约束。",
   "effectiveStrategy": "当前有效策略",
   "strategies": {
     "inherit": "继承全局",

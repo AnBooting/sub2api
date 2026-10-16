@@ -483,7 +483,7 @@ export default {
       },
       scheduling: {
   "strategy": "Scheduling strategy",
-  "strategyHint": "Strategy affects candidate ordering and affinity, never concurrency, safe retries, or model capability checks.",
+  "strategyHint": "Strategy affects sticky session reuse duration and sticky wait ceiling, never concurrency, safe retries, or model capability checks.",
   "effectiveStrategy": "Current effective strategy",
   "strategies": {
     "inherit": "Inherit global",

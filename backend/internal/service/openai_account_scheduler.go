@@ -577,7 +577,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	}
 	if acquireErr == nil && result != nil && result.Acquired {
 		if !req.PreserveStickyBinding {
-			_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
+			_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIStickyAffinityTTL(ctx))
 		}
 		return attachSelectionProfitGate(ctx, &AccountSelectionResult{
 			Account:     account,
@@ -2560,6 +2560,18 @@ func (s *OpenAIGatewayService) SnapshotOpenAIAccountSchedulerMetrics() OpenAIAcc
 		return OpenAIAccountSchedulerMetricsSnapshot{}
 	}
 	return scheduler.SnapshotMetrics()
+}
+
+// openAIStickyAffinityTTL 返回本次请求的粘性亲和 TTL。
+//
+// 优先级：运维显式配置 OpenAIWS.StickySessionTTLSeconds > 有效调度策略的
+// StickyReuseTTL。显式配置保持最高优先，避免把运维已经设定的值静默作废
+// （与 BindStickySession 同口径）；未配置时由策略档位决定（C-4 / PRD-02 BE-06）。
+func (s *OpenAIGatewayService) openAIStickyAffinityTTL(ctx context.Context) time.Duration {
+	if s != nil && s.cfg != nil && s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds > 0 {
+		return time.Duration(s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds) * time.Second
+	}
+	return s.effectiveSchedulingProfile(ctx).StickyReuseTTL
 }
 
 func (s *OpenAIGatewayService) openAIWSSessionStickyTTL() time.Duration {
