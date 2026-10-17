@@ -74,13 +74,13 @@
                   {{ formatTokens(group.total_tokens) }}
                 </td>
                 <td class="py-1.5 text-right text-green-600 dark:text-green-400">
-                  ${{ formatCost(group.actual_cost) }}
+                  {{ formatCustomerCredit(formatCost(group.actual_cost)) }}
                 </td>
                 <td v-if="showAccountCost" class="py-1.5 text-right text-orange-500 dark:text-orange-400">
                   ${{ formatCost(group.account_cost) }}
                 </td>
                 <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
-                  ${{ formatCost(group.cost) }}
+                  {{ formatCustomerCredit(formatCost(group.cost)) }}
                 </td>
               </tr>
               <!-- User breakdown sub-rows -->
@@ -108,6 +108,7 @@
 </template>
 
 <script setup lang="ts">
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js'
@@ -224,7 +225,7 @@ const doughnutOptions = computed(() => ({
           const total = context.dataset.data.reduce((a: number, b: number) => a + b, 0)
           const percentage = total > 0 ? ((value / total) * 100).toFixed(1) : '0.0'
           const formattedValue = props.metric === 'actual_cost'
-            ? `$${formatCost(value)}`
+            ? formatCustomerCredit(formatCost(value))
             : formatTokens(value)
           return `${context.label}: ${formattedValue} (${percentage}%)`
         }

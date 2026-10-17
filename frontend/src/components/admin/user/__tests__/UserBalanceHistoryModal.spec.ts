@@ -6,7 +6,7 @@ import UserBalanceHistoryModal from '../UserBalanceHistoryModal.vue'
 const mocks = vi.hoisted(() => ({ getUserBalanceHistory: vi.fn() }))
 vi.mock('@/api/admin', () => ({ adminAPI: { users: mocks } }))
 vi.mock('@/utils/format', () => ({ formatDateTime: () => 'date' }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('vue-i18n', async () => ({ ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'), useI18n: () => ({ t: (key: string) => key }) }))
 enableAutoUnmount(afterEach)
 beforeEach(() => { vi.clearAllMocks(); vi.spyOn(console, 'error').mockImplementation(() => {}) })
 afterEach(() => vi.restoreAllMocks())
@@ -40,7 +40,7 @@ describe('UserBalanceHistoryModal request ordering', () => {
     await flushPromises()
     expect(wrapper.text()).toContain('History 20')
     expect(wrapper.text()).not.toContain('History 10')
-    expect(wrapper.text()).toContain('$20.00')
+    expect(wrapper.text()).toContain('20.00 Credit')
   })
 
   it('does not end the current filter loading state when an old request finishes', async () => {

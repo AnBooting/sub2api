@@ -16,6 +16,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestWrapUsageRecordTaskContext_PreservesFrozenCalendarSnapshot(t *testing.T) {
+	oldRules, newRules := &service.RequestPricingSnapshot{}, &service.RequestPricingSnapshot{}
+	parent, cancel := context.WithCancel(service.WithRequestPricingSnapshot(context.Background(), oldRules))
+	var got *service.RequestPricingSnapshot
+	task, _ := wrapUsageRecordTaskContext(parent, func(ctx context.Context) { got = service.RequestPricingSnapshotFromContext(ctx) })
+	cancel()
+	// Worker metadata must come from the old request, even after a new request
+	// captures different rules and the original context is cancelled.
+	task(service.WithRequestPricingSnapshot(context.Background(), newRules))
+	require.Same(t, oldRules, got)
+}
+
 func TestRequestMaxOutputTokens(t *testing.T) {
 	require.Equal(t, 1024, requestMaxOutputTokens([]byte(`{"max_tokens":1024}`)))
 	require.Equal(t, 2048, requestMaxOutputTokens([]byte(`{"max_completion_tokens":2048}`)))

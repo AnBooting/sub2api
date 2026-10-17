@@ -577,7 +577,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 	}
 	if acquireErr == nil && result != nil && result.Acquired {
 		if !req.PreserveStickyBinding {
-			_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIWSSessionStickyTTL())
+			_ = s.service.refreshStickySessionTTL(ctx, req.GroupID, sessionHash, s.service.openAIStickyAffinityTTL(ctx))
 		}
 		return attachSelectionProfitGate(ctx, &AccountSelectionResult{
 			Account:     account,
@@ -604,7 +604,7 @@ func (s *defaultOpenAIAccountScheduler) selectBySessionHash(
 			WaitPlan: &AccountWaitPlan{
 				AccountID:      accountID,
 				MaxConcurrency: account.Concurrency,
-				Timeout:        cfg.StickySessionWaitTimeout,
+				Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.service.effectiveSchedulingProfile(ctx), cfg)),
 				MaxWaiting:     cfg.StickySessionMaxWaiting,
 			},
 		}), false, nil
@@ -1341,7 +1341,7 @@ func (s *defaultOpenAIAccountScheduler) tryFallbackToWeightedSticky(
 				WaitPlan: &AccountWaitPlan{
 					AccountID:      account.ID,
 					MaxConcurrency: account.Concurrency,
-					Timeout:        cfg.StickySessionWaitTimeout,
+					Timeout:        clampAccountWaitTimeout(ctx, effectiveStickyWait(s.service.effectiveSchedulingProfile(ctx), cfg)),
 					MaxWaiting:     cfg.StickySessionMaxWaiting,
 				},
 			}), nil
@@ -1479,7 +1479,7 @@ func (s *defaultOpenAIAccountScheduler) selectByLoadBalance(
 		filtered = append(filtered, account)
 		loadReq = append(loadReq, AccountWithConcurrency{
 			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
+			MaxConcurrency: account.Concurrency,
 		})
 	}
 	if len(filtered) == 0 {
@@ -1659,7 +1659,7 @@ func buildOpenAIAccountLoadRequest(accounts []*Account) []AccountWithConcurrency
 		}
 		loadReq = append(loadReq, AccountWithConcurrency{
 			ID:             account.ID,
-			MaxConcurrency: account.EffectiveLoadFactor(),
+			MaxConcurrency: account.Concurrency,
 		})
 	}
 	return loadReq
@@ -1727,7 +1727,7 @@ func (s *defaultOpenAIAccountScheduler) finishLoadBalanceSelectionFallback(
 				WaitPlan: &AccountWaitPlan{
 					AccountID:      fresh.ID,
 					MaxConcurrency: fresh.Concurrency,
-					Timeout:        cfg.FallbackWaitTimeout,
+					Timeout:        clampAccountWaitTimeout(ctx, cfg.FallbackWaitTimeout),
 					MaxWaiting:     cfg.FallbackMaxWaiting,
 				},
 			}), candidateCount, topK, loadSkew, nil
@@ -2560,6 +2560,19 @@ func (s *OpenAIGatewayService) SnapshotOpenAIAccountSchedulerMetrics() OpenAIAcc
 		return OpenAIAccountSchedulerMetricsSnapshot{}
 	}
 	return scheduler.SnapshotMetrics()
+}
+
+// openAIStickyAffinityTTL 返回本次请求的粘性亲和 TTL。
+//
+// 与 BindStickySession 同口径：策略决定时长，OpenAIWS.StickySessionTTLSeconds
+// 是运维安全上限（取较小值）。必须取 min 而不是「非零即覆盖」，因为该配置默认
+// 3600（非零），后者会让策略在生产里永不生效——见 effectiveStickyReuseTTL。
+func (s *OpenAIGatewayService) openAIStickyAffinityTTL(ctx context.Context) time.Duration {
+	var configuredSeconds int
+	if s != nil && s.cfg != nil {
+		configuredSeconds = s.cfg.Gateway.OpenAIWS.StickySessionTTLSeconds
+	}
+	return effectiveStickyReuseTTL(s.effectiveSchedulingProfile(ctx), configuredSeconds)
 }
 
 func (s *OpenAIGatewayService) openAIWSSessionStickyTTL() time.Duration {

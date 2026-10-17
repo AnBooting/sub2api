@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/util/responseheaders"
 	"github.com/gin-gonic/gin"
 	"github.com/tidwall/gjson"
@@ -381,11 +383,32 @@ type GrokVideoPendingBilling struct {
 	VideoResolution      string `json:"video_resolution,omitempty"`
 	VideoDurationSeconds int    `json:"video_duration_seconds,omitempty"`
 	OriginalModel        string `json:"original_model,omitempty"`
+	// HasInputVideo records whether the create request carried a video input
+	// (Ark content[].video_url / draft_task). It is the second dimension of the
+	// per-token price table (PRD-06/K-4) and cannot be recovered from the status
+	// response, so it is snapshotted at create time. Absent/false is the safe
+	// default: it bills the without-input-video cell instead of granting a
+	// discount that cannot be proven.
+	HasInputVideo bool `json:"has_input_video,omitempty"`
 	// CreatedAt is when the gateway accepted the async create (RFC3339Nano UTC).
 	// duration_ms for deferred billing is measured from this instant until the
 	// first official done+video.url observation (status poll or content download),
 	// not the latency of that single discovery request alone.
 	CreatedAt string `json:"created_at,omitempty"`
+
+	// FrozenVideoPlan / FrozenVideoPricing 与倍率是请求上游前捕获、受理时持久化的报价。
+	//
+	// PRD-06 AC-B4 要求「模式或价表更新不改变已提交任务」。异步视频在受理后可能
+	// 数分钟到 24 小时才结算，其间管理员改价或改倍率不得改变已提交任务的扣费。
+	// 媒体链路没有接入 PrepareRequestBilling（RequestBillingContext 含指针，无法
+	// 跨异步边界持久化），因此这里把**已解析的结果**冻进快照：
+	//   - plan 覆盖视频三种模式；pricing 保留分组/渠道价卡的币种、档位与计量语义；
+	//   - 倍率是受理时该组对该 Key 的有效倍率（含分组覆盖与个性化折扣）。
+	// 结算时优先消费冻结值，缺失（历史任务）才回落到实时解析。
+	FrozenVideoPlan        *domain.VideoPricePlan `json:"frozen_video_plan,omitempty"`
+	FrozenVideoPricing     *FrozenVideoPricing    `json:"frozen_video_pricing,omitempty"`
+	FrozenVideoMultiplier  *float64               `json:"frozen_video_multiplier,omitempty"`
+	FrozenVideoPriceSource string                 `json:"frozen_video_price_source,omitempty"`
 }
 
 // GrokVideoPendingCreatedAtNow formats a create-accept timestamp for pending billing.
@@ -498,6 +521,51 @@ func (s *OpenAIGatewayService) LoadGrokVideoPendingBilling(
 		return nil, err
 	}
 	return &pending, nil
+}
+
+// GrokVideoPendingHasInputVideo reports the create-time "request included a video
+// input" fact for a pending video task. A missing snapshot returns false, which is
+// the conservative (higher-priced) per-token cell rather than a discount.
+//
+// This performs its own snapshot read; callers use it on the once-per-task
+// settlement path, not per poll.
+func (s *OpenAIGatewayService) GrokVideoPendingHasInputVideo(
+	ctx context.Context,
+	requestID string,
+	userID, apiKeyID int64,
+) bool {
+	pending, err := s.LoadGrokVideoPendingBilling(ctx, requestID, userID, apiKeyID)
+	if err != nil || pending == nil {
+		return false
+	}
+	return pending.HasInputVideo
+}
+
+// GrokVideoDurableSettlementExists reports whether this video task has already
+// been settled in the durable ledger (usage_billing_dedup / archive).
+//
+// This is deliberately separate from ClaimGrokVideoBilling: the Redis claim is a
+// short-lived in-flight placeholder held by whoever is *currently* settling, and
+// it is released again when that settlement fails. Only the dedup ledger proves a
+// debit was actually committed. Callers that see a failed claim must consult this
+// before concluding "someone else settled it" (PRD-06 §4: whether a client polls
+// must not decide whether a charge happens).
+//
+// Errors are returned rather than swallowed: the caller decides fail-open/closed,
+// and a broken ledger must not be mistaken for "not settled".
+func (s *OpenAIGatewayService) GrokVideoDurableSettlementExists(
+	ctx context.Context,
+	requestID string,
+	apiKeyID int64,
+) (bool, error) {
+	if s == nil || s.usageBillingRepo == nil {
+		return false, errors.New("usage billing repository is unavailable")
+	}
+	key := StableGrokVideoBillingRequestID(requestID)
+	if strings.TrimSpace(key) == "" {
+		return false, errors.New("grok video billing request id is invalid")
+	}
+	return s.usageBillingRepo.SettlementExists(ctx, key, apiKeyID)
 }
 
 // ClaimGrokVideoBilling returns true once for a completed video request so status
@@ -632,7 +700,9 @@ func ExtractGrokVideoBillingFromStatusBody(statusBody []byte, pending *GrokVideo
 	if responseID == "" {
 		responseID = strings.TrimSpace(requestID)
 	}
+	usage, _ := extractOpenAIUsageFromJSONBytes(statusBody)
 	return &OpenAIForwardResult{
+		Usage:                usage,
 		ResponseID:           responseID,
 		Model:                model,
 		BillingModel:         billingModel,
@@ -918,6 +988,7 @@ func (s *OpenAIGatewayService) forwardGrokMediaVideoContent(
 		Duration:        time.Since(startTime),
 	}
 	if billed := ExtractGrokVideoBillingFromStatusBody(statusBody, nil, requestID); billed != nil {
+		result.Usage = billed.Usage
 		result.ResponseID = firstNonEmpty(billed.ResponseID, strings.TrimSpace(requestID))
 		result.Model = billed.Model
 		result.BillingModel = billed.BillingModel

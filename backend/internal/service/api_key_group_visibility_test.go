@@ -65,7 +65,7 @@ func TestGetUserGroupVisibilityIncludesActiveSubscriptions(t *testing.T) {
 			require.Len(t, available, 1)
 			visible, restrict, err := svc.GetUserGroupVisibility(context.Background(), 1)
 			require.NoError(t, err)
-			require.Equal(t, restricted, restrict)
+			require.False(t, restrict, "legacy public restriction is ignored")
 			require.Equal(t, map[int64]struct{}{7: {}, 42: {}}, visible)
 			require.Contains(t, visible, available[0].ID, "a subscribed group that can be bound must be visible")
 		})

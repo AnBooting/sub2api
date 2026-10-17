@@ -15,13 +15,17 @@ description: "Use when working on the Sub2API fork at F:\\sub2: Go/Vue code, mig
 | 技术栈 | Go 1.27.2 + Gin + Ent + PostgreSQL 18 + Redis 8；Vue 3.5 + Vite 5 + pnpm 9 |
 | 文档 | `F:\sub2\project-docs\`（先读 `00-overview.md`，规则读 `F:\sub2\AGENTS.md`） |
 
+## 仓库导航
+
+跨模块、公共契约、计费、调度、迁移或影响面不明确的任务，先读 `project-skills/repository-navigation/SKILL.md`，使用 `tools/repo-intelligence.mjs` 和 `tools/repo-map.mjs` 生成最小上下文包，再进入实现和验证。
+
 ## 环境（本机已就绪，勿重复安装）
 
 | 工具 | 位置 / 用法 |
 |---|---|
 | Go 1.27.2 | `F:\tools\go1.27.2\go\bin\go.exe`（`GOROOT`/`GOPATH`/`PATH` 已持久化） |
 | pnpm | **必须** `corepack pnpm@9`；全局 pnpm 11 与锁文件不兼容 |
-| ocr | `F:\tools\ocr\ocr.exe`（阿里 OpenCodeReview v1.12.13） |
+| ocr | `F:\tools\ocr\opencodereview.exe`（= `ocr.exe`，阿里 OpenCodeReview v1.12.13）。**只有 `delegate preview/rule` 可用**：它只选文件与取规则、不调 LLM。`ocr review` 走 LLM，实测 454 次 HTTP 429、0 文件完成，**不要指望它做整库审查**；深审由宿主代理读 diff 完成 |
 | Docker | 需用户手动安装（见 `project-docs\03-dev-environment.md`） |
 
 ## 命令速查
@@ -58,7 +62,10 @@ corepack pnpm@9 exec vite build
 3. **不提交凭据**：`.env`、`data/`、`postgres_data/`、`redis_data/`、API Key、SSH 信息。
 4. **不碰** `dwin-builder`（192.168.43.119）。
 5. **缺价不放行**：未定价模型必须在请求上游前拒绝，不得零价或回落 GPT 兜底价。
-6. **迁移编号**接在上游最新之后（当前最新 **242**，新增从 **243** 起），不改写已有迁移。
+6. **迁移编号**接在上游最新之后（当前最新 **250**，新增从 **251** 起），不改写已有迁移。
+   已用编号：243–245 国模移植、246 分组 HA、247 视频价目、248 云猫订单、249 视频任务、250 放宽 group-link 授权 CHECK。
+7. **不推送到 `upstream`**。其 push URL 已置哨兵值 `DISABLED-upstream-is-read-only`，误推会立即失败。
+   `gh` 在本目录**未设默认仓库**，`gh pr view <n>` 会解析到上游同名 PR；一律显式 `--repo AnBooting/sub2api`。
 
 ## 关键陷阱
 
@@ -72,6 +79,15 @@ corepack pnpm@9 exec vite build
 | `AGENTS.md` 被 gitignore | 提交不了 | `git add -f AGENTS.md` |
 | i18n 检查 | `build` 前必跑 | 新增文案同步 `zh` 与 `en` |
 | 鉴权缓存 | 分组新字段绕过价格命名空间 | 同步 `api_key_auth_cache.go` 并失效旧缓存 |
+| **ent 的 OnDelete 只在 `edge.To` 生效** | 写在 `edge.From` 上被静默忽略，生成 `NoAction` | 外键级联必须写在**父**边的 `edge.To(...)`，并与迁移里的 `ON DELETE` 对齐 |
+| 迁移改 CHECK 的锁窗 | `DROP CONSTRAINT` + `ADD CONSTRAINT` 在 PG 上全表校验 + ACCESS EXCLUSIVE | 大表考虑 `NOT VALID` + `VALIDATE CONSTRAINT`；本机无 PG，**未实测** |
+| 测试锁住 bug | 全绿但断言的是错误行为（4k 档曾被三个测试断言非法） | 修缺陷前先写**能失败**的测试；修复后**变异验证**（回退修复必须让测试失败） |
+| 测试照抄被测逻辑 | 改坏生产代码测试仍绿 | 抽出生产函数再断言（如 `mergeSearchSurcharge`），不要重写组合过程 |
+| 审查者读到过期工作树 | 行号/内容与当前源码不符 | 以当前源码为准并复核实证，不直接采信结论 |
+| 本地分支引用过期 | 误判提交「未推送」 | 判定「仅本地提交」用 `git rev-list --count --all --not --remotes`；`git branch -d` 只比较当前 HEAD，不是安全判据 |
+| **viper 默认值污染「是否配置」哨兵** | 接线在测试里全绿、**生产里完全不生效** | `gateway.openai_ws.sticky_session_ttl_seconds` 默认 **3600（非零）**，用 `> 0` 判「已配置」恒真 → 策略分支成死代码。测试必须建模 viper 默认值，别只用 `config.Config{}`；「未配置则回落」要用取 **min**（配置作为上限）而非「非零即覆盖」 |
+| 新增/修改策略驱动参数 | 静默作废运维配置 | 把既有配置保留为**安全上限**（取 min），调小仍生效；调大不再放大需在注释与 PR 说明 |
+| 并发代理写同一文件 | `FS_STALE_VERSION` / 半成品编译失败 | 写入前查 mtime 确认无活跃写者；半成品（`undefined: xxx`）先判定是并发残留再动手，别当作自己的缺陷 |
 
 ## 国模移植包要点
 
@@ -92,11 +108,17 @@ corepack pnpm@9 exec vite build
 ## 审查
 
 ```powershell
-# 阿里 OpenCodeReview（分支范围）
 cd F:\sub2
-& F:\tools\ocr\ocr.exe review --from main --to develop
+# 只列可审文件（不调 LLM，安全、快）
+& F:\tools\ocr\opencodereview.exe delegate preview --from origin/develop --to HEAD
+# 取该文件适用的规则
+& F:\tools\ocr\opencodereview.exe delegate rule <files>
 ```
-无需 LLM 配置的替代：`ocr delegate preview` + `ocr delegate rule <files>`，由宿主代理自行审查。
+**不要用 `ocr review`**：它走 LLM，本机端点限流严重（实测 454 次 HTTP 429、约 2 小时 0 文件完成）。
+
+深审由宿主代理读 diff 完成。本项目已证明「套件全绿」不足以作为正确性证据，审查必须包含：
+① 先写能失败的测试复现缺陷；② 修复后变异验证；③ 用 `git blame` 区分上游既有缺陷与本轮引入；
+④ 对审查结论本身复核（两次遇到审查者基于过期工作树给出已修复的问题）。
 
 ## 验证标准
 

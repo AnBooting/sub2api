@@ -3,6 +3,7 @@ package handler
 import (
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/admin"
+	yunmaohandler "github.com/Wei-Shaw/sub2api/internal/handler/yunmao"
 	"github.com/Wei-Shaw/sub2api/internal/securityaudit"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -97,6 +98,7 @@ func ProvideAdminHandlers(
 }
 
 func ProvideGatewayHandler(
+	subscriptionService *service.SubscriptionService,
 	gatewayService *service.GatewayService,
 	openAIGatewayService *service.OpenAIGatewayService,
 	geminiCompatService *service.GeminiMessagesCompatService,
@@ -117,12 +119,14 @@ func ProvideGatewayHandler(
 	h := NewGatewayHandler(gatewayService, openAIGatewayService, geminiCompatService, antigravityGatewayService,
 		userService, concurrencyService, billingCacheService, usageService, apiKeyService, usageRecordWorkerPool,
 		errorPassthroughService, contentModerationService, userMsgQueueService, cfg, settingService)
+	h.subscriptionService = subscriptionService
 	h.securityAuditCoordinator = coordinator
 	return h
 }
 
 func ProvideOpenAIGatewayHandler(
 	gatewayService *service.OpenAIGatewayService,
+	sharedGatewayService *service.GatewayService,
 	pluginManager *service.PluginManager,
 	concurrencyService *service.ConcurrencyService,
 	billingCacheService *service.BillingCacheService,
@@ -135,6 +139,7 @@ func ProvideOpenAIGatewayHandler(
 	cfg *config.Config,
 	coordinator *securityaudit.Coordinator,
 	compositeResolver *service.CompositeRouteResolver,
+	subscriptionService *service.SubscriptionService,
 ) *OpenAIGatewayHandler {
 	gatewayService.SetPluginManager(pluginManager)
 	h := NewOpenAIGatewayHandler(gatewayService, concurrencyService, billingCacheService, apiKeyService,
@@ -142,6 +147,8 @@ func ProvideOpenAIGatewayHandler(
 	h.compositeResolver = compositeResolver
 	h.securityAuditCoordinator = coordinator
 	h.grokMediaEligibilityProber = grokQuotaService
+	h.subscriptionService = subscriptionService
+	h.sharedGatewayService = sharedGatewayService
 	return h
 }
 
@@ -200,6 +207,7 @@ func ProvideHandlers(
 	modelPlazaHandler *ModelPlazaHandler,
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
+	shopHandler *yunmaohandler.ShopHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -226,6 +234,7 @@ func ProvideHandlers(
 		ModelPlaza:       modelPlazaHandler,
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
+		Shop:             shopHandler,
 	}
 }
 
@@ -250,6 +259,7 @@ var ProviderSet = wire.NewSet(
 	NewPaymentWebhookHandler,
 	NewAvailableChannelHandler,
 	NewModelPlazaHandler,
+	yunmaohandler.NewShopHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 

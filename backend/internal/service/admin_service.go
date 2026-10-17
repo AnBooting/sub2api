@@ -7,6 +7,7 @@ import (
 
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 )
 
@@ -66,6 +67,7 @@ type AdminService interface {
 
 	// API Key management (admin)
 	AdminUpdateAPIKeyGroupID(ctx context.Context, keyID int64, groupID *int64) (*AdminUpdateAPIKeyGroupIDResult, error)
+	AdminUpdateAPIKeyGroups(ctx context.Context, keyID int64, input AdminUpdateAPIKeyGroupsInput) (*AdminUpdateAPIKeyGroupIDResult, error)
 	AdminResetAPIKeyRateLimitUsage(ctx context.Context, keyID int64) (*APIKey, error)
 
 	// ReplaceUserGroup 替换用户的专属分组：授予新分组权限、迁移 Key、移除旧分组权限
@@ -267,6 +269,8 @@ type CreateGroupInput struct {
 	VideoPrice1080P    *float64
 	// VideoModelPrices 可选按模型族×分辨率覆盖视频每秒单价。
 	VideoModelPrices map[string]map[string]float64
+	// VideoPricePlans 可选按模型族声明视频计量模式与单价（PRD-06/K-4）。
+	VideoPricePlans map[string]domain.VideoPricePlan
 	// Codex alpha/search 网页搜索单次价格（USD/次，仅 openai 平台使用）；nil/负数按默认价 0.01 处理
 	WebSearchPricePerCall *float64
 	// 搜索工具单价 per 1k
@@ -309,6 +313,10 @@ type CreateGroupInput struct {
 	ProfitControlEnabled bool
 	ProfitMinMargin      *float64
 	ProfitSafetyBuffer   *float64
+	// 分组级调度策略覆盖（C-4）：inherit（默认）/stable/balanced/latency。
+	SchedulingStrategy string
+	// AllowHighAvailability 标记该分组可被用户主动授权为高可用兜底（PRD-04/TS-04）。
+	AllowHighAvailability bool
 	// 从指定分组复制账号（创建分组后在同一事务内绑定）
 	CopyAccountsFromGroupIDs []int64
 }
@@ -348,6 +356,8 @@ type UpdateGroupInput struct {
 	VideoPrice1080P    *float64
 	// VideoModelPrices 可选按模型族×分辨率覆盖；nil 表示不修改，空 map 表示清除。
 	VideoModelPrices map[string]map[string]float64
+	// VideoPricePlans 可选按模型族声明计量模式与单价；nil 表示不修改，空 map 表示清除。
+	VideoPricePlans *map[string]domain.VideoPricePlan
 	// Codex alpha/search 网页搜索单次价格（USD/次）；nil 表示不修改，负数表示清除回默认价 0.01
 	WebSearchPricePerCall *float64
 	// 搜索工具单价；nil 不修改，负数清除
@@ -390,6 +400,11 @@ type UpdateGroupInput struct {
 	ProfitControlEnabled *bool
 	ProfitMinMargin      *float64
 	ProfitSafetyBuffer   *float64
+	// 分组级调度策略覆盖（C-4）：nil 表示未提供不改动；显式值必须是
+	// inherit/stable/balanced/latency，非法值由 service 层拒绝。
+	SchedulingStrategy *string
+	// AllowHighAvailability 标记该分组可被用户主动授权为高可用兜底；nil 表示不修改，显式 false 可关闭。
+	AllowHighAvailability *bool
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64
 }
@@ -481,6 +496,12 @@ type BulkUpdateAccountResult struct {
 	AccountID int64  `json:"account_id"`
 	Success   bool   `json:"success"`
 	Error     string `json:"error,omitempty"`
+}
+
+type AdminUpdateAPIKeyGroupsInput struct {
+	Groups                     []APIKeyGroupLink
+	ExpectedGroupChainRevision *int64
+	ResetRateLimitUsage        bool
 }
 
 // AdminUpdateAPIKeyGroupIDResult is the result of AdminUpdateAPIKeyGroupID.

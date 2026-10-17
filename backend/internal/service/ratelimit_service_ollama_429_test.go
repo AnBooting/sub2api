@@ -395,11 +395,14 @@ func TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort(t *testing.T) {
 	require.Equal(t, 1, scheduler.count())
 
 	// An admin / newer policy re-arms the account to a fresh SHORT cooldown.
-	newShort := time.Now().Add(5 * time.Second)
+	originalReset := repo.currentReset(acct.ID)
+	require.NotNil(t, originalReset)
+	newShort := originalReset.Add(time.Second)
+	require.False(t, originalReset.Equal(newShort), "new cooldown must be a distinct generation even within one clock tick")
 	repo.mutate(acct.ID, func(a *Account) { a.RateLimitResetAt = ollama429TimePtr(newShort) })
 
 	// The old async result reports a long 7d reset; it must not override.
-	oldLong := time.Now().Add(7 * 24 * time.Hour)
+	oldLong := newShort.Add(7 * 24 * time.Hour)
 	scheduler.fire(acct.ID, oldLong)
 
 	require.Zero(t, repo.casUpdated, "stale long callback must not pass the CAS")
@@ -412,6 +415,44 @@ func TestOllamaProbeCallback_StaleLongDoesNotOverrideNewShort(t *testing.T) {
 	// an ollama_cloud_usage_429_probe block for the stale 7d reset.
 	if ok && rec.reason == "ollama_cloud_usage_429_probe" {
 		t.Fatalf("stale long callback must not announce scheduling; got block to %v", rec.until)
+	}
+}
+
+// Millisecond-only generation changes must reject an old async callback; no
+// wall-clock sleeps or updated_at precision assumptions are involved.
+func TestOllamaProbeCallback_FixedMillisecondsGenerationRejectsStale(t *testing.T) {
+	base := time.Date(2099, 1, 2, 3, 4, 5, 0, time.UTC)
+	for _, change := range []string{"reset", "limited_at"} {
+		t.Run(change, func(t *testing.T) {
+			account := ollama429Account(550, PlatformOpenAI)
+			originalLimited := base
+			originalReset := base.Add(5100 * time.Millisecond)
+			account.RateLimitedAt = ollama429TimePtr(originalLimited)
+			account.RateLimitResetAt = ollama429TimePtr(originalReset)
+			repo := newOllama429Repo(account)
+			scheduler := newOllama429SchedulerStub(true)
+			svc, blocker := ollama429Fixture(t, repo, scheduler)
+			svc.scheduleOllamaCloudUsageProbe(account)
+			require.Equal(t, 1, scheduler.count())
+			updatedReset := originalReset
+			repo.mutate(account.ID, func(row *Account) {
+				if change == "reset" {
+					updatedReset = originalReset.Add(time.Millisecond)
+					row.RateLimitResetAt = ollama429TimePtr(updatedReset)
+					require.False(t, row.RateLimitResetAt.Equal(originalReset))
+				} else {
+					row.RateLimitedAt = ollama429TimePtr(originalLimited.Add(time.Millisecond))
+					require.False(t, row.RateLimitedAt.Equal(originalLimited))
+					require.True(t, row.RateLimitResetAt.Equal(originalReset))
+				}
+			})
+			scheduler.fire(account.ID, originalReset.Add(7*24*time.Hour))
+			require.Zero(t, repo.casUpdated)
+			require.Equal(t, 1, repo.casSkipped)
+			require.True(t, repo.currentReset(account.ID).Equal(updatedReset))
+			_, blocked := blocker.last()
+			require.False(t, blocked, "stale callback cannot notify scheduling")
+		})
 	}
 }
 

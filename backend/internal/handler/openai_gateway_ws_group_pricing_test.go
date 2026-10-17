@@ -187,6 +187,30 @@ func TestOpenAIResponsesWebSocket_FailedKeyRefreshKeepsConnectionGroup(t *testin
 	require.GreaterOrEqual(t, repo.lookupCount(), 2, "the second turn must have attempted a refresh")
 }
 
+// TestOpenAIResponsesWebSocket_LockedPricingSameModelFreezesEachTurn 锁定
+// recon §1.4-3：同模型多 turn 之间管理员改价时，两个 turn 各按自己 turn 开始时刻
+// 的冻结价计费，且各自只扣一次（rate 3.0 → 0.3 与分组调价用例同源，额外断言
+// 每 turn 恰好一条用量、金额按各自倍率）。
+func TestOpenAIResponsesWebSocket_LockedPricingSameModelFreezesEachTurn(t *testing.T) {
+	repo := newWSGroupPricingAPIKeyRepoStub(3.0)
+	apiKeyService := newWSGroupPricingAPIKeyService(repo)
+	got := runOpenAIResponsesWebSocketUsageLogCase(t, openAIResponsesWSUsageLogCase{
+		firstPayload:     wsGroupPricingFirst,
+		secondPayload:    wsGroupPricingSecond,
+		apiKeyService:    apiKeyService,
+		apiKeyCredential: wsGroupPricingKey,
+		afterFirstUpstreamRequest: func(*service.ChannelService) error {
+			return repo.adminUpdate(apiKeyService, func(_ *service.APIKey, group *service.Group) { group.RateMultiplier = 0.3 })
+		},
+	})
+
+	require.Len(t, got.logs, 2, "每个 turn 恰有一条用量记录（不得双写）")
+	require.InDelta(t, 3.0, got.logs[0].RateMultiplier, 1e-12)
+	require.InDelta(t, 0.3, got.logs[1].RateMultiplier, 1e-12)
+	require.Equal(t, got.logs[0].RequestID != got.logs[1].RequestID, true,
+		"两个 turn 是独立请求，冻结 requestID 必须不同")
+}
+
 type wsTurnAPIKeyLookupFunc func(ctx context.Context, key string) (*service.APIKey, error)
 
 func (f wsTurnAPIKeyLookupFunc) GetByKey(ctx context.Context, key string) (*service.APIKey, error) {

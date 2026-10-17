@@ -220,6 +220,8 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { customerCreditHeader } from '@/utils/billingCredits'
+import { storedCreditSnapshot, usageRoutingExport } from '@/utils/usageBillingSnapshot'
 import { useI18n } from 'vue-i18n'
 import { useAppStore } from '@/stores/app'
 import { FeatureFlags, resolveFeatureFlag } from '@/utils/featureFlags'
@@ -666,8 +668,10 @@ const exportToCSV = async () => {
       'Cache Read Tokens',
       'Cache Creation Tokens',
       'Rate Multiplier',
-      'Billed Cost',
-      'Original Cost',
+      customerCreditHeader('Billed Cost'),
+      customerCreditHeader('Original Cost'),
+      'Requested Group ID', 'Served Group ID', 'Failover', 'Attempt Count',
+      'Locked Price Version', 'Locked Group Multiplier', customerCreditHeader('Locked Total'),
       'First Token (ms)',
       'Duration (ms)',
     ]
@@ -687,6 +691,10 @@ const exportToCSV = async () => {
       log.rate_multiplier,
       log.actual_cost.toFixed(8),
       log.total_cost.toFixed(8),
+      ...usageRoutingExport(log),
+      storedCreditSnapshot(log)?.price_version ?? '',
+      storedCreditSnapshot(log)?.group_multiplier ?? '',
+      storedCreditSnapshot(log)?.total_credit ?? '',
       log.first_token_ms ?? '',
       log.duration_ms ?? '',
     ].map(escapeCSVValue))
@@ -720,7 +728,8 @@ const allColumns = computed<Column[]>(() => [
   { key: 'reasoning_effort', label: t('usage.reasoningEffort'), sortable: false },
   { key: 'endpoint', label: t('usage.endpoint'), sortable: false },
   { key: 'ip_address', label: 'IP', sortable: false },
-  { key: 'group', label: t('admin.usage.group'), sortable: false },
+  { key: 'group', label: t('usage.recordedGroup'), sortable: false },
+  { key: 'served_group', label: t('usage.servedGroup'), sortable: false },
   { key: 'stream', label: t('usage.type'), sortable: false },
   { key: 'billing_mode', label: t('admin.usage.billingMode'), sortable: false },
   { key: 'tokens', label: t('usage.tokens'), sortable: false },

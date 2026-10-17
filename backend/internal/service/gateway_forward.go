@@ -65,6 +65,20 @@ func retryBackoffDelay(attempt int) time.Duration {
 	return delay
 }
 
+// retryBackoffDelayWithBudget 返回钳到请求预算剩余时间后的重试退避（TS-02 S3）。
+//
+// 必须显式判 nil：Remaining() 对 nil 预算返回 0，写成 min 会把无预算请求的退避
+// 全压成 0，反而放大上游压力。retryBackoffDelay 的签名保持不变——它还有
+// gateway_bedrock.go / gateway_anthropic_passthrough.go 两个调用点（S3 阶段这两条
+// 路径尚未挂预算），故用本包装函数在已挂预算的调用点做钳制。
+func retryBackoffDelayWithBudget(ctx context.Context, attempt int) time.Duration {
+	delay := retryBackoffDelay(attempt)
+	if budget := RequestAttemptBudgetFromContext(ctx); budget != nil && budget.Remaining() < delay {
+		delay = budget.Remaining()
+	}
+	return delay
+}
+
 func sleepWithContext(ctx context.Context, d time.Duration) error {
 	if d <= 0 {
 		return nil
@@ -124,7 +138,16 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 
 	// Web Search 模拟：纯 web_search 请求时，直接调用搜索 API 构造响应
 	if account != nil && s.shouldEmulateWebSearch(ctx, account, parsed.GroupID, parsed.Body.Bytes()) {
-		return s.handleWebSearchEmulation(ctx, c, account, parsed)
+		result, err := s.handleWebSearchEmulation(ctx, c, account, parsed)
+		if err == nil && c != nil && c.Request != nil {
+			// 本机合成响应：不发上游，因此没有"实际出站模型"这回事，该分支的
+			// ForwardResult 故意不设 UpstreamModel。若继续留在锁价链上，消费侧的等值
+			// 核对会拿空串与冻结模型比较而 fail-closed——用户拿到 200 却零计费。
+			// 这里显式剥离本次请求的冻结 bundle，让用量落账走 legacy 分支
+			// （与 WS 中途生图回合回退 legacy 按次计费同语义）。
+			c.Request = c.Request.WithContext(WithoutGatewayRequestBilling(c.Request.Context()))
+		}
+		return result, err
 	}
 
 	if account != nil && account.IsAnthropicAPIKeyPassthroughEnabled() {
@@ -399,7 +422,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 		lastWireBody = wireBody
 
 		// 发送请求
-		resp, err = s.httpUpstream.DoWithTLS(upstreamReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
+		resp, err = sendUpstreamWithBudget(s.httpUpstream, upstreamReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 		if err != nil {
 			if resp != nil && resp.Body != nil {
 				_ = resp.Body.Close()
@@ -462,7 +485,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					retryReq, retryWireBody, buildErr := s.buildUpstreamRequest(retryCtx, c, account, filteredBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 					releaseRetryCtx()
 					if buildErr == nil {
-						retryResp, retryErr := s.httpUpstream.DoWithTLS(retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
+						retryResp, retryErr := sendUpstreamWithBudget(s.httpUpstream, retryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 						if retryErr == nil {
 							if retryResp.StatusCode < 400 {
 								// 重试请求被上游接受后同步 ParsedRequest，保证 usage/日志看到真实请求体。
@@ -505,7 +528,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 									retryReq2, retryWireBody2, buildErr2 := s.buildUpstreamRequest(retryCtx2, c, account, filteredBody2, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 									releaseRetryCtx2()
 									if buildErr2 == nil {
-										retryResp2, retryErr2 := s.httpUpstream.DoWithTLS(retryReq2, proxyURL, account.ID, account.Concurrency, tlsProfile)
+										retryResp2, retryErr2 := sendUpstreamWithBudget(s.httpUpstream, retryReq2, proxyURL, account.ID, account.Concurrency, tlsProfile)
 										if retryErr2 == nil {
 											if retryResp2.StatusCode < 400 {
 												// 二阶段工具块降级成功时也必须更新当前 body。
@@ -588,7 +611,7 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 						budgetRetryReq, budgetWireBody, buildErr := s.buildUpstreamRequest(budgetRetryCtx, c, account, rectifiedBody, token, tokenType, reqModel, reqStream, shouldMimicClaudeCode)
 						releaseBudgetRetryCtx()
 						if buildErr == nil {
-							budgetRetryResp, retryErr := s.httpUpstream.DoWithTLS(budgetRetryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
+							budgetRetryResp, retryErr := sendUpstreamWithBudget(s.httpUpstream, budgetRetryReq, proxyURL, account.ID, account.Concurrency, tlsProfile)
 							if retryErr == nil {
 								if budgetRetryResp.StatusCode < 400 {
 									// budget 修正请求成功后，ParsedRequest 也要描述被接受的修正版。
@@ -623,7 +646,8 @@ func (s *GatewayService) Forward(ctx context.Context, c *gin.Context, account *A
 					break
 				}
 
-				delay := retryBackoffDelay(attempt)
+				// TS-02 S3：退避同时受请求预算剩余时间约束（nil 预算不钳）。
+				delay := retryBackoffDelayWithBudget(ctx, attempt)
 				remaining := maxRetryElapsed - elapsed
 				if delay > remaining {
 					delay = remaining

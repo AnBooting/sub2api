@@ -24,8 +24,8 @@
           </div>
           <div class="text-right">
             <p class="text-sm font-semibold">
-              <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">{{ formatBillingAmount(formatCost(log.actual_cost)) }}</span>
-              <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / {{ formatBillingAmount(formatCost(log.total_cost)) }}</span>
+              <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">{{ formatCustomerCredit(formatCost(log.actual_cost)) }}</span>
+              <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / {{ formatCustomerCredit(formatCost(log.total_cost)) }}</span>
             </p>
             <p class="text-xs text-gray-500 dark:text-dark-400">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
           </div>
@@ -41,7 +41,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatBillingAmount } from '@/utils/billingCredits'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { useI18n } from 'vue-i18n'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import EmptyState from '@/components/common/EmptyState.vue'

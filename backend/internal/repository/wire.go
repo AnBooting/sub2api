@@ -8,7 +8,9 @@ import (
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/Wei-Shaw/sub2api/ent"
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	yunmaorepo "github.com/Wei-Shaw/sub2api/internal/repository/yunmao"
 	"github.com/Wei-Shaw/sub2api/internal/service"
+	yunmaosvc "github.com/Wei-Shaw/sub2api/internal/service/yunmao"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 )
@@ -82,6 +84,8 @@ var ProviderSet = wire.NewSet(
 	NewUsageLogRepository,
 	NewUsageBillingRepository,
 	NewBatchImageRepository,
+	// NewVideoTaskRepository 提供 PRD-06/TS-06 的异步视频任务表仓储（本站任务归属）。
+	NewVideoTaskRepository,
 	NewIdempotencyRepository,
 	NewUsageCleanupRepository,
 	NewDashboardAggregationRepository,
@@ -144,6 +148,9 @@ var ProviderSet = wire.NewSet(
 	// Encryptors
 	NewAESEncryptor,
 
+	// White-label shop order mapping (TS-03 / PRD-03)
+	ProvideShopOrderStore,
+
 	// Backup infrastructure
 	NewPgDumper,
 	NewS3BackupStoreFactory,
@@ -172,6 +179,17 @@ var ProviderSet = wire.NewSet(
 	ProvideSQLDB,
 	ProvideRedis,
 )
+
+// ProvideShopOrderStore 把白标充值订单仓储适配成适配层需要的存储端口。
+//
+// 适配器（OrderRepository）依赖 *sql.DB；当数据库句柄不可用时返回 nil，
+// 让上层 fail closed，而不是在构造期 panic。
+func ProvideShopOrderStore(db *sql.DB) yunmaosvc.OrderStore {
+	if db == nil {
+		return nil
+	}
+	return yunmaorepo.NewOrderRepository(db)
+}
 
 // ProvideEnt 为依赖注入提供 Ent 客户端。
 //

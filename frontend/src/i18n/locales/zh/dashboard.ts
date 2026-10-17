@@ -66,6 +66,32 @@ export default {
 
   // API Keys
   keys: {
+    chain: {
+      conflict: "分组配置已被其他操作修改。请刷新密钥列表并重新打开编辑后再保存；本次更改未自动重试。",
+      publicGroupsHint: "通用公开标准组始终可用；这里仅配置用户倍率，专属组授权和订阅要求保持不变。",
+      "title": "普通分组尝试顺序",
+      "hint": "按顺序优先使用，当前组内候选耗尽后才尝试下一组；按实际服务组的有效倍率计费。",
+      "add": "添加普通分组",
+      "moveUp": "将 {name} 上移",
+      "moveDown": "将 {name} 下移",
+      "remove": "移除 {name}",
+      "empty": "未绑定普通分组",
+      "unavailable": "分组 #{id}（当前不可用）",
+      "haAuthorized": "用户已授权的高可用兜底",
+      "singleHint": "上方单组选项会将普通链替换为该组，兜底授权保持不变。",
+      "edit": "编辑普通分组顺序"
+    },
+    // PRD-04/TS-04：用户主动开启高可用兜底分组。倍率由管理员在分组上设置，
+    // 这里只展示，不允许用户填写。
+    ha: {
+      "title": "高可用兜底分组",
+      "hint": "普通分组全部不可用时，按顺序尝试你已开启的兜底分组；按实际服务分组的倍率计费。倍率由管理员设置。",
+      "empty": "管理员暂未配置可用于兜底的分组",
+      "enable": "开启兜底",
+      "enabled": "已开启",
+      "scopeMismatch": "该分组的模型范围与本密钥不匹配，暂不可开启",
+      "accessRequired": "该分组为专属分组，需先获得访问授权才能开启兜底"
+    },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
     searchPlaceholder: '搜索名称或Key...',
@@ -300,7 +326,7 @@ export default {
     reset: '重置',
     resetQuotaUsed: '将已用额度重置为 0',
     resetQuotaTitle: '确认重置额度',
-    resetQuotaConfirmMessage: '确定要将密钥 "{name}" 的已用额度（${used}）重置为 0 吗？此操作不可撤销。',
+    resetQuotaConfirmMessage: '确定要将密钥 "{name}" 的已用额度（{used} Credit）重置为 0 吗？此操作不可撤销。',
     quotaResetSuccess: '额度重置成功',
     failedToResetQuota: '重置额度失败',
     rateLimitColumn: '速率限制',
@@ -336,6 +362,46 @@ export default {
 
   // Usage
   usage: {
+    currencyUnknown: "币种未知",
+  "billingDetails": "消费详情",
+  "recordedGroup": "原记录分组",
+  "requestedGroup": "请求首选分组",
+  "servedGroup": "实际服务分组",
+  "fromSnapshot": "（来自锁价快照）",
+  "failover": "故障转移",
+  "attemptCount": "上游发送次数",
+  "failoverKinds": {
+    "none": "无故障转移",
+    "account": "组内换号",
+    "group": "普通组切换",
+    "ha": "用户授权高可用兜底"
+  },
+  "recordedCredit": "记录消费（Credit）",
+  "missingLockedSnapshot": "此记录没有可读取的 v2 锁价快照。仅显示已有账务字段，不补造历史单价、倍率或调度记录。",
+  "lockedSnapshot": "已存锁价快照",
+  "requestStartedAt": "请求开始时间",
+  "priceVersion": "锁定价表版本",
+  "priceSource": "价格来源",
+  "sourceCurrency": "源价格币种",
+  "pricingUnit": "计量单位",
+  "lockedPeriod": "锁定计价时段",
+  "snapshotServedGroup": "快照实际服务分组",
+  "lockedMultiplier": "锁定分组倍率",
+  "lockedTotalCredit": "快照最终消费",
+  "priceKind": "计费维度",
+  "baseCreditPrice": "基础单价（Credit）",
+  "storedUsage": "已存用量",
+  "normalizedUsage": "已存标准化用量",
+  "subtotalCredit": "已存小计（Credit）",
+  "missingStoredPriceItems": "快照未存储单价项目，不从当前价表补齐。",
+  "storedSnapshotOnly": "所有快照值均为服务器已保存的请求时点事实；此页面不读取实时价格，也不重新结算。",
+  "snapshotConflict": "记录与锁价快照的实际分组或消费不一致，以下保留两份已存数据供核对；页面不会改账或自动纠正。",
+  "mediaBillingMode": "媒体计费模式",
+  "mediaBillableCount": "已存计费次数",
+  "mediaBillableSeconds": "已存计费秒数",
+  "mediaSecondsSource": "秒数来源"
+,
+
     title: '使用记录',
     description: '查看和分析您的 API 使用历史',
     costDetails: '费用明细',

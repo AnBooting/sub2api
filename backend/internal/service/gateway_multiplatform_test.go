@@ -2975,8 +2975,8 @@ func TestGatewayService_SelectAccountWithLoadAwareness(t *testing.T) {
 
 		concurrencyCache := &mockConcurrencyCache{
 			loadMap: map[int64]*AccountLoadInfo{
-				1: {AccountID: 1, LoadRate: 100},
-				2: {AccountID: 2, LoadRate: 100},
+				1: {AccountID: 1, CurrentConcurrency: 5, LoadRate: 100},
+				2: {AccountID: 2, CurrentConcurrency: 5, LoadRate: 100},
 				3: {AccountID: 3, LoadRate: 0},
 			},
 		}

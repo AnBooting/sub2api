@@ -1,11 +1,37 @@
 export default {
     settings: {
 	  pricing: {
+	    calendarYears: '日历覆盖年份',
+      calendar: {
+        "title": "DeepSeek 法定假日日历",
+        "rules": "时区固定 Asia/Shanghai。已维护的法定假日优先按谷价；周末（包含调休补班周末）仍按谷价。非假日工作日峰价窗口为 [09:00,12:00) 与 [14:00,18:00)，其余时间谷价。这里不推算当前价格或时段。",
+        "unsupported": "当前后端未完整提供日历或年度状态字段，无法确认支持。日历编辑不可用，原价格开关仍可使用。",
+        "yearMissing": "上海当前年份既无自定义日历也无内置覆盖，官方高峰加价已禁用；请维护完整年度假日。",
+        "yearMaintained": "上海当前年份已有自定义或内置日历覆盖（空日期数组也属于明确维护）。",
+        "editorLabel": "年度法定假日 JSON",
+        "editorHelp": "根对象按四位年份映射日期数组，格式 YYYY-MM-DD，日期必须有效且与年份一致、不得重复；不录入补班日期。某年 [] 表示明确维护且无假日。缺年回落内置 2026 年表，两者均缺年则禁用官方高峰加价。保存 {'{'}{'}'} 清除自定义覆盖并恢复内置回落。手工售价保持运营者配置。",
+        "unsaved": "存在未保存草稿。轮询、价格刷新和开关保存不会覆盖此草稿，草稿尚未生效。",
+        "save": "保存日历",
+        "resetDraft": "放弃草稿，恢复服务器值",
+        "savedState": "服务器已保存日历",
+        "saved": "日历已保存并读回服务器值",
+        "missingReadback": "服务器未返回完整日历及年度状态，无法确认日历生效；草稿保留。",
+        "errors": {
+          "json": "请输入有效的 JSON。",
+          "root": "日历根必须是对象，不能是 null 或数组。",
+          "year": "年份必须为四位 0001–9999：{value}",
+          "dates": "年份的值必须为日期数组，不能是 null：{value}",
+          "date": "日期格式或日期本身无效：{value}",
+          "yearMismatch": "日期年份与所属年份不一致：{value}",
+          "duplicate": "日期重复：{value}"
+        }
+      },
 	    creditUnit: '额度', rechargeHint: '额度模式已启用：¥1 或 $1 基础充值均到账 1 额度，赠送和手续费另行计算。',
 	    currency: '价格币种', manualCNYHint: '人民币 Token 价卡需填写输入、输出、缓存读取和缓存写入价格，免费项填写 0；不会继承美元价格。',
 	    title: '模型价格与额度计费', description: '选择国模价卡，并控制所有远程价格拉取。开关保存后即时生效。',
 	    nativeCNY: '使用国模人民币价格源', nativeCNYHint: '国模使用原始 CNY 价卡，Claude/GPT 等继续使用 USD 价卡。¥1 和 $1 都扣 1 额度，不做汇率换算；充值到账比例固定为 1。缺少人民币价格的国模需配置手动价格。',
 	    remote: '允许远程价格拉取', remoteHint: '关闭后停止启动检查、定时同步、远程哈希检查和手动刷新；保留本地缓存与手动价格。',
+    syncInterval: '定价同步周期（小时）', syncIntervalHint: '可填 {min}–{max} 小时。保存后立即重排定时器，下一个周期边界即按新周期执行，无需重启。留空表示沿用配置文件默认值。', syncIntervalEffective: '当前生效周期：{hours} 小时', syncIntervalSave: '保存周期', syncIntervalInvalid: '请输入 1 到 720 之间的整数小时。',
 	    offline: '远程拉取已关闭，当前使用本地价格。', noCNY: '暂无人民币价卡缓存。开启拉取后同步，或配置明确币种的手动价卡。',
 	    sources: '价格数据来源：', refresh: '立即同步价格', retry: '重试', never: '尚未同步', failed: '价格设置请求失败', saved: '价格设置已保存',
 	  },
@@ -449,6 +475,21 @@ export default {
         maxVersionHint: '拒绝高于此版本的 Claude Code 客户端请求（semver 格式）。留空则不限制最高版本。'
       },
       scheduling: {
+  "strategy": "调度策略",
+  "strategyHint": "策略影响会话复用时长与粘性等待上限，不放宽并发、安全重试或模型能力约束。",
+  "effectiveStrategy": "当前有效策略",
+  "strategies": {
+    "inherit": "继承全局",
+    "stable": "稳定优先",
+    "balanced": "平衡",
+    "latency": "响应速度优先"
+  },
+  "maxAttempts": "单请求最大发送次数",
+  "requestBudget": "单请求总预算（秒）",
+  "budgetHint": "包括所有真实上游重试，现有更小的限制仍然有效。默认 16 次 / 600 秒。",
+  "invalidBudget": "发送次数与预算必须为正整数。"
+,
+
         title: '网关调度设置',
         description: '控制 API Key 的调度行为',
         allowUngroupedKey: '允许未分组 Key 调度',
@@ -457,7 +498,14 @@ export default {
         accountSchedulingThresholdsDescription: '当账号当前原生用量窗口（OpenAI Codex/Anthropic 会话，或 Grok 请求/Token 利用率）达到该百分比时，Sub2API 会临时将其移出调度，直到窗口重置。填 100 表示禁用。',
         accountSchedulingThresholdsGlobalHint: '系统级默认值，作用于该平台全部账号。可在账号编辑页对单个账号覆盖。',
         accountSchedulingThresholdsDisabledHint: '100 表示禁用该平台自动停调；1–99 表示达到该利用率后暂停调度。',
-        accountSchedulingThresholdsRangeHint: '整数 1–100（百分比）。仅 OpenAI / Anthropic / Grok。'
+        accountSchedulingThresholdsRangeHint: '整数 1–100（百分比）。仅 OpenAI / Anthropic / Grok。',
+        requestBudgetTitle: '统一重试预算',
+        requestBudgetDescription: '同一逻辑请求在内部换号、换组时共用的上游发送上限与总耗时预算。仅统计真实上游推理发送，选号与预检不计入。',
+        maxAttemptsPerRequest: '单请求最大尝试次数',
+        maxAttemptsPerRequestHint: '默认 16。必须为大于 0 的整数，且与下方时间预算同时生效，任一耗尽即停止重试。',
+        requestBudgetSeconds: '单请求时间预算（秒）',
+        requestBudgetSecondsHint: '默认 600 秒。必须为大于 0 的整数，超时后不再发起新的上游尝试。',
+        requestBudgetInvalid: '单请求最大尝试次数与时间预算都必须是大于 0 的整数。'
       },
       upstreamBillingProbe: {
         title: '上游倍率自动探测',

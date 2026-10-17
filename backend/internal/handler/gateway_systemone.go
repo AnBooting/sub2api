@@ -82,7 +82,7 @@ func (h *GatewayHandler) SystemOne(c *gin.Context) {
 	setOpsRequestContext(c, model, false)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeSync))
 	service.SetOpsLatencyMs(c, service.OpsAuthLatencyMsKey, time.Since(requestStart).Milliseconds())
-	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
+	pricingCtx, pricingAt := h.gatewayService.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, model)
 	subscription, _ := middleware2.GetSubscriptionFromContext(c)
@@ -120,6 +120,13 @@ func (h *GatewayHandler) SystemOne(c *gin.Context) {
 		return
 	}
 	defer inflightRelease()
+
+	// TS-02 S3b：SystemOne 文本入口在 failover 循环前挂载单逻辑请求预算。
+	// clientDeadline 本期不读，传零值；预算耗尽由 HandleFailoverError /
+	// HandleSelectionExhausted 统一走 503 + no_available_group。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, _ := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
 
 	fs := NewFailoverState(h.maxAccountSwitches, false)
 	for {

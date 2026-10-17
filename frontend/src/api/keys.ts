@@ -4,7 +4,8 @@
  */
 
 import { apiClient } from './client'
-import type { ApiKey, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
+import { replaceNormalGroups } from '@/utils/keyGroupChain'
+import type { ApiKey, ApiKeyGroupInput, CreateApiKeyRequest, UpdateApiKeyRequest, PaginatedResponse } from '@/types'
 
 /**
  * List all API keys for current user
@@ -65,10 +66,13 @@ export async function create(
   ipBlacklist?: string[],
   quota?: number,
   expiresInDays?: number,
-  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number }
+  rateLimitData?: { rate_limit_5h?: number; rate_limit_1d?: number; rate_limit_7d?: number },
+  groups?: ApiKeyGroupInput[]
 ): Promise<ApiKey> {
   const payload: CreateApiKeyRequest = { name }
-  if (groupId !== undefined) {
+  if (groups !== undefined) {
+    payload.groups = groups
+  } else if (groupId !== undefined) {
     payload.group_id = groupId
   }
   if (customKey) {
@@ -125,7 +129,15 @@ export async function bulkUpdate(
   const result: BulkUpdateApiKeysResult = { succeededIds: [], failures: [] }
   for (let offset = 0; offset < uniqueIds.length; offset += 5) {
     const batch = uniqueIds.slice(offset, offset + 5)
-    const responses = await Promise.allSettled(batch.map((id) => update(id, updates)))
+    const responses = await Promise.allSettled(batch.map(async (id) => {
+      // The user endpoint replaces the whole chain. Read each key so bulk normal edits
+      // preserve that key's own HA consent; a failed read must not result in a write.
+      if (updates.groups !== undefined && updates.groups.every((entry) => entry.role === 'normal')) {
+        const current = await getById(id)
+        return update(id, { ...updates, groups: replaceNormalGroups(updates.groups.map((entry) => entry.group_id), current.groups), expected_group_chain_revision: current.group_chain_revision })
+      }
+      return update(id, updates)
+    }))
     responses.forEach((response, index) => {
       if (response.status === 'fulfilled') {
         result.succeededIds.push(batch[index])
@@ -135,6 +147,58 @@ export async function bulkUpdate(
     })
   }
   return result
+}
+
+/** One admin-designated HA fallback group a user may opt a key into (PRD-04). */
+export interface KeyHAGroupCandidate {
+  group_id: number
+  name: string
+  platform: string
+  rate_multiplier: number
+  enabled: boolean
+  enabled_by_user_at?: string
+  scope_compatible: boolean
+  /**
+   * Whether the user currently holds the access this group needs to actually serve
+   * (an exclusive group needs an explicit grant; a public group needs none). The
+   * server enforces the same condition on write, so this mirrors what will really
+   * happen rather than advertising an opt-in the server would reject (PRD-04 FE-02).
+   */
+  access_granted: boolean
+}
+
+/**
+ * List the HA fallback groups this key may opt into, with the user's current consent.
+ *
+ * The list is filtered only by the admin fallback flag and group activity — not by
+ * ordinary group bind permission — because PRD-04/K-3 makes the fallback independent
+ * of normal group access.
+ * @param id - API key ID
+ */
+export async function listKeyHAGroups(id: number): Promise<KeyHAGroupCandidate[]> {
+  const { data } = await apiClient.get<KeyHAGroupCandidate[]>(`/keys/${id}/ha-groups`)
+  return data
+}
+
+/**
+ * Opt this key in or out of an admin-designated high-availability fallback group.
+ *
+ * PRD-04/TS-04: the admin marks which groups may serve as a fallback; the user
+ * consents per key here. The server owns the multiplier, so no rate is sent.
+ * @param id - API key ID
+ * @param groupID - fallback group ID
+ * @param enabled - true to consent, false to withdraw
+ */
+export async function setKeyHAGroup(
+  id: number,
+  groupID: number,
+  enabled: boolean
+): Promise<{ enabled: boolean; rate_multiplier: number; group_chain_revision: number }> {
+  const { data } = await apiClient.put<{ enabled: boolean; rate_multiplier: number; group_chain_revision: number }>(
+    `/keys/${id}/ha-groups/${groupID}`,
+    { enabled }
+  )
+  return data
 }
 
 /**

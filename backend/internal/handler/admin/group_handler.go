@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -223,6 +224,7 @@ type CreateGroupRequest struct {
 	VideoPrice720P                  *float64                      `json:"video_price_720p"`
 	VideoPrice1080P                 *float64                      `json:"video_price_1080p"`
 	VideoModelPrices                map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	VideoPricePlans                 map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
 	WebSearchPricePerCall           *float64                      `json:"web_search_price_per_call"`
 	SearchPricePer1k                *float64                      `json:"search_price_per_1k"`
 	AudioRealtimePricePerMin        *float64                      `json:"audio_realtime_price_per_min"`
@@ -257,6 +259,13 @@ type CreateGroupRequest struct {
 	MaxReasoningEffortOverLimit string `json:"max_reasoning_effort_over_limit"`
 	// Anthropic/OpenAI 推理强度映射，可按模型精确名、前缀或后缀限定。
 	ReasoningEffortMappings []service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// 分组级调度策略覆盖（C-4）：inherit（默认）/stable/balanced/latency。
+	// 刻意不加 binding oneof：gin 的 oneof 大小写敏感，会把 " Stable " 挡在 400，
+	// 与全局 settings 路径（TrimSpace + ToLower 后归一）口径不一致。校验只留
+	// service 层一处（ParseGroupSchedulingStrategy），非法值统一 400。
+	SchedulingStrategy string `json:"scheduling_strategy"`
+	// 是否允许该分组被用户主动开启为高可用兜底（PRD-04/TS-04）。
+	AllowHighAvailability bool `json:"allow_high_availability"`
 	// 从指定分组复制账号（创建后自动绑定）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -298,6 +307,7 @@ type UpdateGroupRequest struct {
 	VideoPrice720P                  *float64                      `json:"video_price_720p"`
 	VideoPrice1080P                 *float64                      `json:"video_price_1080p"`
 	VideoModelPrices                map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	VideoPricePlans                 *map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
 	WebSearchPricePerCall           *float64                      `json:"web_search_price_per_call"`
 	SearchPricePer1k                *float64                      `json:"search_price_per_1k"`
 	AudioRealtimePricePerMin        *float64                      `json:"audio_realtime_price_per_min"`
@@ -332,6 +342,11 @@ type UpdateGroupRequest struct {
 	MaxReasoningEffortOverLimit *string `json:"max_reasoning_effort_over_limit"`
 	// nil 不修改，空数组清空，非空数组替换。
 	ReasoningEffortMappings *[]service.ReasoningEffortMapping `json:"reasoning_effort_mappings"`
+	// 分组级调度策略覆盖（C-4）；nil 不修改。与 CreateGroupRequest 同理不加
+	// binding oneof，大小写/空白归一与非法值拒绝统一由 service 层负责。
+	SchedulingStrategy *string `json:"scheduling_strategy"`
+	// 是否允许该分组被用户主动开启为高可用兜底；nil 不修改。
+	AllowHighAvailability *bool `json:"allow_high_availability"`
 	// 从指定分组复制账号（同步操作：先清空当前分组的账号绑定，再绑定源分组的账号）
 	CopyAccountsFromGroupIDs []int64 `json:"copy_accounts_from_group_ids"`
 }
@@ -717,6 +732,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		VideoPrice720P:                  req.VideoPrice720P,
 		VideoPrice1080P:                 req.VideoPrice1080P,
 		VideoModelPrices:                req.VideoModelPrices,
+		VideoPricePlans:                 req.VideoPricePlans,
 		WebSearchPricePerCall:           req.WebSearchPricePerCall,
 		SearchPricePer1k:                req.SearchPricePer1k,
 		AudioRealtimePricePerMin:        req.AudioRealtimePricePerMin,
@@ -743,6 +759,8 @@ func (h *GroupHandler) Create(c *gin.Context) {
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		SchedulingStrategy:              req.SchedulingStrategy,
+		AllowHighAvailability:           req.AllowHighAvailability,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {
@@ -863,6 +881,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		VideoPrice720P:                  req.VideoPrice720P,
 		VideoPrice1080P:                 req.VideoPrice1080P,
 		VideoModelPrices:                req.VideoModelPrices,
+		VideoPricePlans:                 req.VideoPricePlans,
 		WebSearchPricePerCall:           req.WebSearchPricePerCall,
 		SearchPricePer1k:                req.SearchPricePer1k,
 		AudioRealtimePricePerMin:        req.AudioRealtimePricePerMin,
@@ -889,6 +908,8 @@ func (h *GroupHandler) Update(c *gin.Context) {
 		MaxReasoningEffort:              req.MaxReasoningEffort,
 		MaxReasoningEffortOverLimit:     req.MaxReasoningEffortOverLimit,
 		ReasoningEffortMappings:         req.ReasoningEffortMappings,
+		SchedulingStrategy:              req.SchedulingStrategy,
+		AllowHighAvailability:           req.AllowHighAvailability,
 		CopyAccountsFromGroupIDs:        req.CopyAccountsFromGroupIDs,
 	})
 	if err != nil {

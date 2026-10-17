@@ -7,10 +7,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/antigravity"
@@ -341,7 +343,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 
 	setOpsRequestContext(c, modelName, stream)
 	setOpsEndpointContext(c, "", int16(service.RequestTypeFromLegacy(stream, false)))
-	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
+	pricingCtx, pricingAt := h.gatewayService.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)
 
 	if decision := h.checkSecurityAudit(c, reqLog, apiKey, authSubject, service.ContentModerationProtocolGemini, modelName, body); decision != nil && !decision.AllowNextStage {
@@ -349,15 +351,87 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		return
 	}
 
-	// 解析渠道级模型映射
+	// 解析渠道级模型映射（live 结果仅用于锁价未生效的旧行为；锁价激活时用请求建立时
+	// 冻结的映射覆盖它）。
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
 	reqModel := modelName // 保存映射前的原始模型名
+
+	// C-1 请求锁价（共享入口切片 / Gemini 原生入口）。位置在 URL/action/body 与协议
+	// 校验之后、选号之前：
+	//   - 冻结用映射前的客户端模型（reqModel），成功后其 MappingFor 结果覆盖 live mapping；
+	//   - 仅非 composite 分组启用（composite/HA 的成员分组绑定属 S5 边界）；
+	//   - 本入口没有 warmup/intercept/mock 本机分支，因此只排除 composite；
+	//   - 缺价模型在上游请求前即 503 pricing_unavailable（Gemini 错误形状）。
+	// F6 修复：Gemini 原生出站按 generationConfig.thinkingConfig 选档位变体
+	// （antigravity_gateway_gemini.go:91 的 getMappedModelForThinkingLevel +
+	// geminiThinkingLevelFromBody），冻结侧必须拿到同一档位，否则 thinkingLevel=low 时
+	// 冻结值会停在默认 high、实际出站是 low → 等值核对失败 → 用户 200 但整笔零计费。
+	// 偏好必须在下面冻结调用之前写入 ctx。
+	{
+		thinkingEnabled, thinkingLevel := service.GeminiThinkingPreferenceFromBody(body)
+		c.Request = c.Request.WithContext(service.WithGatewayRequestThinkingPreference(
+			c.Request.Context(), thinkingEnabled, thinkingLevel))
+	}
+
+	lockedGeminiEligible := apiKey.Group == nil || apiKey.Group.Platform != service.PlatformComposite
+	lockedGemini, lockedGeminiOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, reqModel, body, reqLog, lockedGeminiEligible, false, writeGoogleGatewayLockedBillingError,
+	)
+	if !lockedGeminiOK {
+		return
+	}
+	channelMapping = lockedGemini.apply(channelMapping)
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel
 	}
 
 	// Get subscription (may be nil)
 	subscription, _ := middleware.GetSubscriptionFromContext(c)
+	requestBilling := service.GatewayRequestBillingFromContext(c.Request.Context())
+	var normalIDs []int64
+	var haIDs []int64
+	if lockedGemini.active {
+		normalIDs = requestBilling.NormalGroupIDs()
+		// PRD-04: HA candidates come from the same frozen bundle and are only
+		// reachable after every normal candidate is exhausted on a retryable error.
+		haIDs = requestBilling.HAGroupIDs()
+	}
+	// The plan owns normal-then-HA ordering; both lists are frozen and never
+	// reordered here.
+	groupPlan := newNormalGroupPlan(normalIDs, haIDs)
+	groupChainActive := groupPlan.active()
+	originalAPIKey := apiKey
+	groupIndex := 0
+	forcePlatform, forced := middleware.GetForcePlatformFromContext(c)
+	googleWriter := func(c *gin.Context, status int, _ string, message string) { googleError(c, status, message) }
+	// authorizeGroupCandidate picks the normal or HA gate for the candidate's phase.
+	// Both phases share the platform, allowlist, Claude-Code and subscription policy,
+	// so a fallback cannot bypass the Gemini-native platform requirement.
+	authorizeGroupCandidate := func(id int64, isHA bool) (*service.APIKey, *service.UserSubscription, bool) {
+		return h.authorizeSharedTextGroupPolicyWith(c, originalAPIKey, id, normalIDs, haIDs, isHA, body, false, false, googleWriter, reqModel)
+	}
+	if groupChainActive {
+		var admitted bool
+		// Start from the plan's first candidate rather than normalIDs[0]: a chain may
+		// hold only HA links, and the phase must match what the plan serves.
+		startID, startIsHA, hasStart := groupPlan.first()
+		if !hasStart {
+			googleError(c, http.StatusServiceUnavailable, "No group candidate available for this request")
+			return
+		}
+		apiKey, subscription, admitted = authorizeGroupCandidate(startID, startIsHA)
+		if !admitted {
+			return
+		}
+		c.Request = c.Request.WithContext(sharedResponsesExecutionContext(c.Request.Context(), apiKey))
+	}
+	// Captured before this group's sticky/single-account flags and reservation.
+	reservationBase := c.Request.Context()
+	if forced {
+		reservationBase = context.WithValue(reservationBase, ctxkey.ForcePlatform, forcePlatform)
+		c.Request = c.Request.WithContext(reservationBase)
+	}
+	originalBody := append([]byte(nil), body...)
 
 	// For Gemini native API, do not send Claude-style ping frames.
 	geminiConcurrency := NewConcurrencyHelper(h.concurrencyHelper.concurrencyService, SSEPingFormatNone, 0)
@@ -391,7 +465,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 
 	// 余额模式在途预留：防止并发请求在预检时看到同一份余额而集体透支。
-	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(modelName, body))
+	inflightRelease, err := reserveInflightBalance(c, h.billingCacheService, h.gatewayService, apiKey, subscription, tokenInflightEstimate(reqModel, body))
 	if err != nil {
 		reqLog.Info("gemini.inflight_reservation_rejected", zap.Error(err))
 		status, _, message, retryAfter := billingErrorDetails(err)
@@ -401,7 +475,7 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		googleError(c, status, message)
 		return
 	}
-	defer inflightRelease()
+	defer func() { inflightRelease() }()
 
 	// 3) select account (sticky session based on request body)
 	// 优先使用 Gemini CLI 的会话标识（privileged-user-id + tmp 目录哈希）
@@ -423,91 +497,201 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		sessionKey = "gemini:" + sessionHash
 	}
 
-	// 查询粘性会话绑定的账号 ID（用于检测账号切换）
 	var sessionBoundAccountID int64
-	if sessionKey != "" {
-		sessionBoundAccountID, _ = h.gatewayService.GetCachedSessionAccountID(c.Request.Context(), apiKey.GroupID, sessionKey)
-		if sessionBoundAccountID > 0 {
-			prefetchedGroupID := int64(0)
-			if apiKey.GroupID != nil {
-				prefetchedGroupID = *apiKey.GroupID
-			}
-			ctx := service.WithPrefetchedStickySession(c.Request.Context(), sessionBoundAccountID, prefetchedGroupID, h.metadataBridgeEnabled())
-			c.Request = c.Request.WithContext(ctx)
+	var geminiDigestChain, geminiPrefixHash, geminiSessionUUID, matchedDigestChain string
+	var useDigestFallback, hasBoundSession, cleanedForUnknownBinding bool
+	refreshNativeAffinity := func() {
+		sessionKey = sessionHash
+		if sessionHash != "" {
+			sessionKey = "gemini:" + sessionHash
 		}
-	}
-
-	// === Gemini 内容摘要会话 Fallback 逻辑 ===
-	// 当原有会话标识无效时（sessionBoundAccountID == 0），尝试基于内容摘要链匹配
-	var geminiDigestChain string
-	var geminiPrefixHash string
-	var geminiSessionUUID string
-	var matchedDigestChain string
-	useDigestFallback := sessionBoundAccountID == 0
-
-	if useDigestFallback {
-		// 解析 Gemini 请求体
-		var geminiReq antigravity.GeminiRequest
-		if err := json.Unmarshal(body, &geminiReq); err == nil && len(geminiReq.Contents) > 0 {
-			// 生成摘要链
-			geminiDigestChain = service.BuildGeminiDigestChain(&geminiReq)
-			if geminiDigestChain != "" {
-				// 生成前缀 hash
-				userAgent := c.GetHeader("User-Agent")
-				clientIP := ip.GetClientIP(c)
-				platform := ""
-				if apiKey.Group != nil {
-					platform = apiKey.Group.Platform
+		c.Request = c.Request.WithContext(service.WithPrefetchedStickySession(c.Request.Context(), 0, derefGroupID(apiKey.GroupID), h.metadataBridgeEnabled()))
+		// 查询粘性会话绑定的账号 ID（用于检测账号切换）
+		sessionBoundAccountID = 0
+		if sessionKey != "" {
+			sessionBoundAccountID, _ = h.gatewayService.GetCachedSessionAccountID(c.Request.Context(), apiKey.GroupID, sessionKey)
+			if sessionBoundAccountID > 0 {
+				prefetchedGroupID := int64(0)
+				if apiKey.GroupID != nil {
+					prefetchedGroupID = *apiKey.GroupID
 				}
-				geminiPrefixHash = service.GenerateGeminiPrefixHash(
-					authSubject.UserID,
-					apiKey.ID,
-					clientIP,
-					userAgent,
-					platform,
-					modelName,
-				)
+				ctx := service.WithPrefetchedStickySession(c.Request.Context(), sessionBoundAccountID, prefetchedGroupID, h.metadataBridgeEnabled())
+				c.Request = c.Request.WithContext(ctx)
+			}
+		}
 
-				// 查找会话
-				foundUUID, foundAccountID, foundMatchedChain, found := h.gatewayService.FindGeminiSession(
-					c.Request.Context(),
-					derefGroupID(apiKey.GroupID),
-					geminiPrefixHash,
-					geminiDigestChain,
-				)
-				if found {
-					matchedDigestChain = foundMatchedChain
-					sessionBoundAccountID = foundAccountID
-					geminiSessionUUID = foundUUID
-					reqLog.Info("gemini.digest_fallback_matched",
-						zap.String("session_uuid_prefix", safeShortPrefix(foundUUID, 8)),
-						zap.Int64("account_id", foundAccountID),
-						zap.String("digest_chain", truncateDigestChain(geminiDigestChain)),
+		// === Gemini 内容摘要会话 Fallback 逻辑 ===
+		// 当原有会话标识无效时（sessionBoundAccountID == 0），尝试基于内容摘要链匹配
+		geminiDigestChain = ""
+		geminiPrefixHash = ""
+		geminiSessionUUID = ""
+		matchedDigestChain = ""
+		useDigestFallback = sessionBoundAccountID == 0
+
+		if useDigestFallback {
+			// 解析 Gemini 请求体
+			var geminiReq antigravity.GeminiRequest
+			if err := json.Unmarshal(originalBody, &geminiReq); err == nil && len(geminiReq.Contents) > 0 {
+				// 生成摘要链
+				geminiDigestChain = service.BuildGeminiDigestChain(&geminiReq)
+				if geminiDigestChain != "" {
+					// 生成前缀 hash
+					userAgent := c.GetHeader("User-Agent")
+					clientIP := ip.GetClientIP(c)
+					platform := ""
+					if apiKey.Group != nil {
+						platform = apiKey.Group.Platform
+					}
+					geminiPrefixHash = service.GenerateGeminiPrefixHash(
+						authSubject.UserID,
+						apiKey.ID,
+						clientIP,
+						userAgent,
+						platform,
+						modelName,
 					)
 
-					// 关键：如果原 sessionKey 为空，使用 prefixHash + uuid 作为 sessionKey
-					// 这样 SelectAccountWithLoadAwareness 的粘性会话逻辑会优先使用匹配到的账号
-					if sessionKey == "" {
-						sessionKey = service.GenerateGeminiDigestSessionKey(geminiPrefixHash, foundUUID)
-					}
-					_ = h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, foundAccountID)
-				} else {
-					// 生成新的会话 UUID
-					geminiSessionUUID = uuid.New().String()
-					// 为新会话也生成 sessionKey（用于后续请求的粘性会话）
-					if sessionKey == "" {
-						sessionKey = service.GenerateGeminiDigestSessionKey(geminiPrefixHash, geminiSessionUUID)
+					// 查找会话
+					foundUUID, foundAccountID, foundMatchedChain, found := h.gatewayService.FindGeminiSession(
+						c.Request.Context(),
+						derefGroupID(apiKey.GroupID),
+						geminiPrefixHash,
+						geminiDigestChain,
+					)
+					if found {
+						matchedDigestChain = foundMatchedChain
+						sessionBoundAccountID = foundAccountID
+						geminiSessionUUID = foundUUID
+						reqLog.Info("gemini.digest_fallback_matched",
+							zap.String("session_uuid_prefix", safeShortPrefix(foundUUID, 8)),
+							zap.Int64("account_id", foundAccountID),
+							zap.String("digest_chain", truncateDigestChain(geminiDigestChain)),
+						)
+
+						// 关键：如果原 sessionKey 为空，使用 prefixHash + uuid 作为 sessionKey
+						// 这样 SelectAccountWithLoadAwareness 的粘性会话逻辑会优先使用匹配到的账号
+						if sessionKey == "" {
+							sessionKey = service.GenerateGeminiDigestSessionKey(geminiPrefixHash, foundUUID)
+						}
+						_ = h.gatewayService.BindStickySession(c.Request.Context(), apiKey.GroupID, sessionKey, foundAccountID)
+					} else {
+						// 生成新的会话 UUID
+						geminiSessionUUID = uuid.New().String()
+						// 为新会话也生成 sessionKey（用于后续请求的粘性会话）
+						if sessionKey == "" {
+							sessionKey = service.GenerateGeminiDigestSessionKey(geminiPrefixHash, geminiSessionUUID)
+						}
 					}
 				}
 			}
 		}
-	}
 
-	// 判断是否真的绑定了粘性会话：有 sessionKey 且已经绑定到某个账号
-	hasBoundSession := sessionKey != "" && sessionBoundAccountID > 0
-	cleanedForUnknownBinding := false
+		// 判断是否真的绑定了粘性会话：有 sessionKey 且已经绑定到某个账号
+		hasBoundSession = sessionKey != "" && sessionBoundAccountID > 0
+		cleanedForUnknownBinding = false
+
+	}
+	refreshNativeAffinity()
+
+	// TS-02 S3b：Gemini 文本入口在 failover 循环前挂载单逻辑请求预算。
+	// clientDeadline 本期不读，传零值；预算耗尽由 HandleFailoverError /
+	// HandleSelectionExhausted 统一走 503 + no_available_group。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, attemptBudget := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
 
 	fs := NewFailoverState(h.maxAccountSwitchesGemini, hasBoundSession)
+	reservationBase = service.WithRequestAttemptBudget(reservationBase, service.RequestAttemptBudgetFromContext(c.Request.Context()))
+	// A recoverable account failure obtains its switch permit BEFORE the next
+	// selection. Reuse that permit if its pool is empty; never charge it twice.
+	pendingSwitchPermit := false
+	var firstSentAccountID int64
+	sentDifferentAccount := false
+	semanticStart := service.OpenAICompactKeepaliveAdjustedWrittenSize(c)
+	advanceGroup := func() normalGroupAdvance {
+		if !groupChainActive {
+			return normalGroupUnavailable
+		}
+		// PRD-04: crossing into HA requires a retryable failure class; normal
+		// advancement keeps its existing behaviour.
+		nextID, nextIsHA, hasNext := groupPlan.peek(fs.LastFailoverErr == nil || fs.LastFailoverErr.ShouldRetryNextAccount())
+		if !hasNext {
+			return normalGroupUnavailable
+		}
+		if failoverClientGone(c) {
+			return normalGroupTerminal
+		}
+		if requestAttemptBudgetExhausted(c.Request.Context(), "gemini_group_advance") || service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != semanticStart {
+			return normalGroupUnavailable
+		}
+		if fs.LastFailoverErr != nil && !fs.LastFailoverErr.ShouldRetryNextAccount() {
+			return normalGroupUnavailable
+		}
+		// Group boundaries also spend the request-wide smaller switch allowance,
+		// even for an empty pool. Unlike this allowance, attempt budget counts
+		// only actual upstream sends. A permit granted by A can enter B once.
+		if !pendingSwitchPermit {
+			if fs.SwitchCount >= fs.MaxSwitches {
+				return normalGroupUnavailable
+			}
+			fs.SwitchCount++
+		}
+		pendingSwitchPermit = false
+		nextKey, nextSub, admitted := authorizeGroupCandidate(nextID, nextIsHA)
+		if !admitted {
+			return normalGroupTerminal
+		}
+		nextMapping, mappingErr := requestBilling.MappingFor(nextID)
+		if mappingErr != nil {
+			writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.group_mapping_rejected", reqModel, mappingErr)
+			return normalGroupTerminal
+		}
+		// No usage worker was submitted on the failed attempts. Release the old
+		// handler reference once, then reserve with the destination billing identity.
+		inflightRelease()
+		inflightRelease = inflightNoop
+		nextCtx := sharedResponsesExecutionContext(reservationBase, nextKey)
+		if forced {
+			nextCtx = context.WithValue(nextCtx, ctxkey.ForcePlatform, forcePlatform)
+		}
+		c.Request = c.Request.WithContext(nextCtx)
+		if eligibilityErr := h.billingCacheService.CheckFinancialEligibility(nextCtx, nextKey.User, nextKey, nextKey.Group, nextSub, service.QuotaPlatform(nextCtx, nextKey)); eligibilityErr != nil {
+			status, _, message, _ := billingErrorDetails(eligibilityErr)
+			googleError(c, status, message)
+			return normalGroupTerminal
+		}
+		if rpmErr := h.billingCacheService.CheckGroupRPMEligibility(nextCtx, nextKey.User, nextKey.Group); rpmErr != nil {
+			status, _, message, retryAfter := billingErrorDetails(rpmErr)
+			if retryAfter > 0 {
+				c.Header("Retry-After", strconv.Itoa(retryAfter))
+			}
+			googleError(c, status, message)
+			return normalGroupTerminal
+		}
+		var reserveErr error
+		inflightRelease, reserveErr = reserveInflightBalance(c, h.billingCacheService, h.gatewayService, nextKey, nextSub, tokenInflightEstimate(reqModel, body))
+		if reserveErr != nil {
+			status, _, message, _ := billingErrorDetails(reserveErr)
+			googleError(c, status, message)
+			return normalGroupTerminal
+		}
+		// Commit only after every guard passed, so a rejected attempt never skips a
+		// candidate.
+		groupPlan.commit()
+		groupIndex++
+		apiKey, subscription, channelMapping = nextKey, nextSub, nextMapping
+		lockedGemini.groupID, lockedGemini.mapping = nextID, nextMapping
+		modelName = reqModel
+		if nextMapping.Mapped {
+			modelName = nextMapping.MappedModel
+		}
+		// Never reintroduce signatures carried for the previous account.
+		body = service.CleanGeminiNativeThoughtSignatures(body)
+		refreshNativeAffinity()
+		fs.hasBoundSession = hasBoundSession
+		c.Request = c.Request.WithContext(service.WithSingleAccountRetry(c.Request.Context(), h.gatewayService.IsSingleAntigravityAccountGroup(c.Request.Context(), apiKey.GroupID), h.metadataBridgeEnabled()))
+		return normalGroupAdvanced
+	}
 
 	// 单账号分组提前设置 SingleAccountRetry 标记，让 Service 层首次 503 就不设模型限流标记。
 	// 避免单账号分组收到 503 (MODEL_CAPACITY_EXHAUSTED) 时设 29s 限流，导致后续请求连续快速失败。
@@ -517,6 +701,9 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 	}
 
 	for {
+		if failoverClientGone(c) {
+			return
+		}
 		selection, err := h.gatewayService.SelectAccountWithLoadAwareness(c.Request.Context(), apiKey.GroupID, sessionKey, modelName, fs.FailedAccountIDs, "", int64(0)) // Gemini 不使用会话限制
 		if err != nil {
 			if failoverClientGone(c) {
@@ -528,12 +715,28 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				if !cls.ModelNotFound {
 					markOpsRoutingCapacityLimitedIfNoAvailable(c, err)
 				}
+				if !cls.ModelNotFound && errors.Is(err, service.ErrNoAvailableAccounts) {
+					switch advanceGroup() {
+					case normalGroupAdvanced:
+						continue
+					case normalGroupTerminal:
+						return
+					}
+				}
 				message := cls.Message
 				if !cls.ModelNotFound {
 					message = "No available Gemini accounts: " + err.Error()
 				}
 				googleError(c, cls.Status, message)
 				return
+			}
+			if errors.Is(err, service.ErrNoAvailableAccounts) && fs.LastFailoverErr != nil && fs.LastFailoverErr.ShouldRetryNextAccount() {
+				switch advanceGroup() {
+				case normalGroupAdvanced:
+					continue
+				case normalGroupTerminal:
+					return
+				}
 			}
 			action := fs.HandleSelectionExhausted(c.Request.Context())
 			switch action {
@@ -648,10 +851,30 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 				reqLog.Warn("gemini.bind_sticky_session_after_profit_admission_failed", zap.Int64("account_id", account.ID), zap.Error(err))
 			}
 		}
+		// C-1 锁价绑定：账号终检（含 sticky/digest/failover 后的最终账号）之后、
+		// Forward 之前把实际执行账号写入冻结 bundle。绑定失败即 503，不转发、不扣费；
+		// 换号后重新绑定，价格仍取自同一份请求级 bundle。
+		if bound, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedGemini, derefGroupID(apiKey.GroupID), account.ID, reqModel, reqLog); !bound {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			status, _, message, _ := billingErrorDetails(bindErr)
+			googleError(c, status, message)
+			return
+		}
 		// 账号槽位/等待计数需要在超时或断开时安全回收
 		accountReleaseFunc = wrapReleaseOnDone(c.Request.Context(), accountReleaseFunc)
 
+		if priceErr := validateSharedGeminiImagePricing(c, lockedGemini, derefGroupID(apiKey.GroupID), account.ID, body); priceErr != nil {
+			if accountReleaseFunc != nil {
+				accountReleaseFunc()
+			}
+			writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.image_pricing_rejected", reqModel, priceErr)
+			return
+		}
 		// 5) forward (根据平台分流)
+		pendingSwitchPermit = false
+		usedBeforeForward := attemptBudget.Used()
 		var result *service.ForwardResult
 		requestCtx := c.Request.Context()
 		if fs.SwitchCount > 0 {
@@ -673,13 +896,96 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		} else {
 			result, err = h.geminiCompatService.ForwardNative(requestCtx, c, account, modelName, action, stream, body)
 		}
+		if attemptBudget.Used() > usedBeforeForward {
+			if firstSentAccountID == 0 {
+				firstSentAccountID = account.ID
+			} else if firstSentAccountID != account.ID {
+				sentDifferentAccount = true
+			}
+		}
 		if accountReleaseFunc != nil {
 			accountReleaseFunc()
 		}
+		submitForwardUsage := func(result *service.ForwardResult) {
+			if result == nil {
+				return
+			}
+			userAgent := c.GetHeader("User-Agent")
+			clientIP := ip.GetClientIP(c)
+			requestPayloadHash := service.HashUsageRequestPayload(body)
+			inboundEndpoint := GetInboundEndpoint(c)
+			upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
+			// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
+			forceCacheBilling := fs.ForceCacheBilling
+			quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
+			sessionID := service.ExtractClientSessionID(c)
+			// 长上下文阶梯由目录数据驱动，统一在计费路径内生效，入口无需声明。
+			usageFields := clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel)
+			servedKey, servedSubscription := apiKey, subscription
+			servedAccount := account
+			var routingUsage *service.RoutingUsageMetadata
+			// Scope zero (truly ungrouped keys) has no positive group identity. Keep
+			// its historical NULLs rather than invent IDs or fail successful billing.
+			if lockedGemini.active && requestBilling != nil {
+				if requested := requestBilling.RequestedGroupID(); requested != nil && *requested > 0 && lockedGemini.groupID > 0 {
+					failover := service.RoutingFailoverNone
+					if *requested != lockedGemini.groupID {
+						failover = service.RoutingFailoverGroup
+					} else if sentDifferentAccount {
+						failover = service.RoutingFailoverAccount
+					}
+					routingUsage = &service.RoutingUsageMetadata{RequestedGroupID: *requested, ServedGroupID: lockedGemini.groupID, Failover: failover, AttemptCount: attemptBudget.Used()}
+				}
+			}
+			// All C6 scalars above are captured before the task is queued: the worker
+			// must not read a later budget value, Gin context, or mutable group cursor.
+			servedModel := modelName
+			h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
+				if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
+					Result:             result,
+					RoutingUsage:       routingUsage,
+					QuotaPlatform:      quotaPlatform,
+					APIKey:             servedKey,
+					User:               servedKey.User,
+					Account:            servedAccount,
+					Subscription:       servedSubscription,
+					PricingAt:          pricingAt,
+					InboundEndpoint:    inboundEndpoint,
+					UpstreamEndpoint:   upstreamEndpoint,
+					UserAgent:          userAgent,
+					IPAddress:          clientIP,
+					RequestPayloadHash: requestPayloadHash,
+					ForceCacheBilling:  forceCacheBilling,
+					APIKeyService:      h.apiKeyService,
+					SessionID:          sessionID,
+					ChannelUsageFields: usageFields,
+				}); err != nil {
+					logger.L().With(
+						zap.String("component", "handler.gemini_v1beta.models"),
+						zap.Int64("user_id", authSubject.UserID),
+						zap.Int64("api_key_id", servedKey.ID),
+						zap.Any("group_id", servedKey.GroupID),
+						zap.String("model", servedModel),
+						zap.Int64("account_id", servedAccount.ID),
+					).Error("gemini.record_usage_failed", zap.Error(err))
+				}
+			})
+		}
 		if err != nil {
+			if result != nil {
+				submitForwardUsage(result)
+				failoverClientGone(c)
+				reqLog.Error("gemini.forward_failed", zap.Int64("account_id", account.ID), zap.Error(err))
+				return
+			}
 			var failoverErr *service.UpstreamFailoverError
 			if errors.As(err, &failoverErr) {
+				if service.OpenAICompactKeepaliveAdjustedWrittenSize(c) != semanticStart {
+					return
+				}
+				previousSwitchCount := fs.SwitchCount
 				failoverAction := fs.HandleFailoverError(c.Request.Context(), h.gatewayService, account.ID, account.Platform, account.GetPoolModeRetryCount(), failoverErr)
+				pendingSwitchPermit = failoverAction == FailoverContinue && fs.SwitchCount > previousSwitchCount
 				switch failoverAction {
 				case FailoverContinue:
 					continue
@@ -697,10 +1003,6 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 			return
 		}
 
-		// 捕获请求信息（用于异步记录，避免在 goroutine 中访问 gin.Context）
-		userAgent := c.GetHeader("User-Agent")
-		clientIP := ip.GetClientIP(c)
-
 		// 保存 Gemini 内容摘要会话（用于 Fallback 匹配）
 		if useDigestFallback && geminiDigestChain != "" && geminiPrefixHash != "" {
 			if err := h.gatewayService.SaveGeminiSession(
@@ -717,43 +1019,8 @@ func (h *GatewayHandler) GeminiV1BetaModels(c *gin.Context) {
 		}
 
 		// 使用量记录通过有界 worker 池提交，避免请求热路径创建无界 goroutine。
-		requestPayloadHash := service.HashUsageRequestPayload(body)
-		inboundEndpoint := GetInboundEndpoint(c)
-		upstreamEndpoint := GetUpstreamEndpoint(c, account.Platform)
-		// ForceCacheBilling 提前拍成标量，避免 worker 闭包保活 failover 状态里的响应体。
-		forceCacheBilling := fs.ForceCacheBilling
-		quotaPlatform := service.QuotaPlatform(c.Request.Context(), apiKey)
-		sessionID := service.ExtractClientSessionID(c)
-		// 长上下文阶梯由目录数据驱动，统一在计费路径内生效，入口无需声明。
-		h.submitUsageRecordTask(c.Request.Context(), func(ctx context.Context) {
-			if err := h.gatewayService.RecordUsage(ctx, &service.RecordUsageInput{
-				Result:             result,
-				QuotaPlatform:      quotaPlatform,
-				APIKey:             apiKey,
-				User:               apiKey.User,
-				Account:            account,
-				Subscription:       subscription,
-				PricingAt:          pricingAt,
-				InboundEndpoint:    inboundEndpoint,
-				UpstreamEndpoint:   upstreamEndpoint,
-				UserAgent:          userAgent,
-				IPAddress:          clientIP,
-				RequestPayloadHash: requestPayloadHash,
-				ForceCacheBilling:  forceCacheBilling,
-				APIKeyService:      h.apiKeyService,
-				SessionID:          sessionID,
-				ChannelUsageFields: clientRequestedUsageFields(c, channelMapping, reqModel, result.UpstreamModel),
-			}); err != nil {
-				logger.L().With(
-					zap.String("component", "handler.gemini_v1beta.models"),
-					zap.Int64("user_id", authSubject.UserID),
-					zap.Int64("api_key_id", apiKey.ID),
-					zap.Any("group_id", apiKey.GroupID),
-					zap.String("model", modelName),
-					zap.Int64("account_id", account.ID),
-				).Error("gemini.record_usage_failed", zap.Error(err))
-			}
-		})
+
+		submitForwardUsage(result)
 		reqLog.Debug("gemini.request_completed",
 			zap.Int64("account_id", account.ID),
 			zap.Int("switch_count", fs.SwitchCount),
@@ -784,6 +1051,10 @@ func parseGeminiModelAction(rest string) (model string, action string, err error
 func (h *GatewayHandler) handleGeminiFailoverExhausted(c *gin.Context, failoverErr *service.UpstreamFailoverError) {
 	if failoverErr == nil {
 		googleError(c, http.StatusBadGateway, "Upstream request failed")
+		return
+	}
+	if failoverErr.Reason == service.RequestAttemptBudgetReason {
+		googleError(c, http.StatusServiceUnavailable, strings.TrimSpace(failoverErr.ClientMessage))
 		return
 	}
 

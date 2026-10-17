@@ -109,6 +109,44 @@ func (r *usageBillingRepository) claimUsageBillingRequest(ctx context.Context, t
 	return true, nil
 }
 
+// SettlementExists 报告该请求是否已在持久幂等账本中落账。
+//
+// 只读、不使用事务：dedup 行一旦提交就不可变，读到的 true 一定对应一次真实扣费。
+// 查不到时返回 (false, nil) —— 这是「尚未结算」，不是错误，调用方应重试结算。
+func (r *usageBillingRepository) SettlementExists(ctx context.Context, requestID string, apiKeyID int64) (bool, error) {
+	requestID = strings.TrimSpace(requestID)
+	if r == nil || r.db == nil {
+		return false, errors.New("usage billing repository db is nil")
+	}
+	if requestID == "" {
+		return false, service.ErrUsageBillingRequestIDRequired
+	}
+	var exists int
+	err := r.db.QueryRowContext(ctx, `
+		SELECT 1
+		FROM usage_billing_dedup
+		WHERE request_id = $1 AND api_key_id = $2
+	`, requestID, apiKeyID).Scan(&exists)
+	if err == nil {
+		return true, nil
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		return false, err
+	}
+	err = r.db.QueryRowContext(ctx, `
+		SELECT 1
+		FROM usage_billing_dedup_archive
+		WHERE request_id = $1 AND api_key_id = $2
+	`, requestID, apiKeyID).Scan(&exists)
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return false, err
+}
+
 func (r *usageBillingRepository) ReserveBatchImageBalance(ctx context.Context, cmd *service.BatchImageBalanceHoldCommand) (*service.BatchImageBalanceHoldResult, error) {
 	return r.applyBatchImageBalanceHold(ctx, cmd, reserveUsageBillingBatchImageBalance)
 }

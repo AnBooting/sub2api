@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"maps"
 	"os"
@@ -202,27 +203,28 @@ var (
 // LiteLLMModelPricing LiteLLM价格数据结构
 // 只保留我们需要的字段，使用指针来处理可能缺失的值
 type LiteLLMModelPricing struct {
-	CacheCreationInputTokenCostExplicit bool    `json:"-"`
-	InputCostPerToken                   float64 `json:"input_cost_per_token"`
-	InputCostPerTokenPriority           float64 `json:"input_cost_per_token_priority"`
-	OutputCostPerToken                  float64 `json:"output_cost_per_token"`
-	OutputCostPerTokenPriority          float64 `json:"output_cost_per_token_priority"`
-	CacheCreationInputTokenCost         float64 `json:"cache_creation_input_token_cost"`
-	CacheCreationInputTokenCostPriority float64 `json:"cache_creation_input_token_cost_priority"`
-	CacheCreationInputTokenCostAbove1hr float64 `json:"cache_creation_input_token_cost_above_1hr"`
-	CacheReadInputTokenCost             float64 `json:"cache_read_input_token_cost"`
-	CacheReadInputTokenCostPriority     float64 `json:"cache_read_input_token_cost_priority"`
-	LongContextInputTokenThreshold      int     `json:"long_context_input_token_threshold,omitempty"`
-	LongContextInputCostMultiplier      float64 `json:"long_context_input_cost_multiplier,omitempty"`
-	LongContextOutputCostMultiplier     float64 `json:"long_context_output_cost_multiplier,omitempty"`
-	SupportsServiceTier                 bool    `json:"supports_service_tier"`
-	LiteLLMProvider                     string  `json:"litellm_provider"`
-	Mode                                string  `json:"mode"`
-	SupportsPromptCaching               bool    `json:"supports_prompt_caching"`
-	OutputCostPerImage                  float64 `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
-	OutputCostPerImageToken             float64 `json:"output_cost_per_image_token"` // 图片输出 token 价格
-	InputCostPerImageToken              float64 `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
-	CacheReadInputImageTokenCost        float64 `json:"cache_read_input_image_token_cost"`
+	TokenPricePresence                  TokenPricePresence `json:"token_price_presence"`
+	CacheCreationInputTokenCostExplicit bool               `json:"-"`
+	InputCostPerToken                   float64            `json:"input_cost_per_token"`
+	InputCostPerTokenPriority           float64            `json:"input_cost_per_token_priority"`
+	OutputCostPerToken                  float64            `json:"output_cost_per_token"`
+	OutputCostPerTokenPriority          float64            `json:"output_cost_per_token_priority"`
+	CacheCreationInputTokenCost         float64            `json:"cache_creation_input_token_cost"`
+	CacheCreationInputTokenCostPriority float64            `json:"cache_creation_input_token_cost_priority"`
+	CacheCreationInputTokenCostAbove1hr float64            `json:"cache_creation_input_token_cost_above_1hr"`
+	CacheReadInputTokenCost             float64            `json:"cache_read_input_token_cost"`
+	CacheReadInputTokenCostPriority     float64            `json:"cache_read_input_token_cost_priority"`
+	LongContextInputTokenThreshold      int                `json:"long_context_input_token_threshold,omitempty"`
+	LongContextInputCostMultiplier      float64            `json:"long_context_input_cost_multiplier,omitempty"`
+	LongContextOutputCostMultiplier     float64            `json:"long_context_output_cost_multiplier,omitempty"`
+	SupportsServiceTier                 bool               `json:"supports_service_tier"`
+	LiteLLMProvider                     string             `json:"litellm_provider"`
+	Mode                                string             `json:"mode"`
+	SupportsPromptCaching               bool               `json:"supports_prompt_caching"`
+	OutputCostPerImage                  float64            `json:"output_cost_per_image"`       // 图片生成模型每张图片价格
+	OutputCostPerImageToken             float64            `json:"output_cost_per_image_token"` // 图片输出 token 价格
+	InputCostPerImageToken              float64            `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
+	CacheReadInputImageTokenCost        float64            `json:"cache_read_input_image_token_cost"`
 
 	// TokenPricingAbsent 表示源数据中 input/output token 价格均缺失（仅有图片价）。
 	// 此类条目只可用于图片计费，token 计费必须回退到 fallback 或 fail-closed，
@@ -238,46 +240,56 @@ type PricingRemoteClient interface {
 
 // LiteLLMRawEntry 用于解析原始JSON数据
 type LiteLLMRawEntry struct {
-	InputCostPerToken                   *float64 `json:"input_cost_per_token"`
-	InputCostPerTokenPriority           *float64 `json:"input_cost_per_token_priority"`
-	OutputCostPerToken                  *float64 `json:"output_cost_per_token"`
-	OutputCostPerTokenPriority          *float64 `json:"output_cost_per_token_priority"`
-	CacheCreationInputTokenCost         *float64 `json:"cache_creation_input_token_cost"`
-	CacheCreationInputTokenCostPriority *float64 `json:"cache_creation_input_token_cost_priority"`
-	CacheCreationInputTokenCostAbove1hr *float64 `json:"cache_creation_input_token_cost_above_1hr"`
-	CacheReadInputTokenCost             *float64 `json:"cache_read_input_token_cost"`
-	CacheReadInputTokenCostPriority     *float64 `json:"cache_read_input_token_cost_priority"`
-	LongContextInputTokenThreshold      *int     `json:"long_context_input_token_threshold"`
-	LongContextInputCostMultiplier      *float64 `json:"long_context_input_cost_multiplier"`
-	LongContextOutputCostMultiplier     *float64 `json:"long_context_output_cost_multiplier"`
-	SupportsServiceTier                 bool     `json:"supports_service_tier"`
-	LiteLLMProvider                     string   `json:"litellm_provider"`
-	Mode                                string   `json:"mode"`
-	SupportsPromptCaching               bool     `json:"supports_prompt_caching"`
-	OutputCostPerImage                  *float64 `json:"output_cost_per_image"`
-	OutputCostPerImageToken             *float64 `json:"output_cost_per_image_token"`
-	InputCostPerImageToken              *float64 `json:"input_cost_per_image_token"`
-	CacheReadInputImageTokenCost        *float64 `json:"cache_read_input_image_token_cost"`
+	TokenPricePresence                  *TokenPricePresence `json:"token_price_presence"`
+	InputCostPerToken                   *float64            `json:"input_cost_per_token"`
+	InputCostPerTokenPriority           *float64            `json:"input_cost_per_token_priority"`
+	OutputCostPerToken                  *float64            `json:"output_cost_per_token"`
+	OutputCostPerTokenPriority          *float64            `json:"output_cost_per_token_priority"`
+	CacheCreationInputTokenCost         *float64            `json:"cache_creation_input_token_cost"`
+	CacheCreationInputTokenCostPriority *float64            `json:"cache_creation_input_token_cost_priority"`
+	CacheCreationInputTokenCostAbove1hr *float64            `json:"cache_creation_input_token_cost_above_1hr"`
+	CacheReadInputTokenCost             *float64            `json:"cache_read_input_token_cost"`
+	CacheReadInputTokenCostPriority     *float64            `json:"cache_read_input_token_cost_priority"`
+	LongContextInputTokenThreshold      *int                `json:"long_context_input_token_threshold"`
+	LongContextInputCostMultiplier      *float64            `json:"long_context_input_cost_multiplier"`
+	LongContextOutputCostMultiplier     *float64            `json:"long_context_output_cost_multiplier"`
+	SupportsServiceTier                 bool                `json:"supports_service_tier"`
+	LiteLLMProvider                     string              `json:"litellm_provider"`
+	Mode                                string              `json:"mode"`
+	SupportsPromptCaching               bool                `json:"supports_prompt_caching"`
+	OutputCostPerImage                  *float64            `json:"output_cost_per_image"`
+	OutputCostPerImageToken             *float64            `json:"output_cost_per_image_token"`
+	InputCostPerImageToken              *float64            `json:"input_cost_per_image_token"`
+	CacheReadInputImageTokenCost        *float64            `json:"cache_read_input_image_token_cost"`
 }
 
 // PricingService 动态价格服务
 type PricingService struct {
-	nativeCNYCards   map[string]*NativeCNYCard
-	nativeCNYUpdated time.Time
-	nativeCNYError   string
-	controlsMu       sync.Mutex
-	controls         *PricingControls
-	settingsRepo     SettingRepository
-	remoteGeneration uint64
-	remoteRequestID  uint64
-	remoteCancels    map[uint64]context.CancelFunc
-	stopping         bool
-	cfg              *config.Config
-	remoteClient     PricingRemoteClient
-	mu               sync.RWMutex
-	pricingData      map[string]*LiteLLMModelPricing
-	lastUpdated      time.Time
-	localHash        string
+	nativeCNYCards    map[string]*NativeCNYCard
+	nativeCNYUpdated  time.Time
+	nativeCNYError    string
+	controlsMu        sync.Mutex
+	controls          *PricingControls
+	holidayCalendar   *deepseekHolidayCalendar
+	calendarMu        sync.RWMutex
+	calendarWriteMu   sync.Mutex
+	calendarError     string
+	settingsRepo      SettingRepository
+	usdPricingError   string
+	alertsMu          sync.Mutex
+	syncAlertTimes    map[string]time.Time
+	alertSender       pricingAlertSender
+	alertEmailLimiter *slidingWindowLimiter
+	remoteGeneration  uint64
+	remoteRequestID   uint64
+	remoteCancels     map[uint64]context.CancelFunc
+	stopping          bool
+	cfg               *config.Config
+	remoteClient      PricingRemoteClient
+	mu                sync.RWMutex
+	pricingData       map[string]*LiteLLMModelPricing
+	lastUpdated       time.Time
+	localHash         string
 	// fallback/override 文件在最近一次成功重建时的内容指纹，定时器据此判断是否
 	// 需要从本地目录缓存重建叠加层。
 	customFilesHash string
@@ -285,6 +297,10 @@ type PricingService struct {
 	// 停止信号
 	stopCh chan struct{}
 	wg     sync.WaitGroup
+
+	// rescheduleCh 让管理员改动同步周期后立即重排定时器（PRD-01/K-6 热更新），
+	// 而不必等到下一个旧周期。缓冲 1 + 非阻塞发送：多次连续改动只合并成一次重排。
+	rescheduleCh chan struct{}
 }
 
 // NewPricingService 创建价格服务
@@ -294,12 +310,14 @@ func NewPricingService(cfg *config.Config, remoteClient PricingRemoteClient) *Pr
 		remoteClient: remoteClient,
 		pricingData:  make(map[string]*LiteLLMModelPricing),
 		stopCh:       make(chan struct{}),
+		rescheduleCh: make(chan struct{}, 1),
 	}
 	return s
 }
 
 // Initialize 初始化价格服务
 func (s *PricingService) Initialize() error {
+	s.checkDeepseekCalendarCoverage(time.Now())
 	// 确保数据目录存在
 	if err := os.MkdirAll(s.cfg.Pricing.DataDir, 0755); err != nil {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to create data directory: %v", err)
@@ -316,9 +334,7 @@ func (s *PricingService) Initialize() error {
 
 	// 启动定时更新
 	if s.RemotePullEnabled() && s.GetControls().NativeCNYEnabled {
-		if err := s.syncNativeCNY(false); err != nil {
-			s.recordNativeCNYError(err)
-		}
+		_ = s.syncNativeCNY(false)
 	}
 	s.startUpdateScheduler()
 
@@ -337,6 +353,29 @@ func (s *PricingService) Stop() {
 	close(s.stopCh)
 	s.wg.Wait()
 	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
+}
+
+// schedulerInterval resolves the ticker period. PRD-01/K-6 makes the sync period
+// administrator-configurable, so the effective value wins over the config file;
+// hashInterval is the configuration-derived fallback (already clamped by the caller).
+func (s *PricingService) schedulerInterval(fallback time.Duration) time.Duration {
+	if hours := s.PricingSyncIntervalHours(); hours > 0 {
+		return time.Duration(hours) * time.Hour
+	}
+	return fallback
+}
+
+// notifySyncIntervalChanged asks the scheduler to rebuild its ticker after the
+// administrator changed the pricing sync period. Non-blocking: a full buffer means a
+// reschedule is already pending, which is equivalent to this request.
+func (s *PricingService) notifySyncIntervalChanged() {
+	if s == nil || s.rescheduleCh == nil {
+		return
+	}
+	select {
+	case s.rescheduleCh <- struct{}{}:
+	default:
+	}
 }
 
 // startUpdateScheduler 启动定时调度器：每个周期先做远程目录哈希同步（配置了 remote_url 时），
@@ -362,21 +401,27 @@ func (s *PricingService) startUpdateScheduler() {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
-		ticker := time.NewTicker(hashInterval)
+		// The ticker is rebuilt whenever the effective sync period changes, so an
+		// administrator edit takes effect on the next boundary instead of after the
+		// previously scheduled period elapses.
+		ticker := time.NewTicker(s.schedulerInterval(hashInterval))
 		defer ticker.Stop()
 
 		for {
 			select {
+			case <-s.rescheduleCh:
+				ticker.Stop()
+				ticker = time.NewTicker(s.schedulerInterval(hashInterval))
+				logger.LegacyPrintf("service.pricing", "[Pricing] Update scheduler rescheduled (check every %v)", s.schedulerInterval(hashInterval))
 			case <-ticker.C:
+				s.checkDeepseekCalendarCoverage(time.Now())
 				if s.RemotePullEnabled() && remoteEnabled {
 					if err := s.syncWithRemote(); err != nil {
 						logger.LegacyPrintf("service.pricing", "[Pricing] Sync failed: %v", err)
 					}
 				}
 				if s.RemotePullEnabled() {
-					if err := s.syncNativeCNY(false); err != nil {
-						s.recordNativeCNYError(err)
-					}
+					_ = s.syncNativeCNY(false)
 				}
 				if watchCustom {
 					s.reloadIfCustomFilesChanged()
@@ -417,6 +462,7 @@ func (s *PricingService) checkAndUpdatePricing() error {
 		remoteHash, err := s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash on startup: %v", err)
+			s.recordUSDPricingSyncResult(err)
 			return nil // 已加载本地文件，哈希获取失败不影响启动
 		}
 
@@ -441,7 +487,7 @@ func (s *PricingService) checkAndUpdatePricing() error {
 	}
 
 	fileAge := time.Since(info.ModTime())
-	maxAge := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	maxAge := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 
 	if fileAge > maxAge {
 		logger.LegacyPrintf("service.pricing", "[Pricing] Local file is %v old, updating...", fileAge.Round(time.Hour))
@@ -458,12 +504,14 @@ func (s *PricingService) syncWithRemote() error {
 	if !s.RemotePullEnabled() {
 		return nil
 	}
+	s.checkDeepseekCalendarCoverage(time.Now())
 	// 如果配置了哈希URL，从远程获取哈希进行比对
 	if s.cfg.Pricing.HashURL != "" {
 		remoteHash, err := s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash: %v", err)
-			return nil // 哈希获取失败不影响正常使用
+			s.recordUSDPricingSyncResult(err)
+			return err // Retain prices, but do not report an unconfirmed sync as healthy.
 		}
 
 		s.mu.RLock()
@@ -476,6 +524,7 @@ func (s *PricingService) syncWithRemote() error {
 			return s.downloadPricingData()
 		}
 		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Hash check passed, no update needed")
+		s.recordUSDPricingSyncResult(nil)
 		return nil
 	}
 
@@ -487,13 +536,14 @@ func (s *PricingService) syncWithRemote() error {
 	}
 
 	fileAge := time.Since(info.ModTime())
-	maxAge := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	maxAge := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 
 	if fileAge > maxAge {
 		logger.LegacyPrintf("service.pricing", "[Pricing] File is %v old, downloading...", fileAge.Round(time.Hour))
 		return s.downloadPricingData()
 	}
 
+	s.recordUSDPricingSyncResult(nil)
 	return nil
 }
 
@@ -610,7 +660,8 @@ func (s *PricingService) reloadCustomPricingLayers() error {
 }
 
 // downloadPricingData 从远程下载价格数据
-func (s *PricingService) downloadPricingData() error {
+func (s *PricingService) downloadPricingData() (resultErr error) {
+	defer func() { s.recordUSDPricingSyncResult(resultErr) }()
 	ctx, finish, generation, err := s.beginRemoteRequest(30 * time.Second)
 	if err != nil {
 		return err
@@ -624,10 +675,12 @@ func (s *PricingService) downloadPricingData() error {
 
 	// 获取远程哈希（用于同步锚点，不作为完整性校验）
 	var remoteHash string
+	var hashErr error
 	if strings.TrimSpace(s.cfg.Pricing.HashURL) != "" {
 		remoteHash, err = s.fetchRemoteHash()
 		if err != nil {
 			logger.LegacyPrintf("service.pricing", "[Pricing] Failed to fetch remote hash (continuing): %v", err)
+			hashErr = err
 		}
 	}
 
@@ -657,8 +710,8 @@ func (s *PricingService) downloadPricingData() error {
 		return ErrPricingPullDisabled
 	}
 	pricingFile := s.getPricingFilePath()
-	if err := os.WriteFile(pricingFile, body, 0644); err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save file: %v", err)
+	if err := writePricingCacheFile(pricingFile, body); err != nil {
+		return fmt.Errorf("save pricing cache: %w", err)
 	}
 
 	// 使用远程哈希作为同步锚点，防止重复下载
@@ -668,8 +721,8 @@ func (s *PricingService) downloadPricingData() error {
 		syncHash = remoteHash
 	}
 	hashFile := s.getHashFilePath()
-	if err := os.WriteFile(hashFile, []byte(syncHash+"\n"), 0644); err != nil {
-		logger.LegacyPrintf("service.pricing", "[Pricing] Failed to save hash: %v", err)
+	if err := writePricingCacheFile(hashFile, []byte(syncHash+"\n")); err != nil {
+		return fmt.Errorf("save pricing hash: %w", err)
 	}
 
 	// 更新内存数据
@@ -682,7 +735,29 @@ func (s *PricingService) downloadPricingData() error {
 	s.mu.Unlock()
 
 	logger.LegacyPrintf("service.pricing", "[Pricing] Downloaded %d models successfully", len(data))
-	return nil
+	return hashErr
+}
+
+// Replace each cache file only after a complete write. A failed write cannot
+// truncate the previous prices, and temporary files are always cleaned up.
+func writePricingCacheFile(path string, data []byte) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".pricing-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return err
+	}
+	if err := f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), path)
 }
 
 // parsePricingData 解析价格数据（处理各种格式）
@@ -717,6 +792,7 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		}
 
 		pricing := &LiteLLMModelPricing{
+			TokenPricePresence:    TokenPricePresence{Known: true, Input: entry.InputCostPerToken != nil, Output: entry.OutputCostPerToken != nil, CacheRead: entry.CacheReadInputTokenCost != nil, CacheWrite: entry.CacheCreationInputTokenCost != nil},
 			LiteLLMProvider:       entry.LiteLLMProvider,
 			Mode:                  entry.Mode,
 			SupportsPromptCaching: entry.SupportsPromptCaching,
@@ -724,6 +800,12 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 			TokenPricingAbsent:    entry.InputCostPerToken == nil && entry.OutputCostPerToken == nil,
 		}
 
+		if presence := entry.TokenPricePresence; presence != nil && presence.Known {
+			pricing.TokenPricePresence.Input = pricing.TokenPricePresence.Input && presence.Input
+			pricing.TokenPricePresence.Output = pricing.TokenPricePresence.Output && presence.Output
+			pricing.TokenPricePresence.CacheRead = pricing.TokenPricePresence.CacheRead && presence.CacheRead
+			pricing.TokenPricePresence.CacheWrite = pricing.TokenPricePresence.CacheWrite && presence.CacheWrite
+		}
 		if entry.InputCostPerToken != nil {
 			pricing.InputCostPerToken = *entry.InputCostPerToken
 		}
@@ -1215,7 +1297,11 @@ func (s *PricingService) fetchRemoteHash() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(hash), nil
+	hash = strings.TrimSpace(hash)
+	if hash == "" {
+		return "", errors.New("empty remote pricing hash")
+	}
+	return hash, nil
 }
 
 func (s *PricingService) validatePricingURL(raw string) (string, error) {
@@ -1751,7 +1837,6 @@ func (s *PricingService) ForceUpdate() error {
 		}
 	}
 	if err := s.syncNativeCNY(true); err != nil {
-		s.recordNativeCNYError(err)
 		return err
 	}
 	return usdErr

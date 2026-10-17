@@ -342,6 +342,12 @@ func (s *OpenAIGatewayService) forwardOpenAIWSV2(
 		return nil, err
 	}
 
+	// TS-02 S3b：WSv2 正式推理写帧纳入请求预算；预算耗尽在上游写前拒绝，
+	// 不真正发送，也不被当作普通上游写失败。
+	if err := allowUpstreamSend(ctx); err != nil {
+		lease.MarkBroken()
+		return nil, NewRequestAttemptBudgetFailoverError()
+	}
 	if err := lease.WriteJSONWithContextTimeout(ctx, payload, s.openAIWSWriteTimeout()); err != nil {
 		lease.MarkBroken()
 		logOpenAIWSModeInfo(

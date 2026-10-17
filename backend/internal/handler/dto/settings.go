@@ -355,6 +355,13 @@ type SystemSettings struct {
 	// 系统全局账号自动停调阈值（key = platform，100 = disabled）
 	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds,omitempty"`
 
+	// gateway 统一重试预算（C-8）：默认 16 次发送 / 600 秒窗口
+	GatewayMaxAttemptsPerRequest int `json:"gateway_max_attempts_per_request,omitempty"`
+	GatewayRequestBudgetSeconds  int `json:"gateway_request_budget_seconds,omitempty"`
+
+	// 全局调度策略（C-4/C-8）：stable/balanced/latency，默认 balanced。
+	SchedulingStrategy string `json:"scheduling_strategy,omitempty"`
+
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool `json:"allow_user_view_error_requests"`
 }

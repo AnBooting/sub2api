@@ -109,6 +109,7 @@ vi.mock('vue-i18n', async () => {
 })
 
 const createApiKey = (): ApiKey => ({
+  group_chain_revision: 0,
   id: 1,
   user_id: 1,
   key: 'sk-test-key',
@@ -560,6 +561,43 @@ describe('user KeysView column settings', () => {
     )
   })
 
+  it('saves normal changes with the read revision and existing HA without sending the consent timestamp', async () => {
+    const key: ApiKey = { ...createApiKey(), group_id: 1, group_chain_revision: 7, groups: [
+      { group_id: 1, role: 'normal', position: 0 },
+      { group_id: 8, role: 'ha', position: 0, enabled_by_user_at: 'server-only' },
+    ] }
+    listKeys.mockResolvedValueOnce({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    wrapper.findComponent({ name: 'GroupChainEditor' }).vm.$emit('update:modelValue', [2, 1])
+    await nextTick()
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledOnce()
+    const payload = updateKey.mock.calls[0][1]
+    expect(payload).toMatchObject({ expected_group_chain_revision: 7, groups: [
+      { group_id: 2, role: 'normal', position: 0 },
+      { group_id: 1, role: 'normal', position: 1 },
+      { group_id: 8, role: 'ha', position: 0 },
+    ] })
+    expect(payload).not.toHaveProperty('group_id')
+    expect(payload.groups[2]).not.toHaveProperty('enabled_by_user_at')
+  })
+
+  it('on revision conflict prompts refresh without automatically replaying the stale chain', async () => {
+    const key: ApiKey = { ...createApiKey(), group_chain_revision: 0, groups: [] }
+    listKeys.mockResolvedValueOnce({ items: [key], total: 1, page: 1, page_size: 20, pages: 1 })
+    updateKey.mockRejectedValueOnce({ status: 409, code: 'group_chain_conflict' })
+    const wrapper = await mountView()
+    await getButtonByText(wrapper, 'common.edit').trigger('click')
+    await wrapper.get('#key-form').trigger('submit')
+    await flushPromises()
+    expect(updateKey).toHaveBeenCalledOnce()
+    expect(updateKey.mock.calls[0][1]).toMatchObject({ groups: [], expected_group_chain_revision: 0 })
+    expect(showError).toHaveBeenCalledWith('keys.chain.conflict')
+    expect(wrapper.find('#key-form').exists()).toBe(true)
+  })
+
   describe('create provider selection', () => {
     const platforms = ['anthropic', 'openai', 'kimi', 'zhipu', 'deepseek', 'minimax', 'gemini', 'grok', 'antigravity', 'composite', 'opencode_go', 'typesafe']
     const availableGroups = platforms.map((platform, index) => ({
@@ -596,22 +634,27 @@ describe('user KeysView column settings', () => {
       expect(wrapper.findAllComponents({ name: 'Select' })[0].props('options')).toHaveLength(14)
     })
 
-    it('clears the previous group on provider change and submits only the newly selected group', async () => {
+    it('preserves selected groups on provider filter changes and submits the actual ordered multi-group chain', async () => {
       const wrapper = await openCreate()
       await wrapper.get('[data-tour="key-form-name"]').setValue('My key')
       await groupSelect(wrapper).vm.$emit('update:modelValue', 1)
       await chooseProvider(wrapper, 'domestic')
-      expect(groupSelect(wrapper).props('modelValue')).toBeNull()
-      await wrapper.get('#key-form').trigger('submit')
-      expect(keysAPI.create).not.toHaveBeenCalled()
-      expect(showError).toHaveBeenCalledWith('keys.groupRequired')
-
-      await groupSelect(wrapper).vm.$emit('update:modelValue', 5)
+      expect(groupSelect(wrapper).props('modelValue')).toBe(1)
+      const editor = wrapper.findComponent({ name: 'GroupChainEditor' })
+      expect(editor.props('modelValue')).toEqual([1])
+      await editor.get('select').setValue('5')
+      expect(editor.props('modelValue')).toEqual([1, 5])
+      await editor.findAll('[data-action="up"]')[1].trigger('click')
+      expect(editor.props('modelValue')).toEqual([5, 1])
       vi.mocked(keysAPI.create).mockResolvedValue({ ...createApiKey(), group_id: 5 })
       await wrapper.get('#key-form').trigger('submit')
       await flushPromises()
       expect(keysAPI.create).toHaveBeenCalledOnce()
       expect(vi.mocked(keysAPI.create).mock.calls[0].slice(0, 2)).toEqual(['My key', 5])
+      expect(vi.mocked(keysAPI.create).mock.calls[0][8]).toEqual([
+        { group_id: 5, role: 'normal', position: 0 },
+        { group_id: 1, role: 'normal', position: 1 },
+      ])
     })
 
     it('defaults to a provider with available groups and disables empty categories', async () => {

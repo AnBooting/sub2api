@@ -124,6 +124,7 @@ func provideCleanup(
 	channelMonitorV2Aggregator *service.ChannelMonitorV2Aggregator,
 	quotaFlusher *service.UserPlatformQuotaUsageFlusher,
 	upstreamBillingProbe *service.UpstreamBillingProbeService,
+	videoTaskWorker *service.VideoTaskWorker,
 	ollamaCloudUsage *service.OllamaCloudUsageService,
 	opencodeGoUsage *service.OpenCodeGoUsageService,
 	auditLog *service.AuditLogService,
@@ -163,6 +164,12 @@ func provideCleanup(
 			{"AuthCacheInvalidationWorker", func() error {
 				if authCacheInvalidationWorker != nil {
 					authCacheInvalidationWorker.Stop()
+				}
+				return nil
+			}},
+			{"VideoTaskWorker", func() error {
+				if videoTaskWorker != nil {
+					videoTaskWorker.Stop()
 				}
 				return nil
 			}},

@@ -32,6 +32,8 @@ type APIKey struct {
 	Key string `json:"key,omitempty"`
 	// Name holds the value of the "name" field.
 	Name string `json:"name,omitempty"`
+	// GroupChainRevision holds the value of the "group_chain_revision" field.
+	GroupChainRevision int64 `json:"group_chain_revision,omitempty"`
 	// GroupID holds the value of the "group_id" field.
 	GroupID *int64 `json:"group_id,omitempty"`
 	// Status holds the value of the "status" field.
@@ -80,9 +82,11 @@ type APIKeyEdges struct {
 	Group *Group `json:"group,omitempty"`
 	// UsageLogs holds the value of the usage_logs edge.
 	UsageLogs []*UsageLog `json:"usage_logs,omitempty"`
+	// GroupLinks holds the value of the group_links edge.
+	GroupLinks []*APIKeyGroupLink `json:"group_links,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [3]bool
+	loadedTypes [4]bool
 }
 
 // UserOrErr returns the User value or an error if the edge
@@ -116,6 +120,15 @@ func (e APIKeyEdges) UsageLogsOrErr() ([]*UsageLog, error) {
 	return nil, &NotLoadedError{edge: "usage_logs"}
 }
 
+// GroupLinksOrErr returns the GroupLinks value or an error if the edge
+// was not loaded in eager-loading.
+func (e APIKeyEdges) GroupLinksOrErr() ([]*APIKeyGroupLink, error) {
+	if e.loadedTypes[3] {
+		return e.GroupLinks, nil
+	}
+	return nil, &NotLoadedError{edge: "group_links"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*APIKey) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -125,7 +138,7 @@ func (*APIKey) scanValues(columns []string) ([]any, error) {
 			values[i] = new([]byte)
 		case apikey.FieldQuota, apikey.FieldQuotaUsed, apikey.FieldRateLimit5h, apikey.FieldRateLimit1d, apikey.FieldRateLimit7d, apikey.FieldUsage5h, apikey.FieldUsage1d, apikey.FieldUsage7d:
 			values[i] = new(sql.NullFloat64)
-		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupID:
+		case apikey.FieldID, apikey.FieldUserID, apikey.FieldGroupChainRevision, apikey.FieldGroupID:
 			values[i] = new(sql.NullInt64)
 		case apikey.FieldKey, apikey.FieldName, apikey.FieldStatus:
 			values[i] = new(sql.NullString)
@@ -188,6 +201,12 @@ func (_m *APIKey) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field name", values[i])
 			} else if value.Valid {
 				_m.Name = value.String
+			}
+		case apikey.FieldGroupChainRevision:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field group_chain_revision", values[i])
+			} else if value.Valid {
+				_m.GroupChainRevision = value.Int64
 			}
 		case apikey.FieldGroupID:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
@@ -329,6 +348,11 @@ func (_m *APIKey) QueryUsageLogs() *UsageLogQuery {
 	return NewAPIKeyClient(_m.config).QueryUsageLogs(_m)
 }
 
+// QueryGroupLinks queries the "group_links" edge of the APIKey entity.
+func (_m *APIKey) QueryGroupLinks() *APIKeyGroupLinkQuery {
+	return NewAPIKeyClient(_m.config).QueryGroupLinks(_m)
+}
+
 // Update returns a builder for updating this APIKey.
 // Note that you need to call APIKey.Unwrap() before calling this method if this APIKey
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -371,6 +395,9 @@ func (_m *APIKey) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("name=")
 	builder.WriteString(_m.Name)
+	builder.WriteString(", ")
+	builder.WriteString("group_chain_revision=")
+	builder.WriteString(fmt.Sprintf("%v", _m.GroupChainRevision))
 	builder.WriteString(", ")
 	if v := _m.GroupID; v != nil {
 		builder.WriteString("group_id=")

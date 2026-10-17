@@ -1,13 +1,17 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 )
@@ -41,12 +45,14 @@ type NativeSchedule struct {
 	Windows  []NativeWindow `json:"windows"`
 }
 type NativeCNYCard struct {
+	holidayCalendar *deepseekHolidayCalendar
 	NativeRates
 	Tiers     []NativeTier    `json:"tiers,omitempty"`
 	Schedule  *NativeSchedule `json:"schedule,omitempty"`
 	Provider  string          `json:"provider"`
 	Source    string          `json:"source"`
 	FetchedAt time.Time       `json:"fetched_at"`
+	deepSeek  bool
 }
 
 func nativeModelKey(name string) string {
@@ -63,9 +69,24 @@ func nativeModelKey(name string) string {
 }
 
 func isNativeCNModel(name string) bool {
-	key := nativeModelKey(name)
-	for _, prefix := range []string{"deepseek", "qwen", "qwq", "qvq", "glm", "kimi", "moonshot", "minimax", "doubao", "ernie", "hunyuan", "spark", "mimo", "baichuan", "step", "longcat", "bailing", "sensenova"} {
-		if strings.HasPrefix(key, prefix) {
+	name = strings.ToLower(strings.TrimSpace(name))
+	if i := strings.LastIndex(name, "/"); i >= 0 {
+		name = name[i+1:]
+	}
+	// These generic words need explicit model families, not arbitrary prefixes.
+	for _, family := range []string{"spark-lite", "spark-pro", "spark-max", "spark-ultra", "spark-x1"} {
+		if name == family || strings.HasPrefix(name, family+"-") {
+			return true
+		}
+	}
+	step := strings.TrimPrefix(name, "step")
+	step = strings.TrimPrefix(step, "-")
+	if strings.HasPrefix(name, "step") && len(step) > 0 && step[0] >= '0' && step[0] <= '9' {
+		return true
+	}
+	for _, prefix := range []string{"deepseek", "qwen", "qwq", "qvq", "glm", "kimi", "moonshot", "minimax", "doubao", "ernie", "hunyuan", "mimo", "baichuan", "longcat", "bailing", "sensenova"} {
+		if name == prefix || strings.HasPrefix(name, prefix+"-") || strings.HasPrefix(name, prefix+"_") ||
+			(strings.HasPrefix(name, prefix) && len(name) > len(prefix) && name[len(prefix)] >= '0' && name[len(prefix)] <= '9') {
 			return true
 		}
 	}
@@ -73,7 +94,13 @@ func isNativeCNModel(name string) bool {
 }
 
 func (s *PricingService) RequiresNativeCNY(model string) bool {
-	return s != nil && s.GetControls().NativeCNYEnabled && isNativeCNModel(model)
+	if s == nil || !s.GetControls().NativeCNYEnabled {
+		return false
+	}
+	s.mu.RLock()
+	card := s.nativeCNYCards[nativeModelKey(model)]
+	s.mu.RUnlock()
+	return card != nil || isNativeCNModel(model)
 }
 
 func validNativeRates(r NativeRates, complete bool) bool {
@@ -93,6 +120,9 @@ func validNativeRates(r NativeRates, complete bool) bool {
 	return true
 }
 func validNativeCard(c *NativeCNYCard) bool {
+	if c == nil {
+		return false
+	}
 	if !validNativeRates(c.NativeRates, true) {
 		return false
 	}
@@ -108,6 +138,9 @@ func validNativeCard(c *NativeCNYCard) bool {
 		return false
 	}
 	if c.Schedule != nil {
+		if !validNativeScheduleWindows(c.Schedule) {
+			return false
+		}
 		if _, err := time.LoadLocation(c.Schedule.Timezone); err != nil {
 			return false
 		}
@@ -270,34 +303,26 @@ func nativeMinute(clock string) (int, bool) {
 }
 func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 	rates, tiers := c.NativeRates, c.Tiers
-	if c.Schedule != nil {
+	deepSeek := c.deepSeek || strings.EqualFold(c.Provider, "deepseek")
+	period := DeepSeekPricingPeriod{}
+	if deepSeek {
+		period = deepseekPricingPeriodWithCalendar(at, c.holidayCalendar)
+	}
+	matchedWindow := false
+	if c.Schedule != nil && (!deepSeek || period.Label == "peak") {
 		loc, _ := time.LoadLocation(c.Schedule.Timezone)
 		now := at.In(loc)
-		minute := now.Hour()*60 + now.Minute()
 		for _, w := range c.Schedule.Windows {
-			day := false
-			for _, d := range w.Weekdays {
-				if d == int(now.Weekday()) {
-					day = true
+			if nativeWindowMatches(w, int(now.Weekday()), now.Hour()*60+now.Minute()) {
+				if deepSeek {
+					rates = scaleNativeRates(rates, period.multiplier())
+					tiers = scaleNativeTiers(tiers, period.multiplier())
 				}
-			}
-			if !day {
-				continue
-			}
-			matched := false
-			for _, hours := range w.HourRanges {
-				parts := strings.Split(hours, "-")
-				start, _ := nativeMinute(parts[0])
-				end, _ := nativeMinute(parts[1])
-				if (start < end && minute >= start && minute < end) || (start > end && (minute >= start || minute < end)) {
-					matched = true
-				}
-			}
-			if matched {
 				rates = mergeNativeRates(rates, w.NativeRates)
 				if len(w.Tiers) > 0 {
 					tiers = w.Tiers
 				}
+				matchedWindow = true
 				break
 			}
 		}
@@ -308,6 +333,11 @@ func (c *NativeCNYCard) ratesAt(contextTokens int, at time.Time) NativeRates {
 		if contextTokens > tier.Tier.Size {
 			rates = mergeNativeRates(rates, tier.NativeRates)
 		}
+	}
+	// Absolute native peak windows already contain the peak price. If the
+	// source only supplies base rates, apply the approved 2x policy once.
+	if deepSeek && !matchedWindow {
+		rates = scaleNativeRates(rates, period.multiplier())
 	}
 	return rates
 }
@@ -324,9 +354,13 @@ func nativePerToken(value *float64) *float64 {
 	return &price
 }
 func (s *PricingService) recordNativeCNYError(err error) {
+	if errors.Is(err, ErrPricingPullDisabled) || errors.Is(err, context.Canceled) {
+		return
+	}
 	s.mu.Lock()
 	s.nativeCNYError = err.Error()
 	s.mu.Unlock()
+	s.recordPricingSyncResult("CNY", err)
 }
 func (s *PricingService) loadNativeCNYCache() {
 	body, err := os.ReadFile(s.nativeCNYPath())
@@ -351,20 +385,30 @@ func (s *PricingService) loadNativeCNYCache() {
 	}
 	s.mu.Unlock()
 }
-func (s *PricingService) syncNativeCNY(force bool) error {
+func (s *PricingService) syncNativeCNY(force bool) (resultErr error) {
+	s.checkDeepseekCalendarCoverage(time.Now())
 	if !s.GetControls().NativeCNYEnabled {
 		return nil
 	}
 	s.mu.RLock()
 	last := s.nativeCNYUpdated
 	s.mu.RUnlock()
-	interval := time.Duration(s.cfg.Pricing.UpdateIntervalHours) * time.Hour
+	interval := time.Duration(s.PricingSyncIntervalHours()) * time.Hour
 	if interval < time.Hour {
 		interval = 24 * time.Hour
 	}
 	if !force && time.Since(last) < interval {
 		return nil
 	}
+	var supplementErr error
+	defer func() {
+		if resultErr != nil {
+			s.recordNativeCNYError(resultErr)
+		} else {
+			s.recordPricingSyncResult("CNY", nil)
+			s.recordPricingSyncResult("CNY supplement", supplementErr)
+		}
+	}()
 	ctx, finish, generation, err := s.beginRemoteRequest(30 * time.Second)
 	if err != nil {
 		return err
@@ -392,7 +436,6 @@ func (s *PricingService) syncNativeCNY(force bool) error {
 		supplement = nativeCNYSupplementDefaultURL
 	}
 	supplement, err = s.validatePricingURL(supplement)
-	var supplementErr error
 	if err != nil {
 		supplementErr = err
 	} else {
@@ -451,9 +494,18 @@ func (s *PricingService) nativePricingAt(model string, at time.Time) (*ModelPric
 	s.mu.RLock()
 	card := s.nativeCNYCards[nativeModelKey(model)]
 	s.mu.RUnlock()
-	if card == nil {
-		return nil, fmt.Errorf("%w: no original CNY price for %s", ErrModelPricingUnavailable, model)
+	if !validNativeCard(card) {
+		return nil, fmt.Errorf("%w: no valid original CNY price for %s", ErrModelPricingUnavailable, model)
 	}
+	if at.IsZero() {
+		at = time.Now()
+	}
+	clone := *card
+	clone.deepSeek = isDeepSeekModel(model) || strings.EqualFold(card.Provider, "deepseek")
+	if clone.deepSeek {
+		clone.holidayCalendar = s.deepseekCalendarAt(at)
+	}
+	card = &clone
 	rates := card.ratesAt(0, at)
 	p := &ModelPricing{Currency: "CNY", PricingSource: card.Source, NativeCard: card, NativePricingAt: at, CacheCreationPriceExplicit: true}
 	applyNativeRates(p, rates)
@@ -474,8 +526,29 @@ func applyNativeRates(p *ModelPricing, r NativeRates) {
 	p.ImageInputPricePerToken = 0
 	p.ImageCacheReadPricePerToken = 0
 }
+
+func freezeNativeDeepseekCalendar(p *ModelPricing, calendar *deepseekHolidayCalendar) *ModelPricing {
+	if p == nil || p.NativeCard == nil || (!p.NativeCard.deepSeek && !strings.EqualFold(p.NativeCard.Provider, "deepseek")) {
+		return p
+	}
+	cloned := *p
+	card := *p.NativeCard
+	card.holidayCalendar = calendar
+	cloned.NativeCard = &card
+	applyNativeRates(&cloned, card.ratesAt(0, p.NativePricingAt))
+	return &cloned
+}
+
+var missingNativeCachePriceWarned sync.Map
+
 func resolveNativeTokenPricing(p *ModelPricing, tokens UsageTokens, at time.Time) (*ModelPricing, error) {
-	if p.NativeCard == nil {
+	if p == nil {
+		return nil, ErrModelPricingUnavailable
+	}
+	if p.tokenPricingError != nil {
+		return nil, p.tokenPricingError
+	}
+	if p.NativeCard == nil || p.manualTokenPricing {
 		return p, nil
 	}
 	if at.IsZero() {
@@ -486,6 +559,11 @@ func resolveNativeTokenPricing(p *ModelPricing, tokens UsageTokens, at time.Time
 	}
 	r := p.NativeCard.ratesAt(tokens.InputTokens+tokens.CacheReadTokens+tokens.CacheCreationTokens, at)
 	if (tokens.CacheReadTokens > 0 && r.CacheRead == nil) || ((tokens.CacheCreationTokens > 0 || tokens.CacheCreation5mTokens > 0 || tokens.CacheCreation1hTokens > 0) && r.CacheWrite == nil) {
+		key := fmt.Sprintf("%s:%t:%t", p.NativeCard.Provider, r.CacheRead == nil, r.CacheWrite == nil)
+		if _, seen := missingNativeCachePriceWarned.LoadOrStore(key, struct{}{}); !seen {
+			slog.Warn("CNY pricing unavailable: usage includes cache tokens without explicit price; refusing to assume free caching",
+				"provider", p.NativeCard.Provider, "cache_read_price_missing", r.CacheRead == nil, "cache_write_price_missing", r.CacheWrite == nil)
+		}
 		return nil, fmt.Errorf("%w: CNY cache price is missing", ErrModelPricingUnavailable)
 	}
 	cloned := *p

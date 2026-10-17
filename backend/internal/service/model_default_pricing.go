@@ -1,6 +1,9 @@
 package service
 
-import "time"
+import (
+	"maps"
+	"time"
+)
 
 // ModelDefaultPricing is a one-time snapshot of current base token rates.
 // Nullable cache fields distinguish unknown native CNY rates from explicit zero.
@@ -20,19 +23,22 @@ type ModelDefaultPricing struct {
 }
 
 func (p *ModelPricing) DefaultPricingSnapshot() ModelDefaultPricing {
+	if p == nil {
+		return ModelDefaultPricing{}
+	}
 	result := ModelDefaultPricing{
 		Found: true, SnapshotReady: true, Currency: p.Currency, PricingSource: p.PricingSource,
 		InputPrice: p.InputPricePerToken, OutputPrice: p.OutputPricePerToken,
 		CacheWritePrice: &p.CacheCreationPricePerToken, CacheReadPrice: &p.CacheReadPricePerToken,
 		ImageInputPrice: p.ImageInputPricePerToken, ImageOutputPrice: p.ImageOutputPricePerToken,
-		ReasoningEffortMultipliers: p.ReasoningEffortMultipliers,
+		ReasoningEffortMultipliers: maps.Clone(p.ReasoningEffortMultipliers),
 	}
 	if result.Currency == "" {
 		result.Currency = "USD"
 	}
 	// Catalog entries for per-image/per-second billing can exist without any
 	// token rates. Do not turn them into a free token card during auto pricing.
-	if p.NativeCard == nil && p.InputPricePerToken == 0 && p.OutputPricePerToken == 0 &&
+	if p.NativeCard == nil && !p.manualTokenPricing && p.InputPricePerToken == 0 && p.OutputPricePerToken == 0 &&
 		p.ImageInputPricePerToken == 0 && p.ImageOutputPricePerToken == 0 {
 		result.SnapshotReady = false
 	}
@@ -42,12 +48,19 @@ func (p *ModelPricing) DefaultPricingSnapshot() ModelDefaultPricing {
 		}
 		result.CacheWrite1hPrice = &p.CacheCreation1hPrice
 	}
-	if p.NativeCard != nil {
+	if p.NativeCard != nil && !p.manualTokenPricing {
+		base := *p.NativeCard
 		at := p.NativePricingAt
 		if at.IsZero() {
 			at = time.Now()
 		}
-		rates := p.NativeCard.ratesAt(0, at)
+		rates := base.ratesAt(0, at)
+		result.CacheReadPrice, result.CacheWritePrice = nativePerToken(rates.CacheRead), nativePerToken(rates.CacheWrite)
+		if !validNativeRates(rates, true) {
+			result.SnapshotReady = false
+			return result
+		}
+		result.InputPrice, result.OutputPrice = *rates.Input/1e6, *rates.Output/1e6
 		if rates.CacheRead == nil {
 			result.CacheReadPrice = nil
 		}
@@ -55,6 +68,9 @@ func (p *ModelPricing) DefaultPricingSnapshot() ModelDefaultPricing {
 			result.CacheWritePrice = nil
 		}
 		result.SnapshotReady = result.CacheReadPrice != nil && result.CacheWritePrice != nil
+	}
+	if p.tokenPricingError != nil {
+		result.SnapshotReady = false
 	}
 	return result
 }

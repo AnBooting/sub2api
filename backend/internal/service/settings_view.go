@@ -317,6 +317,14 @@ type SystemSettings struct {
 	// 系统全局账号自动停调阈值（key = platform，100 = disabled）
 	AccountSchedulingThresholds map[string]int `json:"account_scheduling_thresholds"`
 
+	// gateway 统一重试预算（C-8）：真实上游发送次数上限（默认 16）与总尝试预算秒数（默认 600）。
+	GatewayMaxAttemptsPerRequest int `json:"gateway_max_attempts_per_request"`
+	GatewayRequestBudgetSeconds  int `json:"gateway_request_budget_seconds"`
+
+	// 调度策略（C-4/C-8）：全局默认，取值 stable/balanced/latency，默认 balanced。
+	// 分组级覆盖见 Group.SchedulingStrategy（inherit = 随全局）。
+	SchedulingStrategy string `json:"scheduling_strategy"`
+
 	// 允许终端用户在用量页查看自己的失败请求
 	AllowUserViewErrorRequests bool
 }

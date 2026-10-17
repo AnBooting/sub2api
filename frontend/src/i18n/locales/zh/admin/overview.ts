@@ -909,6 +909,8 @@ export default {
         rpmLimit: '每分钟请求数 (RPM)',
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '每用户在本分组每分钟最大请求数，0 = 不限制；一旦设置即接管该用户的限流（覆盖用户级 rpm_limit）',
+        allowHighAvailability: '可作为高可用兜底分组',
+        allowHighAvailabilityHint: '开启后，用户可在自己的 API Key 上主动把本分组设为兜底候选。仅在普通分组链全部耗尽且失败可重试时才会用到；倍率取本分组的费率倍数（默认 1.0）。支持模型由「模型白名单」决定。',
         maxReasoningEffort: '推理强度上限',
         maxReasoningEffortUnlimited: '不限制（跟随请求）',
         maxReasoningEffortHint: '仅限制客户端主动请求的 Anthropic/OpenAI 推理强度；Composite 分组按实际目标平台生效。不会为缺省请求主动开启推理。上限优先级高于推理强度映射。',
@@ -1057,9 +1059,9 @@ export default {
         typeNotEditable: '分组创建后无法修改计费类型。',
         standard: '标准（余额）',
         subscription: '订阅（配额）',
-        dailyLimit: '每日限额（USD）',
-        weeklyLimit: '每周限额（USD）',
-        monthlyLimit: '每月限额（USD）',
+        dailyLimit: '每日限额（Credit）',
+        weeklyLimit: '每周限额（Credit）',
+        monthlyLimit: '每月限额（Credit）',
         defaultValidityDays: '默认有效期（天）',
         validityHint: '分配给用户时订阅的有效天数',
         noLimit: '无限制'
@@ -1092,6 +1094,17 @@ export default {
           '视频按秒计费：费用 = 每秒价格 × 时长（1-15 秒，未指定默认 8 秒）。默认叠加当前分组有效倍率；开启独立倍率后改用视频独立倍率。',
         finalPricePreview: '最终每秒价格预览',
         notConfigured: '未配置'
+      },
+      videoPlans: {
+        title: '视频计费计划（按模型族）',
+        description:
+          '不同厂商口径不同：方舟 Seedance 按 token、xAI Grok 按秒、MiniMax 按次。这里按模型族声明计量模式与单价；未配置时该模型拒绝放行，不会回落到其它价格。',
+        mode: '计量模式',
+        modeUnset: '未配置（不放行）',
+        perRequestPrice: '按次单价',
+        perTokenHint: '按 token 单价（元/百万 token），按输出分辨率与请求是否含视频输入分档。',
+        withoutInput: '（不含输入视频）',
+        withInput: '（含输入视频）'
       },
       explicitPricing: {
         title: 'Grok 搜索与 Voice 定价',

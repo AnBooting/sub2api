@@ -89,7 +89,7 @@ func tryModelFilePricing(billingService *BillingService, model string, tokens Us
 		reasoningEffort = reasoningEfforts[0]
 	}
 	resolver := NewModelPricingResolver(nil, billingService)
-	resolved := resolver.Resolve(context.Background(), PricingInput{Model: model})
+	resolved := resolver.Resolve(context.Background(), PricingInput{Model: model, PricingAt: pricingAt})
 	// Account costs remain USD; never aggregate native CNY customer credits as USD.
 	if billingService.pricingService.RequiresNativeCNY(model) {
 		resolved.BasePricing, _ = billingService.getUSDModelPricingAt(model, pricingAt)

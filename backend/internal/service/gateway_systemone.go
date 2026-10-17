@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/typesafe"
 	"github.com/gin-gonic/gin"
+	"go.uber.org/zap"
 )
 
 type SystemOneForwardResult struct {
@@ -52,7 +53,7 @@ func (s *GatewayService) ForwardSystemOne(ctx context.Context, c *gin.Context, a
 	if account.ProxyID != nil && account.Proxy != nil {
 		proxyURL = account.Proxy.URL()
 	}
-	resp, err := s.httpUpstream.Do(req, proxyURL, account.ID, account.Concurrency)
+	resp, err := sendUpstreamWithBudget(s.httpUpstream, req, proxyURL, account.ID, account.Concurrency, nil)
 	if err != nil {
 		return nil, s.handleUpstreamTransportError(ctx, c, account, err, OpsUpstreamErrorEvent{
 			Passthrough: true,
@@ -164,6 +165,9 @@ func (s *GatewayService) handleSystemOneErrorResponse(ctx context.Context, c *gi
 		failoverErr.Reason = TypeSafeCredentialRejectedReason
 		failoverErr.NextAccountAction = NextAccountRetry
 	}
+	// TS-02 S5：出口统一记录 C-5 分类（只写字段 + 结构化日志，不改重试语义）。
+	failoverErr.FailureClass = failoverErr.Classify()
+	logGatewayFailureClass(failoverErr, "gateway.systemone_upstream_error", zap.Int64("account_id", account.ID))
 	return failoverErr
 }
 

@@ -744,6 +744,19 @@ const SettingKeyDefaultPlatformQuotas = "default_platform_quotas"
 // 值为 map[platform]percent，1..100；100 = 禁用该平台自动停调。
 const SettingKeyAccountSchedulingThresholds = "account_scheduling_thresholds"
 
+// SettingKeyGatewayMaxAttemptsPerRequest —— 系统全局：单逻辑请求真实上游发送次数上限（C-8，默认 16）。
+// 管理 API 更新入口拒绝显式非正值：S1 的 fail-closed 语义下 0 等于拒绝所有发送。
+const SettingKeyGatewayMaxAttemptsPerRequest = "gateway_max_attempts_per_request"
+
+// SettingKeyGatewayRequestBudgetSeconds —— 系统全局：单逻辑请求总尝试预算秒数（C-8，默认 600）。
+const SettingKeyGatewayRequestBudgetSeconds = "gateway_request_budget_seconds"
+
+// SettingKeySchedulingStrategy —— 系统全局：默认调度策略（C-4/C-8，默认 balanced）。
+// C-8 文档键名为 scheduling.strategy；本仓库既有先例（gateway.max_attempts_per_request →
+// gateway_max_attempts_per_request）把 dotted 文档键落到下划线 settings 键，管理 API
+// 扁平字段同为 scheduling_strategy。取值 stable/balanced/latency，非法值由管理 API 拒绝。
+const SettingKeySchedulingStrategy = "scheduling_strategy"
+
 // SettingKeyAuthSourcePlatformQuotas 返回某 auth source 的 platform quota JSON key。
 // 形如 auth_source_default_{source}_platform_quotas
 func SettingKeyAuthSourcePlatformQuotas(source string) string {

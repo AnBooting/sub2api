@@ -13,6 +13,7 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/claude"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
+	yunmao "github.com/Wei-Shaw/sub2api/internal/service/yunmao"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/zap"
@@ -34,9 +35,12 @@ type BuildInfo struct {
 }
 
 // ProvidePricingService creates and initializes PricingService
-func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient, settingsRepo SettingRepository) (*PricingService, error) {
+func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient, settingsRepo SettingRepository, emailService *EmailService) (*PricingService, error) {
 	svc := NewPricingService(cfg, remoteClient)
 	svc.settingsRepo = settingsRepo
+	if emailService != nil {
+		svc.alertSender = emailService
+	}
 	if err := svc.loadControls(context.Background()); err != nil {
 		return nil, err // Never fall back to enabled remote access on a settings read failure.
 	}
@@ -103,6 +107,31 @@ func ProvideOAuthRefreshAPI(accountRepo AccountRepository, tokenCache GeminiToke
 
 func ProvideBatchImageModelPricingResolver(resolver *ModelPricingResolver) *BatchImageModelPricingResolver {
 	return &BatchImageModelPricingResolver{Resolver: resolver}
+}
+
+// ProvideVideoTaskWorker 装配并启动 PRD-06/TS-06 的异步视频任务推进 worker。
+//
+// 同时把登记器注入进程级入口：创建路径（handler）用它把「本站任务 ↔ 用户 ↔
+// 实际分组 ↔ 承载账号」写入任务表，worker 才能在没有客户端轮询时主动推进终态。
+func ProvideVideoTaskWorker(
+	repo VideoTaskRepository,
+	gateway *OpenAIGatewayService,
+	apiKeyRepo APIKeyRepository,
+	groupRepo GroupRepository,
+	userRepo UserRepository,
+	userSubRepo UserSubscriptionRepository,
+	accountRepo AccountRepository,
+	apiKeySvc *APIKeyService,
+	settingRepo SettingRepository,
+	lockCache LeaderLockCache,
+	db *sql.DB,
+) *VideoTaskWorker {
+	tasks := NewVideoTaskService(repo)
+	SetDefaultVideoTaskRecorder(NewVideoTaskRecorder(tasks))
+	worker := NewVideoTaskWorker(tasks, gateway, apiKeyRepo, groupRepo, userRepo, userSubRepo, accountRepo, apiKeySvc, settingRepo)
+	worker.SetLeaderLock(lockCache, db)
+	worker.Start()
+	return worker
 }
 
 func ProvideBatchImageCleanupService(repo BatchImageRepository, accountRepo AccountRepository, cfg *config.Config) *BatchImageCleanupService {
@@ -911,6 +940,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
 	ProvideUpstreamBillingProbeService,
+	ProvideVideoTaskWorker,
 	ProvideOllamaCloudUsageService,
 	ProvideOpenCodeGoUsageService,
 	ProvideSettingService,
@@ -983,7 +1013,32 @@ var ProviderSet = wire.NewSet(
 	ProvideChannelMonitorV2Aggregator,
 	NewChannelMonitorRequestTemplateService,
 	ProvideUserPlatformQuotaUsageFlusher,
+	ProvideShopAdapter,
+	ProvideShopSecretEncryptor,
+	ProvideShopService,
 )
+
+// ProvideShopAdapter 装配白标充值中心的上游适配层（TS-03 / PRD-03）。
+//
+// 配置只来自环境变量（凭据不落库、不进前端、不进日志，见 service/yunmao/config.go）。
+// 未配置时 Configured() 为 false，四个能力全部 fail closed：返回 CodeNotConfigured，
+// 不静默降级、不返回假数据、不发起任何上游请求。
+func ProvideShopAdapter() *yunmao.HTTPAdapter {
+	return yunmao.NewHTTPAdapter(yunmao.LoadConfigFromEnv())
+}
+
+// ProvideShopSecretEncryptor 把 service.SecretEncryptor（AES-256-GCM）适配成适配层
+// 需要的卡密加密槽位。两者方法集相同，这里显式声明以让 Wire 图明确。
+func ProvideShopSecretEncryptor(encryptor SecretEncryptor) yunmao.SecretEncryptor {
+	return encryptor
+}
+
+// ProvideShopService 装配白标充值中心业务服务。
+//
+// store 为 nil 时所有需要持久化的操作都会 fail closed，而不是 panic 或静默成功。
+func ProvideShopService(adapter *yunmao.HTTPAdapter, store yunmao.OrderStore, encryptor yunmao.SecretEncryptor) *yunmao.Service {
+	return yunmao.NewService(yunmao.LoadConfigFromEnv(), adapter, store, encryptor)
+}
 
 // ProvideUserPlatformQuotaUsageFlusher 创建并启动 UserPlatformQuotaUsageFlusher。
 func ProvideUserPlatformQuotaUsageFlusher(cfg *config.Config, cache BillingCache, quotaRepo UserPlatformQuotaRepository, tw *TimingWheelService) *UserPlatformQuotaUsageFlusher {

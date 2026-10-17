@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/Wei-Shaw/sub2api/internal/testutil"
@@ -260,7 +261,12 @@ func grokMediaSlotContext(ctx context.Context, generation bool) (*gin.Context, *
 	c.Request = req
 	c.Params = gin.Params{{Key: "request_id", Value: "task"}}
 	c.Set(string(middleware2.ContextKeyAPIKey), &service.APIKey{ID: 20, UserID: 10, GroupID: &groupID,
-		Group: &service.Group{ID: groupID, Platform: service.PlatformGrok, AllowImageGeneration: true}, User: &service.User{ID: 10}})
+		Group: &service.Group{ID: groupID, Platform: service.PlatformGrok, AllowImageGeneration: true,
+			// PRD-06/K-4: Seedance has no bundled default, so a group must carry an
+			// operator-set Seedance slot before a create request may reach upstream.
+			VideoModelPrices: map[string]map[string]float64{
+				service.VideoPriceFamilySeedance: {service.VideoBillingResolution720P: 0.11},
+			}}, User: &service.User{ID: 10}})
 	c.Set(string(middleware2.ContextKeyUser), middleware2.AuthSubject{UserID: 10, Concurrency: 5})
 	return c, w
 }
@@ -419,4 +425,45 @@ func TestGrokMediaVideoCompletionStillClaimsBillingOnce(t *testing.T) {
 		}
 	}
 	require.Len(t, bindings.billed, 1)
+}
+
+// R3 回归（客户端轮询路径）：结算必须带上**受理时**冻结的报价与倍率。
+//
+// worker 路径的同一断言在 service 包（TestPR3Review_AsyncVideoMustRetainCreateTimePrice）。
+// 这里覆盖 handler 侧的合并段：prepareGrokVideoCompletionBilling 必须把 pending 里的
+// 冻结字段带到结算结果上，否则客户端轮询会按实时价扣费（PRD-06 AC-B4）。
+func TestGrokMediaVideoCompletionCarriesFrozenQuote(t *testing.T) {
+	h, _, _, _ := newGrokMediaSlotHandler(t, false, false)
+	c, _ := grokMediaSlotContext(context.Background(), false)
+	key, ok := middleware2.GetAPIKeyFromContext(c)
+	require.True(t, ok)
+	subject := middleware2.AuthSubject{UserID: 10, Concurrency: 5}
+
+	// 受理时冻结：720p @0.07/秒、倍率 1.5。
+	frozenPrice := 0.07
+	frozenMultiplier := 1.5
+	pending := service.GrokVideoPendingBilling{
+		Model:                "grok-imagine-video",
+		BillingModel:         "grok-imagine-video",
+		VideoResolution:      "720p",
+		VideoDurationSeconds: 8,
+		FrozenVideoPlan: &domain.VideoPricePlan{
+			Mode:            domain.VideoBillingModePerSecond,
+			PerSecondPrices: map[string]float64{service.VideoBillingResolution720P: frozenPrice},
+		},
+		FrozenVideoMultiplier:  &frozenMultiplier,
+		FrozenVideoPriceSource: "plan",
+	}
+	require.NoError(t, h.gatewayService.StoreGrokVideoPendingBilling(
+		c.Request.Context(), "task", subject.UserID, key.ID, pending))
+
+	result := &service.OpenAIForwardResult{
+		ResponseID: "task", Model: "grok-imagine-video", VideoCount: 1, VideoDurationSeconds: 8,
+	}
+	bill := prepareGrokVideoCompletionBilling(c.Request.Context(), h, zap.NewNop(), key, subject, "task", result)
+	require.NotNil(t, bill)
+	require.NotNil(t, bill.FrozenVideoPlan, "结算必须携带冻结报价")
+	require.Equal(t, frozenPrice, bill.FrozenVideoPlan.PerSecondPrices[service.VideoBillingResolution720P])
+	require.NotNil(t, bill.FrozenVideoMultiplier, "结算必须携带冻结倍率")
+	require.Equal(t, frozenMultiplier, *bill.FrozenVideoMultiplier)
 }

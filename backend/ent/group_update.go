@@ -15,6 +15,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/Wei-Shaw/sub2api/ent/account"
 	"github.com/Wei-Shaw/sub2api/ent/apikey"
+	"github.com/Wei-Shaw/sub2api/ent/apikeygrouplink"
 	"github.com/Wei-Shaw/sub2api/ent/group"
 	"github.com/Wei-Shaw/sub2api/ent/predicate"
 	"github.com/Wei-Shaw/sub2api/ent/redeemcode"
@@ -653,6 +654,26 @@ func (_u *GroupUpdate) ClearVideoModelPrices() *GroupUpdate {
 	return _u
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (_u *GroupUpdate) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpdate {
+	_u.mutation.SetVideoPricePlans(v)
+	return _u
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (_u *GroupUpdate) SetAllowHighAvailability(v bool) *GroupUpdate {
+	_u.mutation.SetAllowHighAvailability(v)
+	return _u
+}
+
+// SetNillableAllowHighAvailability sets the "allow_high_availability" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableAllowHighAvailability(v *bool) *GroupUpdate {
+	if v != nil {
+		_u.SetAllowHighAvailability(*v)
+	}
+	return _u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_u *GroupUpdate) SetWebSearchPricePerCall(v float64) *GroupUpdate {
 	_u.mutation.ResetWebSearchPricePerCall()
@@ -1218,6 +1239,20 @@ func (_u *GroupUpdate) AddProfitSafetyBuffer(v float64) *GroupUpdate {
 	return _u
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (_u *GroupUpdate) SetSchedulingStrategy(v string) *GroupUpdate {
+	_u.mutation.SetSchedulingStrategy(v)
+	return _u
+}
+
+// SetNillableSchedulingStrategy sets the "scheduling_strategy" field if the given value is not nil.
+func (_u *GroupUpdate) SetNillableSchedulingStrategy(v *string) *GroupUpdate {
+	if v != nil {
+		_u.SetSchedulingStrategy(*v)
+	}
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdate) AddAPIKeyIDs(ids ...int64) *GroupUpdate {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -1231,6 +1266,21 @@ func (_u *GroupUpdate) AddAPIKeys(v ...*APIKey) *GroupUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.AddAPIKeyIDs(ids...)
+}
+
+// AddAPIKeyLinkIDs adds the "api_key_links" edge to the APIKeyGroupLink entity by IDs.
+func (_u *GroupUpdate) AddAPIKeyLinkIDs(ids ...int64) *GroupUpdate {
+	_u.mutation.AddAPIKeyLinkIDs(ids...)
+	return _u
+}
+
+// AddAPIKeyLinks adds the "api_key_links" edges to the APIKeyGroupLink entity.
+func (_u *GroupUpdate) AddAPIKeyLinks(v ...*APIKeyGroupLink) *GroupUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAPIKeyLinkIDs(ids...)
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
@@ -1332,6 +1382,27 @@ func (_u *GroupUpdate) RemoveAPIKeys(v ...*APIKey) *GroupUpdate {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAPIKeyIDs(ids...)
+}
+
+// ClearAPIKeyLinks clears all "api_key_links" edges to the APIKeyGroupLink entity.
+func (_u *GroupUpdate) ClearAPIKeyLinks() *GroupUpdate {
+	_u.mutation.ClearAPIKeyLinks()
+	return _u
+}
+
+// RemoveAPIKeyLinkIDs removes the "api_key_links" edge to APIKeyGroupLink entities by IDs.
+func (_u *GroupUpdate) RemoveAPIKeyLinkIDs(ids ...int64) *GroupUpdate {
+	_u.mutation.RemoveAPIKeyLinkIDs(ids...)
+	return _u
+}
+
+// RemoveAPIKeyLinks removes "api_key_links" edges to APIKeyGroupLink entities.
+func (_u *GroupUpdate) RemoveAPIKeyLinks(v ...*APIKeyGroupLink) *GroupUpdate {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAPIKeyLinkIDs(ids...)
 }
 
 // ClearRedeemCodes clears all "redeem_codes" edges to the RedeemCode entity.
@@ -1548,6 +1619,11 @@ func (_u *GroupUpdate) check() error {
 			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SchedulingStrategy(); ok {
+		if err := group.SchedulingStrategyValidator(v); err != nil {
+			return &ValidationError{Name: "scheduling_strategy", err: fmt.Errorf(`ent: validator failed for field "Group.scheduling_strategy": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -1746,6 +1822,12 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if _u.mutation.VideoModelPricesCleared() {
 		_spec.ClearField(group.FieldVideoModelPrices, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.VideoPricePlans(); ok {
+		_spec.SetField(group.FieldVideoPricePlans, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AllowHighAvailability(); ok {
+		_spec.SetField(group.FieldAllowHighAvailability, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
 	}
@@ -1917,6 +1999,9 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
 		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.SchedulingStrategy(); ok {
+		_spec.SetField(group.FieldSchedulingStrategy, field.TypeString, value)
+	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -1955,6 +2040,51 @@ func (_u *GroupUpdate) sqlSave(ctx context.Context) (_node int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.APIKeyLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAPIKeyLinksIDs(); len(nodes) > 0 && !_u.mutation.APIKeyLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.APIKeyLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {
@@ -2847,6 +2977,26 @@ func (_u *GroupUpdateOne) ClearVideoModelPrices() *GroupUpdateOne {
 	return _u
 }
 
+// SetVideoPricePlans sets the "video_price_plans" field.
+func (_u *GroupUpdateOne) SetVideoPricePlans(v map[string]domain.VideoPricePlan) *GroupUpdateOne {
+	_u.mutation.SetVideoPricePlans(v)
+	return _u
+}
+
+// SetAllowHighAvailability sets the "allow_high_availability" field.
+func (_u *GroupUpdateOne) SetAllowHighAvailability(v bool) *GroupUpdateOne {
+	_u.mutation.SetAllowHighAvailability(v)
+	return _u
+}
+
+// SetNillableAllowHighAvailability sets the "allow_high_availability" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableAllowHighAvailability(v *bool) *GroupUpdateOne {
+	if v != nil {
+		_u.SetAllowHighAvailability(*v)
+	}
+	return _u
+}
+
 // SetWebSearchPricePerCall sets the "web_search_price_per_call" field.
 func (_u *GroupUpdateOne) SetWebSearchPricePerCall(v float64) *GroupUpdateOne {
 	_u.mutation.ResetWebSearchPricePerCall()
@@ -3412,6 +3562,20 @@ func (_u *GroupUpdateOne) AddProfitSafetyBuffer(v float64) *GroupUpdateOne {
 	return _u
 }
 
+// SetSchedulingStrategy sets the "scheduling_strategy" field.
+func (_u *GroupUpdateOne) SetSchedulingStrategy(v string) *GroupUpdateOne {
+	_u.mutation.SetSchedulingStrategy(v)
+	return _u
+}
+
+// SetNillableSchedulingStrategy sets the "scheduling_strategy" field if the given value is not nil.
+func (_u *GroupUpdateOne) SetNillableSchedulingStrategy(v *string) *GroupUpdateOne {
+	if v != nil {
+		_u.SetSchedulingStrategy(*v)
+	}
+	return _u
+}
+
 // AddAPIKeyIDs adds the "api_keys" edge to the APIKey entity by IDs.
 func (_u *GroupUpdateOne) AddAPIKeyIDs(ids ...int64) *GroupUpdateOne {
 	_u.mutation.AddAPIKeyIDs(ids...)
@@ -3425,6 +3589,21 @@ func (_u *GroupUpdateOne) AddAPIKeys(v ...*APIKey) *GroupUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.AddAPIKeyIDs(ids...)
+}
+
+// AddAPIKeyLinkIDs adds the "api_key_links" edge to the APIKeyGroupLink entity by IDs.
+func (_u *GroupUpdateOne) AddAPIKeyLinkIDs(ids ...int64) *GroupUpdateOne {
+	_u.mutation.AddAPIKeyLinkIDs(ids...)
+	return _u
+}
+
+// AddAPIKeyLinks adds the "api_key_links" edges to the APIKeyGroupLink entity.
+func (_u *GroupUpdateOne) AddAPIKeyLinks(v ...*APIKeyGroupLink) *GroupUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.AddAPIKeyLinkIDs(ids...)
 }
 
 // AddRedeemCodeIDs adds the "redeem_codes" edge to the RedeemCode entity by IDs.
@@ -3526,6 +3705,27 @@ func (_u *GroupUpdateOne) RemoveAPIKeys(v ...*APIKey) *GroupUpdateOne {
 		ids[i] = v[i].ID
 	}
 	return _u.RemoveAPIKeyIDs(ids...)
+}
+
+// ClearAPIKeyLinks clears all "api_key_links" edges to the APIKeyGroupLink entity.
+func (_u *GroupUpdateOne) ClearAPIKeyLinks() *GroupUpdateOne {
+	_u.mutation.ClearAPIKeyLinks()
+	return _u
+}
+
+// RemoveAPIKeyLinkIDs removes the "api_key_links" edge to APIKeyGroupLink entities by IDs.
+func (_u *GroupUpdateOne) RemoveAPIKeyLinkIDs(ids ...int64) *GroupUpdateOne {
+	_u.mutation.RemoveAPIKeyLinkIDs(ids...)
+	return _u
+}
+
+// RemoveAPIKeyLinks removes "api_key_links" edges to APIKeyGroupLink entities.
+func (_u *GroupUpdateOne) RemoveAPIKeyLinks(v ...*APIKeyGroupLink) *GroupUpdateOne {
+	ids := make([]int64, len(v))
+	for i := range v {
+		ids[i] = v[i].ID
+	}
+	return _u.RemoveAPIKeyLinkIDs(ids...)
 }
 
 // ClearRedeemCodes clears all "redeem_codes" edges to the RedeemCode entity.
@@ -3755,6 +3955,11 @@ func (_u *GroupUpdateOne) check() error {
 			return &ValidationError{Name: "max_reasoning_effort_over_limit", err: fmt.Errorf(`ent: validator failed for field "Group.max_reasoning_effort_over_limit": %w`, err)}
 		}
 	}
+	if v, ok := _u.mutation.SchedulingStrategy(); ok {
+		if err := group.SchedulingStrategyValidator(v); err != nil {
+			return &ValidationError{Name: "scheduling_strategy", err: fmt.Errorf(`ent: validator failed for field "Group.scheduling_strategy": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -3970,6 +4175,12 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if _u.mutation.VideoModelPricesCleared() {
 		_spec.ClearField(group.FieldVideoModelPrices, field.TypeJSON)
 	}
+	if value, ok := _u.mutation.VideoPricePlans(); ok {
+		_spec.SetField(group.FieldVideoPricePlans, field.TypeJSON, value)
+	}
+	if value, ok := _u.mutation.AllowHighAvailability(); ok {
+		_spec.SetField(group.FieldAllowHighAvailability, field.TypeBool, value)
+	}
 	if value, ok := _u.mutation.WebSearchPricePerCall(); ok {
 		_spec.SetField(group.FieldWebSearchPricePerCall, field.TypeFloat64, value)
 	}
@@ -4141,6 +4352,9 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 	if value, ok := _u.mutation.AddedProfitSafetyBuffer(); ok {
 		_spec.AddField(group.FieldProfitSafetyBuffer, field.TypeFloat64, value)
 	}
+	if value, ok := _u.mutation.SchedulingStrategy(); ok {
+		_spec.SetField(group.FieldSchedulingStrategy, field.TypeString, value)
+	}
 	if _u.mutation.APIKeysCleared() {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
@@ -4179,6 +4393,51 @@ func (_u *GroupUpdateOne) sqlSave(ctx context.Context) (_node *Group, err error)
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(apikey.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if _u.mutation.APIKeyLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.RemovedAPIKeyLinksIDs(); len(nodes) > 0 && !_u.mutation.APIKeyLinksCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := _u.mutation.APIKeyLinksIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   group.APIKeyLinksTable,
+			Columns: []string{group.APIKeyLinksColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(apikeygrouplink.FieldID, field.TypeInt64),
 			},
 		}
 		for _, k := range nodes {

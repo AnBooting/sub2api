@@ -54,21 +54,23 @@ type AdminUser struct {
 }
 
 type APIKey struct {
-	ID          int64      `json:"id"`
-	UserID      int64      `json:"user_id"`
-	Key         string     `json:"key"`
-	Name        string     `json:"name"`
-	GroupID     *int64     `json:"group_id"`
-	Status      string     `json:"status"`
-	IPWhitelist []string   `json:"ip_whitelist"`
-	IPBlacklist []string   `json:"ip_blacklist"`
-	LastUsedAt  *time.Time `json:"last_used_at"`
-	LastUsedIP  *string    `json:"last_used_ip"`
-	Quota       float64    `json:"quota"`      // Quota limit in USD (0 = unlimited)
-	QuotaUsed   float64    `json:"quota_used"` // Used quota amount in USD
-	ExpiresAt   *time.Time `json:"expires_at"` // Expiration time (nil = never expires)
-	CreatedAt   time.Time  `json:"created_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	ID                 int64                     `json:"id"`
+	UserID             int64                     `json:"user_id"`
+	Key                string                    `json:"key"`
+	Name               string                    `json:"name"`
+	GroupID            *int64                    `json:"group_id"`
+	GroupChainRevision int64                     `json:"group_chain_revision"`
+	Groups             []service.APIKeyGroupLink `json:"groups"`
+	Status             string                    `json:"status"`
+	IPWhitelist        []string                  `json:"ip_whitelist"`
+	IPBlacklist        []string                  `json:"ip_blacklist"`
+	LastUsedAt         *time.Time                `json:"last_used_at"`
+	LastUsedIP         *string                   `json:"last_used_ip"`
+	Quota              float64                   `json:"quota"`      // Quota limit in USD (0 = unlimited)
+	QuotaUsed          float64                   `json:"quota_used"` // Used quota amount in USD
+	ExpiresAt          *time.Time                `json:"expires_at"` // Expiration time (nil = never expires)
+	CreatedAt          time.Time                 `json:"created_at"`
+	UpdatedAt          time.Time                 `json:"updated_at"`
 	// CurrentConcurrency is the real-time active request count for this API key.
 	CurrentConcurrency int `json:"current_concurrency"`
 
@@ -140,6 +142,10 @@ type Group struct {
 	// 无效请求兜底分组
 	FallbackGroupIDOnInvalidRequest *int64 `json:"fallback_group_id_on_invalid_request"`
 
+	// AllowHighAvailability 标记本组可由用户主动开启为高可用兜底（PRD-04/TS-04）。
+	// 用户侧需要它来列出「管理员已标记为可兜底」的候选组，只展示、不授权。
+	AllowHighAvailability bool `json:"allow_high_availability"`
+
 	// OpenAI Messages 调度开关（用户侧需要此字段判断是否展示 Claude Code 教程）
 	AllowMessagesDispatch bool `json:"allow_messages_dispatch"`
 	// OpenAI Live 接口开关
@@ -179,6 +185,10 @@ type AdminGroup struct {
 	ProfitSafetyBuffer   float64                       `json:"profit_safety_buffer"`
 	ModelPricing         []service.ChannelModelPricing `json:"model_pricing"`
 
+	// SchedulingStrategy 分组级调度策略覆盖（C-4）：inherit（默认，随全局）
+	// 或 stable/balanced/latency。仅管理端可见，普通用户接口不暴露调度策略。
+	SchedulingStrategy string `json:"scheduling_strategy"`
+
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
@@ -190,6 +200,10 @@ type AdminGroup struct {
 	DefaultMappedModel          string                                   `json:"default_mapped_model"`
 	MessagesDispatchModelConfig domain.OpenAIMessagesDispatchModelConfig `json:"messages_dispatch_model_config"`
 	ModelAllowlist              service.GroupModelAllowlist              `json:"model_allowlist"`
+	// HA 兜底分组标记（PRD-04/TS-04）：管理员标记后用户可在自己的 Key 上主动开启。
+	AllowHighAvailability bool `json:"allow_high_availability"`
+	// 视频计费计划（PRD-06/K-4）：按模型族声明计量模式与单价。
+	VideoPricePlans map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
 	// 固定账号获取 Codex Model Manifest 配置（仅 openai 平台使用）。
 	CodexModelsManifestConfig domain.GroupCodexModelsManifestConfig `json:"codex_models_manifest_config"`
 
@@ -605,8 +619,12 @@ type UsageLog struct {
 	// UpstreamEndpoint is the normalized upstream endpoint path, e.g. /v1/responses.
 	UpstreamEndpoint *string `json:"upstream_endpoint,omitempty"`
 
-	GroupID        *int64 `json:"group_id"`
-	SubscriptionID *int64 `json:"subscription_id"`
+	GroupID          *int64  `json:"group_id"`
+	RequestedGroupID *int64  `json:"requested_group_id"`
+	ServedGroupID    *int64  `json:"served_group_id"`
+	Failover         *string `json:"failover"`
+	AttemptCount     *int    `json:"attempt_count"`
+	SubscriptionID   *int64  `json:"subscription_id"`
 
 	InputTokens         int `json:"input_tokens"`
 	OutputTokens        int `json:"output_tokens"`

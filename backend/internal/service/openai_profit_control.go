@@ -133,7 +133,11 @@ type openAIProfitControlGate struct {
 // 只固定 pricingAt、不装门。handler 各文本入口应在选号循环前调用一次。
 func (s *OpenAIGatewayService) WithOpenAIRequestPricingContext(ctx context.Context, groupID *int64) (context.Context, time.Time) {
 	pricingAt := timezone.Now()
+	if request := GatewayRequestBillingFromContext(ctx); request != nil {
+		pricingAt = request.StartedAt()
+	}
 	ctx = context.WithValue(ctx, openAIPricingAtCtxKey{}, pricingAt)
+	ctx = captureRequestPricingSnapshot(ctx, s.billingService)
 	return s.withOpenAIProfitControlGate(ctx, groupID), pricingAt
 }
 
@@ -150,8 +154,16 @@ func WithOpenAIProfitControlSuppressed(ctx context.Context) context.Context {
 // 不同的分组（composite 成员分组），turn 级重装以连接上已装门的调度分组为准；
 // 连接从未装门时才回退入口分组。抑制标记下只刷新 pricingAt。
 func (s *OpenAIGatewayService) WithOpenAITurnPricingContext(ctx context.Context, groupID *int64) (context.Context, time.Time) {
+	// 锁价 turn：本 turn 已冻结 bundle，定价时刻必须取 bundle 的 StartedAt()，
+	// 与 usage 消费者的 pricingAt 同源（否则准入用的售价与计费时刻可能跨峰谷）。
+	// 与 WithOpenAIRequestPricingContext 同构；无 bundle（非锁价 turn / 未接线入口）
+	// 时回退当前时刻，保持既有每 turn 重取语义。
 	pricingAt := timezone.Now()
+	if request := GatewayRequestBillingFromContext(ctx); request != nil {
+		pricingAt = request.StartedAt()
+	}
 	ctx = context.WithValue(ctx, openAIPricingAtCtxKey{}, pricingAt)
+	ctx = captureRequestPricingSnapshot(ctx, s.billingService)
 	if _, suppressed := ctx.Value(openAIProfitControlSuppressCtxKey{}).(struct{}); suppressed {
 		return ctx, pricingAt
 	}

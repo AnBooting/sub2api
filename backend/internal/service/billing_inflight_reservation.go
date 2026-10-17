@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/google/uuid"
 )
 
@@ -308,10 +308,19 @@ const (
 
 // InflightEstimateRequest 单请求估算输入。
 type InflightEstimateRequest struct {
+	PricingAt time.Time
 	Model     string
-	BodyBytes int
-	MaxTokens int
-	Kind      InflightEstimateKind
+	// RequireCompact 为 true 时（/compact 请求），账号级上游模型按 compact 链
+	// 解析，与调度器准入口径一致；冻结表必须与实际转发模型同源，否则用量核对
+	// 会拒绝"actual upstream model differs from the frozen account model"。
+	RequireCompact bool
+	BodyBytes      int
+	MaxTokens      int
+	Kind           InflightEstimateKind
+	// RequireWSIngressModel 为 true 时，账号→上游模型按"本账号实际会走的 WS ingress
+	// 适配器"口径解析：passthrough ingress 只替换认证、不套用账号 model_mapping，
+	// 而 ctx_pool ingress 会套。HTTP 单请求恒为 false（沿用 HTTP 转发口径）。
+	RequireWSIngressModel bool
 	// Units 按次/按张数量（<=0 视为 1）。
 	Units int
 	// SearchCalls 叠加的搜索次数（按分组 search_price_per_1k 计）。
@@ -336,7 +345,8 @@ type inflightEstimateDeps struct {
 	// 即账号映射后的模型），因此这里取所有候选映射模型的最高估算。
 	// 仅在首选/渠道候选均无法定价（或 composite 分组）时才调用；实现只读调度器快照，
 	// 不在请求路径上直接查库，也不按模型名缓存（内存不随请求模型名增长）。
-	accountMappedModels func(ctx context.Context, apiKey *APIKey, model string) []string
+	accountMappedModels    func(ctx context.Context, apiKey *APIKey, model string) []string
+	accountMappingSnapshot func(ctx context.Context, apiKey *APIKey, model string) (map[int64]requestAccountMapping, error)
 }
 
 // inflightSnapshotLister 调度器快照读取（与账号选择同源：Redis 快照，未命中时由快照服务自身回源并回填）。
@@ -427,7 +437,7 @@ func inflightBillingModelCandidates(ctx context.Context, deps inflightEstimateDe
 	return primary, fallbacks, upstreamInput
 }
 
-func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, image float64) {
+func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey, at time.Time) (text, image float64) {
 	rate := 1.0
 	if d.cfg != nil && d.cfg.Default.RateMultiplier > 0 {
 		rate = d.cfg.Default.RateMultiplier
@@ -438,7 +448,7 @@ func (d inflightEstimateDeps) rates(ctx context.Context, apiKey *APIKey) (text, 
 			rate = d.userGroupRate(ctx, apiKey.User.ID, *apiKey.GroupID, rate)
 		}
 	}
-	return computePeakAwareMultipliers(apiKey, rate, timezone.Now())
+	return computePeakAwareMultipliers(apiKey, rate, at)
 }
 
 func tokenCounts(cfg config.InflightReservationConfig, bodyBytes, maxTokens int) (int, int) {
@@ -479,6 +489,7 @@ func validCost(v float64) bool { return v > 0 && !math.IsNaN(v) && !math.IsInf(v
 
 // estimateOne 估算单个候选计费模型（未乘倍率的 token 部分与按次部分分开返回，便于套用不同倍率）。
 func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, model string, req InflightEstimateRequest, textRate, imageRate float64) float64 {
+	at := requestPricingAt(ctx, req.PricingAt)
 	cfg := inflightReservationCfg(d.cfg)
 	units := req.Units
 	if units <= 0 {
@@ -486,7 +497,7 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 	}
 	var resolved *ResolvedPricing
 	if d.resolver != nil {
-		in := PricingInput{Model: model}
+		in := PricingInput{Model: model, PricingAt: at}
 		if apiKey != nil {
 			in.GroupID = apiKey.GroupID
 			in.Group = apiKey.Group
@@ -501,17 +512,24 @@ func (d inflightEstimateDeps) estimateOne(ctx context.Context, apiKey *APIKey, m
 			pricing = d.resolver.GetIntervalPricing(resolved, inputTokens)
 		}
 		if pricing == nil && d.billing != nil {
-			pricing, _ = d.billing.GetModelPricing(model)
+			pricing, _ = d.billing.getModelPricingAt(model, at)
 		}
 		if pricing == nil {
 			return 0
 		}
+		if pricing.NativeCard != nil && strings.EqualFold(pricing.NativeCard.Provider, "deepseek") && RequestPricingSnapshotFromContext(ctx) != nil {
+			pricing = freezeNativeDeepseekCalendar(pricing, requestDeepseekCalendar(ctx, d.billing.pricingService, at))
+		}
 		var err error
-		pricing, err = resolveNativeTokenPricing(pricing, UsageTokens{InputTokens: inputTokens, OutputTokens: outputTokens}, time.Now())
+		pricing, err = resolveNativeTokenPricing(pricing, UsageTokens{InputTokens: inputTokens, OutputTokens: outputTokens}, at)
 		if err != nil {
 			return 0
 		}
-		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate
+		multiplier := resolvedChannelTimeMultiplier(resolved, at)
+		if (resolved == nil || resolved.Source == PricingSourceLiteLLM) && pricing.Currency != "CNY" && isDeepSeekModel(model) {
+			multiplier *= deepseekPeakMultiplierWithCalendar(at, requestDeepseekCalendar(ctx, d.billing.pricingService, at))
+		}
+		return (float64(inputTokens)*pricing.InputPricePerToken + float64(outputTokens)*pricing.OutputPricePerToken) * textRate * multiplier
 	}
 
 	var cost float64
@@ -587,7 +605,8 @@ func (d inflightEstimateDeps) estimate(ctx context.Context, apiKey *APIKey, req 
 		// 非计量请求（媒体状态查询、custom-voices 等）：无需预留，也不算「无法定价」。
 		return 0, true
 	}
-	textRate, imageRate := d.rates(ctx, apiKey)
+	req.PricingAt = requestPricingAt(ctx, req.PricingAt)
+	textRate, imageRate := d.rates(ctx, apiKey, req.PricingAt)
 	if textRate <= 0 && imageRate <= 0 {
 		// 免费分组：不计费，也无需预留。
 		return 0, true
@@ -663,16 +682,18 @@ func (s *GatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d.userGroupRate = s.getUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
-		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
-			func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
-				accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
-				return accounts, err
-			},
-			func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
-				platform, forced, err := s.resolvePlatform(ctx, apiKey.GroupID, apiKey.Group, model)
-				return platform, forced, err == nil
-			},
-		)
+		list := func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
+			accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
+			return accounts, err
+		}
+		platformFor := func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
+			platform, forced, err := s.resolvePlatform(ctx, apiKey.GroupID, apiKey.Group, model)
+			return platform, forced, err == nil
+		}
+		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		// 共享网关（/v1/messages 及后续 Chat Completions / Gemini 入口）的账号→上游模型
+		// 链必须与 GatewayService.Forward 同源，否则实际成功的请求会在落账时模型核对失败。
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, resolveGatewayRequestAccountUpstreamModel)
 	}
 	return d
 }
@@ -687,21 +708,28 @@ func (s *GatewayService) EstimateInflightReservation(ctx context.Context, apiKey
 }
 
 func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
-	if d.billing == nil || d.billing.pricingService == nil || req.Model == "" {
+	if d.billing == nil || req.Model == "" {
 		return nil
 	}
 	primary, _, _ := inflightBillingModelCandidates(ctx, d, apiKey, req.Model)
 	for _, model := range primary {
-		if !d.billing.pricingService.RequiresNativeCNY(model) {
-			continue
-		}
+		requiresNative := d.billing.pricingService.RequiresNativeCNY(model)
 		if d.resolver != nil {
-			input := PricingInput{Model: model}
+			input := PricingInput{Model: model, PricingAt: requestPricingAt(ctx, req.PricingAt)}
 			if apiKey != nil {
 				input.Group = apiKey.Group
 				input.GroupID = apiKey.GroupID
 			}
 			resolved := d.resolver.Resolve(ctx, input)
+			if resolved != nil && resolved.pricingError != nil {
+				return resolved.pricingError
+			}
+			if resolved != nil && resolved.BasePricing != nil && resolved.BasePricing.tokenPricingError != nil {
+				return resolved.BasePricing.tokenPricingError
+			}
+			if !requiresNative {
+				continue
+			}
 			if req.Kind != InflightEstimateToken && (resolved == nil || (resolved.Source != PricingSourceGroup && resolved.Source != PricingSourceChannel) || resolved.Mode == BillingModeToken) {
 				return fmt.Errorf("%w: native CNY media requests require an explicit per-request price for %s", ErrModelPricingUnavailable, model)
 			}
@@ -709,7 +737,10 @@ func (d inflightEstimateDeps) validateNativePricingRequest(ctx context.Context, 
 				continue
 			}
 		}
-		if _, err := d.billing.GetModelPricing(model); err != nil {
+		if !requiresNative {
+			continue
+		}
+		if _, err := d.billing.getModelPricingAt(model, requestPricingAt(ctx, req.PricingAt)); err != nil {
 			return err
 		}
 	}
@@ -723,14 +754,54 @@ func (s *GatewayService) ValidateNativePricingRequest(ctx context.Context, apiKe
 	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
 }
 
+// PrepareRequestBilling freezes pricing rules once before the first account selection.
+func (s *GatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(ctx, key, req)
+}
+
+// RefreezeRequestBilling 是共享网关显式换分组/换请求模型的强制重冻入口（Messages 的
+// prompt-too-long fallback 分组）：先逻辑剥离 ctx 上的旧 bundle 再冻结，避免
+// prepareRequestBilling 的幂等复用把新分组的账号映射/价格绑到旧 bundle 上。
+// 单请求内的 failover 重试仍走 PrepareRequestBilling 的幂等语义，不得改用本函数。
+func (s *GatewayService) RefreezeRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps().prepareRequestBilling(withoutGatewayRequestBilling(ctx), key, req)
+}
+
+func (s *OpenAIGatewayService) PrepareRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps(req).prepareRequestBilling(ctx, key, req)
+}
+
+// RefreezeRequestBilling 是长连接按 turn 强制重冻的入口：先逻辑剥离 ctx 上已
+// 存在的冻结 bundle，再走同一套 prepareRequestBilling 冻结流程。
+//
+// prepareRequestBilling 对已有 bundle 的幂等复用是 HTTP 单请求 failover 的既有
+// 契约（同一逻辑请求重入必须复用同一份价），这里不能改动它。WS 每个 turn 是
+// 独立计费单元，且允许连接内换模型/换分组，必须产出新的 bundle 与新的
+// startedAt；因此由调用方显式重置后再冻结。
+func (s *OpenAIGatewayService) RefreezeRequestBilling(ctx context.Context, key *APIKey, req InflightEstimateRequest) (context.Context, *RequestBillingContext, error) {
+	if s == nil {
+		return ctx, nil, ErrModelPricingUnavailable
+	}
+	return s.inflightEstimateDeps(req).prepareRequestBilling(withoutGatewayRequestBilling(ctx), key, req)
+}
+
 func (s *OpenAIGatewayService) ValidateNativePricingRequest(ctx context.Context, apiKey *APIKey, req InflightEstimateRequest) error {
 	if s == nil {
 		return nil
 	}
-	return s.inflightEstimateDeps().validateNativePricingRequest(ctx, apiKey, req)
+	return s.inflightEstimateDeps(req).validateNativePricingRequest(ctx, apiKey, req)
 }
 
-func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
+func (s *OpenAIGatewayService) inflightEstimateDeps(req InflightEstimateRequest) inflightEstimateDeps {
 	d := inflightEstimateDeps{cfg: s.cfg, billing: s.billingService, resolver: s.resolver}
 	if s.channelService != nil {
 		d.resolveMapping = s.channelService.ResolveChannelMapping
@@ -738,19 +809,43 @@ func (s *OpenAIGatewayService) inflightEstimateDeps() inflightEstimateDeps {
 	d.userGroupRate = s.ResolveUserGroupRateMultiplier
 	if s.schedulerSnapshot != nil {
 		snap := s.schedulerSnapshot
-		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(
-			func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
-				accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
-				return accounts, err
-			},
-			func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
-				platform := PlatformOpenAI
-				if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
-					platform = apiKey.Group.Platform
+		list := func(ctx context.Context, groupID *int64, platform string, forced bool) ([]Account, error) {
+			accounts, _, err := snap.ListSchedulableAccounts(ctx, groupID, platform, forced)
+			return accounts, err
+		}
+		platformFor := func(ctx context.Context, apiKey *APIKey, model string) (string, bool, bool) {
+			platform := PlatformOpenAI
+			if apiKey.Group != nil && apiKey.Group.Platform != "" && apiKey.Group.Platform != PlatformComposite {
+				platform = apiKey.Group.Platform
+			}
+			if !req.RequireCompact && !req.RequireWSIngressModel {
+				// Only known HTTP forwarding families may retain their own bucket.
+				if domain.UsesOpenAIGateway(platform) || platform == PlatformAnthropic || platform == PlatformGemini || platform == PlatformAntigravity {
+					return platform, false, true
 				}
-				return NormalizeOpenAICompatiblePlatform(platform), false, true
-			},
-		)
+				return "", false, false
+			}
+			return NormalizeOpenAICompatiblePlatform(platform), false, true
+		}
+		requireCompact := req.RequireCompact
+		requireWSIngressModel := req.RequireWSIngressModel
+		wsIngressDefaultMode := ""
+		if s.cfg != nil {
+			wsIngressDefaultMode = s.cfg.Gateway.OpenAIWS.IngressModeDefault
+		}
+		d.accountMappedModels = inflightAccountMappedModelsFromSnapshot(list, platformFor)
+		// 冻结表中的账号上游模型必须与调度准入、实际转发同口径：
+		// /compact 请求按 compact 链解析；WS 请求按本账号实际会走的 ingress 适配器
+		// 解析（passthrough 不套账号映射）；其余按普通 HTTP 链解析。
+		d.accountMappingSnapshot = requestAccountMappingsFromSnapshot(list, platformFor, func(ctx context.Context, account *Account, model string) string {
+			if requireWSIngressModel {
+				return resolveOpenAIAccountWSIngressUpstreamModel(account, model, wsIngressDefaultMode)
+			}
+			if !requireCompact {
+				return resolveGatewayRequestAccountUpstreamModel(ctx, account, model)
+			}
+			return resolveOpenAIAccountUpstreamModelForRequest(account, model, requireCompact)
+		})
 	}
 	return d
 }
@@ -760,5 +855,5 @@ func (s *OpenAIGatewayService) EstimateInflightReservation(ctx context.Context, 
 	if s == nil {
 		return 0, false
 	}
-	return s.inflightEstimateDeps().estimate(ctx, apiKey, req)
+	return s.inflightEstimateDeps(req).estimate(ctx, apiKey, req)
 }

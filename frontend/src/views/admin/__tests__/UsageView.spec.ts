@@ -200,6 +200,26 @@ describe('admin UsageView route filters', () => {
     vi.useRealTimers()
   })
 
+  it('exports the same numeric account statistic with unknown currency, never a guessed USD from Customer snapshots', async () => {
+    const rows = [
+      { total_cost: 2, account_rate_multiplier: 1.5, pricing_snapshot: null },
+      { total_cost: 2, account_stats_cost: 0.5, account_rate_multiplier: 1.5, pricing_snapshot: { v: 2, quota_unit: 'credits', currency: 'CNY' } },
+      { total_cost: 100, account_stats_cost: 0, account_rate_multiplier: 1.5, pricing_snapshot: { currency: 'USD' } },
+      { total_cost: undefined, account_stats_cost: null, account_rate_multiplier: 1.5 },
+    ].map((row, index) => ({ id: index + 1, created_at: '2026-10-11', model: 'model', input_tokens: 0, output_tokens: 0, cache_read_tokens: 0, cache_creation_tokens: 0, actual_cost: 0, ...row }))
+    exportList.mockResolvedValue({ items: rows, total: rows.length })
+    aoaToSheet.mockClear(); sheetAddAoa.mockClear()
+    const wrapper = mountRouteFilteredUsageView()
+    await flushPromises()
+    await (wrapper.vm as any).exportToExcel()
+    const headers = aoaToSheet.mock.calls[0][0][0]
+    const accountColumn = headers.indexOf('usage.accountBilled (usage.currencyUnknown)')
+    expect(accountColumn).toBeGreaterThan(-1)
+    expect(headers).not.toContain('usage.accountBilled (USD)')
+    expect(sheetAddAoa.mock.calls[0][1].map((row: string[]) => row[accountColumn])).toEqual(['3.000000', '0.750000', '0.000000', ''])
+    wrapper.unmount()
+  })
+
   it('shows the routed user while applying user_id to usage requests', async () => {
     routeQuery.user_id = '42'
     getById.mockResolvedValue({ id: 42, email: 'route-user@test.com' })
@@ -795,6 +815,10 @@ describe('admin UsageView model audit export', () => {
 			'Upstream response model',
 			'Upstream model mismatch',
 		])
+		expect(headers).toContain('usage.userBilled (Credit)')
+		expect(headers).toContain('usage.original (Credit)')
+		expect(headers).toContain('usage.accountBilled (usage.currencyUnknown)')
+		expect(headers).not.toContain('usage.accountBilled (USD)')
 		const row = sheetAddAoa.mock.calls[0][1][0]
 		expect(row.slice(4, 8)).toEqual(['gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4', 'Yes'])
 		expect(saveAs).toHaveBeenCalledTimes(1)

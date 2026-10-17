@@ -1,8 +1,10 @@
 package service
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/tidwall/gjson"
 	"slices"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/apicompat"
@@ -119,6 +121,28 @@ func upstreamRoutingModel(account *Account, body []byte, defaultMappedModel stri
 
 // convertResponsesShapedChatBody 把发到 /v1/chat/completions 的 Responses 形状
 // 请求体（Cursor 兼容）转换为 Chat Completions 请求体。
+// ChatUpstreamProtocol exposes the same selector used by forwardAsChatCompletions.
+// Callers must pass the exact forward body and default mapped model, not a
+// guessed platform protocol. Frozen billing does not alter routingModel here.
+func (s *OpenAIGatewayService) ChatUpstreamProtocol(ctx context.Context, account *Account, body []byte, defaultMappedModel string) string {
+	inbound := APIProtocolChatCompletions
+	if !gjson.GetBytes(body, "messages").Exists() && gjson.GetBytes(body, "input").Exists() {
+		inbound = APIProtocolResponses
+	}
+	return s.resolveUpstreamProtocolFor(ctx, account, inbound, upstreamRoutingModel(account, body, defaultMappedModel))
+}
+
+// ResponsesUpstreamProtocol matches Forward's frozen-first routing decision.
+func (s *OpenAIGatewayService) ResponsesUpstreamProtocol(ctx context.Context, account *Account, body []byte) (string, error) {
+	model, frozen, err := frozenGatewayRequestAccountModel(ctx, account.ID)
+	if err != nil {
+		return "", err
+	}
+	if !frozen {
+		model = upstreamRoutingModel(account, body, "")
+	}
+	return s.resolveUpstreamProtocolFor(ctx, account, APIProtocolResponses, model), nil
+}
 func (s *OpenAIGatewayService) convertResponsesShapedChatBody(body []byte) ([]byte, error) {
 	var responsesReq apicompat.ResponsesRequest
 	if err := json.Unmarshal(body, &responsesReq); err != nil {

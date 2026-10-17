@@ -125,6 +125,21 @@ func GroupID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldGroupID, v))
 }
 
+// RequestedGroupID applies equality check predicate on the "requested_group_id" field. It's identical to RequestedGroupIDEQ.
+func RequestedGroupID(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldRequestedGroupID, v))
+}
+
+// ServedGroupID applies equality check predicate on the "served_group_id" field. It's identical to ServedGroupIDEQ.
+func ServedGroupID(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldServedGroupID, v))
+}
+
+// AttemptCount applies equality check predicate on the "attempt_count" field. It's identical to AttemptCountEQ.
+func AttemptCount(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldAttemptCount, v))
+}
+
 // SubscriptionID applies equality check predicate on the "subscription_id" field. It's identical to SubscriptionIDEQ.
 func SubscriptionID(v int64) predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldEQ(FieldSubscriptionID, v))
@@ -1023,6 +1038,186 @@ func GroupIDIsNil() predicate.UsageLog {
 // GroupIDNotNil applies the NotNil predicate on the "group_id" field.
 func GroupIDNotNil() predicate.UsageLog {
 	return predicate.UsageLog(sql.FieldNotNull(FieldGroupID))
+}
+
+// RequestedGroupIDEQ applies the EQ predicate on the "requested_group_id" field.
+func RequestedGroupIDEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldRequestedGroupID, v))
+}
+
+// RequestedGroupIDNEQ applies the NEQ predicate on the "requested_group_id" field.
+func RequestedGroupIDNEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldRequestedGroupID, v))
+}
+
+// RequestedGroupIDIn applies the In predicate on the "requested_group_id" field.
+func RequestedGroupIDIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldRequestedGroupID, vs...))
+}
+
+// RequestedGroupIDNotIn applies the NotIn predicate on the "requested_group_id" field.
+func RequestedGroupIDNotIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldRequestedGroupID, vs...))
+}
+
+// RequestedGroupIDGT applies the GT predicate on the "requested_group_id" field.
+func RequestedGroupIDGT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldRequestedGroupID, v))
+}
+
+// RequestedGroupIDGTE applies the GTE predicate on the "requested_group_id" field.
+func RequestedGroupIDGTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldRequestedGroupID, v))
+}
+
+// RequestedGroupIDLT applies the LT predicate on the "requested_group_id" field.
+func RequestedGroupIDLT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldRequestedGroupID, v))
+}
+
+// RequestedGroupIDLTE applies the LTE predicate on the "requested_group_id" field.
+func RequestedGroupIDLTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldRequestedGroupID, v))
+}
+
+// RequestedGroupIDIsNil applies the IsNil predicate on the "requested_group_id" field.
+func RequestedGroupIDIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldRequestedGroupID))
+}
+
+// RequestedGroupIDNotNil applies the NotNil predicate on the "requested_group_id" field.
+func RequestedGroupIDNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldRequestedGroupID))
+}
+
+// ServedGroupIDEQ applies the EQ predicate on the "served_group_id" field.
+func ServedGroupIDEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldServedGroupID, v))
+}
+
+// ServedGroupIDNEQ applies the NEQ predicate on the "served_group_id" field.
+func ServedGroupIDNEQ(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldServedGroupID, v))
+}
+
+// ServedGroupIDIn applies the In predicate on the "served_group_id" field.
+func ServedGroupIDIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldServedGroupID, vs...))
+}
+
+// ServedGroupIDNotIn applies the NotIn predicate on the "served_group_id" field.
+func ServedGroupIDNotIn(vs ...int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldServedGroupID, vs...))
+}
+
+// ServedGroupIDGT applies the GT predicate on the "served_group_id" field.
+func ServedGroupIDGT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldServedGroupID, v))
+}
+
+// ServedGroupIDGTE applies the GTE predicate on the "served_group_id" field.
+func ServedGroupIDGTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldServedGroupID, v))
+}
+
+// ServedGroupIDLT applies the LT predicate on the "served_group_id" field.
+func ServedGroupIDLT(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldServedGroupID, v))
+}
+
+// ServedGroupIDLTE applies the LTE predicate on the "served_group_id" field.
+func ServedGroupIDLTE(v int64) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldServedGroupID, v))
+}
+
+// ServedGroupIDIsNil applies the IsNil predicate on the "served_group_id" field.
+func ServedGroupIDIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldServedGroupID))
+}
+
+// ServedGroupIDNotNil applies the NotNil predicate on the "served_group_id" field.
+func ServedGroupIDNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldServedGroupID))
+}
+
+// FailoverEQ applies the EQ predicate on the "failover" field.
+func FailoverEQ(v Failover) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldFailover, v))
+}
+
+// FailoverNEQ applies the NEQ predicate on the "failover" field.
+func FailoverNEQ(v Failover) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldFailover, v))
+}
+
+// FailoverIn applies the In predicate on the "failover" field.
+func FailoverIn(vs ...Failover) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldFailover, vs...))
+}
+
+// FailoverNotIn applies the NotIn predicate on the "failover" field.
+func FailoverNotIn(vs ...Failover) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldFailover, vs...))
+}
+
+// FailoverIsNil applies the IsNil predicate on the "failover" field.
+func FailoverIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldFailover))
+}
+
+// FailoverNotNil applies the NotNil predicate on the "failover" field.
+func FailoverNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldFailover))
+}
+
+// AttemptCountEQ applies the EQ predicate on the "attempt_count" field.
+func AttemptCountEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldEQ(FieldAttemptCount, v))
+}
+
+// AttemptCountNEQ applies the NEQ predicate on the "attempt_count" field.
+func AttemptCountNEQ(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNEQ(FieldAttemptCount, v))
+}
+
+// AttemptCountIn applies the In predicate on the "attempt_count" field.
+func AttemptCountIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIn(FieldAttemptCount, vs...))
+}
+
+// AttemptCountNotIn applies the NotIn predicate on the "attempt_count" field.
+func AttemptCountNotIn(vs ...int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotIn(FieldAttemptCount, vs...))
+}
+
+// AttemptCountGT applies the GT predicate on the "attempt_count" field.
+func AttemptCountGT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGT(FieldAttemptCount, v))
+}
+
+// AttemptCountGTE applies the GTE predicate on the "attempt_count" field.
+func AttemptCountGTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldGTE(FieldAttemptCount, v))
+}
+
+// AttemptCountLT applies the LT predicate on the "attempt_count" field.
+func AttemptCountLT(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLT(FieldAttemptCount, v))
+}
+
+// AttemptCountLTE applies the LTE predicate on the "attempt_count" field.
+func AttemptCountLTE(v int) predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldLTE(FieldAttemptCount, v))
+}
+
+// AttemptCountIsNil applies the IsNil predicate on the "attempt_count" field.
+func AttemptCountIsNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldIsNull(FieldAttemptCount))
+}
+
+// AttemptCountNotNil applies the NotNil predicate on the "attempt_count" field.
+func AttemptCountNotNil() predicate.UsageLog {
+	return predicate.UsageLog(sql.FieldNotNull(FieldAttemptCount))
 }
 
 // SubscriptionIDEQ applies the EQ predicate on the "subscription_id" field.

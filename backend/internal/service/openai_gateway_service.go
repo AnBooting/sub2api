@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/openai"
@@ -288,6 +289,10 @@ type OpenAIForwardResult struct {
 	VideoResolution       string
 	// VideoDurationSeconds 是提交时请求的生成时长（xAI 按输出秒数计费），已归一化到 1-15 秒。
 	VideoDurationSeconds int
+	// VideoDurationFromStatus 表示 VideoDurationSeconds 取自上游状态查询响应
+	// （Seedance status body 的 duration/frames），而非请求参数。C-1 的
+	// media.seconds_source 依赖它区分 "upstream" 与 "request"。
+	VideoDurationFromStatus bool
 	// WebSearchCalls 是 Codex alpha/search 网页搜索调用次数（每次成功请求为 1）。
 	// 上游不返回 usage 字段，>0 时走按次计费（分组单价 × 次数 × 倍率）。
 	WebSearchCalls int
@@ -295,6 +300,18 @@ type OpenAIForwardResult struct {
 	SearchCount int
 	// AudioUsage carries Voice billing units when present.
 	AudioUsage *AudioUsage
+
+	// FrozenVideoPlan / FrozenVideoMultiplier 是异步视频任务**受理时**冻结的报价
+	// 与有效倍率，由结算方从任务快照（Redis 或 video_tasks.billing_snapshot）填回。
+	//
+	// PRD-06 AC-B4：报价字段由持久 pending 恢复，异步结算直接消费冻结值。
+	// plan/card、倍率与来源都缺失时才表示历史实时计价任务。
+	FrozenVideoPlan        *domain.VideoPricePlan
+	FrozenVideoMultiplier  *float64
+	FrozenVideoPricing     *FrozenVideoPricing
+	FrozenVideoPriceSource string
+	VideoHasInputVideo     *bool
+	VideoTaskSucceeded     bool // Seedance status must be terminal before claiming any metering mode.
 
 	wsReplayInput                []json.RawMessage
 	wsReplayInputExists          bool

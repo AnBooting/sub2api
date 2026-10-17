@@ -326,7 +326,7 @@ type AccountLoadInfo struct {
 	AccountID          int64
 	CurrentConcurrency int
 	WaitingCount       int
-	LoadRate           int // 0-100+ (percent)
+	LoadRate           int // Active / physical concurrency; 0 for unlimited, waiting is separate
 }
 
 type UserLoadInfo struct {
@@ -357,14 +357,17 @@ func (s *ConcurrencyService) AcquireAccountSlot(ctx context.Context, accountID i
 	}
 
 	if acquired {
+		var releaseOnce sync.Once
 		return &AcquireResult{
 			Acquired: true,
 			ReleaseFunc: func() {
-				bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				if err := s.cache.ReleaseAccountSlot(bgCtx, accountID, requestID); err != nil {
-					logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", accountID, requestID, err)
-				}
+				releaseOnce.Do(func() {
+					bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+					defer cancel()
+					if err := s.cache.ReleaseAccountSlot(bgCtx, accountID, requestID); err != nil {
+						logger.LegacyPrintf("service.concurrency", "Warning: failed to release account slot for %d (req=%s): %v", accountID, requestID, err)
+					}
+				})
 			},
 		}, nil
 	}

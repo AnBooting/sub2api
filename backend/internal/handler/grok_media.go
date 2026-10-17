@@ -107,12 +107,23 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	requestInfo := service.ParseGrokMediaRequest(contentType, body)
 	if endpoint == service.SeedanceEndpointCreate {
 		requestInfo, err = service.ParseSeedanceRequest(body)
+		requestInfo.Resolution = service.SeedanceResolutionFromRequest(body)
+		requestInfo.DurationSeconds = service.SeedanceDurationSecondsFromRequest(body)
 		if err != nil {
 			h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", err.Error())
 			return
 		}
 	}
 	requestModel := requestInfo.Model
+	// PRD-06/K-4 fail-closed: Seedance is sold per request or per second with an
+	// operator-set price. There is no bundled Seedance default and no price source
+	// is guessed, so a create request without a configured slot must not reach the
+	// upstream. Status/delete polling of already-accepted tasks stays allowed.
+	if endpoint == service.SeedanceEndpointCreate && !service.GroupHasSeedanceVideoPrice(apiKey.Group) {
+		h.errorResponse(c, http.StatusServiceUnavailable, "pricing_unavailable",
+			"Seedance price is not configured for this group")
+		return
+	}
 	routingModel := service.NormalizeGrokMediaModelForEndpoint(endpoint, requestModel, requestInfo.HasInputImage())
 	if endpoint.IsGenerationRequest() && strings.TrimSpace(requestModel) == "" {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
@@ -214,8 +225,15 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 	mediaEligibilityRejected := false
 	switchCount := 0
 	videoCreateStartedAt := ""
+	var videoQuote *service.GrokVideoPendingBilling
 	if isGrokVideoCreateEndpoint(endpoint) {
 		videoCreateStartedAt = service.GrokVideoPendingCreatedAtNow()
+		videoQuote, err = h.gatewayService.FreezeVideoBilling(requestCtx, apiKey, requestModel, requestInfo.Resolution,
+			endpoint.IsSeedance() && service.SeedanceRequestHasVideoInput(body))
+		if err != nil {
+			h.errorResponse(c, http.StatusServiceUnavailable, "pricing_unavailable", "Video price is not configured for the requested tier")
+			return
+		}
 	}
 	maxAccountSwitches := h.maxAccountSwitches
 	if maxAccountSwitches <= 0 {
@@ -490,15 +508,35 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 			// model/duration/resolution so status can still price if upstream omits them.
 			// Retry once: missing pending causes silent underpricing (status omits resolution).
 			pending := service.GrokVideoPendingBilling{
-				Model:                requestModel,
-				BillingModel:         firstNonEmptyString(result.BillingModel, requestModel),
-				UpstreamModel:        result.UpstreamModel,
-				VideoResolution:      result.VideoResolution,
-				VideoDurationSeconds: result.VideoDurationSeconds,
+				Model:         requestModel,
+				BillingModel:  firstNonEmptyString(result.BillingModel, requestModel),
+				UpstreamModel: result.UpstreamModel,
+				// PRD-06/K-4: the create response does not echo the resolution, so fall
+				// back to the requested tier (Ark accepts the same field). Billing is
+				// tiered by resolution; empty means unknown and callers fail closed
+				// rather than assume the cheapest tier.
+				VideoResolution: firstNonEmptyString(result.VideoResolution, service.SeedanceResolutionFromRequest(body)),
+				// Duration fallback chain: query response (handled by the caller when it
+				// merges) → create request → nothing. Ark returns duration only on the
+				// query response; snapshotting the requested value avoids inheriting
+				// Grok's 8s default for a Seedance per-second plan.
+				VideoDurationSeconds: firstNonZeroInt(result.VideoDurationSeconds, service.SeedanceDurationSecondsFromRequest(body)),
 				OriginalModel:        clientRequestedModel(c, requestModel),
+				// PRD-06/K-4: Ark's per-token price table has a second dimension —
+				// whether the request supplied a video input. The status response
+				// cannot reveal it, so snapshot it here from the create body.
+				// Conservative: only an explicit content[].video_url / draft_task
+				// counts, so an unprovable request bills the higher cell.
+				HasInputVideo: service.CanonicalVideoPriceFamily(requestModel) == service.VideoPriceFamilySeedance &&
+					service.SeedanceRequestHasVideoInput(body),
 				// Wall-clock start for usage duration_ms: create accepted → first done discovery.
 				CreatedAt: videoCreateStartedAt,
 			}
+			// Persist the quote captured before forwarding, never re-resolve after acceptance.
+			pending.FrozenVideoPlan = videoQuote.FrozenVideoPlan
+			pending.FrozenVideoPricing = videoQuote.FrozenVideoPricing
+			pending.FrozenVideoMultiplier = videoQuote.FrozenVideoMultiplier
+			pending.FrozenVideoPriceSource = videoQuote.FrozenVideoPriceSource
 			if err := h.gatewayService.StoreGrokVideoPendingBilling(requestCtx, result.ResponseID, subject.UserID, apiKey.ID, pending); err != nil {
 				reqLog.Warn("grok_media.store_video_pending_billing_failed_retrying",
 					zap.Int64("account_id", account.ID),
@@ -515,10 +553,33 @@ func (h *OpenAIGatewayHandler) handleGrokMedia(c *gin.Context, endpoint service.
 					)
 				}
 			}
+			// PRD-06/TS-06: register the site task so a background worker can push
+			// the terminal state even when the client never polls (§4). This records
+			// the ACTUAL serving group and carrying account so later queries reuse
+			// them instead of re-running account scheduling (§2.3). It is a best-effort
+			// side record: the recorder never returns an error and never blocks the
+			// create response.
+			service.RecordVideoTaskCreate(requestCtx, service.VideoTaskCreateParams{
+				TaskKey:        result.ResponseID,
+				UpstreamTaskID: result.ResponseID,
+				UserID:         subject.UserID,
+				APIKeyID:       apiKey.ID,
+				GroupID:        videoTaskGroupID(apiKey),
+				Platform:       videoTaskPlatformForEndpoint(endpoint),
+				Model:          requestModel,
+				BillingModel:   firstNonEmptyString(result.BillingModel, requestModel),
+				BillingMode:    videoTaskBillingMode(apiKey.Group, firstNonEmptyString(result.BillingModel, requestModel)),
+				AccountID:      account.ID,
+				Pending:        &pending,
+				CreatedAt:      time.Now(),
+			})
 		}
 		// Status poll OR content download can observe official done+video.url.
 		// Both paths share the same claim key so the customer is charged once.
 		if endpoint == service.SeedanceEndpointStatus {
+			if !result.VideoTaskSucceeded {
+				return
+			} // Per-request/second quotes need no tokens, but still require success.
 			if billResult := prepareSeedanceCompletionBilling(requestCtx, h, apiKey, subject, requestID, result); billResult != nil {
 				recordGrokMediaUsage(c, h, reqLog, apiKey, subject, subscription, account, billResult, billResult.Model, body, requestID)
 			}
@@ -550,6 +611,34 @@ func (h *OpenAIGatewayHandler) ensureGrokMediaAccountEligibility(ctx context.Con
 		return false, "billing_probe_unavailable", errors.New("grok media eligibility probe is not configured")
 	}
 	return h.grokMediaEligibilityProber.ProbeMediaEligibility(ctx, account.ID)
+}
+
+// videoTaskGroupID 取实际服务分组 ID（PRD-06 §2.3 的「实际服务分组」）。
+// Key 未绑定分组时返回 0，登记入口据此跳过——没有实际分组就没有可追溯的归属。
+func videoTaskGroupID(apiKey *service.APIKey) int64 {
+	if apiKey == nil || apiKey.GroupID == nil {
+		return 0
+	}
+	return *apiKey.GroupID
+}
+
+// videoTaskPlatformForEndpoint 把媒体端点映射为任务表记录的平台标识，
+// 决定 worker 用哪套上游状态协议查询。
+func videoTaskPlatformForEndpoint(endpoint service.GrokMediaEndpoint) string {
+	if endpoint.IsSeedance() {
+		return service.VideoTaskPlatformSeedance
+	}
+	return service.VideoTaskPlatformGrok
+}
+
+// videoTaskBillingMode 记录创建时的计费模式快照（仅用于留痕/排障，
+// 实际计费仍由既有 RecordUsage 按同一份分组价目表决定，不新写计费口径）。
+func videoTaskBillingMode(group *service.Group, model string) string {
+	plan := service.VideoPricePlanForGroup(group, model)
+	if plan == nil {
+		return ""
+	}
+	return string(plan.Mode)
 }
 
 func grokMediaRequiredCapability(endpoint service.GrokMediaEndpoint) service.OpenAIEndpointCapability {
@@ -677,6 +766,9 @@ func prepareGrokVideoCompletionBilling(
 		if strings.TrimSpace(merged.ResponseID) == "" {
 			merged.ResponseID = taskRequestID
 		}
+		// PRD-06 AC-B4: same freeze as the worker path — the client-poll settlement must
+		// charge the acceptance-time quote, not whatever the group publishes now.
+		pending.ApplyToVideoResult(&merged)
 	}
 	if strings.TrimSpace(merged.Model) == "" {
 		merged.Model = "grok-imagine-video"
@@ -704,6 +796,17 @@ func prepareGrokVideoCompletionBilling(
 		}
 	}
 	return &merged
+}
+
+// firstNonZeroInt returns the first positive value, or 0 when none is usable.
+// Used for duration fallbacks where 0 already means "unknown".
+func firstNonZeroInt(values ...int) int {
+	for _, value := range values {
+		if value > 0 {
+			return value
+		}
+	}
+	return 0
 }
 
 func firstNonEmptyString(values ...string) string {

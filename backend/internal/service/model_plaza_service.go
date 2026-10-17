@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
+
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
 // PlazaOfficialPricing 模型广场展示用的官方参考价（USD per token），与计费同源：
@@ -71,6 +74,9 @@ type ModelPlazaService struct {
 	pricingService *PricingService
 	billingService *BillingService
 	resolver       *ModelPricingResolver
+	// pricingAt 是展示定价的计费时点来源：生产装配为 timezone.Now，
+	// 测试可注入固定时刻以消除峰谷/分时对墙钟的依赖。
+	pricingAt func() time.Time
 }
 
 // NewModelPlazaService 创建模型广场服务。
@@ -87,7 +93,16 @@ func NewModelPlazaService(
 		pricingService: pricingService,
 		billingService: billingService,
 		resolver:       resolver,
+		pricingAt:      timezone.Now,
 	}
+}
+
+// now 返回展示定价使用的计费时点：未注入时回退 timezone.Now()，生产行为不变。
+func (s *ModelPlazaService) now() time.Time {
+	if s == nil || s.pricingAt == nil {
+		return timezone.Now()
+	}
+	return s.pricingAt()
 }
 
 // ListGroups 返回模型广场数据：每个活跃分组附带其可用模型与定价。
@@ -235,9 +250,10 @@ func (s *ModelPlazaService) fillDisplayPricing(ctx context.Context, m *PlazaMode
 	}
 	if s.billingService != nil && s.resolver != nil {
 		sched, err := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{
-			Model:    m.Name,
-			Group:    g,
-			Platform: m.Platform,
+			Model:     m.Name,
+			Group:     g,
+			Platform:  m.Platform,
+			PricingAt: s.now(),
 		})
 		if err == nil && sched != nil && len(sched.Tiers) > 0 {
 			m.Pricing = plazaPricingFromSchedule(m.Pricing, sched)
@@ -370,7 +386,7 @@ func (s *ModelPlazaService) lookupOfficialPricing(ctx context.Context, modelName
 			result.CacheWrite1hPrice = nonZeroPtr(mp.CacheCreation1hPrice)
 		}
 		if s.resolver != nil {
-			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: modelName})
+			sched, schedErr := s.billingService.ResolveContextPricingSchedule(ctx, s.resolver, ContextPricingScheduleInput{Model: modelName, PricingAt: s.now()})
 			if schedErr == nil && sched != nil && len(sched.Tiers) > 1 {
 				result.Intervals = plazaIntervalsFromTiers(sched.Tiers)
 			}

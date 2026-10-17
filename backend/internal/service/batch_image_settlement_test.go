@@ -464,6 +464,17 @@ func (r *fakeBatchImageBillingRepo) Apply(_ context.Context, cmd *UsageBillingCo
 	return &UsageBillingApplyResult{Applied: true}, nil
 }
 
+// SettlementExists 报告该请求是否已落账（与 Apply 的 seen/alreadyApplied 同源）。
+func (r *fakeBatchImageBillingRepo) SettlementExists(_ context.Context, requestID string, _ int64) (bool, error) {
+	if r.err != nil {
+		return false, r.err
+	}
+	if _, ok := r.seen[requestID]; ok {
+		return true, nil
+	}
+	return r.alreadyApplied[requestID], nil
+}
+
 func (r *fakeBatchImageBillingRepo) ReserveBatchImageBalance(_ context.Context, cmd *BatchImageBalanceHoldCommand) (*BatchImageBalanceHoldResult, error) {
 	if r.reserveErr != nil {
 		r.reserves = append(r.reserves, cmd)

@@ -1,11 +1,37 @@
 export default {
     settings: {
 	  pricing: {
+	    calendarYears: 'Calendar coverage years',
+      calendar: {
+        "title": "DeepSeek statutory holiday calendar",
+        "rules": "Timezone: Asia/Shanghai. Maintained statutory holidays take off-peak precedence. Weekends, including makeup-work weekends, remain off-peak. Non-holiday weekdays use peak windows [09:00,12:00) and [14:00,18:00); all other times are off-peak. This editor does not calculate the current price or period.",
+        "unsupported": "The backend does not provide both calendar and year-state fields. Calendar support is unconfirmed; editing is unavailable. Existing pricing switches remain available.",
+        "yearMissing": "The current Shanghai year has no custom or built-in holiday coverage. Official peak pricing is disabled; maintain the complete year to restore it.",
+        "yearMaintained": "The current Shanghai year is covered by custom or built-in dates; an explicit empty date array also counts as maintained.",
+        "editorLabel": "Statutory holidays by year (JSON)",
+        "editorHelp": "Use an object mapping four-digit years to date arrays. Dates must be valid YYYY-MM-DD, match the year, and have no duplicates. Do not enter makeup-work days. A year with [] is explicitly maintained with no holidays. Missing years use the built-in 2026 calendar; years absent from both disable official peak pricing. Saving {'{'}{'}'} removes custom overrides and restores the built-in fallback. Custom prices follow operator settings.",
+        "unsaved": "Unsaved draft. Polling, pricing refreshes, and switch saves preserve it. The draft is not effective yet.",
+        "save": "Save calendar",
+        "resetDraft": "Discard draft and restore server value",
+        "savedState": "Server-saved calendar",
+        "saved": "Calendar saved and read back from the server",
+        "missingReadback": "The server did not return complete calendar and year-state fields. The effective calendar is unconfirmed; your draft is retained.",
+        "errors": {
+          "json": "Enter valid JSON.",
+          "root": "The calendar root must be an object, not null or an array.",
+          "year": "Year must be four digits from 0001 to 9999: {value}",
+          "dates": "The year value must be a date array, never null: {value}",
+          "date": "Invalid date or YYYY-MM-DD format: {value}",
+          "yearMismatch": "Date year does not match its calendar year: {value}",
+          "duplicate": "Duplicate date: {value}"
+        }
+      },
 	    creditUnit: 'credits', rechargeHint: 'Credit mode: a base recharge of ¥1 or $1 adds 1 credit. Bonuses and fees are calculated separately.',
 	    currency: 'Price currency', manualCNYHint: 'CNY token cards require input, output, cache read and cache write rates. Enter 0 for free items; USD rates are never inherited.',
 	    title: 'Model pricing and credits', description: 'Choose native CNY prices and control all remote pricing requests. Changes take effect immediately.',
 	    nativeCNY: 'Use native CNY model prices', nativeCNYHint: 'Chinese models use original CNY lists; Claude/GPT keep USD lists. ¥1 and $1 each consume 1 credit, with no FX conversion; recharge credits use a ratio of 1. Missing CNY prices require manual pricing.',
 	    remote: 'Allow remote pricing requests', remoteHint: 'Turning this off stops startup checks, scheduled sync, remote hash checks and manual refresh. Cached and manual prices remain available.',
+    syncInterval: 'Pricing sync period (hours)', syncIntervalHint: 'Enter {min}–{max} hours. Saving rearms the timer immediately, so the next boundary uses the new period without a restart. Leave empty to keep the config-file default.', syncIntervalEffective: 'Effective period: {hours} hours', syncIntervalSave: 'Save period', syncIntervalInvalid: 'Enter a whole number of hours between 1 and 720.',
 	    offline: 'Remote pricing is off. Local prices are in use.', noCNY: 'No CNY price cache yet. Enable requests to sync, or configure manual prices with an explicit currency.',
 	    sources: 'Pricing data:', refresh: 'Sync prices now', retry: 'Retry', never: 'Not synced', failed: 'Pricing request failed', saved: 'Pricing settings saved',
 	  },
@@ -456,6 +482,21 @@ export default {
           'Reject Claude Code clients above this version (semver format). Leave empty to allow any version.'
       },
       scheduling: {
+  "strategy": "Scheduling strategy",
+  "strategyHint": "Strategy affects sticky session reuse duration and sticky wait ceiling, never concurrency, safe retries, or model capability checks.",
+  "effectiveStrategy": "Current effective strategy",
+  "strategies": {
+    "inherit": "Inherit global",
+    "stable": "Stability first",
+    "balanced": "Balanced",
+    "latency": "Latency first"
+  },
+  "maxAttempts": "Maximum sends per request",
+  "requestBudget": "Total request budget (seconds)",
+  "budgetHint": "Includes all actual upstream retries. Existing lower limits still apply. Defaults: 16 sends / 600 seconds.",
+  "invalidBudget": "Attempt and time budgets must be positive integers."
+,
+
         title: 'Gateway Scheduling Settings',
         description: 'Control API Key scheduling behavior',
         allowUngroupedKey: 'Allow Ungrouped Key Scheduling',
@@ -464,7 +505,14 @@ export default {
         accountSchedulingThresholdsDescription: 'When an account\'s current native usage window (OpenAI Codex/Anthropic session, or Grok request/token utilization) reaches this percent, Sub2API temporarily removes it from scheduling until the window resets. Use 100 to disable.',
         accountSchedulingThresholdsGlobalHint: 'System-wide default for every account on that platform. Individual accounts can still override this in the account editor.',
         accountSchedulingThresholdsDisabledHint: '100 disables platform auto-pause. Values 1–99 pause scheduling once utilization reaches that percent.',
-        accountSchedulingThresholdsRangeHint: 'Integer 1–100 (percent). OpenAI/Anthropic/Grok only.'
+        accountSchedulingThresholdsRangeHint: 'Integer 1–100 (percent). OpenAI/Anthropic/Grok only.',
+        requestBudgetTitle: 'Unified Retry Budget',
+        requestBudgetDescription: 'Upstream send cap and total time budget shared by every in-request account or group switch. Only real upstream inference sends count; selection and pre-checks do not.',
+        maxAttemptsPerRequest: 'Max attempts per request',
+        maxAttemptsPerRequestHint: 'Default 16. Must be an integer greater than 0. It applies together with the time budget below; whichever is exhausted first stops retrying.',
+        requestBudgetSeconds: 'Request time budget (seconds)',
+        requestBudgetSecondsHint: 'Default 600 seconds. Must be an integer greater than 0. Once exceeded, no further upstream attempt is started.',
+        requestBudgetInvalid: 'Max attempts per request and the request time budget must both be integers greater than 0.'
       },
       upstreamBillingProbe: {
         title: 'Upstream Rate Auto Detection',

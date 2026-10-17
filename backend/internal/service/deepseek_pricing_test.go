@@ -153,7 +153,7 @@ func TestCalculateCostUnified_DeepseekVersionedNamePeakMultiplier(t *testing.T) 
 	require.InDelta(t, offPeakTotal*2, peak.TotalCost, 1e-10)
 }
 
-func TestCalculateCostUnified_DeepseekGroupPricingNotScaledByPeak(t *testing.T) {
+func TestCalculateCostUnified_DeepseekGroupPricingIsOperatorDefined(t *testing.T) {
 	bs := newTestBillingService()
 	resolver := NewModelPricingResolver(nil, bs)
 
@@ -183,7 +183,7 @@ func TestCalculateCostUnified_DeepseekGroupPricingNotScaledByPeak(t *testing.T) 
 		})
 		require.NoError(t, err)
 		require.InDelta(t, groupTotal, cost.TotalCost, 1e-10,
-			"分组自定义定价不应叠加官方峰谷倍率（pricingAt=%v）", pricingAt)
+			"分组自定义售价不自动叠加官方峰谷倍率（pricingAt=%v）", pricingAt)
 	}
 }
 

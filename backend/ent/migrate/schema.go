@@ -17,6 +17,7 @@ var (
 		{Name: "deleted_at", Type: field.TypeTime, Nullable: true, SchemaType: map[string]string{"postgres": "timestamptz"}},
 		{Name: "key", Type: field.TypeString, Unique: true, Size: 128},
 		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "group_chain_revision", Type: field.TypeInt64, Default: 0},
 		{Name: "status", Type: field.TypeString, Size: 20, Default: "active"},
 		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
 		{Name: "ip_whitelist", Type: field.TypeJSON, Nullable: true},
@@ -44,13 +45,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "api_keys_groups_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[22]},
+				Columns:    []*schema.Column{APIKeysColumns[23]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "api_keys_users_api_keys",
-				Columns:    []*schema.Column{APIKeysColumns[23]},
+				Columns:    []*schema.Column{APIKeysColumns[24]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
@@ -59,17 +60,17 @@ var (
 			{
 				Name:    "apikey_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[23]},
+				Columns: []*schema.Column{APIKeysColumns[24]},
 			},
 			{
 				Name:    "apikey_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[22]},
+				Columns: []*schema.Column{APIKeysColumns[23]},
 			},
 			{
 				Name:    "apikey_status",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[6]},
+				Columns: []*schema.Column{APIKeysColumns[7]},
 			},
 			{
 				Name:    "apikey_deleted_at",
@@ -79,17 +80,63 @@ var (
 			{
 				Name:    "apikey_last_used_at",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[7]},
+				Columns: []*schema.Column{APIKeysColumns[8]},
 			},
 			{
 				Name:    "apikey_quota_quota_used",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[10], APIKeysColumns[11]},
+				Columns: []*schema.Column{APIKeysColumns[11], APIKeysColumns[12]},
 			},
 			{
 				Name:    "apikey_expires_at",
 				Unique:  false,
-				Columns: []*schema.Column{APIKeysColumns[12]},
+				Columns: []*schema.Column{APIKeysColumns[13]},
+			},
+		},
+	}
+	// APIKeyGroupLinksColumns holds the columns for the "api_key_group_links" table.
+	APIKeyGroupLinksColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeInt64, Increment: true},
+		{Name: "role", Type: field.TypeEnum, Enums: []string{"normal", "ha"}, Default: "normal"},
+		{Name: "position", Type: field.TypeInt},
+		{Name: "enabled_by_user_at", Type: field.TypeTime, Nullable: true},
+		{Name: "api_key_id", Type: field.TypeInt64},
+		{Name: "group_id", Type: field.TypeInt64},
+	}
+	// APIKeyGroupLinksTable holds the schema information for the "api_key_group_links" table.
+	APIKeyGroupLinksTable = &schema.Table{
+		Name:       "api_key_group_links",
+		Columns:    APIKeyGroupLinksColumns,
+		PrimaryKey: []*schema.Column{APIKeyGroupLinksColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "api_key_group_links_api_keys_group_links",
+				Columns:    []*schema.Column{APIKeyGroupLinksColumns[4]},
+				RefColumns: []*schema.Column{APIKeysColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "api_key_group_links_groups_api_key_links",
+				Columns:    []*schema.Column{APIKeyGroupLinksColumns[5]},
+				RefColumns: []*schema.Column{GroupsColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "apikeygrouplink_api_key_id_group_id",
+				Unique:  true,
+				Columns: []*schema.Column{APIKeyGroupLinksColumns[4], APIKeyGroupLinksColumns[5]},
+			},
+			{
+				Name:    "apikeygrouplink_api_key_id_role_position",
+				Unique:  true,
+				Columns: []*schema.Column{APIKeyGroupLinksColumns[4], APIKeyGroupLinksColumns[1], APIKeyGroupLinksColumns[2]},
+			},
+			{
+				Name:    "apikeygrouplink_group_id",
+				Unique:  false,
+				Columns: []*schema.Column{APIKeyGroupLinksColumns[5]},
 			},
 		},
 	}
@@ -937,6 +984,8 @@ var (
 		{Name: "video_price_720p", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "video_price_1080p", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "video_model_prices", Type: field.TypeJSON, Nullable: true, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "video_price_plans", Type: field.TypeJSON, SchemaType: map[string]string{"postgres": "jsonb"}},
+		{Name: "allow_high_availability", Type: field.TypeBool, Default: false},
 		{Name: "web_search_price_per_call", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "search_price_per_1k", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
 		{Name: "audio_realtime_price_per_min", Type: field.TypeFloat64, Nullable: true, SchemaType: map[string]string{"postgres": "decimal(20,8)"}},
@@ -969,6 +1018,7 @@ var (
 		{Name: "profit_control_enabled", Type: field.TypeBool, Default: false},
 		{Name: "profit_min_margin", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
 		{Name: "profit_safety_buffer", Type: field.TypeFloat64, Default: 0, SchemaType: map[string]string{"postgres": "decimal(10,4)"}},
+		{Name: "scheduling_strategy", Type: field.TypeString, Size: 20, Default: "inherit"},
 	}
 	// GroupsTable holds the schema information for the "groups" table.
 	GroupsTable = &schema.Table{
@@ -1004,7 +1054,7 @@ var (
 			{
 				Name:    "group_sort_order",
 				Unique:  false,
-				Columns: []*schema.Column{GroupsColumns[49]},
+				Columns: []*schema.Column{GroupsColumns[51]},
 			},
 			{
 				Name:    "idx_groups_duplicate_operation_id_active",
@@ -1647,6 +1697,10 @@ var (
 		{Name: "model_mapping_chain", Type: field.TypeString, Nullable: true, Size: 500},
 		{Name: "billing_tier", Type: field.TypeString, Nullable: true, Size: 50},
 		{Name: "billing_mode", Type: field.TypeString, Nullable: true, Size: 20},
+		{Name: "requested_group_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "served_group_id", Type: field.TypeInt64, Nullable: true},
+		{Name: "failover", Type: field.TypeEnum, Nullable: true, Enums: []string{"none", "account", "group", "ha"}},
+		{Name: "attempt_count", Type: field.TypeInt, Nullable: true},
 		{Name: "input_tokens", Type: field.TypeInt, Default: 0},
 		{Name: "output_tokens", Type: field.TypeInt, Default: 0},
 		{Name: "cache_creation_tokens", Type: field.TypeInt, Default: 0},
@@ -1694,31 +1748,31 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "usage_logs_api_keys_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[44]},
+				Columns:    []*schema.Column{UsageLogsColumns[48]},
 				RefColumns: []*schema.Column{APIKeysColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "usage_logs_accounts_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[45]},
+				Columns:    []*schema.Column{UsageLogsColumns[49]},
 				RefColumns: []*schema.Column{AccountsColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "usage_logs_groups_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[46]},
+				Columns:    []*schema.Column{UsageLogsColumns[50]},
 				RefColumns: []*schema.Column{GroupsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "usage_logs_users_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[47]},
+				Columns:    []*schema.Column{UsageLogsColumns[51]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 			{
 				Symbol:     "usage_logs_user_subscriptions_usage_logs",
-				Columns:    []*schema.Column{UsageLogsColumns[48]},
+				Columns:    []*schema.Column{UsageLogsColumns[52]},
 				RefColumns: []*schema.Column{UserSubscriptionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -1727,32 +1781,32 @@ var (
 			{
 				Name:    "usagelog_user_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[47]},
+				Columns: []*schema.Column{UsageLogsColumns[51]},
 			},
 			{
 				Name:    "usagelog_api_key_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[44]},
+				Columns: []*schema.Column{UsageLogsColumns[48]},
 			},
 			{
 				Name:    "usagelog_account_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[45]},
+				Columns: []*schema.Column{UsageLogsColumns[49]},
 			},
 			{
 				Name:    "usagelog_group_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[46]},
+				Columns: []*schema.Column{UsageLogsColumns[50]},
 			},
 			{
 				Name:    "usagelog_subscription_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[48]},
+				Columns: []*schema.Column{UsageLogsColumns[52]},
 			},
 			{
 				Name:    "usagelog_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[43]},
+				Columns: []*schema.Column{UsageLogsColumns[47]},
 			},
 			{
 				Name:    "usagelog_model",
@@ -1772,17 +1826,17 @@ var (
 			{
 				Name:    "usagelog_user_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[47], UsageLogsColumns[43]},
+				Columns: []*schema.Column{UsageLogsColumns[51], UsageLogsColumns[47]},
 			},
 			{
 				Name:    "usagelog_api_key_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[44], UsageLogsColumns[43]},
+				Columns: []*schema.Column{UsageLogsColumns[48], UsageLogsColumns[47]},
 			},
 			{
 				Name:    "usagelog_group_id_created_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsageLogsColumns[46], UsageLogsColumns[43]},
+				Columns: []*schema.Column{UsageLogsColumns[50], UsageLogsColumns[47]},
 			},
 		},
 	}
@@ -2091,6 +2145,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		APIKeysTable,
+		APIKeyGroupLinksTable,
 		AccountsTable,
 		AccountGroupsTable,
 		AnnouncementsTable,
@@ -2137,6 +2192,11 @@ func init() {
 	APIKeysTable.ForeignKeys[1].RefTable = UsersTable
 	APIKeysTable.Annotation = &entsql.Annotation{
 		Table: "api_keys",
+	}
+	APIKeyGroupLinksTable.ForeignKeys[0].RefTable = APIKeysTable
+	APIKeyGroupLinksTable.ForeignKeys[1].RefTable = GroupsTable
+	APIKeyGroupLinksTable.Annotation = &entsql.Annotation{
+		Table: "api_key_group_links",
 	}
 	AccountsTable.ForeignKeys[0].RefTable = ProxiesTable
 	AccountsTable.ForeignKeys[1].RefTable = AccountsTable

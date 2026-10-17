@@ -134,6 +134,13 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 	embPricingCtx, pricingAt := h.gatewayService.WithOpenAIRequestPricingContext(c.Request.Context(), apiKey.GroupID)
 	c.Request = c.Request.WithContext(embPricingCtx)
 
+	// TS-02 S3b：文本类 Embeddings 在 failover 循环前挂载单逻辑请求预算。
+	// clientDeadline 本期不读，传零值；预算耗尽复用 handleFailoverExhausted
+	// 的 503 + no_available_group 出口。
+	maxAttemptSends, budgetWindow := h.gatewayService.RequestAttemptBudgetLimits(c.Request.Context())
+	budgetCtx, _ := service.EnsureRequestAttemptBudget(c.Request.Context(), maxAttemptSends, budgetWindow, time.Time{})
+	c.Request = c.Request.WithContext(budgetCtx)
+
 	for {
 		selection, _, err := h.gatewayService.SelectAccountWithSchedulerForCapability(
 			c.Request.Context(),
@@ -228,12 +235,24 @@ func (h *OpenAIGatewayHandler) Embeddings(c *gin.Context) {
 					h.handleFailoverExhausted(c, failoverErr, true)
 					return
 				}
-				h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), false, nil, err)
+				// TS-02 S3b：预算耗尽立即终止，不再上报账号健康/调度失败，
+				// 不换号，也不把预算拒绝误当成可重试的上游失败。
+				if failoverErr.Reason == service.RequestAttemptBudgetReason || requestAttemptBudgetExhausted(c.Request.Context(), "openai_embeddings_failover") {
+					h.handleFailoverExhausted(c, service.NewRequestAttemptBudgetFailoverError(), false)
+					return
+				}
+				if failoverErr.ShouldRetryNextAccount() {
+					h.gatewayService.ReportOpenAIAccountScheduleResult(account, openAIAccountScheduleModel(c, account, reqModel, false, result), false, nil, err)
+				}
 				if failoverClientGone(c) {
 					reqLog.Info("openai_embeddings.failover_aborted_client_disconnected",
 						zap.Int64("account_id", account.ID),
 						zap.Int("upstream_status", failoverErr.StatusCode),
 					)
+					return
+				}
+				if !failoverErr.ShouldRetryNextAccount() {
+					h.handleFailoverExhausted(c, failoverErr, false)
 					return
 				}
 				h.gatewayService.RecordOpenAIAccountSwitch()

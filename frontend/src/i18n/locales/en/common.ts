@@ -1,5 +1,6 @@
 export default {
   common: {
+    creditUnit: 'Credit',
     loading: 'Loading...',
     submitting: 'Submitting...',
     justNow: 'just now',
