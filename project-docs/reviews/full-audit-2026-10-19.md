@@ -10,8 +10,8 @@
 
 ## 已修复项验收
 
-- `go test -tags=unit ./internal/handler ./internal/handler/admin ./internal/pkg/antigravity -count=1`：通过。
-- 前端 `vue-tsc` typecheck：通过；shop 与 locale 定向 Vitest：10/10 通过。
+- 后端：`go build ./...` 通过；handler/admin/antigravity 定向 unit 通过；全量 unit 在 PATH 补齐 `sh` 后仅 `TestCalculateCostUnified_ChannelTimePricingDoesNotApplyOutsideMatchingTime` 失败，git blame 为 2026-08-17 上游基线 `9f24a5530`，与本 diff 无关。
+- 前端：`vue-tsc` typecheck 与生产 build 通过；完整 Vitest 重跑 379 文件 / 2993 用例全部通过；shop/locale 定向 10/10 通过。
 - `node --test tools/repo-intelligence.test.mjs`：11/11 通过。
 
 ## 待产品决策/后续轮次
@@ -23,5 +23,5 @@
 ## 复审限制
 
 - 本会话未完成全量 OCR（远端批次失败），不满足“全量 OCR 审核”的原始目标；剩余范围已如实记录。
-- 未跑完整后端/前端全量质量门；本节只列出已实际执行并通过的定向验证。
+- 后端全量 unit 除既有基线失败用例外通过；前端完整 Vitest 与 build 已通过。
 

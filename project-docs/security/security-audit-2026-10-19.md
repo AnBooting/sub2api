@@ -47,6 +47,12 @@
 - 失败：其余批次因远端 LLM 全量失败未产出；不列为审查完成。
 - 原始 JSON 在 `F:\sub2--audit\full-20261019\ocr\`。
 
+## 验证状态
+
+- `go build ./...` 通过；前端 typecheck/build 与完整 Vitest（379/2993）通过。
+- 后端全量 unit：除上游基线 `TestCalculateCostUnified_ChannelTimePricingDoesNotApplyOutsideMatchingTime` 外通过。
+- OCR 仅完成 B3/B1c/B9，其余批次远端失败。
+
 ## 未验证边界
 
 - PostgreSQL/Redis integration、真实上游调用、Docker E2E、生产部署。
