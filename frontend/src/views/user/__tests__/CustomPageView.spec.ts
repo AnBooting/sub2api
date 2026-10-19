@@ -90,7 +90,9 @@ describe('custom page open button', () => {
     const { wrapper, button } = mountEmbed()
     expect(button.href).toBe(wrapper.get('iframe').attributes('src'))
     expect(button.href).toContain('user_id=7')
-    expect(button.href).toContain('token=test-token')
+    // 令牌不得出现在 URL 中：iframe src 与 <a href> 都会进入历史、Referer 与日志。
+    expect(button.href).not.toContain('token=')
+    expect(wrapper.get('iframe').attributes('src')).not.toContain('token=')
     expect(button.target).toBe('_blank')
     expect(button.rel).toBe('noopener noreferrer')
     await pointer(button, 'pointerdown', 700, 24)
