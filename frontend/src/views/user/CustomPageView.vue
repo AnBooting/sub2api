@@ -46,10 +46,7 @@
                 :key="item.id"
                 :href="'#' + item.id"
                 class="toc-item"
-                :class="[
-                  `toc-level-${item.level}`,
-                  { 'toc-active': activeHeadingId === item.id }
-                ]"
+                :class="[ `toc-level-${item.level}`, { 'toc-active': activeHeadingId === item.id } ]"
                 @click.prevent="scrollToHeading(item.id)"
               >
                 {{ item.text }}
@@ -518,8 +515,8 @@ onUnmounted(() => {
 
 .custom-embed-shell {
   @apply relative;
-  @apply h-full w-full overflow-hidden rounded-2xl;
-  @apply bg-gradient-to-b from-gray-50 to-white dark:from-dark-900 dark:to-dark-950;
+  @apply h-full w-full overflow-hidden rounded-panel;
+  @apply to-white dark:from-dark-900 dark:to-dark-950;
   @apply p-0;
 }
 

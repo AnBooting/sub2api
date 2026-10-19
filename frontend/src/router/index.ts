@@ -898,14 +898,16 @@ router.beforeEach(async (to, _from, next) => {
     return
   }
 
-  // Check admin requirement
-  if (requiresAdmin && !authStore.isAdmin) {
+  // Check admin requirement: both explicit meta and /admin prefix enforce role scope.
+  const routeScope = to.meta.scope
+  const adminOnly = requiresAdmin || routeScope === 'admin' || to.path.startsWith('/admin')
+  if (adminOnly && !authStore.isAdmin) {
     // User is authenticated but not admin, redirect to user dashboard
     next('/dashboard')
     return
   }
 
-  if (requiresAdmin && authStore.isAdmin) {
+  if (adminOnly && authStore.isAdmin) {
     const adminComplianceStore = useAdminComplianceStore()
     if (!adminComplianceStore.initialized) {
       try {

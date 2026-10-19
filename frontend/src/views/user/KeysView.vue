@@ -70,7 +70,7 @@
             </button>
             <div
               v-if="showColumnDropdown"
-              class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+              class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 origin-top-right overflow-y-auto rounded-panel border border-borderline-200 bg-white py-1 shadow-card dark:border-dark-600 dark:bg-dark-800"
             >
               <button
                 v-for="col in toggleableColumns"
@@ -123,11 +123,7 @@
               <button
                 @click="copyToClipboard(value, row.id)"
                 class="rounded-lg p-1 transition-colors hover:bg-gray-100 dark:hover:bg-dark-700"
-                :class="
-                  copiedKeyId === row.id
-                    ? 'text-green-500'
-                    : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                "
+                :class="copiedKeyId === row.id ? 'text-green-500' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'"
                 :title="copiedKeyId === row.id ? t('keys.copied') : t('keys.copyToClipboard')"
               >
                 <Icon
@@ -183,12 +179,7 @@
 
           <template #cell-current_concurrency="{ value }">
             <span
-              :class="[
-                'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums',
-                (value ?? 0) > 0
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800'
-                  : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-              ]"
+              :class="[ 'inline-flex min-w-8 items-center justify-center rounded px-2 py-1 text-sm font-semibold tabular-nums', (value ?? 0) > 0 ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 dark:bg-emerald-900/25 dark:text-emerald-300 dark:ring-emerald-800' : 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-dark-400' ]"
             >
               {{ value ?? 0 }}
             </span>
@@ -212,23 +203,13 @@
               <div v-if="row.quota > 0" class="mt-1.5">
                 <div class="flex items-center gap-1.5">
                   <span class="text-gray-500 dark:text-gray-400">{{ t('keys.quota') }}:</span>
-                  <span :class="[
-                    'font-medium',
-                    row.quota_used >= row.quota ? 'text-red-500' :
-                    row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' :
-                    'text-gray-900 dark:text-white'
-                  ]">
+                  <span :class="[ 'font-medium', row.quota_used >= row.quota ? 'text-red-500' : row.quota_used >= row.quota * 0.8 ? 'text-yellow-500' : 'text-gray-900 dark:text-white' ]">
                     {{ formatCustomerCredit(row.quota_used?.toFixed(2) || '0.00') }} / {{ formatCustomerCredit(row.quota?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.quota_used >= row.quota ? 'bg-red-500' :
-                      row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' :
-                      'bg-primary-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', row.quota_used >= row.quota ? 'bg-red-500' : row.quota_used >= row.quota * 0.8 ? 'bg-yellow-500' : 'bg-primary-500' ]"
                     :style="{ width: Math.min((row.quota_used / row.quota) * 100, 100) + '%' }"
                   />
                 </div>
@@ -242,23 +223,13 @@
               <div v-if="row.rate_limit_5h > 0">
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-gray-500 dark:text-gray-400">5h</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_5h >= row.rate_limit_5h ? 'text-red-500' :
-                    row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
+                  <span :class="[ 'font-medium tabular-nums', row.usage_5h >= row.rate_limit_5h ? 'text-red-500' : row.usage_5h >= row.rate_limit_5h * 0.8 ? 'text-yellow-500' : 'text-gray-700 dark:text-gray-300' ]">
                     {{ formatCustomerCredit(row.usage_5h?.toFixed(2) || '0.00') }}/{{ formatCustomerCredit(row.rate_limit_5h?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_5h >= row.rate_limit_5h ? 'bg-red-500' :
-                      row.usage_5h >= row.rate_limit_5h * 0.8 ? 'bg-yellow-500' :
-                      'bg-emerald-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', row.usage_5h >= row.rate_limit_5h ? 'bg-red-500' : row.usage_5h >= row.rate_limit_5h * 0.8 ? 'bg-yellow-500' : 'bg-emerald-500' ]"
                     :style="{ width: Math.min((row.usage_5h / row.rate_limit_5h) * 100, 100) + '%' }"
                   />
                 </div>
@@ -270,23 +241,13 @@
               <div v-if="row.rate_limit_1d > 0">
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-gray-500 dark:text-gray-400">1d</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_1d >= row.rate_limit_1d ? 'text-red-500' :
-                    row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
+                  <span :class="[ 'font-medium tabular-nums', row.usage_1d >= row.rate_limit_1d ? 'text-red-500' : row.usage_1d >= row.rate_limit_1d * 0.8 ? 'text-yellow-500' : 'text-gray-700 dark:text-gray-300' ]">
                     {{ formatCustomerCredit(row.usage_1d?.toFixed(2) || '0.00') }}/{{ formatCustomerCredit(row.rate_limit_1d?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_1d >= row.rate_limit_1d ? 'bg-red-500' :
-                      row.usage_1d >= row.rate_limit_1d * 0.8 ? 'bg-yellow-500' :
-                      'bg-emerald-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', row.usage_1d >= row.rate_limit_1d ? 'bg-red-500' : row.usage_1d >= row.rate_limit_1d * 0.8 ? 'bg-yellow-500' : 'bg-emerald-500' ]"
                     :style="{ width: Math.min((row.usage_1d / row.rate_limit_1d) * 100, 100) + '%' }"
                   />
                 </div>
@@ -298,23 +259,13 @@
               <div v-if="row.rate_limit_7d > 0">
                 <div class="flex items-center justify-between text-xs">
                   <span class="text-gray-500 dark:text-gray-400">7d</span>
-                  <span :class="[
-                    'font-medium tabular-nums',
-                    row.usage_7d >= row.rate_limit_7d ? 'text-red-500' :
-                    row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' :
-                    'text-gray-700 dark:text-gray-300'
-                  ]">
+                  <span :class="[ 'font-medium tabular-nums', row.usage_7d >= row.rate_limit_7d ? 'text-red-500' : row.usage_7d >= row.rate_limit_7d * 0.8 ? 'text-yellow-500' : 'text-gray-700 dark:text-gray-300' ]">
                     {{ formatCustomerCredit(row.usage_7d?.toFixed(2) || '0.00') }}/{{ formatCustomerCredit(row.rate_limit_7d?.toFixed(2)) }}
                   </span>
                 </div>
                 <div class="h-1 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      row.usage_7d >= row.rate_limit_7d ? 'bg-red-500' :
-                      row.usage_7d >= row.rate_limit_7d * 0.8 ? 'bg-yellow-500' :
-                      'bg-emerald-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', row.usage_7d >= row.rate_limit_7d ? 'bg-red-500' : row.usage_7d >= row.rate_limit_7d * 0.8 ? 'bg-yellow-500' : 'bg-emerald-500' ]"
                     :style="{ width: Math.min((row.usage_7d / row.rate_limit_7d) * 100, 100) + '%' }"
                   />
                 </div>
@@ -337,23 +288,14 @@
           </template>
 
           <template #cell-expires_at="{ value }">
-            <span v-if="value" :class="[
-              'text-sm',
-              new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'
-            ]">
+            <span v-if="value" :class="[ 'text-sm', new Date(value) < new Date() ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400' ]">
               {{ formatDateTime(value) }}
             </span>
             <span v-else class="text-sm text-gray-400 dark:text-dark-500">{{ t('keys.noExpiration') }}</span>
           </template>
 
           <template #cell-status="{ value }">
-            <span :class="[
-              'badge',
-              value === 'active' ? 'badge-success' :
-              value === 'quota_exhausted' ? 'badge-warning' :
-              value === 'expired' ? 'badge-danger' :
-              'badge-gray'
-            ]">
+            <span :class="[ 'badge', value === 'active' ? 'badge-success' : value === 'quota_exhausted' ? 'badge-warning' : value === 'expired' ? 'badge-danger' : 'badge-gray' ]">
               {{ t('keys.status.' + value) }}
             </span>
           </template>
@@ -381,7 +323,7 @@
               <!-- Use Key Button -->
               <button
                 @click="openUseKeyModal(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+                class="row-action-btn"
               >
                 <Icon name="terminal" size="sm" />
                 <span class="text-xs">{{ t('keys.useKey') }}</span>
@@ -390,7 +332,7 @@
               <button
                 v-if="!publicSettings?.hide_ccs_import_button"
                 @click="importToCcswitch(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+                class="row-action-btn"
               >
                 <Icon name="upload" size="sm" />
                 <span class="text-xs">{{ t('keys.importToCcSwitch') }}</span>
@@ -398,12 +340,7 @@
               <!-- Toggle Status Button -->
               <button
                 @click="toggleKeyStatus(row)"
-                :class="[
-                  'flex flex-col items-center gap-0.5 rounded-lg p-1.5 transition-colors',
-                  row.status === 'active'
-                    ? 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/20 dark:hover:text-yellow-400'
-                    : 'text-gray-500 hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400'
-                ]"
+                :class="[ 'row-action-btn', row.status === 'active' ? 'hover:!text-amber-600 dark:hover:!text-amber-400' : 'hover:!text-emerald-600 dark:hover:!text-emerald-400' ]"
               >
                 <Icon v-if="row.status === 'active'" name="ban" size="sm" />
                 <Icon v-else name="checkCircle" size="sm" />
@@ -412,7 +349,7 @@
               <!-- Edit Button -->
               <button
                 @click="editKey(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="row-action-btn hover:!text-primary-600 dark:hover:!text-primary-400"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit') }}</span>
@@ -420,7 +357,7 @@
               <!-- Delete Button -->
               <button
                 @click="confirmDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="row-action-btn hover:!text-red-600 dark:hover:!text-red-400"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete') }}</span>
@@ -594,16 +531,10 @@
             <button
               type="button"
               @click="formData.use_custom_key = !formData.use_custom_key"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.use_custom_key ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
+              :class="[ 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none', formData.use_custom_key ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600' ]"
             >
               <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.use_custom_key ? 'translate-x-4' : 'translate-x-0'
-                ]"
+                :class="[ 'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', formData.use_custom_key ? 'translate-x-4' : 'translate-x-0' ]"
               />
             </button>
           </div>
@@ -636,16 +567,10 @@
             <button
               type="button"
               @click="formData.enable_ip_restriction = !formData.enable_ip_restriction"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_ip_restriction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
+              :class="[ 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none', formData.enable_ip_restriction ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600' ]"
             >
               <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_ip_restriction ? 'translate-x-4' : 'translate-x-0'
-                ]"
+                :class="[ 'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', formData.enable_ip_restriction ? 'translate-x-4' : 'translate-x-0' ]"
               />
             </button>
           </div>
@@ -684,16 +609,10 @@
             <button
               type="button"
               @click="formData.enable_quota = !formData.enable_quota"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_quota ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
+              :class="[ 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none', formData.enable_quota ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600' ]"
             >
               <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_quota ? 'translate-x-4' : 'translate-x-0'
-                ]"
+                :class="[ 'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', formData.enable_quota ? 'translate-x-4' : 'translate-x-0' ]"
               />
             </button>
           </div>
@@ -748,16 +667,10 @@
             <button
               type="button"
               @click="formData.enable_rate_limit = !formData.enable_rate_limit"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_rate_limit ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
+              :class="[ 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none', formData.enable_rate_limit ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600' ]"
             >
               <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_rate_limit ? 'translate-x-4' : 'translate-x-0'
-                ]"
+                :class="[ 'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', formData.enable_rate_limit ? 'translate-x-4' : 'translate-x-0' ]"
               />
             </button>
           </div>
@@ -782,12 +695,7 @@
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_5h > 0" class="mt-2">
                 <div class="flex items-center gap-2">
                   <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700 text-sm">
-                    <span :class="[
-                      'font-medium',
-                      selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'text-red-500' :
-                      selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' :
-                      'text-gray-900 dark:text-white'
-                    ]">
+                    <span :class="[ 'font-medium', selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'text-red-500' : selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'text-yellow-500' : 'text-gray-900 dark:text-white' ]">
                       {{ formatCustomerCredit(selectedKey.usage_5h?.toFixed(4) || '0.0000') }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
@@ -798,12 +706,7 @@
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'bg-red-500' :
-                      selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'bg-yellow-500' :
-                      'bg-green-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', selectedKey.usage_5h >= selectedKey.rate_limit_5h ? 'bg-red-500' : selectedKey.usage_5h >= selectedKey.rate_limit_5h * 0.8 ? 'bg-yellow-500' : 'bg-green-500' ]"
                     :style="{ width: Math.min((selectedKey.usage_5h / selectedKey.rate_limit_5h) * 100, 100) + '%' }"
                   />
                 </div>
@@ -828,12 +731,7 @@
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_1d > 0" class="mt-2">
                 <div class="flex items-center gap-2">
                   <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700 text-sm">
-                    <span :class="[
-                      'font-medium',
-                      selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'text-red-500' :
-                      selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' :
-                      'text-gray-900 dark:text-white'
-                    ]">
+                    <span :class="[ 'font-medium', selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'text-red-500' : selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'text-yellow-500' : 'text-gray-900 dark:text-white' ]">
                       {{ formatCustomerCredit(selectedKey.usage_1d?.toFixed(4) || '0.0000') }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
@@ -844,12 +742,7 @@
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'bg-red-500' :
-                      selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'bg-yellow-500' :
-                      'bg-green-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', selectedKey.usage_1d >= selectedKey.rate_limit_1d ? 'bg-red-500' : selectedKey.usage_1d >= selectedKey.rate_limit_1d * 0.8 ? 'bg-yellow-500' : 'bg-green-500' ]"
                     :style="{ width: Math.min((selectedKey.usage_1d / selectedKey.rate_limit_1d) * 100, 100) + '%' }"
                   />
                 </div>
@@ -874,12 +767,7 @@
               <div v-if="showEditModal && selectedKey && selectedKey.rate_limit_7d > 0" class="mt-2">
                 <div class="flex items-center gap-2">
                   <div class="flex-1 rounded-lg bg-gray-100 px-3 py-2 dark:bg-dark-700 text-sm">
-                    <span :class="[
-                      'font-medium',
-                      selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'text-red-500' :
-                      selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' :
-                      'text-gray-900 dark:text-white'
-                    ]">
+                    <span :class="[ 'font-medium', selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'text-red-500' : selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'text-yellow-500' : 'text-gray-900 dark:text-white' ]">
                       {{ formatCustomerCredit(selectedKey.usage_7d?.toFixed(4) || '0.0000') }}
                     </span>
                     <span class="mx-2 text-gray-400">/</span>
@@ -890,12 +778,7 @@
                 </div>
                 <div class="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                   <div
-                    :class="[
-                      'h-full rounded-full transition-all',
-                      selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'bg-red-500' :
-                      selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'bg-yellow-500' :
-                      'bg-green-500'
-                    ]"
+                    :class="[ 'h-full rounded-full transition-all', selectedKey.usage_7d >= selectedKey.rate_limit_7d ? 'bg-red-500' : selectedKey.usage_7d >= selectedKey.rate_limit_7d * 0.8 ? 'bg-yellow-500' : 'bg-green-500' ]"
                     :style="{ width: Math.min((selectedKey.usage_7d / selectedKey.rate_limit_7d) * 100, 100) + '%' }"
                   />
                 </div>
@@ -922,16 +805,10 @@
             <button
               type="button"
               @click="formData.enable_expiration = !formData.enable_expiration"
-              :class="[
-                'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none',
-                formData.enable_expiration ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600'
-              ]"
+              :class="[ 'relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none', formData.enable_expiration ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600' ]"
             >
               <span
-                :class="[
-                  'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                  formData.enable_expiration ? 'translate-x-4' : 'translate-x-0'
-                ]"
+                :class="[ 'pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', formData.enable_expiration ? 'translate-x-4' : 'translate-x-0' ]"
               />
             </button>
           </div>
@@ -944,24 +821,14 @@
                 :key="days"
                 type="button"
                 @click="setExpirationDays(parseInt(days))"
-                :class="[
-                  'rounded-lg px-3 py-1.5 text-sm transition-colors',
-                  formData.expiration_preset === days
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'
-                ]"
+                :class="[ 'rounded-lg px-3 py-1.5 text-sm transition-colors', formData.expiration_preset === days ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600' ]"
               >
                 {{ showEditModal ? t('keys.extendDays', { days }) : t('keys.expiresInDays', { days }) }}
               </button>
               <button
                 type="button"
                 @click="formData.expiration_preset = 'custom'"
-                :class="[
-                  'rounded-lg px-3 py-1.5 text-sm transition-colors',
-                  formData.expiration_preset === 'custom'
-                    ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'
-                ]"
+                :class="[ 'rounded-lg px-3 py-1.5 text-sm transition-colors', formData.expiration_preset === 'custom' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600' ]"
               >
                 {{ t('keys.customDate') }}
               </button>
@@ -1140,7 +1007,7 @@
       <div
         v-if="groupSelectorKeyId !== null && dropdownPosition"
         ref="dropdownRef"
-        class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
+        class="fixed z-[100000020] w-max max-w-[calc(100vw-16px)] overflow-hidden rounded-panel bg-white shadow-card ring-1 ring-black/5 duration-150 sm:min-w-[380px] dark:bg-dark-800 dark:ring-white/10"
         style="pointer-events: auto !important;"
         :style="{
           top: dropdownPosition.top !== undefined ? dropdownPosition.top + 'px' : undefined,
@@ -1171,14 +1038,7 @@
             v-for="option in filteredGroupOptions"
             :key="option.value ?? 'null'"
             @click="changeGroup(selectedKeyForGroup!, option.value)"
-            :class="[
-              'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors',
-              'border-b border-gray-100 last:border-0 dark:border-dark-700',
-              selectedKeyForGroup?.group_id === option.value ||
-              (!selectedKeyForGroup?.group_id && option.value === null)
-                ? 'bg-primary-50 dark:bg-primary-900/20'
-                : 'hover:bg-gray-100 dark:hover:bg-dark-700'
-            ]"
+            :class="[ 'flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm transition-colors', 'border-b border-gray-100 last:border-0 dark:border-dark-700', selectedKeyForGroup?.group_id === option.value || (!selectedKeyForGroup?.group_id && option.value === null) ? 'bg-primary-50 dark:bg-primary-900/20' : 'hover:bg-gray-100 dark:hover:bg-dark-700' ]"
             :title="option.description || undefined"
           >
             <GroupOptionItem
@@ -1639,7 +1499,9 @@ const loadApiKeys = async () => {
       try {
         const usageResponse = await usageAPI.getDashboardApiKeysUsage(keyIds, { signal })
         if (signal.aborted) return
-        usageStats.value = usageResponse.stats
+        // 后端异常形状不应让整张表渲染失败：仅接受普通对象，其余回落为空映射
+        const rawStats = usageResponse?.stats
+        usageStats.value = rawStats && typeof rawStats === 'object' && !Array.isArray(rawStats) ? rawStats : {}
       } catch (e) {
         if (!isAbortError(e)) {
           console.error('Failed to load usage stats:', e)

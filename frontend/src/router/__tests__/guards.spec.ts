@@ -109,8 +109,10 @@ function simulateGuard(
     return '/login'
   }
 
-  // 需要管理员但不是管理员
-  if (requiresAdmin && !authState.isAdmin) {
+  // 需要管理员、显式 admin scope 或 /admin 前缀时统一收口
+  const routeScope = toMeta.scope
+  const adminOnly = requiresAdmin || routeScope === 'admin' || toPath.startsWith('/admin')
+  if (adminOnly && !authState.isAdmin) {
     return '/dashboard'
   }
 
@@ -223,6 +225,16 @@ describe('路由守卫逻辑', () => {
 
     it('访问 /admin/users 被拒绝', () => {
       const redirect = simulateGuard('/admin/users', { requiresAdmin: true }, authState)
+      expect(redirect).toBe('/dashboard')
+    })
+
+    it('访问 scope=admin 页面被拒绝，即使 meta 未显式 requiresAdmin', () => {
+      const redirect = simulateGuard('/admin/one-off', { scope: 'admin' }, authState)
+      expect(redirect).toBe('/dashboard')
+    })
+
+    it('访问 /admin 前缀页面被拒绝，即使 meta 未显式 requiresAdmin', () => {
+      const redirect = simulateGuard('/admin/legacy-page', {}, authState)
       expect(redirect).toBe('/dashboard')
     })
   })

@@ -70,5 +70,11 @@ declare module 'vue-router' {
      * i18n key for the page description
      */
     descriptionKey?: string
+
+    /**
+     * 页面访问域：admin 只允许管理员进入；user 面向普通用户；
+     * shared 对登录用户开放（默认）。守卫在 requiresAdmin 之外再按此收口。
+     */
+    scope?: 'admin' | 'user' | 'shared'
   }
 }

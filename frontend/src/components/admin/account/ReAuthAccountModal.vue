@@ -12,18 +12,7 @@
       >
         <div class="flex items-center gap-3">
           <div
-            :class="[
-              'flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br',
-              isOpenAILike
-                ? 'from-green-500 to-green-600'
-                : isGemini
-                  ? 'from-blue-500 to-blue-600'
-                  : isAntigravity
-                    ? 'from-purple-500 to-purple-600'
-                    : isGrok
-                      ? 'from-zinc-700 to-zinc-900'
-                      : 'from-orange-500 to-orange-600'
-            ]"
+            :class="[ 'flex h-10 w-10 items-center justify-center rounded-lg ', isOpenAILike ? '' : isGemini ? '' : isAntigravity ? '' : isGrok ? '' : '' ]"
           >
             <Icon name="sparkles" size="md" class="text-white" />
           </div>
@@ -84,14 +73,7 @@
         </div>
         <div class="flex items-center gap-3">
           <div
-            :class="[
-              'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg',
-              geminiOAuthType === 'google_one'
-                ? 'bg-purple-500 text-white'
-                : geminiOAuthType === 'code_assist'
-                  ? 'bg-blue-500 text-white'
-                  : 'bg-amber-500 text-white'
-            ]"
+            :class="[ 'flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', geminiOAuthType === 'google_one' ? 'bg-purple-500 text-white' : geminiOAuthType === 'code_assist' ? 'bg-blue-500 text-white' : 'bg-amber-500 text-white' ]"
           >
             <Icon v-if="geminiOAuthType === 'google_one'" name="user" size="sm" />
             <Icon v-else-if="geminiOAuthType === 'code_assist'" name="cloud" size="sm" />

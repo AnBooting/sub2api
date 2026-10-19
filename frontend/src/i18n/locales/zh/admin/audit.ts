@@ -4,6 +4,7 @@ export default {
     description: '记录管理员与用户的管理面操作，请求头凭证仅保留首尾、请求体已脱敏。日志无法单条删除，全量清理需二次验证。',
     clearAll: '全部清理',
     empty: '暂无操作日志',
+    emptyHint: '调整筛选条件或时间范围后再试。',
     loadFailed: '加载操作日志失败',
     filters: {
       all: '全部',

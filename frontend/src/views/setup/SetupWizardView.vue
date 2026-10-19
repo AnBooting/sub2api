@@ -1,12 +1,12 @@
 <template>
   <div
-    class="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 p-4 dark:from-dark-900 dark:to-dark-800"
+    class="flex min-h-screen items-center justify-center p-4 dark:from-dark-900 dark:to-dark-800"
   >
     <div class="w-full max-w-2xl">
       <!-- Logo & Title -->
       <div class="mb-8 text-center">
         <div
-          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg"
+          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-panel shadow-lg"
         >
           <Icon name="cog" size="xl" class="text-white" />
         </div>
@@ -20,14 +20,7 @@
           <template v-for="(step, index) in steps" :key="step.id">
             <div class="flex items-center">
               <div
-                :class="[
-                  'flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all',
-                  currentStep > index
-                    ? 'bg-primary-500 text-white'
-                    : currentStep === index
-                      ? 'bg-primary-500 text-white ring-4 ring-primary-100 dark:ring-primary-900'
-                      : 'bg-gray-200 text-gray-500 dark:bg-dark-700 dark:text-dark-400'
-                ]"
+                :class="[ 'flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all', currentStep > index ? 'bg-primary-500 text-white' : currentStep === index ? 'bg-primary-500 text-white ring-4 ring-primary-100 dark:ring-primary-900' : 'bg-gray-200 text-gray-500 dark:bg-dark-700 dark:text-dark-400' ]"
               >
                 <Icon
                   v-if="currentStep > index"
@@ -39,11 +32,7 @@
               </div>
               <span
                 class="ml-2 hidden text-sm font-medium sm:inline"
-                :class="
-                  currentStep >= index
-                    ? 'text-gray-900 dark:text-white'
-                    : 'text-gray-400 dark:text-dark-500'
-                "
+                :class="currentStep >= index ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-dark-500'"
               >
                 {{ step.title }}
               </span>
@@ -58,7 +47,7 @@
       </div>
 
       <!-- Step Content -->
-      <div class="rounded-2xl bg-white p-8 shadow-xl dark:bg-dark-800">
+      <div class="rounded-panel bg-white p-8 shadow-xl dark:bg-dark-800">
         <!-- Step 1: Database -->
         <div v-if="currentStep === 0" class="space-y-6">
           <div class="mb-6 text-center">

@@ -77,8 +77,9 @@ defineProps<{
   stats: DashboardStats
 }>()
 
-function sortedAmounts(amounts: CurrencyAmounts): [string, number][] {
-  return Object.entries(amounts).sort(([left], [right]) => left.localeCompare(right))
+// 后端字段缺失时不应让整页白屏：统一回落为空集合
+function sortedAmounts(amounts: CurrencyAmounts | null | undefined): [string, number][] {
+  return Object.entries(amounts ?? {}).sort(([left], [right]) => left.localeCompare(right))
 }
 
 function formatMoney(currency: string, amount: number): string {

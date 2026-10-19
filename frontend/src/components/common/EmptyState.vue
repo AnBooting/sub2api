@@ -2,13 +2,13 @@
   <div class="empty-state">
     <!-- Icon -->
     <div
-      class="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
+      class="mb-4 flex h-12 w-12 items-center justify-center rounded-panel bg-surface-200 text-ink-400 dark:bg-dark-800 dark:text-dark-400"
     >
       <slot name="icon">
-        <component v-if="icon" :is="icon" class="empty-state-icon h-10 w-10" aria-hidden="true" />
+        <component v-if="icon" :is="icon" class="h-6 w-6" aria-hidden="true" />
         <svg
           v-else
-          class="empty-state-icon h-10 w-10"
+          class="h-6 w-6"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

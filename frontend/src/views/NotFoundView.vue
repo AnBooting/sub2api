@@ -5,10 +5,10 @@
     <!-- Background Decoration -->
     <div class="pointer-events-none absolute inset-0 overflow-hidden">
       <div
-        class="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-primary-400/10 blur-3xl"
+        class="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-primary-400/10 blur-none"
       ></div>
       <div
-        class="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary-500/10 blur-3xl"
+        class="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary-500/10 blur-none"
       ></div>
     </div>
 
@@ -21,7 +21,7 @@
           >
           <div class="absolute inset-0 flex items-center justify-center">
             <div
-              class="flex h-24 w-24 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30"
+              class="flex h-24 w-24 items-center justify-center rounded-panel bg-primary-600 shadow-lg shadow-primary-500/30"
             >
               <svg
                 class="h-12 w-12 text-white"

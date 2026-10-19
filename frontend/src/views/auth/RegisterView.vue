@@ -2,12 +2,12 @@
   <AuthLayout>
     <div class="space-y-6">
       <!-- Title -->
-      <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight text-ink-900 dark:text-white">
           {{ t('auth.createAccount') }}
         </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
-          {{ t('auth.signUpToStart', { siteName }) }}
+        <p class="mt-1 text-sm text-ink-500 dark:text-dark-400">
+          {{ siteName }}
         </p>
       </div>
 
@@ -134,10 +134,7 @@
               type="text"
               :disabled="registrationActionDisabled"
               class="input pl-11 pr-10"
-              :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500': invitationValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': invitationValidation.invalid || errors.invitation_code
-              }"
+              :class="{ 'border-green-500 focus:border-green-500 focus:ring-green-500': invitationValidation.valid, 'border-red-500 focus:border-red-500 focus:ring-red-500': invitationValidation.invalid || errors.invitation_code }"
               :placeholder="t('auth.invitationCodePlaceholder')"
               @input="handleInvitationCodeInput"
             />
@@ -203,10 +200,7 @@
               type="text"
               :disabled="registrationActionDisabled"
               class="input pl-11 pr-10"
-              :class="{
-                'border-green-500 focus:border-green-500 focus:ring-green-500': promoValidation.valid,
-                'border-red-500 focus:border-red-500 focus:ring-red-500': promoValidation.invalid
-              }"
+              :class="{ 'border-green-500 focus:border-green-500 focus:ring-green-500': promoValidation.valid, 'border-red-500 focus:border-red-500 focus:ring-red-500': promoValidation.invalid }"
               :placeholder="t('auth.promoCodePlaceholder')"
               @input="handlePromoCodeInput"
             />
@@ -306,11 +300,11 @@
 
       <div v-if="showOAuthLogin" class="space-y-3 pt-1">
         <div class="flex items-center gap-3">
-          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-          <span class="text-xs text-gray-500 dark:text-dark-400">
+          <div class="h-px flex-1 bg-borderline-200 dark:bg-dark-700"></div>
+          <span class="text-xs text-ink-500 dark:text-dark-400">
             {{ t('auth.oauthOrContinue') }}
           </span>
-          <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
+          <div class="h-px flex-1 bg-borderline-200 dark:bg-dark-700"></div>
         </div>
 
         <EmailOAuthButtons
@@ -351,7 +345,7 @@
 
     <!-- Footer -->
     <template #footer>
-      <p class="text-gray-500 dark:text-dark-400">
+      <p class="text-sm text-ink-500 dark:text-dark-400">
         {{ t('auth.alreadyHaveAccount') }}
         <router-link
           to="/login"

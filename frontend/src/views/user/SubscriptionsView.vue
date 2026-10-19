@@ -28,7 +28,7 @@
         <div
           v-for="subscription in subscriptions"
           :key="subscription.id"
-          class="overflow-hidden rounded-2xl border bg-white dark:bg-dark-800"
+          class="overflow-hidden rounded-panel border bg-white dark:bg-dark-800"
           :class="platformBorderClass(subscription.group?.platform || '')"
         >
           <!-- Header -->
@@ -59,14 +59,7 @@
             </div>
             <div class="flex items-center gap-2">
               <span
-                :class="[
-                  'rounded-full px-2 py-0.5 text-xs font-medium',
-                  subscription.status === 'active'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
-                    : subscription.status === 'expired'
-                      ? 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-400'
-                      : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                ]"
+                :class="[ 'rounded-full px-2 py-0.5 text-xs font-medium', subscription.status === 'active' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : subscription.status === 'expired' ? 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-400' : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300' ]"
               >
                 {{ t(`userSubscriptions.status.${subscription.status}`) }}
               </span>
@@ -113,12 +106,7 @@
               <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                 <div
                   class="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                  :class="
-                    getProgressBarClass(
-                      subscription.daily_usage_usd,
-                      subscription.group.daily_limit_usd
-                    )
-                  "
+                  :class="getProgressBarClass( subscription.daily_usage_usd, subscription.group.daily_limit_usd )"
                   :style="{
                     width: getProgressWidth(
                       subscription.daily_usage_usd,
@@ -148,12 +136,7 @@
               <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                 <div
                   class="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                  :class="
-                    getProgressBarClass(
-                      subscription.weekly_usage_usd,
-                      subscription.group.weekly_limit_usd
-                    )
-                  "
+                  :class="getProgressBarClass( subscription.weekly_usage_usd, subscription.group.weekly_limit_usd )"
                   :style="{
                     width: getProgressWidth(
                       subscription.weekly_usage_usd,
@@ -187,12 +170,7 @@
               <div class="relative h-2 overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
                 <div
                   class="absolute inset-y-0 left-0 rounded-full transition-all duration-300"
-                  :class="
-                    getProgressBarClass(
-                      subscription.monthly_usage_usd,
-                      subscription.group.monthly_limit_usd
-                    )
-                  "
+                  :class="getProgressBarClass( subscription.monthly_usage_usd, subscription.group.monthly_limit_usd )"
                   :style="{
                     width: getProgressWidth(
                       subscription.monthly_usage_usd,
@@ -220,7 +198,7 @@
                 !subscription.group?.weekly_limit_usd &&
                 !subscription.group?.monthly_limit_usd
               "
-              class="flex items-center justify-center rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 py-6 dark:from-emerald-900/20 dark:to-teal-900/20"
+              class="flex items-center justify-center rounded-xl bg-emerald-50 py-6 dark:from-emerald-900/20 dark:to-teal-900/20"
             >
               <div class="flex items-center gap-3">
                 <span class="text-4xl text-emerald-600 dark:text-emerald-400">∞</span>

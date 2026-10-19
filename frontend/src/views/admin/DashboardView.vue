@@ -1,9 +1,33 @@
 <template>
   <AppLayout>
     <div class="space-y-6">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <LoadingSpinner />
+      <!-- Loading State: skeleton mirrors the metric grid to avoid layout jump -->
+      <div v-if="loading" class="space-y-6" aria-busy="true" aria-live="polite">
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div v-for="i in 4" :key="'a' + i" class="card p-4">
+            <div class="flex items-center gap-3">
+              <div class="skeleton-block h-9 w-9"></div>
+              <div class="flex-1 space-y-2">
+                <div class="skeleton-text w-16"></div>
+                <div class="skeleton-text h-5 w-20"></div>
+                <div class="skeleton-text w-24"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <div v-for="i in 4" :key="'b' + i" class="card p-4">
+            <div class="flex items-center gap-3">
+              <div class="skeleton-block h-9 w-9"></div>
+              <div class="flex-1 space-y-2">
+                <div class="skeleton-text w-20"></div>
+                <div class="skeleton-text h-5 w-16"></div>
+                <div class="skeleton-text w-24"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="skeleton-block h-80 w-full"></div>
       </div>
 
       <template v-else-if="stats">
@@ -12,17 +36,17 @@
           <!-- Total API Keys -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30">
-                <Icon name="key" size="md" class="text-blue-600 dark:text-blue-400" :stroke-width="2" />
+              <div class="rounded-control bg-primary-50 p-2 ring-1 ring-primary-600/10 dark:bg-primary-500/10 dark:ring-primary-400/15">
+                <Icon name="key" size="md" class="text-primary-600 dark:text-primary-400" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.apiKeys') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                   {{ stats.total_api_keys }}
                 </p>
-                <p class="text-xs text-green-600 dark:text-green-400">
+                <p class="text-xs text-ink-600 dark:text-ink-300">
                   {{ stats.active_api_keys }} {{ t('common.active') }}
                 </p>
               </div>
@@ -32,18 +56,18 @@
           <!-- Service Accounts -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30">
-                <Icon name="server" size="md" class="text-purple-600 dark:text-purple-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="server" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.accounts') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                   {{ stats.total_accounts }}
                 </p>
                 <p class="text-xs">
-                  <span class="text-green-600 dark:text-green-400"
+                  <span class="text-ink-600 dark:text-ink-300"
                     >{{ stats.normal_accounts }} {{ t('common.active') }}</span
                   >
                   <span v-if="stats.error_accounts > 0" class="ml-1 text-red-500"
@@ -57,14 +81,14 @@
           <!-- Today Requests -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30">
-                <Icon name="chart" size="md" class="text-green-600 dark:text-green-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="chart" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.todayRequests') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                   {{ stats.today_requests }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -77,14 +101,14 @@
           <!-- New Users Today -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-emerald-100 p-2 dark:bg-emerald-900/30">
-                <Icon name="userPlus" size="md" class="text-emerald-600 dark:text-emerald-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="userPlus" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.users') }}
                 </p>
-                <p class="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+                <p class="text-xl font-bold text-ink-600 dark:text-ink-300">
                   +{{ stats.today_new_users }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
@@ -100,19 +124,19 @@
           <!-- Today Tokens -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30">
-                <Icon name="cube" size="md" class="text-amber-600 dark:text-amber-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="cube" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.todayTokens') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                   {{ formatTokens(stats.today_tokens) }}
                 </p>
                 <p class="text-xs">
                   <span
-                    class="text-green-600 dark:text-green-400"
+                    class="text-ink-600 dark:text-ink-300"
                     :title="t('admin.dashboard.actual')"
                     >{{ formatCustomerCredit(formatCost(stats.today_actual_cost)) }}</span
                   >
@@ -136,19 +160,19 @@
           <!-- Total Tokens -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-indigo-100 p-2 dark:bg-indigo-900/30">
-                <Icon name="database" size="md" class="text-indigo-600 dark:text-indigo-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="database" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.totalTokens') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                   {{ formatTokens(stats.total_tokens) }}
                 </p>
                 <p class="text-xs">
                   <span
-                    class="text-green-600 dark:text-green-400"
+                    class="text-ink-600 dark:text-ink-300"
                     :title="t('admin.dashboard.actual')"
                     >{{ formatCustomerCredit(formatCost(stats.total_actual_cost)) }}</span
                   >
@@ -172,21 +196,21 @@
           <!-- Performance (RPM/TPM) -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-violet-100 p-2 dark:bg-violet-900/30">
-                <Icon name="bolt" size="md" class="text-violet-600 dark:text-violet-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="bolt" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div class="flex-1">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.performance') }}
                 </p>
                 <div class="flex items-baseline gap-2">
-                  <p class="text-xl font-bold text-gray-900 dark:text-white">
+                  <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                     {{ formatTokens(stats.rpm) }}
                   </p>
                   <span class="text-xs text-gray-500 dark:text-gray-400">RPM</span>
                 </div>
                 <div class="flex items-baseline gap-2">
-                  <p class="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                  <p class="text-sm font-semibold text-ink-600 dark:text-ink-300">
                     {{ formatTokens(stats.tpm) }}
                   </p>
                   <span class="text-xs text-gray-500 dark:text-gray-400">TPM</span>
@@ -198,14 +222,14 @@
           <!-- Avg Response Time -->
           <div class="card p-4">
             <div class="flex items-center gap-3">
-              <div class="rounded-lg bg-rose-100 p-2 dark:bg-rose-900/30">
-                <Icon name="clock" size="md" class="text-rose-600 dark:text-rose-400" :stroke-width="2" />
+              <div class="rounded-control bg-surface-200 p-2 ring-1 ring-ink-900/5 dark:bg-dark-700 dark:ring-white/5">
+                <Icon name="clock" size="md" class="text-ink-600 dark:text-ink-300" :stroke-width="2" />
               </div>
               <div>
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.avgResponse') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p class="text-xl font-semibold tabular-nums tracking-tight text-ink-900 dark:text-white">
                   {{ formatDuration(stats.average_duration_ms) }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">

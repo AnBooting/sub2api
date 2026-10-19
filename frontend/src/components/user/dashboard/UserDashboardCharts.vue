@@ -1,55 +1,80 @@
 <template>
-  <div class="space-y-6">
-    <!-- Date Range Filter -->
-    <div class="card p-4">
-      <div class="flex flex-wrap items-center gap-4">
-        <div class="flex items-center gap-2">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.timeRange') }}:</span>
-          <DateRangePicker :start-date="startDate" :end-date="endDate" @update:startDate="$emit('update:startDate', $event)" @update:endDate="$emit('update:endDate', $event)" @change="$emit('dateRangeChange', $event)" />
-        </div>
-        <button @click="$emit('refresh')" :disabled="loading" class="btn btn-secondary">
-          {{ t('common.refresh') }}
-        </button>
-        <div class="ml-auto flex items-center gap-2">
-          <span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t('dashboard.granularity') }}:</span>
-          <div class="w-28">
-            <Select :model-value="granularity" :options="[{value:'day', label:t('dashboard.day')}, {value:'hour', label:t('dashboard.hour')}]" @update:model-value="$emit('update:granularity', $event)" @change="$emit('granularityChange')" />
-          </div>
+  <div class="space-y-4">
+    <!-- Date range + granularity toolbar: single compact row -->
+    <div class="card flex flex-wrap items-center gap-3 px-4 py-3">
+      <span class="text-sm font-medium text-ink-700 dark:text-ink-200">{{ t('dashboard.timeRange') }}</span>
+      <DateRangePicker
+        :start-date="startDate"
+        :end-date="endDate"
+        @update:startDate="$emit('update:startDate', $event)"
+        @update:endDate="$emit('update:endDate', $event)"
+        @change="$emit('dateRangeChange', $event)"
+      />
+      <button type="button" class="btn btn-secondary btn-sm" :disabled="loading" @click="$emit('refresh')">
+        {{ t('common.refresh') }}
+      </button>
+      <div class="ml-auto flex items-center gap-2">
+        <span class="text-sm font-medium text-ink-700 dark:text-ink-200">{{ t('dashboard.granularity') }}</span>
+        <div class="w-28">
+          <Select
+            :model-value="granularity"
+            :options="[{ value: 'day', label: t('dashboard.day') }, { value: 'hour', label: t('dashboard.hour') }]"
+            @update:model-value="$emit('update:granularity', $event)"
+            @change="$emit('granularityChange')"
+          />
         </div>
       </div>
     </div>
 
-    <!-- Charts Grid -->
-    <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
-      <!-- Model Distribution Chart -->
-      <div class="card relative overflow-hidden p-4">
-        <div v-if="loading" class="absolute inset-0 z-10 flex items-center justify-center bg-white/50 backdrop-blur-sm dark:bg-dark-800/50">
-          <LoadingSpinner size="md" />
+    <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <!-- Model distribution -->
+      <div class="card p-4">
+        <div class="section-title">
+          <h3 class="section-title-text">{{ t('dashboard.modelDistribution') }}</h3>
         </div>
-        <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">{{ t('dashboard.modelDistribution') }}</h3>
-        <div class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
+
+        <!-- Loading: skeleton instead of a spinner overlay -->
+        <div v-if="loading" class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6" aria-busy="true" aria-live="polite">
+          <div class="skeleton-block h-48 w-48 shrink-0 !rounded-full"></div>
+          <div class="w-full min-w-0 flex-1 space-y-2">
+            <div v-for="i in 6" :key="i" class="flex items-center gap-3">
+              <div class="skeleton-text flex-1"></div>
+              <div class="skeleton-text w-10"></div>
+              <div class="skeleton-text w-12"></div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="!modelData" class="state-panel py-10">
+          <div class="state-panel-icon">
+            <Icon name="chart" size="lg" />
+          </div>
+          <p class="state-panel-title">{{ t('dashboard.noDataAvailable') }}</p>
+          <p class="state-panel-desc">{{ t('dashboard.startUsingApi') }}</p>
+        </div>
+
+        <div v-else class="flex flex-col items-center gap-4 sm:flex-row sm:gap-6">
           <div class="h-48 w-48 shrink-0">
-            <Doughnut v-if="modelData" :data="modelData" :options="doughnutOptions" />
-            <div v-else class="flex h-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">{{ t('dashboard.noDataAvailable') }}</div>
+            <Doughnut :data="modelData" :options="doughnutOptions" />
           </div>
           <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
-            <table class="w-full text-xs">
+            <table class="table table-dense">
               <thead>
-                <tr class="text-gray-500 dark:text-gray-400">
-                  <th class="pb-2 text-left">{{ t('dashboard.model') }}</th>
-                  <th class="pb-2 text-right">{{ t('dashboard.requests') }}</th>
-                  <th class="pb-2 text-right">{{ t('dashboard.tokens') }}</th>
-                  <th class="pb-2 text-right">{{ t('dashboard.actual') }}</th>
-                  <th class="pb-2 text-right">{{ t('dashboard.standard') }}</th>
+                <tr>
+                  <th class="text-left">{{ t('dashboard.model') }}</th>
+                  <th class="num">{{ t('dashboard.requests') }}</th>
+                  <th class="num">{{ t('dashboard.tokens') }}</th>
+                  <th class="num">{{ t('dashboard.actual') }}</th>
+                  <th class="num">{{ t('dashboard.standard') }}</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="model in models" :key="model.model" class="border-t border-gray-100 dark:border-dark-700">
-                  <td class="max-w-[100px] truncate py-1.5 font-medium text-gray-900 dark:text-white" :title="model.model">{{ model.model }}</td>
-                  <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">{{ formatNumber(model.requests) }}</td>
-                  <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">{{ formatTokens(model.total_tokens) }}</td>
-                  <td class="py-1.5 text-right text-green-600 dark:text-green-400">{{ formatCustomerCredit(formatCost(model.actual_cost)) }}</td>
-                  <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">{{ formatCustomerCredit(formatCost(model.cost)) }}</td>
+                <tr v-for="model in models" :key="model.model">
+                  <td class="max-w-[120px] truncate font-medium" :title="model.model">{{ model.model }}</td>
+                  <td class="num">{{ formatNumber(model.requests) }}</td>
+                  <td class="num">{{ formatTokens(model.total_tokens) }}</td>
+                  <td class="num font-medium text-ink-900 dark:text-white">{{ formatCustomerCredit(formatCost(model.actual_cost)) }}</td>
+                  <td class="num text-ink-400 dark:text-ink-300">{{ formatCustomerCredit(formatCost(model.cost)) }}</td>
                 </tr>
               </tbody>
             </table>
@@ -57,7 +82,6 @@
         </div>
       </div>
 
-      <!-- Token Usage Trend Chart -->
       <TokenUsageTrend :trend-data="trend" :loading="loading" />
     </div>
   </div>
@@ -67,9 +91,9 @@
 import { formatCustomerCredit } from '@/utils/billingCredits'
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import DateRangePicker from '@/components/common/DateRangePicker.vue'
 import Select from '@/components/common/Select.vue'
+import Icon from '@/components/icons/Icon.vue'
 import { Doughnut } from 'vue-chartjs'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
 import type { TrendDataPoint, ModelStat } from '@/types'
@@ -81,17 +105,31 @@ const props = defineProps<{ loading: boolean, startDate: string, endDate: string
 defineEmits(['update:startDate', 'update:endDate', 'update:granularity', 'dateRangeChange', 'granularityChange', 'refresh'])
 const { t } = useI18n()
 
+// 图表色板收敛到灰蓝体系：主色 + 中性阶，避免同一页出现 8 种高饱和色相。
+const CHART_PALETTE = [
+  '#0f7fae',
+  '#41b6e2',
+  '#7f8c98',
+  '#aeb8c3',
+  '#145976',
+  '#7ed0ef',
+  '#5a6a75',
+  '#c8d0d9',
+]
+
 const modelData = computed(() => !props.models?.length ? null : {
   labels: props.models.map((m: ModelStat) => m.model),
   datasets: [{
     data: props.models.map((m: ModelStat) => m.total_tokens),
-    backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16']
+    backgroundColor: CHART_PALETTE,
+    borderWidth: 0,
   }]
 })
 
 const doughnutOptions = {
   responsive: true,
   maintainAspectRatio: false,
+  cutout: '62%',
   plugins: {
     legend: { display: false },
     tooltip: {
