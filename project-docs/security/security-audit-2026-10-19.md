@@ -117,3 +117,46 @@
 - Auth refresh token 复用：检测后仅日志，未撤销 family；需要新增 consumed hash tombstones，记录为后续轮。
 - `GetCustomErrorCodes` 等低危类型/性能建议已记录。
 - StepFun 扫描的剩余文件因 provider 会话不稳定未完成；需要另选模型或进一步重试。
+
+## 追加记录（StepFun 中间件串行轮次，2026-10-19 晚）
+
+### 扫描方式
+
+- 严格单文件串行：`--timeout 240 --concurrency 1 --no-plan --no-summary --audience agent --format json`，不带 `--max-tokens-budget`。
+- 每文件一次主扫描，失败/卡死后最多重试一次；仍失败则记录为“未覆盖”，不反复消耗额度。
+
+### 本轮已修复（均有测试，均在本分支提交）
+
+| 文件 | 问题 | 提交 |
+| --- | --- | --- |
+| `middleware/api_key_auth_google.go` | Gemini/Antigravity 鉴权未注入 `ctxkey.UserID`，导致 `gateway_profit_control` 跳过用户专属分组倍率（计费口径错误） | `a1a5e7815` |
+| `middleware/admin_auth.go` | `auth_method` 用字符串字面量，`step_up` 用常量比较；常量改名会让 step-up 门禁静默 fail-open | `3a1ca7571` |
+| `middleware/security_headers.go` | nonce 检测扫描整条策略，任一指令含 `'nonce-` 就不注入 `script-src` 占位符，每请求 nonce 永不生效 | `456ed3cee` |
+| `middleware/cors.go` | 包级 `sync.Once` 让后续配置的安全告警被静默；origin 匹配大小写敏感，配置含大写时全部跨域请求被拒 | `8aab5a455` |
+| `middleware/request_body_limit.go` | `Body == nil` 时 `MaxBytesReader` 首次读会 panic，且使下游 nil 守卫失效 | `dad1dbd29` |
+| `middleware/panel_rate_limit.go` | 反代未配 `trusted_proxies` 时公开接口限流整体静默失效，无任何信号 | `ff47e1cd4` |
+| `middleware/recovery.go` | broken-pipe 用错误文本匹配，Windows `ECONNRESET` 漏判；改为 `errors.Is` 哨兵 | `4397db451` |
+| `middleware/audit_log.go` | 审计路由表条目 `data-management/s3/config` 无对应路由，S3 配置读取永不审计；改为真实 `s3/profiles` | `8606ce19a` |
+| `middleware/logger.go` | 访问日志在 `c.Next()` 之后，panic 请求不产生访问日志，错误率/延迟统计漏计 | `8a463770e` |
+| `middleware/backend_mode_guard.go` | 角色比较用字面量 `"admin"` 而非 `service.RoleAdmin` | `a3a3b4fd0` |
+| `middleware/client_request_id.go` | 复用已有 ID 的分支不写日志字段，且另一分支追加重复 key | `098448f34` |
+
+### 已复核为误报/不修
+
+- `middleware/api_key_auth.go` 的 nil-user 分支缺少 `MarkIngressRejected`：`snapshotFromAPIKey` 在 `User == nil` 时返回 nil，`loadAuthCacheEntry` 转成 `ErrAPIKeyNotFound`，该分支不可达。已回滚所有推测性改动。
+- `middleware/admin_only.go` 的 `AdminOnly()` 全仓库无引用（死代码），但来源为上游 2025-12-26 提交 `e5a77853b`，非本 diff 引入；按项目规则不删除导出 API，仅记录。
+- `middleware/request_metadata.go` 的 `maxBytes <= 0` 表示不设上限：属契约表述问题，仅补注释，不改行为。
+
+### 本轮未覆盖（provider 侧失败，不代表无问题）
+
+- `middleware/group_model_allowlist.go`：两次扫描均卡死无输出。
+- `middleware/server_timing.go`：一次扫描卡死 16 分钟无输出。
+- `middleware/artex_guard.go`：两次失败，OCR 给出非法行号范围（`start_line 900 > end_line 130`）。
+- 其余 middleware（`admin_compliance`、`request_logger`、`ingress_reject` 主体、`step_up` 等）已在更早轮次覆盖，结果见上文批次记录。
+
+### 尚未扫描（后续轮次）
+
+- `backend/internal/server/{http.go,router.go}`、`routes/*.go` 剩余文件。
+- `backend/internal/handler/yunmao/{dto,shop_handler}.go`。
+- `backend/ent/schema/*.go`、`backend/migrations/*.sql`。
+- `backend/internal/service` 剩余文件、前端 `api/admin`、`types/utils`、`deploy/tools`、`project-docs`。
