@@ -94,3 +94,26 @@
 - `cleanup-ingress-reject-logs` 删除谓词与未来时间保护：未执行修复。
 - `jwtgen` 输出到 stdout：工具明确需要打印，改为文件会破坏 CLI 契约，记录为操作风险。
 - `config`/`server`/yunmao 等仍有 OCR 批次有限、失败或超时；不作为“全量已覆盖”结论。
+
+## 追加记录（StepFun step-5-preview OCR 轮次，2026-10-19）
+
+### 结果
+
+- `stepfun` provider：`https://api.stepfun.com/step_plan/v1`，`step-5-preview`，`llm test` 成功。
+- 只有去除 `--max-tokens-budget` 的单文件扫描能稳定产出真实结果；带预算的多文件/单文件扫描大量以 0 token 空跑或失败。
+- 成功批次：`auth_service.go`（3 comments）、`gateway_service.go`（2 comments）、`account.go`（6 comments）、`api_key_handler.go`（4 comments）。
+- 其余 server/routes、server/middleware、yunmao、schema、前端视图单文件，或失败或未产出；不视为全量覆盖。
+
+### 本轮已修复
+
+1. `auth_service.go`：登录回填 email identity 为 nil 时不再 panic。
+2. `auth_service.go`：邀请码日志不再打印明文，改为 `code_sha256` 短哈希。
+3. `account.go`：`GetCustomErrorCodes` 支持 `json.Number/string/int/int64/float64`，修复 DB 加载路径因类型不匹配导致 fail-open。
+4. `gateway_service.go`：调试日志敏感 header 脱敏集合扩展（`x-goog-api-key`、`cookie`、`proxy-authorization` 等）。
+5. `api_key_handler.go`：API Key 搜索截断改为 rune-safe；非法 `group_id` 返回 400 而非静默扩大结果。
+
+### 待处理
+
+- Auth refresh token 复用：检测后仅日志，未撤销 family；需要新增 consumed hash tombstones，记录为后续轮。
+- `GetCustomErrorCodes` 等低危类型/性能建议已记录。
+- StepFun 扫描的剩余文件因 provider 会话不稳定未完成；需要另选模型或进一步重试。
