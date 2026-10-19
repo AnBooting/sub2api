@@ -285,7 +285,22 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			continue
 		}
 		normalizedStatus := normalizeProxyStatus(item.Status)
-		if existingID, ok := proxyKeyToID[key]; ok {
+		proxyName := defaultProxyName(item.Name)
+		existingID, keyExists := proxyKeyToID[key]
+		// 同名代理不得静默覆盖 name→ID 反查表（Q6）：若该 name 已被 DB 既有代理或本批次
+		// 先前条目占用，且不是同一条代理（proxy_key 命中的同一个 ID），直接拒绝本条并记录
+		// 错误。否则后续 backup_proxy_name 会解析到非预期代理，账号被静默绑到错误的备用代理。
+		if ownerID, nameTaken := proxyNameToID[proxyName]; nameTaken && (!keyExists || ownerID != existingID) {
+			result.ProxyFailed++
+			result.Errors = append(result.Errors, DataImportError{
+				Kind:     "proxy",
+				Name:     item.Name,
+				ProxyKey: key,
+				Message:  fmt.Sprintf("duplicate proxy name %q (already used by proxy #%d); refusing to overwrite", proxyName, ownerID),
+			})
+			continue
+		}
+		if keyExists {
 			proxyKeyToID[key] = existingID
 			result.ProxyReused++
 			if normalizedStatus != "" {
