@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	_ "github.com/Wei-Shaw/sub2api/ent/runtime"
@@ -15,6 +16,7 @@ import (
 
 func main() {
 	email := flag.String("email", "", "Admin email to issue a JWT for (defaults to first active admin)")
+	output := flag.String("output", "", "Optional file path for the generated JWT output instead of stdout")
 	flag.Parse()
 
 	cfg, err := config.LoadForBootstrap()
@@ -56,5 +58,26 @@ func main() {
 		log.Fatalf("failed to generate token: %v", err)
 	}
 
-	fmt.Printf("ADMIN_EMAIL=%s\nADMIN_USER_ID=%d\nJWT=%s\n", user.Email, user.ID, token)
+	if *output != "" {
+		if err := os.WriteFile(*output, []byte(renderTokenOutput(user.Email, user.ID, token)), 0o600); err != nil {
+			log.Fatalf("failed to write JWT output: %v", err)
+		}
+		fmt.Fprint(os.Stderr, fileSensitiveWarning(*output))
+		return
+	}
+
+	fmt.Fprint(os.Stderr, stdoutSensitiveWarning())
+	fmt.Print(renderTokenOutput(user.Email, user.ID, token))
+}
+
+func renderTokenOutput(email string, id int64, token string) string {
+	return fmt.Sprintf("ADMIN_EMAIL=%s\nADMIN_USER_ID=%d\nJWT=%s\n", email, id, token)
+}
+
+func stdoutSensitiveWarning() string {
+	return "WARNING: the JWT output below is sensitive. Avoid pasting it into logs or CI output; use --output for file mode.\n"
+}
+
+func fileSensitiveWarning(path string) string {
+	return fmt.Sprintf("WARNING: sensitive JWT output written to %s. Protect this file and delete it after use.\n", path)
 }
