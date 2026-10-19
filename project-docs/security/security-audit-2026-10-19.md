@@ -181,3 +181,47 @@
 
 - `middleware/{group_model_allowlist,server_timing,artex_guard}.go`：多次卡死或 OCR 返回非法行号范围。
 - `server/http.go` 首轮失败、重试成功（3 条已记录：websearch 启用判定按未过滤配置、websearch 启动期静默禁用、全局 body 上限压过插件上传上限）。
+
+## 追加记录（sensenova/glm-5.2 补扫 + 未决项实施，2026-10-19 深夜）
+
+### 覆盖补扫：换 provider 解决了"扫不动"
+
+stepfun 反复卡死的文件，改用 `--provider sensenova --model glm-5.2` 全部成功产出：
+
+| 文件 | 结果 |
+| --- | --- |
+| `middleware/group_model_allowlist.go` | 1 low（body 读取错误固定用 OpenAI 格式，未按入口协议区分） |
+| `middleware/server_timing.go` | 1 low → **已修复**（路径分隔符误判） |
+| `middleware/artex_guard.go` | **1 high → 已修复**（压缩请求体绕过拦截） |
+| `routes/gateway.go` | **1 high → 已修复**（typed-nil APIKey panic）+ 2 medium 记录 |
+| `service/yunmao/service.go` | **2 high → 已修复**（结算错误丢弃致误报 NotFound、nil adapter panic）+ 2 记录 |
+| `handler/admin/account_data.go` | 1 medium → **已修复**（错误响应泄露代理明文凭据）+ 4 记录 |
+
+### 本轮新增修复
+
+| 文件 | 问题 | 提交 |
+| --- | --- | --- |
+| `middleware/server_timing.go` | `/api/v1keys` 被拼成 `/keys` 误判命中，非 `/api/v1/` 路径也可能拿到 Server-Timing | `358d6b06f` |
+| `middleware/artex_guard.go` + `pkg/httputil/body.go` | **High**：客户端用 `Content-Encoding: gzip/zstd/deflate` 压缩请求体时，守卫对压缩字节做 `json.Unmarshal` 必然失败，ARTEX 拦截被完全绕过；改为检测前先解码（下游仍收原始字节） | `95c55660f` |
+| `routes/gateway.go` | `getGroupPlatform` 缺 typed-nil 判断，`apiKey.Group` 会空指针 panic | `68cf9cb3b` |
+| `service/yunmao/service.go` | 结算失败时 `record` 被覆盖为 nil，已落库订单误报 `ErrOrderNotFound`；`settleFromUpstream` 未判 nil adapter 导致 panic | `6708cf439` |
+| `handler/admin/account_data.go` | 导入错误响应里 `proxy_key` 含代理明文用户名/密码；改为脱敏指纹（导出与内部匹配仍用完整 key） | `3d694bf66` |
+| `deploy/docker-compose.standalone.yml` | **High**：四个 compose 里唯一漏透传 `TOTP_ENCRYPTION_KEY`，standalone 部署重启后 2FA 用户无法登录、S3 凭据拒绝保存 | `e9d043d2e` |
+
+### 未决问题实施（按推荐项）
+
+| 问题 | 实施 | 提交 |
+| --- | --- | --- |
+| Q3+Q9 | 存储边界 SVG/HTML 白名单校验（`setting_content_boundary.go`，17 个边界测试，变异验证通过） | `a93088739` |
+| Q6 | 代理导入同名不同 key 直接拒绝，不静默覆盖 | `1a275e8a9` |
+| Q7 | 清理脚本加 `created_at <= now()` + 保留窗口双条件、dry-run 计数（实际位置在 `cmd/cleanup-ingress-reject-logs/main.go`，非 SQL） | `1a275e8a9` |
+| Q8 | 移除 `get.geojs.io` 硬编码，默认不发起第三方请求，需显式配置 `VITE_IP_GEO_PROXY_URL` | `f6f8eeb31` |
+| Q11 | `jwtgen` 保留 stdout，新增 `--output`（0600）与敏感输出警告 | `f6f8eeb31` |
+
+### 仍未实施（需产品/架构决策，非安全补丁）
+
+- **Q1 Live 计费**：需要新增开播价格 quote 冻结与按时长结算管道，触碰"缺价不得放行"红线，不在本轮安全修补范围。当前零成本行为已在代码注释与本文档标注。
+- **Q4 iframe JWT**：`buildEmbeddedUrl` 把 JWT 放进 URL 是既有跨版本契约（付费页集成依赖），改 embed token 需同步后端与前端两处协议。
+- **Q5 插件 bridge token / CSP unsafe-inline**：需重新设计插件桥接会话模型。
+- **Q10 localStorage 存 token**：改 HttpOnly cookie 涉及后端 CORS/CSRF 整体改造，且 `frontend/` 正由另一会话改造中。
+- **Q2 refresh token 复用撤销 family**：由 teammate 实施中（tombstone 方案），完成后补记。
