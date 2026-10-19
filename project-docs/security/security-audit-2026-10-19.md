@@ -59,3 +59,38 @@
 - 管理统计真实聚合、插件桥 token 改造、外部 iframe 安全模型、Live 计费模型。
 - OCR 未覆盖的后端 cmd/config/domain/server/admin/dto/yunmao 与前端 api/types/utils/components/views。
 
+
+## 追加记录（新 OCR Key 轮次，2026-10-19）
+
+### 成功批次
+
+- B7：`frontend/src/api|types|utils`，112 文件 / 5 条意见。
+- B8：`frontend/src/components|views`，342 文件 / 6 条意见。
+- B1c/B9：上一轮已成功。
+- C1：`backend/internal/config`，3 文件 / 3 条意见。
+- C3：`backend/internal/handler/admin`，71 文件 / 5 条意见。
+- C4：`backend/internal/handler/dto`，8 文件 / 3 条意见。
+- C6：`backend/cmd`，7 文件 / 6 条意见。
+- C7：`frontend/src/i18n`，37 文件 / 3 条意见；其中多数输出受工具过程文本污染，仅采用明确代码项。
+- B4c：`backend/internal/service` 拆批中产出 5 条意见（admin_compliance）。
+
+### 本轮已修复
+
+1. `credentials_redact.go` 等 CVEs 尚未实施；本轮直接修复：
+- `admin_compliance.go`：损坏 ack 返回错误、非正 admin id 拒绝、IP/UA 限长、AcceptedAt 非空校验。
+- `config/artex_guard.go`：未知模式回退 enforce。
+- `config/validate_dingtalk.go`：非法 corp_restriction_policy 拒绝。
+- `cmd/jwtgen`：空用户 nil 检查。
+- `handler/admin/account_data.go`：代理 expiry_warn_days 负值校验。
+- 前端 admin API：`field/value` any 收紧、`proxyId=0` 修复。
+
+### 已复核为设计契约/不修
+
+- 前端账户复制后重复操作的 `idempotency-key` 不在 finally 清理：现有测试明确要求网络失败后复用同一 key，OCR 建议会破坏契约。
+
+### 待产品决策/后续
+
+- `account_data.go` 同名前代理覆盖、`backupProxyName` 缺失级联：需导入主体修复。
+- `cleanup-ingress-reject-logs` 删除谓词与未来时间保护：未执行修复。
+- `jwtgen` 输出到 stdout：工具明确需要打印，改为文件会破坏 CLI 契约，记录为操作风险。
+- `config`/`server`/yunmao 等仍有 OCR 批次有限、失败或超时；不作为“全量已覆盖”结论。
