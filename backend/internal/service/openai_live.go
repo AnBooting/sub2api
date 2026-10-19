@@ -213,21 +213,23 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			model = "gpt-live"
 		}
 		record := &LiveCallRecord{
-			CallID:                created.CallID,
-			CallHash:              hashLiveCallID(created.CallID),
-			AccountID:             account.ID,
-			APIKeyID:              identity.APIKeyID,
-			UserID:                identity.UserID,
-			GroupID:               liveGroupID(identity.GroupID),
-			SubscriptionID:        liveGroupID(identity.SubscriptionID),
-			LeaseID:               leaseID,
-			Model:                 model,
-			CreatedAt:             now,
-			ExpiresAt:             now.Add(s.liveMaxSessionDuration()),
-			Controller:            LiveControllerPending,
-			UserAgent:             identity.UserAgent,
-			IPAddress:             identity.IPAddress,
-			InboundEndpoint:       identity.InboundEndpoint,
+			CallID:          created.CallID,
+			CallHash:        hashLiveCallID(created.CallID),
+			AccountID:       account.ID,
+			APIKeyID:        identity.APIKeyID,
+			UserID:          identity.UserID,
+			GroupID:         liveGroupID(identity.GroupID),
+			SubscriptionID:  liveGroupID(identity.SubscriptionID),
+			LeaseID:         leaseID,
+			Model:           model,
+			CreatedAt:       now,
+			ExpiresAt:       now.Add(s.liveMaxSessionDuration()),
+			Controller:      LiveControllerPending,
+			UserAgent:       identity.UserAgent,
+			IPAddress:       identity.IPAddress,
+			InboundEndpoint: identity.InboundEndpoint,
+			// 开播即冻结单价：结算在会话关闭时发生，期间改价不得影响本次会话。
+			RealtimePricePerMin:   identity.RealtimePricePerMin,
 			AttestationCiphertext: attestationCiphertext,
 		}
 		mappingTTL := s.liveMaxSessionDuration() + 5*time.Minute
@@ -824,15 +826,32 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	if record.SubscriptionID > 0 {
 		billingType = BillingTypeSubscription
 	}
-	// TODO(billing): Live 会话目前不计费：TotalCost/ActualCost 恒为 0，完全绕过
-	// recordUsageCore/applyUsageBilling，余额模式下极低余额也能反复开启最长
-	// liveMaxSessionDuration 的会话。若确认按时长计费，应在此接入计费管道；
-	// 若确认有意免费，删除本注释即可（零值行为由
-	// TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage 锁定）。
+	// Live 按时长计费：单价在开播时冻结（record.RealtimePricePerMin），此处只做结算。
+	// 缺价（分组未配置单价）时不得按零价放行、也不得回落到内置默认价——那等于给
+	// 未定价分组开免费额度。此时明确告警，账单按未计费落库以便事后补账。
+	cost, costErr := s.liveSessionCost(record, duration)
+	if costErr != nil {
+		logger.FromContext(context.Background()).Warn(
+			"Live 会话结算失败：分组未配置实时语音单价，本次按未计费落库",
+			zap.Int64("user_id", record.UserID),
+			zap.Int64("api_key_id", record.APIKeyID),
+			zap.Int64("group_id", record.GroupID),
+			zap.String("model", record.Model),
+			zap.Int("duration_ms", duration),
+			zap.Error(costErr),
+		)
+	}
+	totalCost, actualCost := 0.0, 0.0
+	billingMode := ""
+	if cost != nil {
+		totalCost = cost.TotalCost
+		actualCost = cost.ActualCost
+		billingMode = cost.BillingMode
+	}
 	//
 	// 这是该会话唯一一次落库机会（MarkLiveCallClosed 已标记 first），失败即永久
 	// 丢失，因此走带日志与同步兜底的 writeUsageLogBestEffort（issue #3656）。
-	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &UsageLog{
+	usageLog := &UsageLog{
 		UserID:           record.UserID,
 		APIKeyID:         record.APIKeyID,
 		AccountID:        record.AccountID,
@@ -844,11 +863,26 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		RateMultiplier:   1,
 		BillingType:      billingType,
 		RequestType:      RequestTypeLive,
+		TotalCost:        totalCost,
+		ActualCost:       actualCost,
 		DurationMs:       &duration,
 		UserAgent:        &userAgent,
 		IPAddress:        &ipAddress,
 		InboundEndpoint:  &inboundEndpoint,
 		UpstreamEndpoint: &upstreamEndpoint,
 		CreatedAt:        record.CreatedAt,
-	}, "service.openai_live")
+	}
+	if billingMode != "" {
+		usageLog.BillingMode = &billingMode
+	}
+	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+}
+
+// liveSessionCost 用开播时冻结的单价结算本次 Live 会话。
+// 返回错误表示该分组未配置单价：调用方必须告警且不得伪造零成本账单。
+func (s *OpenAIGatewayService) liveSessionCost(record *LiveCallRecord, durationMs int) (*CostBreakdown, error) {
+	if s.billingService == nil {
+		return nil, ErrLivePricingUnavailable
+	}
+	return s.billingService.CalculateLiveSessionCost(durationMs, record.RealtimePricePerMin, 1)
 }

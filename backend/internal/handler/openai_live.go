@@ -166,14 +166,21 @@ func liveCallIdentity(
 		value := subscription.ID
 		subscriptionID = &value
 	}
+	// 开播即冻结分组单价：结算在会话关闭时才发生，期间管理员改价不得影响本次会话，
+	// 否则用户看到的报价与最终扣费会不一致。
+	var realtimePricePerMin *float64
+	if apiKey.Group != nil {
+		realtimePricePerMin = apiKey.Group.AudioRealtimePricePerMin
+	}
 	return service.LiveCallIdentity{
-		APIKeyID:        apiKey.ID,
-		UserID:          userID,
-		GroupID:         apiKey.GroupID,
-		SubscriptionID:  subscriptionID,
-		UserAgent:       c.GetHeader("User-Agent"),
-		IPAddress:       ip.GetClientIP(c),
-		InboundEndpoint: GetInboundEndpoint(c),
+		APIKeyID:            apiKey.ID,
+		UserID:              userID,
+		GroupID:             apiKey.GroupID,
+		SubscriptionID:      subscriptionID,
+		UserAgent:           c.GetHeader("User-Agent"),
+		IPAddress:           ip.GetClientIP(c),
+		InboundEndpoint:     GetInboundEndpoint(c),
+		RealtimePricePerMin: realtimePricePerMin,
 	}
 }
 

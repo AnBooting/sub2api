@@ -2842,3 +2842,42 @@ func getDefaultGrokImagineVideoPrice(model string, resolution string) (float64, 
 		return 0, false
 	}
 }
+
+// ---- Live（OpenAI Realtime/quicksilver 语音会话）按时长计费 ----
+
+// ErrLivePricingUnavailable 表示该分组的 Live 会话没有可用单价。
+// Live 必须按时长计费，缺价即拒绝结算（不得按零价或内置默认价放行）。
+var ErrLivePricingUnavailable = errors.New("live session pricing is not configured")
+
+// CalculateLiveSessionCost 按会话时长计算 Live 费用。
+//
+// 口径与视频 per_second 一致：单价 × 分钟数 × 费率倍数。
+// 与 CalculateAudioCost("realtime") 的关键差异：后者在分组未配置时会回落到内置
+// 默认价 0.05/分钟；Live 明确不允许猜价，未配置必须返回 ErrLivePricingUnavailable，
+// 由调用方告警并如实落未计费记录（项目红线：缺价不得放行）。
+func (s *BillingService) CalculateLiveSessionCost(durationMs int, perMinutePrice *float64, rateMultiplier float64) (*CostBreakdown, error) {
+	if perMinutePrice == nil || *perMinutePrice <= 0 {
+		return nil, ErrLivePricingUnavailable
+	}
+	if durationMs <= 0 {
+		return nil, fmt.Errorf("%w: live session duration is unknown", ErrLivePricingUnavailable)
+	}
+	if rateMultiplier < 0 {
+		rateMultiplier = 0
+	}
+	billableMinutes := float64(durationMs) / 60000
+	total := *perMinutePrice * billableMinutes
+	return &CostBreakdown{
+		TotalCost:   total,
+		ActualCost:  total * rateMultiplier,
+		BillingMode: string(BillingModePerRequest),
+		Unit:        "per_minute",
+		PricingItems: []CostBreakdownItem{{
+			Kind:            "live_minute",
+			BaseCreditPrice: *perMinutePrice,
+			Usage:           billableMinutes,
+			NormalizedUsage: billableMinutes,
+			Subtotal:        total,
+		}},
+	}, nil
+}

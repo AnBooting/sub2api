@@ -47,6 +47,11 @@ type LiveCallIdentity struct {
 	UserAgent       string
 	IPAddress       string
 	InboundEndpoint string
+	// RealtimePricePerMin 是开播时冻结的分组实时语音单价（元/分钟）。
+	// Live 按时长计费，价格必须在会话创建时锁定：结算发生在会话关闭时，
+	// 期间管理员可能改价，用结算价会与开播时的报价不一致。
+	// nil 表示该分组未配置 Live 单价，结算时必须拒绝而不是按零价放行。
+	RealtimePricePerMin *float64
 }
 
 type LiveCallRecord struct {
@@ -66,6 +71,9 @@ type LiveCallRecord struct {
 	UserAgent       string
 	IPAddress       string
 	InboundEndpoint string
+	// RealtimePricePerMin 是开播时冻结的实时语音单价（元/分钟）；
+	// 结算以它为准，nil 表示未配置，结算时必须拒绝。
+	RealtimePricePerMin *float64
 	// AttestationCiphertext 仅用于让同一会话的 Sideband 复用创建时的证明。
 	AttestationCiphertext string
 }
