@@ -38,7 +38,13 @@ type IngressRejectRecorder interface {
 }
 
 func invalidAuthClientKey(c *gin.Context) string {
-	return normalizeIngressRejectIP(SecurityClientIP(c))
+	raw := strings.TrimSpace(SecurityClientIP(c))
+	if _, err := netip.ParseAddr(raw); err != nil {
+		// 不可识别的客户端 IP：沿用限流器的空 key 语义（不参与限流），
+		// 避免把所有不可识别客户端折叠进同一个共享桶互相连带封禁。
+		return ""
+	}
+	return normalizeIngressRejectIP(raw)
 }
 
 func rejectInvalidAuthAbuse(c *gin.Context, apiKeyService interface {
