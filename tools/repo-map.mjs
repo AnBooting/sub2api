@@ -124,7 +124,7 @@ function impact(query) {
   const current = state();
   let output = '';
   try {
-    output = git(['grep', '-n', '-I', '-F', '-e', '--', query]);
+    output = git(['grep', '-n', '-I', '-F', '-e', query, '--']);
   } catch (error) {
     if (error.status !== 1) throw error;
   }
