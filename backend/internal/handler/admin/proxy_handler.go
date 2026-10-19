@@ -301,14 +301,12 @@ func (h *ProxyHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	// Return mock data for now
-	_ = proxyID
+	// Do not return fabricated zero statistics to administrators.
+	// Proxy stats require request/account aggregation and are not implemented yet.
 	response.Success(c, gin.H{
-		"total_accounts":  0,
-		"active_accounts": 0,
-		"total_requests":  0,
-		"success_rate":    100.0,
-		"average_latency": 0,
+		"implemented": false,
+		"reason": "proxy stats are not implemented",
+		"proxy_id": proxyID,
 	})
 }
 

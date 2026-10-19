@@ -13,7 +13,7 @@ const NUL = String.fromCharCode(0);
 const BACKSLASH = String.fromCharCode(92);
 
 function run(command, args, cwd = root) {
-  return execFileSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true }).trimEnd();
+  return execFileSync(command, args, { cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trimEnd();
 }
 
 function git(args) {
@@ -59,10 +59,13 @@ function count(values, selector) {
 }
 
 function goPackages() {
-  for (const executable of ['F:/tools/go1.27.2/go/bin/go.exe', 'go']) {
+  const candidates = process.env.GO_BIN ? [process.env.GO_BIN] : ['go'];
+  for (const executable of candidates) {
     try {
       return run(executable, ['list', './...'], resolve(root, 'backend')).split(NL).filter(Boolean);
-    } catch {}
+    } catch (error) {
+      if (process.env.GO_BIN) throw error;
+    }
   }
   return [];
 }
@@ -121,7 +124,7 @@ function impact(query) {
   const current = state();
   let output = '';
   try {
-    output = git(['grep', '-n', '-I', '-F', '-e', query, '--']);
+    output = git(['grep', '-n', '-I', '-F', '-e', '--', query]);
   } catch (error) {
     if (error.status !== 1) throw error;
   }

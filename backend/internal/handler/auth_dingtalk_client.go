@@ -56,7 +56,10 @@ func (c *DingTalkClient) ExchangeCodeForUserToken(ctx context.Context, code stri
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read dingtalk token response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, parseDingTalkErr(raw, resp.StatusCode)
 	}
@@ -112,7 +115,10 @@ func (c *DingTalkClient) GetUnionIdByUserToken(ctx context.Context, userToken st
 		return "", "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("read dingtalk user info response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", "", parseDingTalkErr(raw, resp.StatusCode)
 	}
@@ -176,7 +182,10 @@ func (c *DingTalkClient) GetAppToken(ctx context.Context) (string, error) {
 		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read dingtalk app token response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", parseDingTalkErr(raw, resp.StatusCode)
 	}
@@ -224,7 +233,10 @@ func (c *DingTalkClient) GetUserIdByUnionId(ctx context.Context, unionID string)
 		return "", err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("read dingtalk user-id response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return "", parseDingTalkErr(raw, resp.StatusCode)
 	}
@@ -279,7 +291,10 @@ func (c *DingTalkClient) GetDeptInfo(ctx context.Context, deptID int64) (*DingTa
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read dingtalk dept response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, parseDingTalkErr(raw, resp.StatusCode)
 	}
@@ -329,7 +344,10 @@ func (c *DingTalkClient) GetStaffInfoByUserId(ctx context.Context, userID string
 		return nil, err
 	}
 	defer func() { _ = resp.Body.Close() }()
-	raw, _ := io.ReadAll(resp.Body)
+	raw, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read dingtalk staff response: %w", err)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, parseDingTalkErr(raw, resp.StatusCode)
 	}
