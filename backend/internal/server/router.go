@@ -8,6 +8,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/server/routes"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -15,6 +16,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
+	"go.uber.org/zap"
 )
 
 const frameSrcRefreshTimeout = 5 * time.Second
@@ -48,7 +50,10 @@ func SetupRouter(
 		defer cancel()
 		origins, err := settingService.GetFrameSrcOrigins(ctx)
 		if err != nil {
-			// 获取失败时保留已有缓存，避免 frame-src 被意外清空
+			// 获取失败时保留已有缓存，避免 frame-src 被意外清空。
+			// 必须留下日志：启动期 DB 不可用会让 allowlist 一直为空，
+			// 导致已配置的 iframe（首页内容/购买页/自定义菜单）静默失效。
+			logger.FromContext(ctx).Warn("failed to refresh CSP frame-src origins; keeping previous allowlist", zap.Error(err))
 			return
 		}
 		cachedFrameOrigins.Store(&origins)
