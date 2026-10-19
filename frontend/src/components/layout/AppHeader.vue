@@ -1,6 +1,6 @@
 <template>
   <header
-    class="sticky top-0 z-30 border-b border-borderline-200 bg-surface-50/95 backdrop-blur-sm dark:border-dark-700 dark:bg-dark-900/95"
+    class="sticky top-0 z-30 border-b border-borderline-200/80 dark:border-dark-700/80 acrylic-inapp"
     role="banner"
   >
     <div class="flex h-14 items-center justify-between gap-2 px-3 sm:px-5 md:px-6">

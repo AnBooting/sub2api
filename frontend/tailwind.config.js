@@ -6,17 +6,18 @@ export default {
     extend: {
       colors: {
         primary: {
-          50: '#eff8fc',
-          100: '#d7eefa',
-          200: '#b3e2f6',
-          300: '#7ed0ef',
-          400: '#41b6e2',
-          500: '#1a9dce',
-          600: '#0f7fae',
-          700: '#10698f',
-          800: '#145976',
-          900: '#154a62',
-          950: '#0b2d3f'
+          // Microsoft Fluent 2 official blue scale (500 = #0078d4)
+          50: '#ecf7ff',
+          100: '#d0ebff',
+          200: '#9dd8ff',
+          300: '#54b9f9',
+          400: '#2ea6f2',
+          500: '#0078d4',
+          600: '#0061a4',
+          700: '#00508d',
+          800: '#003c71',
+          900: '#002e56',
+          950: '#001e38'
         },
         accent: {
           50: '#f8fafc',
@@ -32,65 +33,67 @@ export default {
           950: '#020617'
         },
         dark: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#242a34',
-          900: '#171b22',
-          950: '#0c0e12'
+          // Fluent dark neutrals (cool)
+          50: '#f8f9fa',
+          100: '#eef0f2',
+          200: '#e0e3e7',
+          300: '#c6cad1',
+          400: '#9aa0a9',
+          500: '#6d7480',
+          600: '#5a6068',
+          700: '#3b4048',
+          800: '#27292d',
+          900: '#1b1a19',
+          950: '#0f0e0d'
         },
         surface: {
           50: '#ffffff',
-          100: '#fafbfc',
-          200: '#f3f5f7',
-          300: '#e9edf1',
-          400: '#dce2e8',
-          500: '#c8d0d9',
-          600: '#aeb8c3',
-          700: '#7f8a96',
-          800: '#4f5a66',
-          900: '#2b333d',
-          950: '#10151b'
+          100: '#faf9f8',
+          200: '#f4f3f2',
+          300: '#f0efef',
+          400: '#eae6e5',
+          500: '#e0dfdf',
+          600: '#cdcdcd',
+          700: '#b3b3b3',
+          800: '#605e5c',
+          900: '#3b3a39',
+          950: '#1b1a19'
         },
         ink: {
-          50: '#f6f8f9',
-          100: '#e9eef1',
-          200: '#d4dce1',
-          300: '#aab8c1',
-          400: '#7e8f9a',
-          500: '#5a6a75',
-          600: '#44515b',
-          700: '#38434c',
-          800: '#242c33',
-          900: '#181e24',
-          950: '#0d1115'
+          // Cool neutral scale (slightly blue-tinted)
+          50: '#fafafa',
+          100: '#f3f4f6',
+          200: '#e5e7eb',
+          300: '#d2d6dc',
+          400: '#a3a9b3',
+          500: '#6d7480',
+          600: '#5c626d',
+          700: '#44484f',
+          800: '#2e3036',
+          900: '#1f2126',
+          950: '#101215'
         },
         borderline: {
-          100: '#edf0f3',
-          200: '#e2e7eb',
-          300: '#d3d9df',
-          400: '#bfc8d0',
-          500: '#9da9b4',
-          600: '#7f8c98'
+          100: '#f0efef',
+          200: '#e6e5e4',
+          300: '#d2d0ce',
+          400: '#b3b0ae',
+          500: '#8a8886',
+          600: '#605e5c'
         },
         // 旧 gray-* 用法全局收敛到 ink 中性阶，避免 2000+ 处散落色值不一致
         gray: {
-          50: '#f6f8f9',
-          100: '#e9eef1',
-          200: '#d4dce1',
-          300: '#aab8c1',
-          400: '#7e8f9a',
-          500: '#5a6a75',
-          600: '#44515b',
-          700: '#38434c',
-          800: '#242c33',
-          900: '#181e24',
-          950: '#0d1115'
+          50: '#fafafa',
+          100: '#f3f4f6',
+          200: '#e5e7eb',
+          300: '#d2d6dc',
+          400: '#a3a9b3',
+          500: '#6d7480',
+          600: '#5c626d',
+          700: '#44484f',
+          800: '#2e3036',
+          900: '#1f2126',
+          950: '#101215'
         }
       },
       fontFamily: {
@@ -110,21 +113,27 @@ export default {
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
       },
       boxShadow: {
-        // 统一收敛到克制的层级：不再有发光/玻璃特效
-        sm: '0 1px 2px rgba(16, 24, 40, 0.05)',
-        DEFAULT: '0 1px 2px rgba(16, 24, 40, 0.05)',
-        md: '0 2px 6px rgba(16, 24, 40, 0.07)',
-        lg: '0 4px 12px rgba(16, 24, 40, 0.08)',
-        xl: '0 8px 20px rgba(16, 24, 40, 0.09)',
-        '2xl': '0 12px 28px rgba(16, 24, 40, 0.10)',
-        glass: '0 1px 2px rgba(16, 24, 40, 0.05)',
-        'glass-sm': '0 1px 2px rgba(16, 24, 40, 0.04)',
-        glow: '0 0 0 rgba(20, 184, 166, 0)',
-        'glow-lg': '0 0 0 rgba(20, 184, 166, 0)',
-        card: '0 1px 2px rgba(16, 24, 40, 0.05)',
-        'card-hover': '0 4px 12px rgba(16, 24, 40, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.5)'
-      },
+          // Fluent 2 depth：阴影偏冷、扩散大、几乎不可见，但提供层叠暗示
+          none: 'none',
+          sm: '0 1px 2px rgba(0, 0, 0, 0.05)',
+          DEFAULT: '0 1px 2px rgba(0, 0, 0, 0.05)',
+          md: '0 2px 4px rgba(0, 0, 0, 0.06)',
+          lg: '0 4px 8px rgba(0, 0, 0, 0.07)',
+          xl: '0 8px 16px rgba(0, 0, 0, 0.08)',
+          '2xl': '0 12px 28px rgba(0, 0, 0, 0.10)',
+          '4xl': '0 24px 56px rgba(0, 0, 0, 0.14)',
+          // Fluent 层叠深度：卡片 / 悬浮 / 浮层
+          card: '0 1px 2px rgba(0, 0, 0, 0.04), 0 0 1px rgba(0, 0, 0, 0.03)',
+          'card-hover': '0 4px 10px rgba(0, 0, 0, 0.07), 0 0 1px rgba(0, 0, 0, 0.04)',
+          // 亚克力材质：底色半透 + 冷色内描边 + 柔和投影
+          acrylic: '0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(255, 255, 255, 0.6) inset',
+          'acrylic-elevated': '0 8px 24px rgba(0, 0, 0, 0.10), 0 0 1px rgba(255, 255, 255, 0.7) inset',
+          glass: '0 1px 2px rgba(0, 0, 0, 0.05)',
+          'glass-sm': '0 1px 2px rgba(0, 0, 0, 0.04)',
+          glow: '0 0 0 rgba(0, 120, 212, 0)',
+          'glow-lg': '0 0 0 rgba(0, 120, 212, 0)',
+          'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.5)'
+        },
       backgroundImage: {
         'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
         'gradient-primary': 'linear-gradient(180deg, #065f9d 0%, #0b7baa 100%)',
@@ -134,18 +143,20 @@ export default {
           'radial-gradient(at 40% 20%, rgba(26, 157, 206, 0.05) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(26, 157, 206, 0.03) 0px, transparent 50%), radial-gradient(at 0% 50%, rgba(26, 157, 206, 0.02) 0px, transparent 50%)'
       },
       borderRadius: {
-        // 旧类名统一收敛：任何 rounded-xl/2xl/3xl 都落在 8px 体系内
-        sm: '4px',
-        DEFAULT: '6px',
-        md: '6px',
-        lg: '8px',
-        xl: '8px',
-        '2xl': '8px',
-        '3xl': '10px',
-        control: '6px',
-        panel: '8px',
-        dialog: '12px'
-      },
+          // Fluent 2: 略方圆角，控件 4px / 卡片 8px / 弹窗 10px
+          none: '0px',
+          sm: '2px',
+          DEFAULT: '4px',
+          md: '4px',
+          lg: '6px',
+          xl: '8px',
+          '2xl': '8px',
+          '3xl': '10px',
+          control: '4px',
+          panel: '8px',
+          dialog: '10px',
+          pill: '9999px'
+        },
       animation: {
         'fade-in': 'fadeIn 0.18s ease-out',
         'slide-up': 'slideUp 0.18s ease-out',

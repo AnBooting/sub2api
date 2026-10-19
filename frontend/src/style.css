@@ -19,6 +19,49 @@
   body {
     @apply bg-surface-100 text-ink-900 dark:bg-dark-950 dark:text-gray-100;
     @apply min-h-screen;
+    @apply text-sm;
+    @apply font-sans;
+  }
+
+  /* ============ Fluent 2 材质与运动令牌 ============ */
+  :root {
+    /* 亚克力三层：base（底层填充）/ in-app（应用内悬浮）/ overlay（最顶层） */
+    --acrylic-base: rgba(255, 255, 255, 0.55);
+    --acrylic-inapp: rgba(252, 252, 252, 0.72);
+    --acrylic-overlay: rgba(249, 249, 249, 0.85);
+    --acrylic-border: rgba(255, 255, 255, 0.72);
+    --acrylic-blur: 30px;
+    --acrylic-saturate: 140%;
+
+    /* 冷灰分层：Fluent neutral ramp */
+    --fluent-canvas: #faf9f8;
+    --fluent-layer: #ffffff;
+    --fluent-layer-alt: #f3f2f1;
+    --fluent-stroke: #e6e5e4;
+    --fluent-text: #201f1e;
+    --fluent-text-secondary: #5c626d;
+
+    /* 运动曲线：Fluent 用 decelerate（进场）/ accelerate（退场） */
+    --fluent-ease-decel: cubic-bezier(0.1, 0.9, 0.2, 1);
+    --fluent-ease-accel: cubic-bezier(0.7, 0.0, 1.0, 0.5);
+    --fluent-ease-standard: cubic-bezier(0.33, 0, 0.67, 1);
+    --fluent-dur-fast: 120ms;
+    --fluent-dur-normal: 200ms;
+    --fluent-dur-slow: 350ms;
+  }
+
+  .dark {
+    --acrylic-base: rgba(32, 32, 32, 0.5);
+    --acrylic-inapp: rgba(38, 38, 38, 0.68);
+    --acrylic-overlay: rgba(43, 43, 43, 0.82);
+    --acrylic-border: rgba(255, 255, 255, 0.08);
+
+    --fluent-canvas: #1b1a19;
+    --fluent-layer: #27292d;
+    --fluent-layer-alt: #202124;
+    --fluent-stroke: #3b4048;
+    --fluent-text: #f3f3f3;
+    --fluent-text-secondary: #c5c6c7;
   }
 
   @supports (-moz-appearance: none) {
@@ -68,14 +111,15 @@
   .btn {
     @apply inline-flex items-center justify-center gap-2;
     @apply rounded-control px-4 py-2 text-sm font-medium;
-    @apply transition-colors duration-150;
+    @apply transition-all duration-150;
     @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 focus-visible:ring-offset-1;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   .btn-primary {
-    @apply bg-gradient-primary text-white shadow-sm;
-    @apply hover:bg-primary-600;
+    @apply bg-primary-500 text-white shadow-sm;
+    @apply hover:bg-primary-600 hover:shadow-md;
+    @apply active:bg-primary-700 active:shadow-sm;
     @apply dark:shadow-primary-500/10;
   }
 
@@ -182,31 +226,66 @@
     -moz-appearance: textfield;
   }
 
+  /* ============ 亚克力（Acrylic）材质系统 ============ */
   .glass {
     @apply bg-surface-50/95 backdrop-blur dark:bg-dark-800/95;
   }
 
+  /* 底层亚克力：用于固定定位、大面积背景（侧栏/头部/卡片底层） */
+  .acrylic {
+    background-color: var(--acrylic-base);
+    -webkit-backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturate));
+    backdrop-filter: blur(var(--acrylic-blur)) saturate(var(--acrylic-saturate));
+    border: 1px solid var(--acrylic-border);
+    box-shadow: var(--shadow-acrylic, 0 2px 8px rgba(0, 0, 0, 0.06), 0 0 1px rgba(255, 255, 255, 0.6) inset);
+  }
+
+  /* 应用内悬浮亚克力：用于下拉菜单、悬浮面板 */
+  .acrylic-inapp {
+    background-color: var(--acrylic-inapp);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid var(--acrylic-border);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10), 0 0 1px rgba(255, 255, 255, 0.7) inset;
+  }
+
+  /* 顶层悬浮亚克力：用于弹窗、Modal */
+  .acrylic-overlay {
+    background-color: var(--acrylic-overlay);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    backdrop-filter: blur(28px) saturate(150%);
+    border: 1px solid var(--acrylic-border);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14), 0 0 1px rgba(255, 255, 255, 0.75) inset;
+  }
+
   .glass-card {
-    @apply bg-white dark:bg-dark-800;
     @apply rounded-panel;
     @apply border border-borderline-200 dark:border-dark-700;
-    @apply shadow-card;
+    background-color: var(--acrylic-base);
+    -webkit-backdrop-filter: blur(30px) saturate(140%);
+    backdrop-filter: blur(30px) saturate(140%);
+    @apply shadow-acrylic;
     @apply transition-colors duration-200;
   }
 
   .card {
-    @apply rounded-panel border border-borderline-200 bg-white dark:border-dark-700 dark:bg-dark-800;
+    @apply rounded-panel border border-borderline-200 dark:border-dark-700;
+    @apply bg-white dark:bg-dark-800;
     @apply shadow-card;
     @apply transition-colors duration-200;
   }
+
 
   .card-hover {
     @apply hover:border-borderline-300 hover:shadow-card-hover dark:hover:border-dark-600;
   }
 
   .card-glass {
-    @apply bg-white dark:bg-dark-800;
+    @apply rounded-panel;
     @apply border border-borderline-200 dark:border-dark-700;
+    background-color: var(--acrylic-inapp);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    backdrop-filter: blur(24px) saturate(160%);
     @apply shadow-card;
   }
 
@@ -379,8 +458,11 @@
   .modal-content {
     @apply w-full;
     @apply max-h-[95vh] sm:max-h-[90vh];
-    @apply bg-white dark:bg-dark-800;
-    @apply rounded-dialog shadow-2xl;
+    background-color: var(--acrylic-overlay);
+    -webkit-backdrop-filter: blur(28px) saturate(150%);
+    backdrop-filter: blur(28px) saturate(150%);
+    @apply rounded-dialog;
+    @apply shadow-4xl;
     @apply border border-borderline-200 dark:border-dark-700;
     @apply flex flex-col;
   }
@@ -517,8 +599,11 @@
 
   .sidebar {
     @apply fixed inset-y-0 left-0 z-40;
-    @apply w-60 bg-surface-50 dark:bg-dark-900;
-    @apply border-r border-borderline-200 dark:border-dark-800;
+    @apply w-60;
+    background-color: var(--acrylic-base);
+    -webkit-backdrop-filter: blur(30px) saturate(140%);
+    backdrop-filter: blur(30px) saturate(140%);
+    @apply border-r border-borderline-200 dark:border-dark-700;
     @apply flex flex-col;
     @apply transition-transform duration-200;
     transition-property: width, transform;
@@ -527,7 +612,7 @@
   .sidebar-header {
     @apply h-14 px-4;
     @apply flex items-center gap-2.5;
-    @apply border-b border-borderline-200 dark:border-dark-800;
+    @apply border-b border-borderline-200/80 dark:border-dark-700/80;
     transition:
       padding 0.18s ease,
       gap 0.18s ease;
@@ -555,8 +640,8 @@
   }
 
   .sidebar-link-active {
-    @apply relative bg-primary-50 font-semibold text-primary-700 dark:bg-primary-900/25 dark:text-primary-300;
-    @apply hover:bg-primary-100 dark:hover:bg-primary-900/35;
+    @apply relative bg-primary-50/80 font-semibold text-primary-700 dark:bg-primary-900/20 dark:text-primary-300;
+    @apply hover:bg-primary-100/80 dark:hover:bg-primary-900/30;
   }
 
   /* 当前项左侧指示条：定位感更强，替代整块高亮 */
