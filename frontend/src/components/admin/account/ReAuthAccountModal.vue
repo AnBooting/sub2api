@@ -12,7 +12,7 @@
       >
         <div class="flex items-center gap-3">
           <div
-            :class="[ 'flex h-10 w-10 items-center justify-center rounded-lg ', isOpenAILike ? '' : isGemini ? '' : isAntigravity ? '' : isGrok ? '' : '' ]"
+            class="flex h-10 w-10 items-center justify-center rounded-control bg-primary-600"
           >
             <Icon name="sparkles" size="md" class="text-white" />
           </div>

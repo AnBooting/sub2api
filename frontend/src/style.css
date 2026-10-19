@@ -895,17 +895,20 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
 
-  /* 专业系统动效层：克制、短时、可被系统关闭 */
+  /* 专业系统动效层：克制、短时、可被系统关闭。
+     填充模式必须用 backwards 而非 both：both 会在动画结束后保留
+     transform: translateY(0)，为容器建立包含块，导致内部 fixed 弹窗
+     相对容器而非视口定位。backwards 只作用于延迟阶段，结束后回到 none。 */
   .motion-page {
-    animation: motionPageIn 180ms ease-out both;
+    animation: motionPageIn 180ms ease-out backwards;
   }
 
   .motion-card {
-    animation: motionCardIn 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: motionCardIn 240ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
 
   .motion-stagger > * {
-    animation: motionStaggerIn 260ms cubic-bezier(0.22, 1, 0.36, 1) both;
+    animation: motionStaggerIn 260ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   }
 
   .motion-stagger > *:nth-child(1) { animation-delay: 40ms; }
@@ -970,9 +973,12 @@
   50% { transform: translateX(12%); opacity: 1; }
 }
 
+/* 页面级入场只做透明度：任何 transform（哪怕 translateY(0)）都会让该元素
+   成为 fixed 后代的包含块，使页面内 fixed 弹窗相对内容区而非视口定位。
+   位移观感由内层的 .motion-card / .motion-stagger 承担。 */
 @keyframes motionPageIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes motionCardIn {

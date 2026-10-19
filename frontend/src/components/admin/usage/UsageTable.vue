@@ -244,7 +244,7 @@
           <div class="flex items-stretch gap-2">
             <span
               class="w-1 shrink-0 rounded-full"
-              :class="row.first_token_ms != null ? ['from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]] : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
+              :class="row.first_token_ms != null ? LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)] : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
               aria-hidden="true"
             ></span>
             <div class="grid grid-cols-[max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">
@@ -559,7 +559,6 @@ import { resolveUsageRequestType } from '@/utils/usageRequestType'
 import {
   LATENCY_BAR_CLASSES,
   LATENCY_BAR_FROM_CLASSES,
-  LATENCY_BAR_TO_CLASSES,
   LATENCY_TEXT_CLASSES,
   durationSeverity,
   firstTokenSeverity,

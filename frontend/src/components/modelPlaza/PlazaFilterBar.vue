@@ -170,8 +170,9 @@ function rateEnabled(r: number): boolean {
 }
 
 function chipClass(active: boolean): string {
+  // 选中态必须有实色背景：白字在浅色页面上若无背景几乎不可见。
   return active
-    ? 'text-white shadow-sm shadow-primary-500/30'
+    ? 'bg-primary-600 text-white ring-1 ring-inset ring-primary-600 shadow-sm shadow-primary-500/25 enabled:hover:bg-primary-700 enabled:hover:ring-primary-700 dark:bg-primary-500 dark:ring-primary-500 dark:enabled:hover:bg-primary-400'
     : 'bg-white text-gray-600 ring-1 ring-inset ring-gray-200 enabled:hover:bg-gray-50 enabled:hover:text-gray-900 enabled:hover:ring-gray-300 dark:bg-dark-800/60 dark:text-dark-300 dark:ring-dark-700 dark:enabled:hover:bg-dark-800 dark:enabled:hover:text-white'
 }
 </script>

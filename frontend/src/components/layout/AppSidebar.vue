@@ -1,7 +1,7 @@
 <template>
   <aside
     class="sidebar"
-    :class="[ sidebarCollapsed ? 'w-[72px]' : 'w-64', { '-translate-x-full lg:translate-x-0': !mobileOpen } ]"
+    :class="[ sidebarCollapsed ? 'w-[72px]' : 'w-60', { '-translate-x-full lg:translate-x-0': !mobileOpen } ]"
   >
     <!-- Logo/Brand -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">

@@ -54,20 +54,25 @@ export const LATENCY_BAR_CLASSES: Record<LatencySeverity, string> = {
   critical: 'bg-red-500',
 }
 
-/** 渐变色条上端（首字档）；与 LATENCY_BAR_TO_CLASSES 组合成上下渐变，避免两段硬切割裂感。 */
+/**
+ * 首字档 + 总耗时档同时存在时的色条。
+ * 原实现依赖 bg-gradient-to-b 搭配 from 与 to 色标；渐变类已按设计体系移除，
+ * 仅保留色标会让色条完全没有背景。这里直接给出实色，按更严重的一档取色，
+ * 既不依赖渐变，也保持「先看首字、再看总耗时」的告警语义。
+ */
 export const LATENCY_BAR_FROM_CLASSES: Record<LatencySeverity, string> = {
-  good: 'from-emerald-500',
-  warn: 'from-amber-400',
-  slow: 'from-orange-500',
-  critical: 'from-red-500',
+  good: 'bg-emerald-500',
+  warn: 'bg-amber-400',
+  slow: 'bg-orange-500',
+  critical: 'bg-red-500',
 }
 
-/** 渐变色条下端（总耗时档）。 */
+/** 兼容保留：调用方与既有测试仍引用该常量，取值与首字档实色一致。 */
 export const LATENCY_BAR_TO_CLASSES: Record<LatencySeverity, string> = {
-  good: 'to-emerald-500',
-  warn: 'to-amber-400',
-  slow: 'to-orange-500',
-  critical: 'to-red-500',
+  good: 'bg-emerald-500',
+  warn: 'bg-amber-400',
+  slow: 'bg-orange-500',
+  critical: 'bg-red-500',
 }
 
 // 与运维 Token 请求统计一致：使用完整耗时，输出可能包含推理 Token。

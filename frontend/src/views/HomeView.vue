@@ -84,10 +84,15 @@
           </div>
 
           <div class="motion-stagger grid gap-3 sm:grid-cols-2">
-            <router-link
+            <!-- 外部链接（如配置的文档站）必须走原生 a[href]，
+                 交给 router-link 会被拼成站内相对路径。 -->
+            <component
+              :is="isExternalEntry(entry.to) ? 'a' : 'router-link'"
               v-for="entry in primaryEntries"
               :key="entry.to"
-              :to="entry.to"
+              v-bind="isExternalEntry(entry.to)
+                ? { href: entry.to, target: '_blank', rel: 'noopener noreferrer' }
+                : { to: entry.to }"
               class="motion-lift group flex items-start gap-3 rounded-panel border border-borderline-200 bg-white p-4 shadow-card transition-colors hover:border-primary-300 hover:bg-primary-50/30 dark:border-dark-700 dark:bg-dark-800 dark:hover:border-primary-700 dark:hover:bg-primary-950/20"
             >
               <span class="motion-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-control bg-primary-600 text-white">
@@ -99,7 +104,7 @@
                   {{ entry.description }}
                 </span>
               </span>
-            </router-link>
+            </component>
           </div>
         </section>
 
@@ -201,6 +206,10 @@ const primaryEntries = computed(() => {
   }
   return entries
 })
+
+/** 外部地址（http/https/协议相对）需要原生 a[href]，不能交给 router-link。 */
+const isExternalEntry = (to: string): boolean =>
+  /^(?:https?:)?\/\//i.test(to) || to.startsWith('mailto:') || to.startsWith('tel:')
 
 const quickStartSteps = computed(() => {
   if (isAuthenticated.value && isAdmin.value) return ['adminDashboard', 'adminUsers', 'adminChannels', 'adminUsage']

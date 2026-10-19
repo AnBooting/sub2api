@@ -6,7 +6,7 @@
       <!-- Logo & Title -->
       <div class="mb-8 text-center">
         <div
-          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-panel shadow-lg"
+          class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-panel bg-primary-600 shadow-card"
         >
           <Icon name="cog" size="xl" class="text-white" />
         </div>
