@@ -556,7 +556,9 @@ func dispatchCodexModelsGateway(c *gin.Context, openAIHandler, generatedHandler 
 // getGroupPlatform extracts the group platform from the API Key stored in context.
 func getGroupPlatform(c *gin.Context) string {
 	apiKey, ok := middleware.GetAPIKeyFromContext(c)
-	if !ok || apiKey.Group == nil {
+	// 类型断言对 typed-nil 会返回 (nil, true)，必须显式判空，
+	// 否则 apiKey.Group 会空指针 panic（同 compositeTargetPlatformMiddleware）。
+	if !ok || apiKey == nil || apiKey.Group == nil {
 		return ""
 	}
 	if apiKey.Group.Platform == service.PlatformComposite {
