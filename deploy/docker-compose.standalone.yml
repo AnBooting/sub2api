@@ -82,6 +82,9 @@ services:
       # =======================================================================
       - JWT_SECRET=${JWT_SECRET:-}
       - JWT_EXPIRE_HOUR=${JWT_EXPIRE_HOUR:-24}
+      # 2FA/备份凭据加密密钥：缺失会导致重启后 2FA 用户无法登录、S3 凭据拒绝保存。
+      # 必须是固定值；其余 compose 均已透传。
+      - TOTP_ENCRYPTION_KEY=${TOTP_ENCRYPTION_KEY:-}
 
       # =======================================================================
       # Setup Configuration
