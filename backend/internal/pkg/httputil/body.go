@@ -165,6 +165,17 @@ func ReadLenientJSONRequestBodyWithPrealloc(req *http.Request, maxNormalizedByte
 	return NormalizeLenientJSONRequestBody(body, maxNormalizedBytes)
 }
 
+// DecodeRequestBodyBytes 按 Content-Encoding 解码已读出的请求体字节，
+// 仅用于需要"看到明文"的检查（如内容守卫）；调用方自行决定是否回填 Body。
+// encoding 为空或 identity 时原样返回。
+func DecodeRequestBodyBytes(encoding string, raw []byte) ([]byte, error) {
+	enc := strings.ToLower(strings.TrimSpace(encoding))
+	if enc == "" || enc == "identity" {
+		return raw, nil
+	}
+	return decompressRequestBody(enc, raw)
+}
+
 func decompressRequestBody(encoding string, raw []byte) ([]byte, error) {
 	switch encoding {
 	case "zstd":

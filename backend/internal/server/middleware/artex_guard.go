@@ -38,7 +38,7 @@ func ArtexGuard(cfg *config.Config) gin.HandlerFunc {
 				return
 			}
 		}
-		// Do not introduce content decoding or header mutation at this gate.
+		// Do not mutate headers or replace the downstream body at this gate.
 		var body []byte
 		var err error
 		if preread, ok := c.Request.Body.(*httputil.PrereadBody); ok {
@@ -63,7 +63,16 @@ func ArtexGuard(cfg *config.Config) gin.HandlerFunc {
 			_ = c.Request.Body.Close()
 		}
 		c.Request.Body = httputil.NewPrereadBody(body)
-		if service.EvaluateArtexGuard(mode, protocol, body) {
+		// 压缩请求体必须先解码再检测：客户端发送 Content-Encoding: gzip/zstd/deflate 时，
+		// 原始字节不是 JSON，json.Unmarshal 必然失败，拦截会被压缩轻松绕过。
+		// 只用于检测，下游仍收到原始字节（不在此处改写 body/头部）。
+		inspectBody := body
+		if enc := strings.TrimSpace(c.GetHeader("Content-Encoding")); enc != "" {
+			if decoded, decodeErr := httputil.DecodeRequestBodyBytes(enc, body); decodeErr == nil {
+				inspectBody = decoded
+			}
+		}
+		if service.EvaluateArtexGuard(mode, protocol, inspectBody) {
 			failure := gin.H{"type": "permission_error", "code": service.ArtexGuardBlockedCode, "message": "This client execution protocol is not permitted"}
 			envelope := gin.H{"error": failure}
 			if protocol == service.ArtexAnthropic {

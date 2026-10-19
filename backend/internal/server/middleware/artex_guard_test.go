@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -101,6 +102,34 @@ func TestArtexHTTPGateModesAndExactBody(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestArtexGuardBlocksCompressedBodies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	// 客户端可用 Content-Encoding: gzip 压缩请求体；若守卫只看原始字节，
+	// json.Unmarshal 必然失败 -> 匹配不到 -> 拦截被绕过。
+	body := artexHTTPFixture(t, "anthropic", true)
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	_, err := gz.Write(body)
+	require.NoError(t, err)
+	require.NoError(t, gz.Close())
+
+	cfg := &config.Config{Gateway: config.GatewayConfig{ArtexGuard: config.ArtexGuardConfig{Mode: config.ArtexGuardEnforce}}}
+	calls := 0
+	router := gin.New()
+	router.POST("/v1/messages", ArtexGuard(cfg), func(c *gin.Context) {
+		calls++
+		c.Status(http.StatusNoContent)
+	})
+	req := httptest.NewRequest(http.MethodPost, "/v1/messages", bytes.NewReader(buf.Bytes()))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Encoding", "gzip")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, req)
+
+	require.Equal(t, http.StatusForbidden, recorder.Code, "compressed body must not bypass the guard")
+	require.Zero(t, calls)
 }
 
 type artexReadProbe struct {
