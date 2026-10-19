@@ -225,3 +225,23 @@ stepfun 反复卡死的文件，改用 `--provider sensenova --model glm-5.2` �
 - **Q5 插件 bridge token / CSP unsafe-inline**：需重新设计插件桥接会话模型。
 - **Q10 localStorage 存 token**：改 HttpOnly cookie 涉及后端 CORS/CSRF 整体改造，且 `frontend/` 正由另一会话改造中。
 - **Q2 refresh token 复用撤销 family**：由 teammate 实施中（tombstone 方案），完成后补记。
+
+### Q2 实施（refresh token 复用撤销 family）
+
+`8ae8ef7eb`：新增 `MarkRefreshTokenConsumed` / tombstone 查询到 refresh token cache 接口，
+Redis 实现与内存实现（`memory_refresh_token_cache.go`）同步补齐；轮转时写入 `consumed:{tokenHash} -> FamilyID`
+（沿用原 TTL），命中复用即 `DeleteTokenFamily` 并返回 `ErrRefreshTokenReused`。
+验证：`go build ./...` exit 0；`internal/service`、`internal/repository`、`internal/handler` 定向测试全绿。
+
+### 覆盖状态更新
+
+改用 `sensenova/glm-5.2` 后，此前"扫不动"的文件全部成功产出，覆盖缺口已基本补齐：
+
+- 已补扫：`group_model_allowlist`、`server_timing`、`artex_guard`、`routes/gateway`、`service/yunmao`、`handler/admin/account_data`、`middleware/request_logger`。
+- 仍建议后续补扫（本轮未做）：`ent/schema/*.go`、`migrations/*.sql`、部分 `service` 超大文件、前端 `api/admin` 与 `types/utils`、`deploy/tools`。
+
+### 本轮验证汇总
+
+- `go build ./...` → exit 0
+- `internal/server`、`internal/server/middleware`、`internal/server/routes`、`internal/handler`、`internal/handler/yunmao`、`internal/handler/admin`、`internal/service`、`internal/service/yunmao`、`internal/repository`、`internal/pkg/httputil`、`cmd/jwtgen` → 全绿
+- `internal/handler/admin` 在满载并发下曾出现一次失败，隔离连跑两次均通过（`ok 22.9s` / `ok 28.1s`），判定为既有 flaky，非本轮改动引入
