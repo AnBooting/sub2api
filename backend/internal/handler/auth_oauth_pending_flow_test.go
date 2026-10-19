@@ -2901,6 +2901,14 @@ func (s *oauthPendingFlowRefreshTokenCacheStub) IsTokenInFamily(context.Context,
 	return false, nil
 }
 
+func (s *oauthPendingFlowRefreshTokenCacheStub) MarkRefreshTokenConsumed(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *oauthPendingFlowRefreshTokenCacheStub) GetConsumedRefreshTokenFamilyID(context.Context, string) (string, error) {
+	return "", service.ErrConsumedRefreshTokenNotFound
+}
+
 type oauthPendingFlowRedeemCodeRepo struct {
 	client *dbent.Client
 }

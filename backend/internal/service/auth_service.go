@@ -1792,12 +1792,20 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 	}
 
 	tokenHash := hashToken(refreshToken)
+	ttl := time.Duration(s.cfg.JWT.RefreshTokenExpireDays) * 24 * time.Hour
 
 	// 获取Token数据
 	data, err := s.refreshTokenCache.GetRefreshToken(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, ErrRefreshTokenNotFound) {
-			// Token不存在，可能是已被使用（Token轮转）或已过期
+			// Token不存在：可能是已被轮转消费（复用攻击）或已过期。先查 tombstone：
+			// 命中复用即撤销整个家族并返回 REFRESH_TOKEN_REUSED；未命中保持原有受损
+			// 路径行为（REFRESH_TOKEN_INVALID）。
+			if familyID, consumedErr := s.refreshTokenCache.GetConsumedRefreshTokenFamilyID(ctx, tokenHash); consumedErr == nil && familyID != "" {
+				logger.LegacyPrintf("service.auth", "[Auth] Refresh token reused, revoking family")
+				_ = s.refreshTokenCache.DeleteTokenFamily(ctx, familyID)
+				return nil, ErrRefreshTokenReused
+			}
 			logger.LegacyPrintf("service.auth", "[Auth] Refresh token not found, possible reuse attack")
 			return nil, ErrRefreshTokenInvalid
 		}
@@ -1853,6 +1861,10 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
 		// 继续处理，不影响主流程
 	}
+
+	// 旧Token轮转后写入 tombstone，复用检测只依赖该记录；写入失败保持原有
+	// 受损路径行为（旧Token下次请求得不到复用判定，仍按普通无效处理）。
+	_ = s.refreshTokenCache.MarkRefreshTokenConsumed(ctx, tokenHash, data.FamilyID, ttl)
 
 	// 生成新的Token对，保持同一个家族ID
 	pair, err := s.GenerateTokenPair(ctx, user, data.FamilyID)
