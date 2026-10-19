@@ -74,7 +74,7 @@
               </button>
               <div
                 v-if="showColumnDropdown"
-                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                class="absolute right-0 top-full z-50 mt-1 max-h-80 w-48 overflow-y-auto rounded-panel border border-borderline-200 bg-white py-1 shadow-card dark:border-dark-600 dark:bg-dark-800"
               >
                 <button
                   v-for="col in toggleableColumns"
@@ -138,28 +138,7 @@
 
           <template #cell-platform="{ value }">
             <span
-              :class="[
-                'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium',
-                value === 'anthropic'
-                  ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                  : value === 'openai'
-                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                    : value === 'antigravity'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                      : value === 'grok'
-                        ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
-                        : value === 'kimi'
-                          ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
-                          : value === 'zhipu'
-                            ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                            : value === 'deepseek'
-                              ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-                              : value === 'minimax'
-                                ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                              : value === 'opencode_go'
-                                ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-              ]"
+              :class="[ 'inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium', value === 'anthropic' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : value === 'openai' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : value === 'antigravity' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : value === 'grok' ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100' : value === 'kimi' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' : value === 'zhipu' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : value === 'deepseek' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' : value === 'minimax' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' : value === 'opencode_go' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', ]"
             >
               <PlatformIcon :platform="value" size="xs" />
               {{ t("admin.groups.platforms." + value, platformLabel(value)) }}
@@ -170,12 +149,7 @@
             <div class="space-y-1">
               <!-- Type Badge -->
               <span
-                :class="[
-                  'inline-block rounded-full px-2 py-0.5 text-xs font-medium',
-                  row.subscription_type === 'subscription'
-                    ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
-                ]"
+                :class="[ 'inline-block rounded-full px-2 py-0.5 text-xs font-medium', row.subscription_type === 'subscription' ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300', ]"
               >
                 {{
                   row.subscription_type === "subscription"
@@ -204,12 +178,7 @@
                     >
                     <span
                       v-else
-                      :class="
-                        getQuotaUsageClass(
-                          usageMap.get(row.id)?.today_cost ?? 0,
-                          row.daily_limit_usd
-                        )
-                      "
+                      :class="getQuotaUsageClass( usageMap.get(row.id)?.today_cost ?? 0, row.daily_limit_usd )"
                       >{{
                         formatGroupCredit(usageMap.get(row.id)?.today_cost ?? 0)
                       }}</span
@@ -370,10 +339,7 @@
 
           <template #cell-status="{ value }">
             <span
-              :class="[
-                'badge',
-                value === 'active' ? 'badge-success' : 'badge-danger',
-              ]"
+              :class="[ 'badge', value === 'active' ? 'badge-success' : 'badge-danger', ]"
             >
               {{ t("admin.accounts.status." + value) }}
             </span>
@@ -538,7 +504,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.copyAccounts.tooltip") }}
@@ -680,7 +646,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="mb-2 text-xs font-medium">
                     {{ t("admin.groups.exclusiveTooltip.title") }}
@@ -1411,7 +1377,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.supportedScopes.tooltip") }}
@@ -1484,7 +1450,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.mcpXml.tooltip") }}
@@ -1526,7 +1492,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.claudeCode.tooltip") }}
@@ -1767,7 +1733,7 @@
             class="mt-3"
           >
             <div
-              class="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800"
+              class="relative overflow-hidden rounded-panel border border-borderline-200 bg-white shadow-card dark:border-dark-600 dark:bg-dark-800"
             >
               <div
                 class="border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-700/50"
@@ -1831,7 +1797,7 @@
             </div>
 
             <div
-              class="mt-5 relative overflow-hidden rounded-xl border border-primary-200 bg-white shadow-sm dark:border-primary-900/50 dark:bg-dark-800"
+              class="mt-5 relative overflow-hidden rounded-panel border border-primary-200 bg-white shadow-card dark:border-primary-900/50 dark:bg-dark-800"
             >
               <div
                 class="border-b border-primary-100 bg-primary-50/80 px-4 py-3 dark:border-primary-900/40 dark:bg-primary-900/20"
@@ -1859,7 +1825,7 @@
               <div class="p-4 bg-gray-50/30 dark:bg-dark-800/30">
                 <div
                   v-if="createForm.exact_model_mappings.length === 0"
-                  class="flex items-center justify-between gap-3 rounded-xl border-2 border-dashed border-primary-200 bg-white px-5 py-4 text-sm text-primary-700 transition-colors hover:border-primary-300 dark:border-primary-900/40 dark:bg-dark-800 dark:text-primary-300 dark:hover:border-primary-800"
+                  class="flex items-center justify-between gap-3 rounded-panel border-2 border-dashed border-primary-200 bg-white px-4 py-3 text-sm text-primary-700 transition-colors hover:border-primary-300 dark:border-primary-900/40 dark:bg-dark-800 dark:text-primary-300 dark:hover:border-primary-800"
                 >
                   <span>{{
                     t("admin.groups.openaiMessages.noExactMappings")
@@ -1878,7 +1844,7 @@
                   <div
                     v-for="row in createForm.exact_model_mappings"
                     :key="getCreateMessagesDispatchRowKey(row)"
-                    class="group relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
+                    class="group relative rounded-panel border border-borderline-200 bg-white p-4 shadow-card transition-colors hover:border-primary-300 hover:shadow-card-hover dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
                   >
                     <div class="flex items-center gap-4">
                       <div
@@ -1940,7 +1906,7 @@
                   <button
                     type="button"
                     @click="addCreateMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex w-full items-center justify-center gap-2 rounded-panel border-2 border-dashed border-borderline-300 bg-white py-3 text-sm font-medium text-ink-500 transition-colors hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -2038,7 +2004,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.modelRouting.tooltip") }}
@@ -2139,7 +2105,7 @@
                           accountSearchResults[getCreateRuleSearchKey(rule)]
                             ?.length > 0
                         "
-                        class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                        class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-panel border border-borderline-200 bg-white shadow-card dark:border-dark-600 dark:bg-dark-800"
                       >
                         <button
                           v-for="account in accountSearchResults[
@@ -2149,11 +2115,7 @@
                           type="button"
                           @click="selectAccount(rule, account)"
                           class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
-                          :class="{
-                            'opacity-50': rule.accounts.some(
-                              (a) => a.id === account.id,
-                            ),
-                          }"
+                          :class="{ 'opacity-50': rule.accounts.some( (a) => a.id === account.id, ), }"
                           :disabled="
                             rule.accounts.some((a) => a.id === account.id)
                           "
@@ -2300,7 +2262,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.copyAccounts.tooltipEdit") }}
@@ -2439,7 +2401,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="mb-2 text-xs font-medium">
                     {{ t("admin.groups.exclusiveTooltip.title") }}
@@ -3175,7 +3137,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.supportedScopes.tooltip") }}
@@ -3248,7 +3210,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.mcpXml.tooltip") }}
@@ -3290,7 +3252,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.claudeCode.tooltip") }}
@@ -3540,7 +3502,7 @@
             class="mt-3"
           >
             <div
-              class="relative overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-dark-600 dark:bg-dark-800"
+              class="relative overflow-hidden rounded-panel border border-borderline-200 bg-white shadow-card dark:border-dark-600 dark:bg-dark-800"
             >
               <div
                 class="border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-dark-700 dark:bg-dark-700/50"
@@ -3604,7 +3566,7 @@
             </div>
 
             <div
-              class="mt-5 relative overflow-hidden rounded-xl border border-primary-200 bg-white shadow-sm dark:border-primary-900/50 dark:bg-dark-800"
+              class="mt-5 relative overflow-hidden rounded-panel border border-primary-200 bg-white shadow-card dark:border-primary-900/50 dark:bg-dark-800"
             >
               <div
                 class="border-b border-primary-100 bg-primary-50/80 px-4 py-3 dark:border-primary-900/40 dark:bg-primary-900/20"
@@ -3632,7 +3594,7 @@
               <div class="p-4 bg-gray-50/30 dark:bg-dark-800/30">
                 <div
                   v-if="editForm.exact_model_mappings.length === 0"
-                  class="flex items-center justify-between gap-3 rounded-xl border-2 border-dashed border-primary-200 bg-white px-5 py-4 text-sm text-primary-700 transition-colors hover:border-primary-300 dark:border-primary-900/40 dark:bg-dark-800 dark:text-primary-300 dark:hover:border-primary-800"
+                  class="flex items-center justify-between gap-3 rounded-panel border-2 border-dashed border-primary-200 bg-white px-4 py-3 text-sm text-primary-700 transition-colors hover:border-primary-300 dark:border-primary-900/40 dark:bg-dark-800 dark:text-primary-300 dark:hover:border-primary-800"
                 >
                   <span>{{
                     t("admin.groups.openaiMessages.noExactMappings")
@@ -3651,7 +3613,7 @@
                   <div
                     v-for="row in editForm.exact_model_mappings"
                     :key="getEditMessagesDispatchRowKey(row)"
-                    class="group relative rounded-xl border border-gray-200 bg-white p-4 shadow-sm transition-all hover:border-primary-300 hover:shadow-md dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
+                    class="group relative rounded-panel border border-borderline-200 bg-white p-4 shadow-card transition-colors hover:border-primary-300 hover:shadow-card-hover dark:border-dark-600 dark:bg-dark-700 dark:hover:border-primary-700"
                   >
                     <div class="flex items-center gap-4">
                       <div
@@ -3713,7 +3675,7 @@
                   <button
                     type="button"
                     @click="addEditMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-gray-500 transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex w-full items-center justify-center gap-2 rounded-panel border-2 border-dashed border-borderline-300 bg-white py-3 text-sm font-medium text-ink-500 transition-colors hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -3811,7 +3773,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-white shadow-lg dark:bg-gray-800"
+                  class="rounded-control bg-gray-900 p-3 text-white shadow-card dark:bg-gray-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.modelRouting.tooltip") }}
@@ -3912,7 +3874,7 @@
                           accountSearchResults[getEditRuleSearchKey(rule)]
                             ?.length > 0
                         "
-                        class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                        class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-panel border border-borderline-200 bg-white shadow-card dark:border-dark-600 dark:bg-dark-800"
                       >
                         <button
                           v-for="account in accountSearchResults[
@@ -3922,11 +3884,7 @@
                           type="button"
                           @click="selectAccount(rule, account, true)"
                           class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
-                          :class="{
-                            'opacity-50': rule.accounts.some(
-                              (a) => a.id === account.id,
-                            ),
-                          }"
+                          :class="{ 'opacity-50': rule.accounts.some( (a) => a.id === account.id, ), }"
                           :disabled="
                             rule.accounts.some((a) => a.id === account.id)
                           "
@@ -4063,28 +4021,7 @@
               </div>
               <div class="text-xs text-gray-500 dark:text-gray-400">
                 <span
-                  :class="[
-                    'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium',
-                    group.platform === 'anthropic'
-                      ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
-                      : group.platform === 'openai'
-                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
-                        : group.platform === 'antigravity'
-                          ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
-                          : group.platform === 'grok'
-                            ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100'
-                            : group.platform === 'kimi'
-                              ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
-                              : group.platform === 'zhipu'
-                                ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
-                                : group.platform === 'deepseek'
-                                  ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
-                                  : group.platform === 'minimax'
-                                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
-                                  : group.platform === 'opencode_go'
-                                    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300'
-                                    : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-                  ]"
+                  :class="[ 'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium', group.platform === 'anthropic' ? 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' : group.platform === 'openai' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' : group.platform === 'antigravity' ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400' : group.platform === 'grok' ? 'bg-zinc-200 text-zinc-800 dark:bg-zinc-700 dark:text-zinc-100' : group.platform === 'kimi' ? 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400' : group.platform === 'zhipu' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400' : group.platform === 'deepseek' ? 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400' : group.platform === 'minimax' ? 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400' : group.platform === 'opencode_go' ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400', ]"
                 >
                   {{ t("admin.groups.platforms." + group.platform, platformLabel(group.platform)) }}
                 </span>
@@ -4431,12 +4368,7 @@
               >
                 <div class="mb-2 flex items-center gap-2">
                   <span
-                    :class="[
-                      'badge',
-                      compositePreviewDecision.matched
-                        ? 'badge-success'
-                        : 'badge-danger',
-                    ]"
+                    :class="[ 'badge', compositePreviewDecision.matched ? 'badge-success' : 'badge-danger', ]"
                   >
                     {{
                       compositePreviewDecision.matched

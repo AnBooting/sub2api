@@ -2,16 +2,13 @@
   <AuthLayout>
     <div class="space-y-6">
       <!-- Title -->
-      <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
-          {{ t('auth.welcomeBack') }}
+      <div>
+        <h2 class="text-xl font-semibold tracking-tight text-ink-900 dark:text-white">
+          {{ t('auth.signIn') }}
         </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
-          {{ t('auth.signInToAccount') }}
-        </p>
       </div>
       <!-- Login Form -->
-      <form @submit.prevent="handleLogin" class="space-y-5">
+      <form novalidate @submit.prevent="handleLogin" class="space-y-5">
         <!-- Email Input -->
         <div>
           <label for="email" class="input-label">
@@ -31,9 +28,14 @@
               :disabled="authActionDisabled"
               class="input pl-11"
               :class="{ 'input-error': errors.email }"
+              :aria-invalid="errors.email ? 'true' : undefined"
+              :aria-describedby="errors.email ? 'email-error' : undefined"
               :placeholder="t('auth.emailPlaceholder')"
             />
           </div>
+          <p v-if="errors.email" id="email-error" class="input-error-text">
+            {{ errors.email }}
+          </p>
         </div>
 
         <!-- Password Input -->
@@ -54,22 +56,28 @@
               :disabled="authActionDisabled"
               class="input pl-11 pr-11"
               :class="{ 'input-error': errors.password }"
+              :aria-invalid="errors.password ? 'true' : undefined"
+              :aria-describedby="errors.password ? 'password-error' : undefined"
               :placeholder="t('auth.passwordPlaceholder')"
             />
             <button
               type="button"
-              @click="showPassword = !showPassword"
+              :aria-label="passwordVisibilityLabel"
+              :aria-pressed="showPassword ? 'true' : 'false'"
+              aria-controls="password"
               :disabled="authActionDisabled"
-              class="absolute inset-y-0 right-0 flex items-center pr-3.5 text-gray-400 transition-colors hover:text-gray-600 dark:hover:text-dark-300"
+              class="absolute inset-y-0 right-0 flex items-center rounded-control pr-3.5 text-gray-400 transition-colors hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/60 dark:hover:text-dark-300"
+              @click="showPassword = !showPassword"
             >
-              <Icon v-if="showPassword" name="eyeOff" size="md" />
-              <Icon v-else name="eye" size="md" />
+              <Icon v-if="showPassword" name="eyeOff" size="md" aria-hidden="true" />
+              <Icon v-else name="eye" size="md" aria-hidden="true" />
             </button>
           </div>
-          <div class="mt-1 flex items-center justify-between">
-            <span></span>
+          <p v-if="errors.password" id="password-error" class="input-error-text">
+            {{ errors.password }}
+          </p>
+          <div v-if="passwordResetEnabled && !backendModeEnabled" class="mt-1.5 flex justify-end">
             <router-link
-              v-if="passwordResetEnabled && !backendModeEnabled"
               to="/forgot-password"
               class="text-sm font-medium text-primary-600 transition-colors hover:text-primary-500 dark:text-primary-400 dark:hover:text-primary-300"
             >
@@ -101,30 +109,28 @@
         <button
           type="submit"
           :disabled="authActionDisabled || (turnstileEnabled && !turnstileToken)"
-          class="btn btn-primary w-full"
+          :aria-busy="isLoading ? 'true' : 'false'"
+          class="btn btn-primary w-full min-w-[9rem]"
         >
-          <svg
-            v-if="isLoading"
-            class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <circle
-              class="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              stroke-width="4"
-            ></circle>
-            <path
-              class="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-            ></path>
-          </svg>
-          <Icon v-else name="login" size="md" class="mr-2" />
-          {{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}
+          <span class="flex h-5 w-5 shrink-0 items-center justify-center" aria-hidden="true">
+            <svg v-if="isLoading" class="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle
+                class="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="4"
+              ></circle>
+              <path
+                class="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+            <Icon v-else name="login" size="md" />
+          </span>
+          <span>{{ isLoading ? t('auth.signingIn') : t('auth.signIn') }}</span>
         </button>
 
         <LoginAgreementPrompt
@@ -141,11 +147,11 @@
 
         <div v-if="showPasskeyLogin || showOAuthLogin" class="space-y-3 pt-1">
           <div class="flex items-center gap-3">
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
-            <span class="text-xs text-gray-500 dark:text-dark-400">
+            <div class="h-px flex-1 bg-borderline-200 dark:bg-dark-700"></div>
+            <span class="text-xs text-ink-500 dark:text-dark-400">
               {{ t('auth.oauthOrContinue') }}
             </span>
-            <div class="h-px flex-1 bg-gray-200 dark:bg-dark-700"></div>
+            <div class="h-px flex-1 bg-borderline-200 dark:bg-dark-700"></div>
           </div>
 
           <button
@@ -198,7 +204,7 @@
 
     <!-- Footer -->
     <template v-if="!backendModeEnabled && publicSettingsLoaded && registrationEnabled" #footer>
-      <p class="text-gray-500 dark:text-dark-400">
+      <p class="text-sm text-ink-500 dark:text-dark-400">
         {{ t('auth.dontHaveAccount') }}
         <router-link
           to="/register"
@@ -252,7 +258,7 @@ import type {
 import { extractI18nErrorMessage } from '@/utils/apiError'
 import { clearAllAffiliateReferralCodes } from '@/utils/oauthAffiliate'
 
-const { t } = useI18n()
+const { t, te, locale } = useI18n()
 const LOGIN_AGREEMENT_STORAGE_KEY = 'sub2api_login_agreement_consent'
 
 // ==================== Router & Stores ====================
@@ -267,6 +273,28 @@ const isLoading = ref<boolean>(false)
 const passkeyLoading = ref<boolean>(false)
 const errorMessage = ref<string>('')
 const showPassword = ref<boolean>(false)
+
+/**
+ * 密码可见性按钮的可访问名称。
+ * i18n key 由 i18n 维护方补齐（auth.showPassword / auth.hidePassword）；
+ * 在 key 尚未落地时按当前语言回退，避免 aria-label 暴露原始 key。
+ */
+function translateWithFallback(key: string, fallback: string): string {
+  const hasKey = te as unknown as ((key: string) => boolean) | undefined
+  return typeof hasKey === 'function' && hasKey(key) ? t(key) : fallback
+}
+
+const isChineseLocale = computed(() =>
+  String((locale as { value?: string } | undefined)?.value ?? '')
+    .toLowerCase()
+    .startsWith('zh')
+)
+
+const passwordVisibilityLabel = computed(() =>
+  showPassword.value
+    ? translateWithFallback('auth.hidePassword', isChineseLocale.value ? '隐藏密码' : 'Hide password')
+    : translateWithFallback('auth.showPassword', isChineseLocale.value ? '显示密码' : 'Show password')
+)
 const publicSettingsLoaded = ref<boolean>(false)
 
 // Public settings
@@ -602,8 +630,9 @@ async function handleLogin(): Promise<void> {
     clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    // Redirect to dashboard or intended route. Admin role gets the admin dashboard by default.
+    const redirectTo = (router.currentRoute.value.query.redirect as string) ||
+      (authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     await router.push(redirectTo)
   } catch (error: unknown) {
     errorMessage.value = extractI18nErrorMessage(error, t, 'auth.errors', t('auth.loginFailed'))
@@ -644,7 +673,8 @@ async function handlePasskeyLogin(): Promise<void> {
     await authStore.loginWithPasskey(proof)
     clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    const redirectTo = (router.currentRoute.value.query.redirect as string) ||
+      (authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     await router.push(redirectTo)
   } catch (error: unknown) {
     const fallback = error instanceof DOMException && error.name === 'NotAllowedError'
@@ -712,8 +742,9 @@ async function handle2FAVerify(code: string): Promise<void> {
     clearAllAffiliateReferralCodes()
     appStore.showSuccess(t('auth.loginSuccess'))
 
-    // Redirect to dashboard or intended route
-    const redirectTo = (router.currentRoute.value.query.redirect as string) || '/dashboard'
+    // Redirect to dashboard or intended route. Admin role gets the admin dashboard by default.
+    const redirectTo = (router.currentRoute.value.query.redirect as string) ||
+      (authStore.isAdmin ? '/admin/dashboard' : '/dashboard')
     await router.push(redirectTo)
   } catch (error: unknown) {
     const err = error as { message?: string; response?: { data?: { message?: string } } }

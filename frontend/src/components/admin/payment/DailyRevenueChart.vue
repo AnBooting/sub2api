@@ -53,7 +53,7 @@ const colors = [
 
 const chartData = computed(() => {
   if (!props.data || props.data.length === 0) return null
-  const currencies = [...new Set(props.data.flatMap(day => Object.keys(day.amount)))].sort()
+  const currencies = [...new Set(props.data.flatMap(day => Object.keys(day.amount ?? {})))].sort()
   return {
     labels: props.data.map(d => d.date),
     datasets: [
@@ -61,7 +61,7 @@ const chartData = computed(() => {
         const [borderColor, backgroundColor] = colors[index % colors.length]
         return {
           label: `${currency} ${t('payment.admin.revenue')}`,
-          data: props.data.map(day => day.amount[currency] || 0),
+          data: props.data.map(day => day.amount?.[currency] ?? 0),
           borderColor,
           backgroundColor,
           fill: true,

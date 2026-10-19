@@ -16,12 +16,7 @@
         <div
           v-for="toast in toasts"
           :key="toast.id"
-          :class="[
-            'pointer-events-auto min-w-[320px] max-w-md overflow-hidden rounded-lg shadow-lg',
-            'bg-white dark:bg-dark-800',
-            'border-l-4',
-            getBorderColor(toast.type)
-          ]"
+          :class="[ 'pointer-events-auto min-w-[320px] max-w-md overflow-hidden rounded-panel shadow-lg', 'bg-white dark:bg-dark-800', 'border-l-4', getBorderColor(toast.type) ]"
         >
           <div class="p-4">
             <div class="flex items-start gap-3">
@@ -41,12 +36,7 @@
                   {{ toast.title }}
                 </p>
                 <p
-                  :class="[
-                    'text-sm leading-relaxed',
-                    toast.title
-                      ? 'mt-1 text-gray-600 dark:text-gray-300'
-                      : 'text-gray-900 dark:text-white'
-                  ]"
+                  :class="[ 'text-sm leading-relaxed', toast.title ? 'mt-1 text-gray-600 dark:text-gray-300' : 'text-gray-900 dark:text-white' ]"
                 >
                   {{ toast.message }}
                 </p>

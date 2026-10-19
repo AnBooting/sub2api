@@ -80,9 +80,7 @@
               <span class="mr-1">↳ {{ t('usage.upstreamResponseModel') }}:</span>{{ row.upstream_response_model }}
               <span
                 class="ml-1 inline-flex rounded px-1 py-px text-[10px] font-medium ring-1 ring-inset"
-                :class="isLikelyModelVariant(row)
-                  ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30'
-                  : 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/30'"
+                :class="isLikelyModelVariant(row) ? 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:ring-amber-500/30' : 'bg-orange-50 text-orange-700 ring-orange-200 dark:bg-orange-500/10 dark:text-orange-300 dark:ring-orange-500/30'"
               >
                 {{ isLikelyModelVariant(row) ? t('usage.modelVariant') : t('usage.modelMismatch') }}
               </span>
@@ -246,9 +244,7 @@
           <div class="flex items-stretch gap-2">
             <span
               class="w-1 shrink-0 rounded-full"
-              :class="row.first_token_ms != null
-                ? ['bg-gradient-to-b from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]]
-                : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
+              :class="row.first_token_ms != null ? ['from-40% to-60%', LATENCY_BAR_FROM_CLASSES[firstTokenSeverity(row.first_token_ms)], LATENCY_BAR_TO_CLASSES[durationSeverity(row.duration_ms ?? 0)]] : LATENCY_BAR_CLASSES[durationSeverity(row.duration_ms ?? 0)]"
               aria-hidden="true"
             ></span>
             <div class="grid grid-cols-[max-content_max-content] items-baseline gap-x-2 gap-y-0.5 text-xs">

@@ -102,9 +102,7 @@
               :key="range.key"
               @click="setDateRange(range.key)"
               class="text-xs px-3 py-1.5 rounded-lg border transition-all"
-              :class="currentRange === range.key
-                ? 'bg-primary-500 text-white border-primary-500'
-                : 'border-gray-200 bg-white text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200 hover:border-primary-300 dark:hover:border-dark-600'"
+              :class="currentRange === range.key ? 'bg-primary-500 text-white border-primary-500' : 'border-gray-200 bg-white text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200 hover:border-primary-300 dark:hover:border-dark-600'"
             >{{ range.label }}</button>
             <div v-if="currentRange === 'custom'" class="flex items-center gap-2 ml-1">
               <input
@@ -132,16 +130,16 @@
         <!-- Loading Skeleton -->
         <div v-if="showLoading" class="space-y-6">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="rounded-2xl border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
+            <div class="rounded-panel border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
               <div class="skeleton h-5 w-24 mb-6"></div>
               <div class="flex justify-center"><div class="skeleton w-44 h-44 rounded-full"></div></div>
             </div>
-            <div class="rounded-2xl border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
+            <div class="rounded-panel border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
               <div class="skeleton h-5 w-24 mb-6"></div>
               <div class="flex justify-center"><div class="skeleton w-44 h-44 rounded-full"></div></div>
             </div>
           </div>
-          <div class="rounded-2xl border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
+          <div class="rounded-panel border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
             <div class="skeleton h-5 w-32 mb-6"></div>
             <div class="space-y-4">
               <div class="skeleton h-4 w-full"></div>
@@ -156,7 +154,7 @@
         <div v-else-if="resultData" class="space-y-6">
           <!-- Status Badge -->
           <div v-if="statusInfo" class="fade-up flex items-center justify-center mb-2">
-            <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white/90 shadow-sm backdrop-blur-sm dark:border-dark-700 dark:bg-dark-900/90">
+            <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white shadow-sm dark:border-dark-700 dark:bg-dark-900/90">
               <span
                 class="w-2.5 h-2.5 rounded-full pulse-dot"
                 :class="statusInfo.isActive ? 'bg-emerald-500' : 'bg-rose-500'"
@@ -172,7 +170,7 @@
             <div
               v-for="(ring, i) in ringItems"
               :key="i"
-              class="fade-up rounded-2xl border border-gray-200 bg-white/90 p-8 backdrop-blur-sm transition-all duration-300 hover:shadow-lg dark:border-dark-700 dark:bg-dark-900/90"
+              class="fade-up rounded-panel border border-gray-200 bg-white p-8 transition-all duration-300 dark:border-dark-700 dark:bg-dark-900/90"
               :class="`fade-up-delay-${Math.min(i + 1, 4)}`"
             >
               <div class="flex items-center justify-between mb-6">
@@ -239,7 +237,7 @@
           <!-- Detail Card -->
           <div
             v-if="detailRows.length > 0"
-            class="fade-up fade-up-delay-3 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-sm overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
+            class="fade-up fade-up-delay-3 rounded-panel border border-gray-200 bg-white overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
           >
             <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
               <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.detailInfo') }}</h3>
@@ -272,7 +270,7 @@
           <!-- Usage Stats Card -->
           <div
             v-if="usageStatCells.length > 0"
-            class="fade-up fade-up-delay-3 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-sm overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
+            class="fade-up fade-up-delay-3 rounded-panel border border-gray-200 bg-white overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
           >
             <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
               <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.tokenStats') }}</h3>
@@ -292,7 +290,7 @@
           <!-- Daily Usage Table -->
           <div
             v-if="showDailyUsage"
-            class="fade-up fade-up-delay-4 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-sm overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
+            class="fade-up fade-up-delay-4 rounded-panel border border-gray-200 bg-white overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
           >
             <div class="flex flex-col gap-3 px-8 py-5 border-b border-gray-200 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
               <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.dailyDetail') }}</h3>
@@ -302,9 +300,7 @@
                   :key="option.value"
                   @click="setDailyUsageDays(option.value)"
                   class="min-w-12 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-                  :class="dailyUsageDays === option.value
-                    ? 'bg-primary-500 text-white'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-dark-300 dark:hover:bg-dark-800'"
+                  :class="dailyUsageDays === option.value ? 'bg-primary-500 text-white' : 'text-gray-600 hover:bg-gray-100 dark:text-dark-300 dark:hover:bg-dark-800'"
                 >
                   {{ option.label }}
                 </button>
@@ -348,7 +344,7 @@
           <!-- Model Stats Table -->
           <div
             v-if="modelStats.length > 0"
-            class="fade-up fade-up-delay-4 rounded-2xl border border-gray-200 bg-white/90 backdrop-blur-sm overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
+            class="fade-up fade-up-delay-4 rounded-panel border border-gray-200 bg-white overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
           >
             <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
               <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.modelStats') }}</h3>

@@ -3,9 +3,9 @@
     <div class="mx-auto max-w-2xl space-y-6">
       <!-- Current Balance Card -->
       <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-primary-500 to-primary-600 px-6 py-8 text-center">
+        <div class="bg-primary-600 px-6 py-8 text-center">
           <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-white/20 backdrop-blur-sm"
+            class="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-panel bg-white/20 backdrop-blur-sm"
           >
             <Icon name="creditCard" size="xl" class="text-white" />
           </div>
@@ -234,29 +234,14 @@
             >
               <div class="flex items-center gap-4">
                 <div
-                  :class="[
-                    'flex h-10 w-10 items-center justify-center rounded-xl',
-                    isBalanceType(item.type)
-                      ? item.value >= 0
-                        ? 'bg-emerald-100 dark:bg-emerald-900/30'
-                        : 'bg-red-100 dark:bg-red-900/30'
-                      : isSubscriptionType(item.type)
-                        ? 'bg-purple-100 dark:bg-purple-900/30'
-                        : item.value >= 0
-                          ? 'bg-blue-100 dark:bg-blue-900/30'
-                          : 'bg-orange-100 dark:bg-orange-900/30'
-                  ]"
+                  :class="[ 'flex h-10 w-10 items-center justify-center rounded-xl', isBalanceType(item.type) ? item.value >= 0 ? 'bg-emerald-100 dark:bg-emerald-900/30' : 'bg-red-100 dark:bg-red-900/30' : isSubscriptionType(item.type) ? 'bg-purple-100 dark:bg-purple-900/30' : item.value >= 0 ? 'bg-blue-100 dark:bg-blue-900/30' : 'bg-orange-100 dark:bg-orange-900/30' ]"
                 >
                   <!-- 余额类型图标 -->
                   <Icon
                     v-if="isBalanceType(item.type)"
                     name="dollar"
                     size="md"
-                    :class="
-                      item.value >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-red-600 dark:text-red-400'
-                    "
+                    :class="item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'"
                   />
                   <!-- 订阅类型图标 -->
                   <Icon
@@ -270,11 +255,7 @@
                     v-else
                     name="bolt"
                     size="md"
-                    :class="
-                      item.value >= 0
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-orange-600 dark:text-orange-400'
-                    "
+                    :class="item.value >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400'"
                   />
                 </div>
                 <div>
@@ -288,18 +269,7 @@
               </div>
               <div class="text-right">
                 <p
-                  :class="[
-                    'text-sm font-semibold',
-                    isBalanceType(item.type)
-                      ? item.value >= 0
-                        ? 'text-emerald-600 dark:text-emerald-400'
-                        : 'text-red-600 dark:text-red-400'
-                      : isSubscriptionType(item.type)
-                        ? 'text-purple-600 dark:text-purple-400'
-                        : item.value >= 0
-                          ? 'text-blue-600 dark:text-blue-400'
-                          : 'text-orange-600 dark:text-orange-400'
-                  ]"
+                  :class="[ 'text-sm font-semibold', isBalanceType(item.type) ? item.value >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400' : isSubscriptionType(item.type) ? 'text-purple-600 dark:text-purple-400' : item.value >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-orange-600 dark:text-orange-400' ]"
                 >
                   {{ formatHistoryValue(item) }}
                 </p>
@@ -327,7 +297,7 @@
           <!-- Empty State -->
           <div v-else class="empty-state py-8">
             <div
-              class="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
+              class="mb-4 flex h-16 w-16 items-center justify-center rounded-panel bg-gray-100 dark:bg-dark-800"
             >
               <Icon name="clock" size="xl" class="text-gray-400 dark:text-dark-500" />
             </div>

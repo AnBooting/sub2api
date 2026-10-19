@@ -139,12 +139,12 @@
               <div class="mt-2 flex items-center gap-2">
                 <span
                   class="rounded px-2 py-0.5 text-xs font-medium"
-                  :class="compatibilityClass(plugin.compatibility.status)"
+                  :class="compatibilityClass(plugin.compatibility?.status)"
                 >
-                  {{ t(`admin.plugins.${plugin.compatibility.status}`) }}
+                  {{ t(`admin.plugins.${plugin.compatibility?.status ?? "unknown"}`) }}
                 </span>
                 <span class="text-xs text-gray-500 dark:text-gray-400">{{
-                  plugin.compatibility.message
+                  plugin.compatibility?.message ?? "—"
                 }}</span>
               </div>
               <dl
@@ -154,19 +154,19 @@
                   {{ t("admin.plugins.currentVersion") }}
                 </dt>
                 <dd class="font-mono text-gray-800 dark:text-gray-200">
-                  {{ plugin.compatibility.current_sub2api_version }}
+                  {{ plugin.compatibility?.current_sub2api_version ?? "—" }}
                 </dd>
                 <dt class="text-gray-500">
                   {{ t("admin.plugins.requiredVersion") }}
                 </dt>
                 <dd class="font-mono text-gray-800 dark:text-gray-200">
-                  {{ plugin.compatibility.required_sub2api_version }}
+                  {{ plugin.compatibility?.required_sub2api_version ?? "—" }}
                 </dd>
                 <dt class="text-gray-500">
                   {{ t("admin.plugins.recommendedVersion") }}
                 </dt>
                 <dd class="font-mono text-gray-800 dark:text-gray-200">
-                  {{ plugin.compatibility.recommended_sub2api_version || "-" }}
+                  {{ plugin.compatibility?.recommended_sub2api_version || "-" }}
                 </dd>
               </dl>
             </div>
@@ -264,7 +264,7 @@
               :disabled="
                 busyID === plugin.id ||
                 plugin.state === 'starting' ||
-                !plugin.compatibility.compatible
+                !plugin.compatibility?.compatible
               "
               @click="enablePlugin(plugin)"
             >
@@ -440,14 +440,14 @@ async function handleFileSelected(event: Event): Promise<void> {
 
 function currentRollout(plugin: PluginInstallation): number {
   return (
-    plugin.bindings.find(
+    plugin.bindings?.find(
       (binding) => binding.capability === "openai.oauth.outbound_transport.v1",
     )?.rollout_percent || 100
   );
 }
 
 function hasEnabledBinding(plugin: PluginInstallation): boolean {
-  return plugin.bindings.some((binding) => binding.enabled);
+  return (plugin.bindings ?? []).some((binding) => binding.enabled);
 }
 
 function setRollout(id: number, event: Event): void {
@@ -457,7 +457,7 @@ function setRollout(id: number, event: Event): void {
 
 async function enablePlugin(plugin: PluginInstallation): Promise<void> {
   let acceptUntested = false;
-  if (!plugin.compatibility.tested) {
+  if (!plugin.compatibility?.tested) {
     acceptUntested = window.confirm(t("admin.plugins.confirmUntested"));
     if (!acceptUntested) return;
   }
@@ -713,7 +713,7 @@ function stateClass(state: PluginInstallation["state"]): string {
 }
 
 function compatibilityClass(
-  status: PluginInstallation["compatibility"]["status"],
+  status?: PluginInstallation["compatibility"]["status"],
 ): string {
   if (status === "compatible")
     return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";

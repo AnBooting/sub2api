@@ -2,6 +2,9 @@ export default {
   dashboard: {
     title: 'Dashboard',
     welcomeMessage: "Welcome back! Here's an overview of your account.",
+    loadFailedTitle: 'Overview data is unavailable',
+    loadFailedDesc: 'The network or service may be temporarily unavailable. Please try again.',
+    refresh: 'Refresh',
     balance: 'Balance',
     apiKeys: 'API Keys',
     todayRequests: 'Today Requests',

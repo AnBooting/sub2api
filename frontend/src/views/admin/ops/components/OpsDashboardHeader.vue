@@ -859,7 +859,7 @@ function handleToolbarRefresh() {
 </script>
 
 <template>
-  <div :class="['flex flex-col gap-4 rounded-3xl bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700', props.fullscreen ? 'p-8' : 'p-6']">
+  <div :class="['flex flex-col gap-4 rounded-panel bg-white shadow-sm ring-1 ring-gray-900/5 dark:bg-dark-800 dark:ring-dark-700', props.fullscreen ? 'p-8' : 'p-6']">
     <!-- Top Toolbar -->
     <div class="flex flex-wrap items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-dark-700">
       <div>
@@ -993,7 +993,7 @@ function handleToolbarRefresh() {
 
     <div v-if="overview" class="grid grid-cols-1 gap-6 lg:grid-cols-12">
       <!-- Left: Health + Realtime -->
-      <div :class="['rounded-2xl bg-gray-50 dark:bg-dark-900 lg:col-span-5', props.fullscreen ? 'p-6' : 'p-4']">
+      <div :class="['rounded-panel bg-gray-50 dark:bg-dark-900 lg:col-span-5', props.fullscreen ? 'p-6' : 'p-4']">
         <div class="grid h-full grid-cols-1 gap-6 md:grid-cols-[200px_1fr] md:items-center">
           <!-- 1) Health Score -->
           <div
@@ -1120,9 +1120,7 @@ function handleToolbarRefresh() {
                   :key="window"
                   type="button"
                   class="rounded px-1.5 py-0.5 text-[9px] font-bold transition-colors sm:px-2 sm:text-[10px]"
-                  :class="realtimeWindow === window
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'"
+                  :class="realtimeWindow === window ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600'"
                   @click="realtimeWindow = window"
                 >
                   {{ window }}
@@ -1209,7 +1207,7 @@ function handleToolbarRefresh() {
       <!-- Right: 6 cards (3 cols x 2 rows) -->
       <div class="grid h-full grid-cols-1 content-center gap-4 sm:grid-cols-2 lg:col-span-7 lg:grid-cols-3">
         <!-- Card 1: Requests -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" style="order: 1;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" style="order: 1;">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1">
               <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.requestsTitle') }}</span>
@@ -1245,7 +1243,7 @@ function handleToolbarRefresh() {
         </div>
 
         <!-- Card 2: SLA -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" style="order: 2;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" style="order: 2;">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-2">
               <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.sla') }}</span>
@@ -1276,7 +1274,7 @@ function handleToolbarRefresh() {
         </div>
 
         <!-- Card 4: Request Duration -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" style="order: 4;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" style="order: 4;">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1">
               <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.latencyDuration') }}</span>
@@ -1327,7 +1325,7 @@ function handleToolbarRefresh() {
         </div>
 
         <!-- Card 5: TTFT -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" style="order: 5;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" style="order: 5;">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1">
               <span class="text-[10px] font-bold uppercase text-gray-400">TTFT</span>
@@ -1378,7 +1376,7 @@ function handleToolbarRefresh() {
         </div>
 
         <!-- Card 3: Request Errors -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" style="order: 3;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" style="order: 3;">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1">
               <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.requestErrors') }}</span>
@@ -1404,7 +1402,7 @@ function handleToolbarRefresh() {
         </div>
 
         <!-- Card 6: Upstream Errors -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" style="order: 6;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" style="order: 6;">
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1">
               <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.upstreamErrors') }}</span>
@@ -1430,7 +1428,7 @@ function handleToolbarRefresh() {
         </div>
 
         <!-- Per-request output speed, separate from system throughput. -->
-        <div class="rounded-2xl bg-gray-50 p-4 dark:bg-dark-900" data-testid="output-tps-card" style="order: 7;">
+        <div class="rounded-panel bg-gray-50 p-4 dark:bg-dark-900" data-testid="output-tps-card" style="order: 7;">
           <div class="flex items-center gap-1">
             <span class="text-[10px] font-bold uppercase text-gray-400">{{ t('admin.ops.outputTps') }}</span>
             <HelpTooltip v-if="!props.fullscreen" :content="t('admin.ops.tooltips.outputTps')" />

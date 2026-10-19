@@ -107,16 +107,17 @@ function rankClass(idx: number): string {
   return 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400'
 }
 
-function sortedAmounts(amounts: CurrencyAmounts): [string, number][] {
-  return Object.entries(amounts).sort(([left], [right]) => left.localeCompare(right))
+// 后端字段缺失时不应让整页白屏：统一回落为空集合
+function sortedAmounts(amounts: CurrencyAmounts | null | undefined): [string, number][] {
+  return Object.entries(amounts ?? {}).sort(([left], [right]) => left.localeCompare(right))
 }
 
-function sortedTopUsers(usersByCurrency: Record<string, TopUserPaymentStats[]>): [string, TopUserPaymentStats[]][] {
-  return Object.entries(usersByCurrency).sort(([left], [right]) => left.localeCompare(right))
+function sortedTopUsers(usersByCurrency: Record<string, TopUserPaymentStats[]> | null | undefined): [string, TopUserPaymentStats[]][] {
+  return Object.entries(usersByCurrency ?? {}).sort(([left], [right]) => left.localeCompare(right))
 }
 
-function hasTopUsers(usersByCurrency: Record<string, TopUserPaymentStats[]>): boolean {
-  return Object.values(usersByCurrency).some(users => users.length > 0)
+function hasTopUsers(usersByCurrency: Record<string, TopUserPaymentStats[]> | null | undefined): boolean {
+  return Object.values(usersByCurrency ?? {}).some(users => Array.isArray(users) && users.length > 0)
 }
 
 function formatMoney(currency: string, amount: number): string {

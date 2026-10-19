@@ -2,6 +2,9 @@ export default {
   dashboard: {
     title: '仪表盘',
     welcomeMessage: '欢迎回来！这是您账户的概览。',
+    loadFailedTitle: '暂时无法加载概览数据',
+    loadFailedDesc: '可能是网络或服务暂时不可用，请重试。',
+    refresh: '刷新',
     balance: '余额',
     apiKeys: 'API 密钥',
     todayRequests: '今日请求',

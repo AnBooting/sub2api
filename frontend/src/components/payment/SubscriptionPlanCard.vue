@@ -1,11 +1,6 @@
 <template>
   <div
-    :class="[
-      'group relative flex flex-col overflow-hidden rounded-2xl border transition-all',
-      'hover:shadow-xl hover:-translate-y-0.5',
-      borderClass,
-      'bg-white dark:bg-dark-800',
-    ]"
+    :class="[ 'group relative flex flex-col overflow-hidden rounded-panel border transition-all', 'hover:shadow-xl hover:-translate-y-0.5', borderClass, 'bg-white dark:bg-dark-800', ]"
   >
     <!-- Colored top accent bar -->
     <div :class="['h-1.5', accentClass]" />

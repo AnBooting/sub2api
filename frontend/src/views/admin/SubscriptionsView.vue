@@ -365,7 +365,7 @@
                   !row.group?.weekly_limit_usd &&
                   !row.group?.monthly_limit_usd
                 "
-                class="flex items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-50 to-teal-50 px-3 py-2 dark:from-emerald-900/20 dark:to-teal-900/20"
+                class="flex items-center gap-2 rounded-lg px-3 py-2"
               >
                 <span class="text-lg text-emerald-600 dark:text-emerald-400">∞</span>
                 <span class="text-xs font-medium text-emerald-700 dark:text-emerald-300">
@@ -379,11 +379,7 @@
             <div v-if="value">
               <span
                 class="text-sm"
-                :class="
-                  isExpiringSoon(value)
-                    ? 'text-orange-600 dark:text-orange-400'
-                    : 'text-gray-700 dark:text-gray-300'
-                "
+                :class="isExpiringSoon(value) ? 'text-orange-600 dark:text-orange-400' : 'text-gray-700 dark:text-gray-300'"
               >
                 {{ formatDateTimeToMinute(value) }}
               </span>
@@ -403,14 +399,7 @@
 
           <template #cell-status="{ value }">
             <span
-              :class="[
-                'badge',
-                value === 'active'
-                  ? 'badge-success'
-                  : value === 'expired'
-                    ? 'badge-warning'
-                    : 'badge-danger'
-              ]"
+              :class="[ 'badge', value === 'active' ? 'badge-success' : value === 'expired' ? 'badge-warning' : 'badge-danger' ]"
             >
               {{ t(`admin.subscriptions.status.${value}`) }}
             </span>

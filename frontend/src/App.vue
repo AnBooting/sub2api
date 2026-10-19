@@ -163,7 +163,7 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <RouterView />
+  <router-view />
   <Toast />
   <AnnouncementPopup />
   <AdminComplianceDialog />

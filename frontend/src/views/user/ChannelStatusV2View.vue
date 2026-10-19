@@ -3,7 +3,7 @@
     <div class="space-y-6 pb-12">
       <!-- Ops-style elevated shell: title toolbar + filters (mirrors OpsDashboardHeader) -->
       <section
-        class="card sticky top-0 z-20 !rounded-3xl !border-0 p-0 shadow-sm ring-1 ring-gray-900/5 backdrop-blur-sm dark:!bg-dark-800 dark:ring-dark-700 supports-[backdrop-filter]:bg-white/95 dark:supports-[backdrop-filter]:bg-dark-800/95"
+        class="card sticky top-0 z-20 !rounded-panel !border-0 p-0 shadow-sm ring-1 ring-gray-900/5 backdrop-blur-sm dark:!bg-dark-800 dark:ring-dark-700 supports-[backdrop-filter]:bg-white/95 dark:supports-[backdrop-filter]:bg-dark-800/95"
       >
         <header class="page-header mb-0 flex flex-wrap items-start justify-between gap-4 border-b border-gray-100 px-5 py-4 dark:border-dark-700 sm:px-6">
           <div class="min-w-0">
@@ -243,7 +243,7 @@
         <div
           v-for="i in (showThroughput ? 5 : 4)"
           :key="i"
-          class="h-24 animate-pulse rounded-2xl bg-gray-50 dark:bg-dark-900/30"
+          class="h-24 animate-pulse rounded-panel bg-gray-50 dark:bg-dark-900/30"
         />
       </section>
 
@@ -263,13 +263,13 @@
         />
         <div
           v-else-if="loading"
-          class="card flex min-h-[320px] items-center justify-center !rounded-3xl !border-0 text-sm text-gray-400 shadow-sm ring-1 ring-gray-900/5 dark:ring-dark-700"
+          class="card flex min-h-[320px] items-center justify-center !rounded-panel !border-0 text-sm text-gray-400 shadow-sm ring-1 ring-gray-900/5 dark:ring-dark-700"
         >
           <span class="animate-pulse">{{ t('common.loading') }}</span>
         </div>
       </div>
 
-      <section class="card flex min-h-0 flex-col overflow-hidden !rounded-3xl !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
+      <section class="card flex min-h-0 flex-col overflow-hidden !rounded-panel !border-0 shadow-sm ring-1 ring-gray-900/5 dark:!bg-dark-800 dark:ring-dark-700">
         <div class="border-b border-gray-100 px-5 pt-4 dark:border-dark-700 sm:px-6">
           <nav class="tabs w-full max-w-md sm:w-auto" role="tablist" :aria-label="t('channelMonitorV2.tabs.aria')">
             <button
@@ -337,7 +337,7 @@
             <div
               v-for="row in errorRows"
               :key="row.category"
-              class="rounded-2xl bg-gray-50 p-4 text-sm dark:bg-dark-900/30"
+              class="rounded-panel bg-gray-50 p-4 text-sm dark:bg-dark-900/30"
               :class="row.ignored ? 'opacity-60' : ''"
             >
               <button
@@ -352,7 +352,7 @@
                 <span class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
                   <i
                     class="block h-full rounded-full"
-                    :class="row.ignored ? 'bg-gray-400 dark:bg-gray-500' : 'bg-gradient-to-r from-red-400 to-red-500'"
+                    :class="row.ignored ? 'bg-gray-400 dark:bg-gray-500' : 'bg-red-500'"
                     :style="{ width: `${Math.max(2, row.rate * 100)}%` }"
                   ></i>
                 </span>
@@ -401,9 +401,7 @@
                 <tr
                   v-for="row in userRows"
                   :key="row.user_id || row.display_label"
-                  :class="row.is_self
-                    ? 'bg-primary-50 ring-1 ring-inset ring-primary-200/80 dark:bg-primary-900/25 dark:ring-primary-700/50'
-                    : ''"
+                  :class="row.is_self ? 'bg-primary-50 ring-1 ring-inset ring-primary-200/80 dark:bg-primary-900/25 dark:ring-primary-700/50' : ''"
                 >
                   <td><MonitorRankBadge :rank="row.rank" /></td>
                   <td>

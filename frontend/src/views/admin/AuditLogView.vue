@@ -3,10 +3,10 @@
     <TablePageLayout>
       <!-- Filters -->
       <template #filters>
-        <div class="card p-4 sm:p-6">
-          <div class="flex flex-wrap items-end justify-between gap-4">
+        <div class="card p-3 sm:px-4 sm:py-3">
+          <div class="flex flex-wrap items-end justify-between gap-3">
             <!-- Left: filter fields -->
-            <div class="flex flex-1 flex-wrap items-end gap-4">
+            <div class="flex flex-1 flex-wrap items-end gap-3">
               <div class="w-full sm:w-auto sm:min-w-[240px]">
                 <label class="input-label">{{ t('admin.audit.filters.q') }}</label>
                 <div class="relative">
@@ -138,9 +138,15 @@
           </template>
 
           <template #empty>
-            <div class="flex flex-col items-center py-8">
-              <Icon name="shield" size="xl" class="mb-4 h-12 w-12 text-gray-300 dark:text-dark-600" />
-              <p class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('admin.audit.empty') }}</p>
+            <div class="state-panel">
+              <div class="state-panel-icon">
+                <Icon name="shield" size="lg" />
+              </div>
+              <p class="state-panel-title">{{ t('admin.audit.empty') }}</p>
+              <p class="state-panel-desc">{{ t('admin.audit.emptyHint') }}</p>
+              <button type="button" class="btn btn-secondary mt-1" @click="resetFilters">
+                {{ t('common.reset') }}
+              </button>
             </div>
           </template>
         </DataTable>
@@ -167,16 +173,31 @@
       :close-on-click-outside="true"
       @close="detailVisible = false"
     >
-      <div v-if="detailLoading" class="flex items-center justify-center py-16">
-        <div class="flex flex-col items-center gap-3">
-          <div class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"></div>
-          <div class="text-sm font-medium text-gray-500 dark:text-gray-400">{{ t('common.loading') }}</div>
+      <div v-if="detailLoading" class="space-y-4 py-2" aria-busy="true">
+        <div class="rounded-panel border border-borderline-200 p-4 dark:border-dark-700">
+          <div class="skeleton-text w-40"></div>
+          <div class="skeleton-text mt-3 h-8 w-full"></div>
+          <div class="mt-3 flex gap-4">
+            <div class="skeleton-text w-32"></div>
+            <div class="skeleton-text w-24"></div>
+            <div class="skeleton-text w-28"></div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div v-for="i in 3" :key="i" class="rounded-panel bg-surface-200 p-4 dark:bg-dark-800">
+            <div class="skeleton-text w-16"></div>
+            <div class="skeleton-text mt-2 w-3/4"></div>
+          </div>
+        </div>
+        <div>
+          <div class="skeleton-text mb-2 w-24"></div>
+          <div class="skeleton-block h-16 w-full"></div>
         </div>
       </div>
 
       <div v-else-if="detail" class="space-y-5 py-2">
         <!-- Hero: action + result at a glance -->
-        <div class="rounded-2xl border border-gray-200 bg-gray-50/60 p-5 dark:border-dark-700 dark:bg-dark-900/60">
+        <div class="rounded-panel border border-borderline-200 bg-surface-200/60 p-4 dark:border-dark-700 dark:bg-dark-900/60">
           <div class="flex flex-wrap items-center gap-3">
             <span :class="statusBadgeClass(detail.status_code)">
               <span class="h-1.5 w-1.5 rounded-full" :class="statusDotClass(detail.status_code)"></span>
@@ -187,7 +208,7 @@
             </span>
           </div>
 
-          <div class="mt-3 flex items-center gap-2 rounded-lg bg-white px-3 py-2 ring-1 ring-gray-200 dark:bg-dark-800 dark:ring-dark-600">
+          <div class="mt-3 flex items-center gap-2 rounded-control bg-white px-3 py-2 ring-1 ring-borderline-200 dark:bg-dark-800 dark:ring-dark-600">
             <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">
               {{ detail.method }}
             </span>
@@ -209,7 +230,7 @@
 
         <!-- Actor / auth / source -->
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
+          <div class="rounded-panel bg-surface-200 p-3.5 dark:bg-dark-900">
             <div class="text-xs font-bold uppercase tracking-wider text-gray-400">
               {{ t('admin.audit.columns.actor') }}
             </div>
@@ -219,7 +240,7 @@
             <div class="mt-0.5 text-xs text-gray-400">{{ detail.actor_role }}</div>
           </div>
 
-          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
+          <div class="rounded-panel bg-surface-200 p-3.5 dark:bg-dark-900">
             <div class="text-xs font-bold uppercase tracking-wider text-gray-400">
               {{ t('admin.audit.filters.authMethod') }}
             </div>
@@ -231,7 +252,7 @@
             </div>
           </div>
 
-          <div class="rounded-xl bg-gray-50 p-4 dark:bg-dark-900">
+          <div class="rounded-panel bg-surface-200 p-3.5 dark:bg-dark-900">
             <div class="text-xs font-bold uppercase tracking-wider text-gray-400">
               {{ t('admin.audit.columns.clientIp') }}
             </div>
@@ -246,7 +267,7 @@
           <h4 class="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
             {{ t('admin.audit.detail.userAgent') }}
           </h4>
-          <div class="break-all rounded-xl bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">
+          <div class="break-all rounded-control bg-surface-200 p-3 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">
             {{ detail.user_agent || '—' }}
           </div>
         </section>
@@ -256,7 +277,7 @@
           <h4 class="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
             {{ t('admin.audit.detail.requestBody') }}
           </h4>
-          <pre class="max-h-72 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ prettyBody(detail.request_body) }}</pre>
+          <pre class="max-h-72 overflow-auto rounded-control bg-surface-200 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ prettyBody(detail.request_body) }}</pre>
         </section>
 
         <!-- Extra -->
@@ -264,7 +285,7 @@
           <h4 class="mb-1.5 text-xs font-bold uppercase tracking-wider text-gray-400">
             {{ t('admin.audit.detail.extra') }}
           </h4>
-          <pre class="max-h-48 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ JSON.stringify(detail.extra, null, 2) }}</pre>
+          <pre class="max-h-48 overflow-auto rounded-control bg-surface-200 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ JSON.stringify(detail.extra, null, 2) }}</pre>
         </section>
       </div>
     </BaseDialog>

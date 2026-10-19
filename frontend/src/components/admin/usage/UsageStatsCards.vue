@@ -1,21 +1,21 @@
 <template>
-  <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-    <div class="card p-4 flex items-center gap-3">
-      <div class="rounded-lg bg-blue-100 p-2 dark:bg-blue-900/30 text-blue-600">
+  <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-primary">
         <Icon name="document" size="md" />
       </div>
-      <div>
-        <p class="text-xs font-medium text-gray-500">{{ t('usage.totalRequests') }}</p>
-        <p class="text-xl font-bold">{{ stats?.total_requests?.toLocaleString() || '0' }}</p>
-        <p class="text-xs text-gray-400">{{ t('usage.inSelectedRange') }}</p>
+      <div class="min-w-0">
+        <p class="stat-label text-xs">{{ t('usage.totalRequests') }}</p>
+        <p class="stat-value num">{{ stats?.total_requests?.toLocaleString() || '0' }}</p>
+        <p class="mt-0.5 text-xs text-ink-400 dark:text-dark-500">{{ t('usage.inSelectedRange') }}</p>
       </div>
     </div>
-    <div class="card p-4 flex items-center gap-3">
-      <div class="rounded-lg bg-amber-100 p-2 dark:bg-amber-900/30 text-amber-600"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg></div>
-      <div>
-        <p class="text-xs font-medium text-gray-500">{{ t('usage.totalTokens') }}</p>
-        <p class="text-xl font-bold">{{ formatTokens(stats?.total_tokens || 0) }}</p>
-        <p class="flex flex-wrap items-center gap-x-1 text-xs text-gray-500">
+    <div class="stat-card">
+      <div class="stat-icon bg-surface-300 text-ink-600 dark:bg-dark-700 dark:text-dark-300"><svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg></div>
+      <div class="min-w-0">
+        <p class="stat-label text-xs">{{ t('usage.totalTokens') }}</p>
+        <p class="stat-value num">{{ formatTokens(stats?.total_tokens || 0) }}</p>
+        <p class="flex flex-wrap items-center gap-x-1 text-xs text-ink-500 dark:text-dark-400">
           <span>{{ t('usage.in') }}: {{ formatTokens(stats?.total_input_tokens || 0) }}</span>
           <span>/</span>
           <span>{{ t('usage.out') }}: {{ formatTokens(stats?.total_output_tokens || 0) }}</span>
@@ -36,20 +36,20 @@
               />
             </svg>
             <span
-              class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-56 -translate-x-1/2 rounded-lg border border-gray-200 bg-white p-3 text-left text-xs text-gray-700 shadow-lg group-hover:block group-focus:block dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200"
+              class="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden w-56 -translate-x-1/2 rounded-panel border border-borderline-200 bg-white p-3 text-left text-xs text-ink-700 shadow-card group-hover:block group-focus:block dark:border-dark-600 dark:bg-dark-800 dark:text-dark-200"
             >
-              <span class="mb-2 block font-medium text-gray-900 dark:text-white">
+              <span class="mb-2 block font-medium text-ink-900 dark:text-white">
                 {{ cacheDetailLabel() }}
               </span>
               <span class="flex items-center justify-between gap-3">
                 <span>{{ t('usage.cacheCreationTokensLabel') }}</span>
-                <span class="tabular-nums">
+                <span class="num">
                   {{ formatTokens(stats?.total_cache_creation_tokens || 0) }}
                 </span>
               </span>
               <span class="mt-1 flex items-center justify-between gap-3">
                 <span>{{ t('usage.cacheReadTokensLabel') }}</span>
-                <span class="tabular-nums">
+                <span class="num">
                   {{ formatTokens(stats?.total_cache_read_tokens || 0) }}
                 </span>
               </span>
@@ -58,18 +58,18 @@
         </p>
       </div>
     </div>
-    <div class="card p-4 flex items-center gap-3">
-      <div class="rounded-lg bg-green-100 p-2 dark:bg-green-900/30 text-green-600">
+    <div class="stat-card">
+      <div class="stat-icon stat-icon-success">
         <Icon name="dollar" size="md" />
       </div>
       <div class="min-w-0 flex-1">
-        <p class="text-xs font-medium text-gray-500">{{ t('usage.totalCost') }}</p>
-        <p class="text-xl font-bold text-green-600">
+        <p class="stat-label text-xs">{{ t('usage.totalCost') }}</p>
+        <p class="stat-value num text-emerald-600 dark:text-emerald-400">
           {{ formatCustomerCredit(stats?.total_actual_cost ?? 0, 4) }}
         </p>
-        <p class="text-xs text-gray-400">
+        <p class="mt-0.5 text-xs text-ink-400 dark:text-dark-500">
           <template v-if="showAccountCost && totalAccountCost != null">
-            <span class="text-orange-500">{{ t('usage.accountCost') }} ${{ totalAccountCost.toFixed(4) }}</span>
+            <span class="num text-ink-500 dark:text-dark-400">{{ t('usage.accountCost') }} ${{ totalAccountCost.toFixed(4) }}</span>
             <span> · </span>
           </template>
           <span>
@@ -79,11 +79,14 @@
         </p>
       </div>
     </div>
-    <div class="card p-4 flex items-center gap-3">
-      <div class="rounded-lg bg-purple-100 p-2 dark:bg-purple-900/30 text-purple-600">
+    <div class="stat-card">
+      <div class="stat-icon bg-surface-300 text-ink-600 dark:bg-dark-700 dark:text-dark-300">
         <Icon name="clock" size="md" />
       </div>
-      <div><p class="text-xs font-medium text-gray-500">{{ t('usage.avgDuration') }}</p><p class="text-xl font-bold">{{ formatDuration(stats?.average_duration_ms || 0) }}</p></div>
+      <div class="min-w-0">
+        <p class="stat-label text-xs">{{ t('usage.avgDuration') }}</p>
+        <p class="stat-value num">{{ formatDuration(stats?.average_duration_ms || 0) }}</p>
+      </div>
     </div>
   </div>
 </template>

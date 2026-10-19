@@ -49,10 +49,7 @@
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
         class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
-        :class="{
-          'cursor-pointer': clickableRows,
-          'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10': selectable && isRowSelected(row, index)
-        }"
+        :class="{ 'cursor-pointer': clickableRows, 'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10': selectable && isRowSelected(row, index) }"
         @click="clickableRows && emit('rowClick', row)"
       >
         <div class="space-y-3">
@@ -94,13 +91,10 @@
     v-else
     ref="tableWrapperRef"
     class="table-wrapper"
-    :class="{
-      'actions-expanded': actionsExpanded,
-      'is-scrollable': isScrollable
-    }"
+    :class="{ 'actions-expanded': actionsExpanded, 'is-scrollable': isScrollable }"
   >
-    <table class="w-full min-w-max divide-y divide-gray-200 dark:divide-dark-700">
-      <thead class="table-header bg-gray-50 dark:bg-dark-800">
+    <table class="table-dense w-full min-w-max divide-y divide-borderline-200 dark:divide-dark-700">
+      <thead class="table-header bg-surface-200/60 dark:bg-dark-800/70">
         <tr>
           <th
             v-if="selectable"
@@ -122,13 +116,7 @@
             :key="column.key"
             scope="col"
             :aria-sort="column.sortable ? getColumnAriaSort(column.key) : undefined"
-            :class="[
-              'sticky-header-cell py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500 dark:text-dark-400',
-              getAdaptivePaddingClass(),
-              { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable },
-              getStickyColumnClass(column, index),
-              column.class
-            ]"
+            :class="[ 'sticky-header-cell py-2.5 text-left text-xs font-medium tracking-wide text-ink-500 dark:text-dark-400', getAdaptivePaddingClass(), { 'cursor-pointer hover:bg-gray-100 dark:hover:bg-dark-700': column.sortable }, getStickyColumnClass(column, index), column.class ]"
             @click="column.sortable && handleSort(column.key)"
           >
             <div :class="['flex items-center space-x-1', getHeaderContentAlignmentClass(column)]">
@@ -166,15 +154,15 @@
           </th>
         </tr>
       </thead>
-      <tbody class="table-body divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-900">
+      <tbody class="table-body divide-y divide-borderline-100 bg-white dark:divide-dark-800 dark:bg-dark-900">
         <!-- Loading skeleton -->
         <tr v-if="loading" v-for="i in 5" :key="i">
           <td v-if="selectable" class="w-11 min-w-11 px-3 py-4">
             <div class="mx-auto h-4 w-4 animate-pulse rounded bg-gray-200 dark:bg-dark-700"></div>
           </td>
-          <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-4', getAdaptivePaddingClass()]">
+          <td v-for="column in columns" :key="column.key" :class="['whitespace-nowrap py-3', getAdaptivePaddingClass()]">
             <div class="animate-pulse">
-              <div class="h-4 w-3/4 rounded bg-gray-200 dark:bg-dark-700"></div>
+              <div class="h-3.5 w-3/4 rounded bg-surface-300 dark:bg-dark-700"></div>
             </div>
           </td>
         </tr>
@@ -186,15 +174,11 @@
             :class="['py-12 text-center text-gray-500 dark:text-dark-400', getAdaptivePaddingClass()]"
           >
             <slot name="empty">
-              <div class="flex flex-col items-center">
-                <Icon
-                  name="inbox"
-                  size="xl"
-                  class="mb-4 h-12 w-12 text-gray-400 dark:text-dark-500"
-                />
-                <p class="text-lg font-medium text-gray-900 dark:text-gray-100">
-                  {{ t('empty.noData') }}
-                </p>
+              <div class="state-panel py-10">
+                <div class="state-panel-icon">
+                  <Icon name="inbox" size="lg" />
+                </div>
+                <p class="state-panel-title">{{ t('empty.noData') }}</p>
               </div>
             </slot>
           </td>
@@ -214,10 +198,7 @@
             :data-index="item.index"
             :ref="item.measure ? measureElement : undefined"
             class="hover:bg-gray-50 dark:hover:bg-dark-800"
-            :class="{
-              'cursor-pointer': clickableRows,
-              'bg-primary-50/40 dark:bg-primary-900/10': selectable && isRowSelected(item.row, item.index)
-            }"
+            :class="{ 'cursor-pointer': clickableRows, 'bg-primary-50/40 dark:bg-primary-900/10': selectable && isRowSelected(item.row, item.index) }"
             @click="clickableRows && emit('rowClick', item.row)"
           >
             <td v-if="selectable" class="w-11 min-w-11 px-3 py-4 text-center">
@@ -234,12 +215,7 @@
             <td
               v-for="(column, colIndex) in columns"
               :key="column.key"
-              :class="[
-                'whitespace-nowrap py-4 text-sm text-gray-900 dark:text-gray-100',
-                getAdaptivePaddingClass(),
-                getStickyColumnClass(column, colIndex),
-                column.class
-              ]"
+              :class="[ 'whitespace-nowrap py-3 text-sm text-ink-800 dark:text-gray-100', isNumericColumn(column) ? 'num text-right' : '', isWideTextColumn(column) ? 'truncate-cell' : '', getAdaptivePaddingClass(), getStickyColumnClass(column, colIndex), column.class ]"
             >
               <slot :name="`cell-${column.key}`"
                     :row="item.row"
@@ -571,6 +547,32 @@ const getHeaderContentAlignmentClass = (column: Column) => {
   if (className.includes('text-center')) return 'justify-center'
   if (className.includes('text-right')) return 'justify-end'
   return 'justify-start'
+}
+
+/**
+ * 数字列：显式标注或列名命中常见数值语义时右对齐并使用等宽数字，
+ * 避免金额、Token、耗时在行间跳动。显式 text-center 的列不参与。
+ */
+const NUMERIC_COLUMN_PATTERN = /(cost|amount|price|balance|token|request|count|total|quota|latency|duration|rpm|tpm|usage|credit|number|num|size|limit|rate)/i
+
+const isNumericColumn = (column: Column): boolean => {
+  const className = column.class || ''
+  if (className.includes('text-center')) return false
+  if (className.includes('text-right')) return true
+  return NUMERIC_COLUMN_PATTERN.test(column.key)
+}
+
+/**
+ * 长文本列：邮箱、URL、描述、名称等容易超长的字段限制单行宽度并省略，
+ * 避免真实数据把表格撑到几千像素、进而把横向滚动泄漏到整页。
+ */
+const WIDE_TEXT_COLUMN_PATTERN = /(email|url|endpoint|description|desc|name|title|message|content|path|address|remark|note|user_agent)/i
+
+const isWideTextColumn = (column: Column): boolean => {
+  const className = column.class || ''
+  if (className.includes('text-center') || className.includes('text-right')) return false
+  if (className.includes('whitespace-normal')) return false
+  return WIDE_TEXT_COLUMN_PATTERN.test(column.key)
 }
 
 const isNullishOrEmpty = (value: any) => value === null || value === undefined || value === ''

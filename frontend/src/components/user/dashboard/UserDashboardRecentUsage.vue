@@ -1,37 +1,68 @@
 <template>
   <div class="card">
-    <div class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700">
-      <h2 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('dashboard.recentUsage') }}</h2>
+    <div class="card-header flex items-center justify-between">
+      <h2 class="panel-title">{{ t('dashboard.recentUsage') }}</h2>
       <span class="badge badge-gray">{{ t('dashboard.last7Days') }}</span>
     </div>
-    <div class="p-6">
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <LoadingSpinner size="lg" />
-      </div>
-      <div v-else-if="data.length === 0" class="py-8">
-        <EmptyState :title="t('dashboard.noUsageRecords')" :description="t('dashboard.startUsingApi')" />
-      </div>
-      <div v-else class="space-y-3">
-        <div v-for="log in data" :key="log.id" class="flex items-center justify-between rounded-xl bg-gray-50 p-4 transition-colors hover:bg-gray-100 dark:bg-dark-800/50 dark:hover:bg-dark-800">
-          <div class="flex items-center gap-4">
-            <div class="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-100 dark:bg-primary-900/30">
-              <Icon name="beaker" size="md" class="text-primary-600 dark:text-primary-400" />
-            </div>
-            <div>
-              <p class="text-sm font-medium text-gray-900 dark:text-white">{{ log.model }}</p>
-              <p class="text-xs text-gray-500 dark:text-dark-400">{{ formatDateTime(log.created_at) }}</p>
+
+    <div class="p-4">
+      <!-- Loading: skeleton mirrors the row layout instead of a bare spinner -->
+      <div v-if="loading" class="space-y-2" aria-busy="true" aria-live="polite">
+        <div v-for="i in 5" :key="i" class="flex items-center justify-between rounded-control px-3 py-2.5">
+          <div class="flex min-w-0 flex-1 items-center gap-3">
+            <div class="skeleton-block h-8 w-8 shrink-0"></div>
+            <div class="min-w-0 flex-1 space-y-1.5">
+              <div class="skeleton-text w-40 max-w-full"></div>
+              <div class="skeleton-text w-24"></div>
             </div>
           </div>
-          <div class="text-right">
-            <p class="text-sm font-semibold">
-              <span class="text-green-600 dark:text-green-400" :title="t('dashboard.actual')">{{ formatCustomerCredit(formatCost(log.actual_cost)) }}</span>
-              <span class="font-normal text-gray-400 dark:text-gray-500" :title="t('dashboard.standard')"> / {{ formatCustomerCredit(formatCost(log.total_cost)) }}</span>
+          <div class="flex shrink-0 flex-col items-end gap-1.5">
+            <div class="skeleton-text w-20"></div>
+            <div class="skeleton-text w-14"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty: one clear next step -->
+      <div v-else-if="data.length === 0" class="state-panel py-10">
+        <div class="state-panel-icon">
+          <Icon name="chart" size="lg" />
+        </div>
+        <p class="state-panel-title">{{ t('dashboard.noUsageRecords') }}</p>
+        <p class="state-panel-desc">{{ t('dashboard.startUsingApi') }}</p>
+        <router-link to="/keys" class="btn btn-primary mt-1">
+          {{ t('dashboard.createApiKey') }}
+        </router-link>
+      </div>
+
+      <div v-else class="space-y-1">
+        <div
+          v-for="log in data"
+          :key="log.id"
+          class="flex items-center justify-between gap-3 rounded-control px-3 py-2.5 transition-colors hover:bg-surface-200/70 dark:hover:bg-dark-700/50"
+        >
+          <div class="flex min-w-0 items-center gap-3">
+            <div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-control bg-surface-200 text-ink-500 ring-1 ring-inset ring-ink-900/5 dark:bg-dark-700 dark:text-ink-300 dark:ring-white/5">
+              <Icon name="beaker" size="sm" />
+            </div>
+            <div class="min-w-0">
+              <p class="truncate text-sm font-medium text-ink-900 dark:text-white" :title="log.model">{{ log.model }}</p>
+              <p class="mt-0.5 text-xs text-ink-500 dark:text-ink-300">{{ formatDateTime(log.created_at) }}</p>
+            </div>
+          </div>
+          <div class="shrink-0 text-right">
+            <p class="num text-sm font-semibold">
+              <span class="text-ink-900 dark:text-white" :title="t('dashboard.actual')">{{ formatCustomerCredit(formatCost(log.actual_cost)) }}</span>
+              <span class="font-normal text-ink-400 dark:text-ink-300" :title="t('dashboard.standard')"> / {{ formatCustomerCredit(formatCost(log.total_cost)) }}</span>
             </p>
-            <p class="text-xs text-gray-500 dark:text-dark-400">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
+            <p class="num mt-0.5 text-xs text-ink-500 dark:text-ink-300">{{ (log.input_tokens + log.output_tokens).toLocaleString() }} tokens</p>
           </div>
         </div>
 
-        <router-link to="/usage" class="flex items-center justify-center gap-2 py-3 text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300">
+        <router-link
+          to="/usage"
+          class="mt-1 flex items-center justify-center gap-1.5 rounded-control border-t border-borderline-100 py-2.5 text-sm font-medium text-primary-600 transition-colors hover:text-primary-700 dark:border-dark-700 dark:text-primary-400 dark:hover:text-primary-300"
+        >
           {{ t('dashboard.viewAllUsage') }}
           <Icon name="arrowRight" size="sm" />
         </router-link>
@@ -43,8 +74,6 @@
 <script setup lang="ts">
 import { formatCustomerCredit } from '@/utils/billingCredits'
 import { useI18n } from 'vue-i18n'
-import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import EmptyState from '@/components/common/EmptyState.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTime } from '@/utils/format'
 import type { UsageLog } from '@/types'

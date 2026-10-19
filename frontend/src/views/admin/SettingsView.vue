@@ -1,11 +1,27 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-6xl space-y-6">
-      <!-- Loading State -->
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <div
-          class="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-600"
-        ></div>
+      <!-- Loading State: 复刻真实布局的骨架屏，避免空白/裸 spinner -->
+      <div v-if="loading" class="space-y-6" aria-busy="true">
+        <div class="skeleton-block h-11 w-full"></div>
+        <div class="card">
+          <div class="card-header flex items-center justify-between">
+            <div class="skeleton-text w-40"></div>
+            <div class="skeleton-text w-24"></div>
+          </div>
+          <div class="card-body space-y-5">
+            <div v-for="i in 5" :key="i" class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div class="skeleton-text w-2/3"></div>
+              <div class="sm:col-span-2">
+                <div class="skeleton-block h-9 w-full"></div>
+              </div>
+            </div>
+          </div>
+          <div class="card-footer flex justify-end gap-2">
+            <div class="skeleton-block h-9 w-24"></div>
+            <div class="skeleton-block h-9 w-24"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Settings Form -->
@@ -26,10 +42,7 @@
                 role="tab"
                 :aria-selected="activeTab === tab.key"
                 :tabindex="activeTab === tab.key ? 0 : -1"
-                :class="[
-                  'settings-tab',
-                  activeTab === tab.key && 'settings-tab-active',
-                ]"
+                :class="[ 'settings-tab', activeTab === tab.key && 'settings-tab-active', ]"
                 @click="selectSettingsTab(tab.key)"
                 @keydown="handleSettingsTabKeydown($event, tab.key)"
               >
@@ -1666,11 +1679,7 @@
                 </div>
                 <div
                   class="mt-3 rounded-lg border px-3 py-2 text-sm"
-                  :class="
-                    form.passkey_configured
-                      ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300'
-                      : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'
-                  "
+                  :class="form.passkey_configured ? 'border-green-200 bg-green-50 text-green-800 dark:border-green-900 dark:bg-green-950/40 dark:text-green-300' : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300'"
                   data-testid="passkey-config-status"
                 >
                   <p class="font-medium">
@@ -2081,11 +2090,7 @@
                       type="button"
                       data-testid="captcha-provider-turnstile"
                       class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                      :class="
-                        captchaProviderSelection === 'turnstile'
-                          ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                          : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                      "
+                      :class="captchaProviderSelection === 'turnstile' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                       @click="selectCaptchaProvider('turnstile')"
                     >
                       {{ t("admin.settings.captcha.providerTurnstile") }}
@@ -2094,11 +2099,7 @@
                       type="button"
                       data-testid="captcha-provider-tencent"
                       class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                      :class="
-                        captchaProviderSelection === 'tencent'
-                          ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                          : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                      "
+                      :class="captchaProviderSelection === 'tencent' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                       @click="selectCaptchaProvider('tencent')"
                     >
                       {{ t("admin.settings.captcha.providerTencent") }}
@@ -2107,11 +2108,7 @@
                       type="button"
                       data-testid="captcha-provider-aliyun"
                       class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                      :class="
-                        captchaProviderSelection === 'aliyun'
-                          ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                          : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                      "
+                      :class="captchaProviderSelection === 'aliyun' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                       @click="selectCaptchaProvider('aliyun')"
                     >
                       {{ t("admin.settings.captcha.providerAliyun") }}
@@ -2183,11 +2180,7 @@
                         type="button"
                         data-testid="tencent-captcha-region-cn"
                         class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
-                        :class="
-                          form.tencent_captcha_region !== 'intl'
-                            ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                            : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                        "
+                        :class="form.tencent_captcha_region !== 'intl' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                         @click="form.tencent_captcha_region = 'cn'"
                       >
                         {{ t("admin.settings.tencentCaptcha.regionCn") }}
@@ -2196,11 +2189,7 @@
                         type="button"
                         data-testid="tencent-captcha-region-intl"
                         class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
-                        :class="
-                          form.tencent_captcha_region === 'intl'
-                            ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                            : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                        "
+                        :class="form.tencent_captcha_region === 'intl' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                         @click="form.tencent_captcha_region = 'intl'"
                       >
                         {{ t("admin.settings.tencentCaptcha.regionIntl") }}
@@ -2334,11 +2323,7 @@
                         <button
                           type="button"
                           class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
-                          :class="
-                            form.aliyun_captcha_region !== 'sgp'
-                              ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                              : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                          "
+                          :class="form.aliyun_captcha_region !== 'sgp' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                           @click="form.aliyun_captcha_region = 'cn'"
                         >
                           {{ t("admin.settings.aliyunCaptcha.regionCn") }}
@@ -2346,11 +2331,7 @@
                         <button
                           type="button"
                           class="inline-flex items-center justify-center rounded-md px-3 py-1.5 text-sm font-medium transition"
-                          :class="
-                            form.aliyun_captcha_region === 'sgp'
-                              ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                              : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                          "
+                          :class="form.aliyun_captcha_region === 'sgp' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                           @click="form.aliyun_captcha_region = 'sgp'"
                         >
                           {{ t("admin.settings.aliyunCaptcha.regionSgp") }}
@@ -4128,7 +4109,7 @@
                 <div
                   v-for="authSource in authSourceDefaultsMeta"
                   :key="authSource.source"
-                  class="rounded-xl border border-gray-200 p-4 dark:border-dark-700"
+                  class="rounded-panel border border-borderline-200 p-4 dark:border-dark-700"
                 >
                   <div class="flex items-center justify-between gap-4">
                     <div>
@@ -5539,10 +5520,7 @@
                     class="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800/60"
                   >
                     <div
-                      :class="[
-                        'flex flex-wrap items-center justify-between gap-3',
-                        block.expanded && 'mb-3',
-                      ]"
+                      :class="[ 'flex flex-wrap items-center justify-between gap-3', block.expanded && 'mb-3', ]"
                     >
                       <div class="min-w-0">
                         <div
@@ -6114,11 +6092,7 @@
                           v-model="provider.api_key"
                           :type="apiKeyVisible[pIdx] ? 'text' : 'password'"
                           class="input w-full text-sm"
-                          :class="
-                            provider.api_key || provider.api_key_configured
-                              ? 'pr-16'
-                              : ''
-                          "
+                          :class="provider.api_key || provider.api_key_configured ? 'pr-16' : ''"
                           :placeholder="
                             provider.api_key_configured
                               ? '••••••••'
@@ -6183,10 +6157,7 @@
                           <button
                             type="button"
                             class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                            :class="{
-                              'opacity-30 cursor-not-allowed':
-                                !provider.api_key,
-                            }"
+                            :class="{ 'opacity-30 cursor-not-allowed': !provider.api_key, }"
                             :title="
                               t('admin.settings.webSearchEmulation.copyApiKey')
                             "
@@ -6273,13 +6244,7 @@
                       >
                         <div
                           class="h-full rounded-full transition-all"
-                          :class="
-                            quotaPercentage(provider) > 90
-                              ? 'bg-red-500'
-                              : quotaPercentage(provider) > 70
-                                ? 'bg-yellow-500'
-                                : 'bg-green-500'
-                          "
+                          :class="quotaPercentage(provider) > 90 ? 'bg-red-500' : quotaPercentage(provider) > 70 ? 'bg-yellow-500' : 'bg-green-500'"
                           :style="{
                             width:
                               Math.min(quotaPercentage(provider), 100) + '%',
@@ -6338,7 +6303,7 @@
             @click.self="wsTestDialogOpen = false"
           >
             <div
-              class="mx-4 w-full max-w-lg rounded-xl bg-white p-6 shadow-xl dark:bg-dark-800"
+              class="mx-4 w-full max-w-lg rounded-dialog bg-white p-6 shadow-card-hover dark:bg-dark-800"
             >
               <h3
                 class="mb-4 text-lg font-semibold text-gray-900 dark:text-white"
@@ -7055,11 +7020,7 @@
                     <button
                       type="button"
                       class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                      :class="
-                        form.login_agreement_mode === 'modal'
-                          ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                          : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                      "
+                      :class="form.login_agreement_mode === 'modal' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                       @click="form.login_agreement_mode = 'modal'"
                     >
                       <Icon name="shield" size="sm" />
@@ -7068,11 +7029,7 @@
                     <button
                       type="button"
                       class="inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                      :class="
-                        form.login_agreement_mode === 'checkbox'
-                          ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                          : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                      "
+                      :class="form.login_agreement_mode === 'checkbox' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                       @click="form.login_agreement_mode = 'checkbox'"
                     >
                       <Icon name="checkCircle" size="sm" />
@@ -7264,11 +7221,7 @@
                   <button
                     type="button"
                     class="inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                    :class="
-                      form.channel_monitor_mode === 'v2'
-                        ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                        : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                    "
+                    :class="form.channel_monitor_mode === 'v2' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                     @click="form.channel_monitor_mode = 'v2'"
                   >
                     {{ t('admin.settings.features.channelMonitor.modeV2') }}
@@ -7276,11 +7229,7 @@
                   <button
                     type="button"
                     class="inline-flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition"
-                    :class="
-                      form.channel_monitor_mode === 'v1'
-                        ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300'
-                        : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'
-                    "
+                    :class="form.channel_monitor_mode === 'v1' ? 'bg-white text-primary-700 shadow-sm dark:bg-dark-800 dark:text-primary-300' : 'text-gray-600 hover:text-gray-900 dark:text-dark-300 dark:hover:text-white'"
                     @click="form.channel_monitor_mode = 'v1'"
                   >
                     {{ t('admin.settings.features.channelMonitor.modeV1') }}
@@ -7811,7 +7760,7 @@
           class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           @click.self="closeAffiliateModal"
         >
-          <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-dark-900">
+          <div class="w-full max-w-md rounded-dialog bg-white p-6 shadow-card-hover dark:bg-dark-900">
             <h3 class="mb-4 text-lg font-semibold">
               {{ affiliateModal.mode === 'add' ? t('admin.settings.features.affiliate.modal.addTitle') : t('admin.settings.features.affiliate.modal.editTitle') }}
             </h3>
@@ -7936,7 +7885,7 @@
           class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
           @click.self="affiliateBatchModal.open = false"
         >
-          <div class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-dark-900">
+          <div class="w-full max-w-md rounded-dialog bg-white p-6 shadow-card-hover dark:bg-dark-900">
             <h3 class="mb-4 text-lg font-semibold">
               {{ t('admin.settings.features.affiliate.batchModal.title', { count: affiliateState.selected.length }) }}
             </h3>
@@ -8285,24 +8234,14 @@
                     <div class="flex items-center gap-2">
                       <button
                         type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_cancel_rate_limit_enabled
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
+                        :class="[ 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2', form.payment_cancel_rate_limit_enabled ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600', ]"
                         @click="
                           form.payment_cancel_rate_limit_enabled =
                             !form.payment_cancel_rate_limit_enabled
                         "
                       >
                         <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_cancel_rate_limit_enabled
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
+                          :class="[ 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', form.payment_cancel_rate_limit_enabled ? 'translate-x-5' : 'translate-x-0', ]"
                         />
                       </button>
                       <Select
@@ -8312,12 +8251,7 @@
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
                       <span
-                        :class="[
-                          'text-sm whitespace-nowrap',
-                          form.payment_cancel_rate_limit_enabled
-                            ? 'text-gray-700 dark:text-gray-300'
-                            : 'text-gray-400 dark:text-gray-600',
-                        ]"
+                        :class="[ 'text-sm whitespace-nowrap', form.payment_cancel_rate_limit_enabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600', ]"
                         >{{
                           t("admin.settings.payment.cancelRateLimitEvery")
                         }}</span
@@ -8337,12 +8271,7 @@
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
                       <span
-                        :class="[
-                          'text-sm whitespace-nowrap',
-                          form.payment_cancel_rate_limit_enabled
-                            ? 'text-gray-700 dark:text-gray-300'
-                            : 'text-gray-400 dark:text-gray-600',
-                        ]"
+                        :class="[ 'text-sm whitespace-nowrap', form.payment_cancel_rate_limit_enabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600', ]"
                         >{{
                           t("admin.settings.payment.cancelRateLimitAllowMax")
                         }}</span
@@ -8356,12 +8285,7 @@
                         :disabled="!form.payment_cancel_rate_limit_enabled"
                       />
                       <span
-                        :class="[
-                          'text-sm whitespace-nowrap',
-                          form.payment_cancel_rate_limit_enabled
-                            ? 'text-gray-700 dark:text-gray-300'
-                            : 'text-gray-400 dark:text-gray-600',
-                        ]"
+                        :class="[ 'text-sm whitespace-nowrap', form.payment_cancel_rate_limit_enabled ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-600', ]"
                         >{{
                           t("admin.settings.payment.cancelRateLimitTimes")
                         }}</span
@@ -8375,24 +8299,14 @@
                     <div class="flex items-center gap-2">
                       <button
                         type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_alipay_force_qrcode
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
+                        :class="[ 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2', form.payment_alipay_force_qrcode ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600', ]"
                         @click="
                           form.payment_alipay_force_qrcode =
                             !form.payment_alipay_force_qrcode
                         "
                       >
                         <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_alipay_force_qrcode
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
+                          :class="[ 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', form.payment_alipay_force_qrcode ? 'translate-x-5' : 'translate-x-0', ]"
                         />
                       </button>
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
@@ -8407,24 +8321,14 @@
                     <div class="flex items-center gap-2">
                       <button
                         type="button"
-                        :class="[
-                          'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
-                          form.payment_alipay_mobile_precreate_deep_link
-                            ? 'bg-primary-500'
-                            : 'bg-gray-300 dark:bg-dark-600',
-                        ]"
+                        :class="[ 'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2', form.payment_alipay_mobile_precreate_deep_link ? 'bg-primary-500' : 'bg-gray-300 dark:bg-dark-600', ]"
                         @click="
                           form.payment_alipay_mobile_precreate_deep_link =
                             !form.payment_alipay_mobile_precreate_deep_link
                         "
                       >
                         <span
-                          :class="[
-                            'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out',
-                            form.payment_alipay_mobile_precreate_deep_link
-                              ? 'translate-x-5'
-                              : 'translate-x-0',
-                          ]"
+                          :class="[ 'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out', form.payment_alipay_mobile_precreate_deep_link ? 'translate-x-5' : 'translate-x-0', ]"
                         />
                       </button>
                       <span class="text-sm text-gray-500 dark:text-gray-400">{{
@@ -8444,12 +8348,7 @@
                       :key="pt.value"
                       type="button"
                       @click="togglePaymentType(pt.value)"
-                      :class="[
-                        'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
-                        isPaymentTypeEnabled(pt.value)
-                          ? 'border-primary-500 bg-primary-500 text-white shadow-sm'
-                          : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500',
-                      ]"
+                      :class="[ 'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all', isPaymentTypeEnabled(pt.value) ? 'border-primary-500 bg-primary-500 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500', ]"
                     >
                       {{ pt.label }}
                     </button>
@@ -13407,11 +13306,9 @@ watch(
 
 /* ============ 系统设置 Tab 导航 ============ */
 .settings-tabs-shell {
-  @apply sticky z-20 -mx-1 rounded-2xl border border-white/80 bg-white/90 p-1.5 backdrop-blur-xl;
+  @apply sticky z-20 -mx-1 rounded-panel border border-borderline-200 bg-white/95 p-1.5 dark:border-dark-700 dark:bg-dark-900/95;
   top: 4.75rem;
-  box-shadow:
-    0 12px 28px rgb(15 23 42 / 0.07),
-    0 1px 0 rgb(255 255 255 / 0.9) inset;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.05);
 }
 
 .settings-tabs-scroll {
@@ -13429,7 +13326,7 @@ watch(
 }
 
 .settings-tab {
-  @apply relative isolate flex h-10 min-w-[6.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-200 ease-out dark:text-gray-300;
+  @apply relative isolate flex h-9 min-w-[6.75rem] shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-control border border-transparent px-3 text-sm font-medium text-gray-600 outline-none transition-colors duration-150 ease-out dark:text-gray-300;
 }
 
 @media (min-width: 768px) {
@@ -13447,9 +13344,9 @@ watch(
 }
 
 .settings-tab::before {
-  @apply absolute inset-0 -z-10 rounded-xl opacity-0 transition-opacity duration-200;
+  @apply absolute inset-0 -z-10 rounded-control opacity-0 transition-opacity duration-150;
   content: "";
-  background: linear-gradient(135deg, rgb(248 250 252 / 0.95), rgb(241 245 249 / 0.8));
+  background: rgb(243 245 247 / 0.9);
 }
 
 .settings-tab:hover::before,
@@ -13462,10 +13359,8 @@ watch(
 }
 
 .settings-tab-active {
-  @apply border-primary-200/80 bg-white text-primary-700 shadow-sm dark:border-primary-400/30 dark:bg-dark-700/95 dark:text-primary-200;
-  box-shadow:
-    0 8px 18px rgb(15 23 42 / 0.08),
-    0 1px 0 rgb(255 255 255 / 0.92) inset;
+  @apply border-primary-200 bg-white text-primary-700 dark:border-primary-400/30 dark:bg-dark-700 dark:text-primary-200;
+  box-shadow: 0 1px 2px rgb(16 24 40 / 0.06);
 }
 
 .settings-tab-active::before {
