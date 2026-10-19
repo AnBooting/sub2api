@@ -2,6 +2,55 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================================
+   动效令牌（Motion Tokens）
+   ============================================================================
+   统一时长/缓动/位移，避免各处散落硬编码（此前 style.css 无任何自定义属性）。
+
+   取值理由：
+   - 时长分三档：hover 反馈要"立刻"，进入过渡要"顺滑"，强调动效可以慢。
+   - 缓动统一用 Material/Fluent 的 standard curve：减速进场、加速出场，
+     符合"物体受摩擦停下"的直觉，比 ease 更有质感。
+   - 位移用 2/4/8/12px 小步长：后台界面里大幅位移会让人失去位置感。
+   ============================================================================ */
+:root {
+  /* 时长 */
+  --motion-duration-instant: 80ms;   /* 按下反馈 */
+  --motion-duration-fast: 120ms;     /* hover / focus */
+  --motion-duration-base: 200ms;     /* 常规进入过渡 */
+  --motion-duration-slow: 320ms;     /* 抽屉、面板展开 */
+
+  /* 缓动 */
+  --motion-ease-standard: cubic-bezier(0.2, 0, 0, 1);   /* 减速进场 */
+  --motion-ease-decelerate: cubic-bezier(0, 0, 0, 1);   /* 强减速 */
+  --motion-ease-accelerate: cubic-bezier(0.3, 0, 1, 1); /* 加速出场 */
+  --motion-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); /* 轻微回弹，仅用于强调 */
+
+  /* 位移 */
+  --motion-shift-xs: 2px;
+  --motion-shift-sm: 4px;
+  --motion-shift-md: 8px;
+  --motion-shift-lg: 12px;
+
+  /* 交互缩放 */
+  --motion-press-scale: 0.98;
+  --motion-hover-lift: -1px;
+}
+
+/* 全局降级：系统声明减少动态效果时，一律压到接近瞬时。
+   这是无障碍底线——前庭功能障碍用户会因位移/缩放动画产生眩晕。
+   放在 @layer base 之外，确保优先级高于各组件自身的 transition 声明。 */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 @layer base {
   * {
     @apply border-gray-200 dark:border-dark-700;
@@ -73,10 +122,14 @@
   .btn {
     @apply inline-flex items-center justify-center gap-2;
     @apply rounded-xl px-4 py-2.5 text-sm font-medium;
-    @apply transition-all duration-200 ease-out;
+    transition-property: background-color, border-color, color, box-shadow, transform;
+    transition-duration: var(--motion-duration-fast);
+    transition-timing-function: var(--motion-ease-standard);
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
-    @apply active:scale-[0.98];
+    @apply active:scale-[var(--motion-press-scale)];
+    /* 键盘聚焦才给抬升，鼠标 hover 不位移：后台高频点击里位移会干扰瞄准。 */
+    @apply focus-visible:-translate-y-[var(--motion-hover-lift)];
   }
 
   .btn-primary {
@@ -230,11 +283,14 @@
     @apply rounded-2xl;
     @apply border border-gray-100 dark:border-dark-700/50;
     @apply shadow-card;
-    @apply transition-all duration-300;
+    transition-property: box-shadow, border-color, transform;
+    transition-duration: var(--motion-duration-base);
+    transition-timing-function: var(--motion-ease-standard);
   }
 
   .card-hover {
-    @apply hover:-translate-y-0.5 hover:shadow-card-hover;
+    @apply hover:shadow-card-hover;
+    @apply hover:-translate-y-[var(--motion-shift-xs)];
     @apply hover:border-gray-200 dark:hover:border-dark-600;
   }
 
@@ -334,8 +390,13 @@
   }
 
   .table tbody tr {
-    @apply transition-colors duration-150;
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
     @apply hover:bg-gray-50 dark:hover:bg-dark-800/30;
+  }
+
+  /* 表格行键盘可达性：纯 hover 高亮对键盘用户不可见。 */
+  .table tbody tr:focus-within {
+    @apply bg-gray-50 dark:bg-dark-800/30;
   }
 
   /* ============ 徽章样式 ============ */
@@ -747,32 +808,123 @@
   }
 }
 
-@layer utilities {
-  /* 文字渐变 */
-  .text-gradient {
-    @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
-  }
+/* 以下工具类刻意放在 @layer 之外：Tailwind 会把手写的非工具类当作未使用规则裁掉。 */
+/* 文字渐变 */
+.text-gradient {
+  @apply bg-gradient-to-r from-primary-500 to-accent-500 bg-clip-text text-transparent;
+}
 
-  /* 玻璃效果 */
-  .glass {
-    @apply bg-white/80 backdrop-blur-xl dark:bg-dark-800/80;
-  }
+/* 玻璃效果 */
+.glass {
+  @apply bg-white/80 backdrop-blur-xl dark:bg-dark-800/80;
+}
 
-  /* 隐藏滚动条 */
-  .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-  }
-  .scrollbar-hide::-webkit-scrollbar {
-    display: none;
-  }
+/* 隐藏滚动条 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
 
-  /* 安全区域 */
-  .safe-top {
-    padding-top: env(safe-area-inset-top);
-  }
+/* 安全区域 */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
 
-  .safe-bottom {
-    padding-bottom: env(safe-area-inset-bottom);
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* ============================================================================
+ 动效工具层（Motion Utilities）
+ ============================================================================
+ 只提供后台界面真正需要的三种动效，不做装饰性动画：
+ 1. 列表/表格批量进入 —— 让"数据加载完成"这件事被感知到，而不是突兀闪现。
+ 2. 焦点可见 —— 键盘用户必须能看见自己在哪里。
+ 3. 数值变化高亮 —— 运维盯盘时，数字跳动需要短暂提示。
+ 全部走 transform/opacity/background-color，保证 GPU 合成、不触发重排。
+ ============================================================================ */
+/* 列表进入：容器加 .stagger-children，子项按序淡入上移。
+   用 nth-child 控制延迟，最多 8 项，超出不再累加（避免长列表等待过久）。 */
+.stagger-children > * {
+  animation: motion-enter var(--motion-duration-base) var(--motion-ease-decelerate) both;
+}
+
+.stagger-children > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-children > *:nth-child(2) { animation-delay: 24ms; }
+.stagger-children > *:nth-child(3) { animation-delay: 48ms; }
+.stagger-children > *:nth-child(4) { animation-delay: 72ms; }
+.stagger-children > *:nth-child(5) { animation-delay: 96ms; }
+.stagger-children > *:nth-child(6) { animation-delay: 120ms; }
+.stagger-children > *:nth-child(7) { animation-delay: 144ms; }
+.stagger-children > *:nth-child(n + 8) { animation-delay: 168ms; }
+
+/* 单元素进入（弹窗内容、抽屉面板）。 */
+.motion-enter {
+  animation: motion-enter var(--motion-duration-base) var(--motion-ease-decelerate) both;
+}
+
+/* 数值跳动高亮：给刚更新的数字一个短暂的背景脉冲，随后自然消退。 */
+.motion-flash {
+  animation: motion-flash 600ms var(--motion-ease-standard);
+}
+
+/* 统一的可见焦点环：只对键盘聚焦生效，鼠标点击不显示。 */
+.focus-ring:focus-visible {
+  outline: 2px solid rgb(20 184 166 / 0.6);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+@keyframes motion-enter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-shift-sm));
   }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes motion-flash {
+  0% {
+    background-color: rgb(20 184 166 / 0.18);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+/* ============================================================================
+   原生交互元素的基础反馈
+   ============================================================================
+   项目里大量按钮没有 .btn 类（setup 向导、弹窗内联按钮等），它们此前完全没有
+   按下/悬停反馈。这里给原生 button 补最小可用反馈，避免"点了没反应"的错觉。
+
+   刻意保持克制：
+   - 只做颜色与轻微缩放，不做位移（后台高频点击时位移会干扰瞄准）。
+   - 用 :where() 保证零优先级，任何组件自己的样式都能覆盖。
+   - 尊重 prefers-reduced-motion（全局降级规则已覆盖）。
+   ============================================================================ */
+/* 用 :where() 会因零优先级输给元素上的 Tailwind 过渡类，这里改用普通选择器；
+   仍保留 :not(:disabled) 以免给禁用态加交互反馈。 */
+button:not(:disabled):not([data-no-motion]) {
+  transition-property: background-color, border-color, color, box-shadow, opacity, transform;
+  transition-duration: var(--motion-duration-fast);
+  transition-timing-function: var(--motion-ease-standard);
+}
+
+button:not(:disabled):not([data-no-motion]):active {
+  transform: scale(var(--motion-press-scale));
+}
+
+/* 键盘用户必须能看见焦点；:focus-visible 保证鼠标点击不出现外圈。 */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid rgb(20 184 166 / 0.6);
+  outline-offset: 2px;
 }
