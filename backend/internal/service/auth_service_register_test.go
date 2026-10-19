@@ -169,7 +169,6 @@ func (s *refreshTokenCacheStub) IsTokenInFamily(context.Context, string, string)
 	return false, nil
 }
 
-
 func (s *refreshTokenCacheStub) MarkRefreshTokenConsumed(context.Context, string, string, time.Duration) error {
 	return nil
 }

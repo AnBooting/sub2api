@@ -460,7 +460,6 @@ func (s *userHandlerRefreshTokenCacheStub) IsTokenInFamily(context.Context, stri
 	return false, nil
 }
 
-
 func (s *userHandlerRefreshTokenCacheStub) MarkRefreshTokenConsumed(context.Context, string, string, time.Duration) error {
 	return nil
 }

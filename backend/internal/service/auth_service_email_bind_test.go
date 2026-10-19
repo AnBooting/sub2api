@@ -915,22 +915,22 @@ func (s *emailBindCacheStub) IncrNotifyCodeUserRate(context.Context, int64, time
 }
 
 type emailBindRefreshTokenCacheStub struct {
-	mu                sync.Mutex
-	tokens            map[string]*service.RefreshTokenData
-	userSets          map[int64]map[string]struct{}
-	families          map[string]map[string]struct{}
-	consumed          map[string]string
-	consumedCount     int
+	mu                 sync.Mutex
+	tokens             map[string]*service.RefreshTokenData
+	userSets           map[int64]map[string]struct{}
+	families           map[string]map[string]struct{}
+	consumed           map[string]string
+	consumedCount      int
 	lastConsumedFamily string
-	familiesRevoked   []string
+	familiesRevoked    []string
 }
 
 func newEmailBindRefreshTokenCacheStub() *emailBindRefreshTokenCacheStub {
 	return &emailBindRefreshTokenCacheStub{
-		tokens:         make(map[string]*service.RefreshTokenData),
-		userSets:       make(map[int64]map[string]struct{}),
-		families:       make(map[string]map[string]struct{}),
-		consumed:       make(map[string]string),
+		tokens:   make(map[string]*service.RefreshTokenData),
+		userSets: make(map[int64]map[string]struct{}),
+		families: make(map[string]map[string]struct{}),
+		consumed: make(map[string]string),
 	}
 }
 
@@ -1048,8 +1048,8 @@ func (s *emailBindRefreshTokenCacheStub) IsTokenInFamily(_ context.Context, fami
 func (s *emailBindRefreshTokenCacheStub) MarkRefreshTokenConsumed(_ context.Context, tokenHash string, familyID string, _ time.Duration) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.consumedCount++
 	s.consumed[tokenHash] = familyID
+	s.consumedCount++
 	s.lastConsumedFamily = familyID
 	return nil
 }
@@ -1062,8 +1062,6 @@ func (s *emailBindRefreshTokenCacheStub) GetConsumedRefreshTokenFamilyID(_ conte
 	}
 	return "", service.ErrConsumedRefreshTokenNotFound
 }
-
-
 
 type emailBindUserRepoStub struct {
 	mu           sync.Mutex
