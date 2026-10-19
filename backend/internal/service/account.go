@@ -1282,8 +1282,8 @@ func (a *Account) GetCustomErrorCodes() []int {
 	if arr, ok := raw.([]any); ok {
 		result := make([]int, 0, len(arr))
 		for _, v := range arr {
-			if f, ok := v.(float64); ok {
-				result = append(result, int(f))
+			if code := parseExtraInt(v); code > 0 {
+				result = append(result, code)
 			}
 		}
 		return result

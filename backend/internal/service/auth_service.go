@@ -179,7 +179,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		// 验证邀请码
 		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
 		if err != nil {
-			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
+			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: code_sha256=%s, error: %v", hashTokenForLog(invitationCode), err)
 			return "", nil, ErrInvitationCodeInvalid
 		}
 		// 检查类型和状态
@@ -1034,6 +1034,10 @@ func (s *AuthService) backfillEmailIdentityOnSuccessfulLogin(ctx context.Context
 		return
 	}
 	identity, created := s.ensureEmailAuthIdentity(ctx, user, "auth_service_login_backfill")
+	if identity == nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Email identity backfill failed for user_id=%d", user.ID)
+		return
+	}
 	if s.shouldApplyEmailFirstBindDefaults(ctx, user.ID, identity, created) {
 		if err := s.ApplyProviderDefaultSettingsOnFirstBind(ctx, user.ID, "email"); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to apply email first bind defaults: user_id=%d err=%v", user.ID, err)
@@ -1298,8 +1302,8 @@ func (s *AuthService) createUserAndClaimInvitation(ctx context.Context, user *Us
 		if err := s.redeemRepo.Use(execCtx, invitation.ID, user.ID); err != nil {
 			// 并发下唯一的合法失败路径：另一个注册已占用该码
 			logger.LegacyPrintf("service.auth",
-				"[Auth] Rejected registration: invitation code %s already claimed (user_id=%d err=%v)",
-				invitation.Code, user.ID, err)
+				"[Auth] Rejected registration: invitation code code_sha256=%s already claimed (user_id=%d err=%v)",
+				hashTokenForLog(invitation.Code), user.ID, err)
 			return ErrInvitationCodeInvalid
 		}
 		return nil
@@ -1911,6 +1915,15 @@ func (s *AuthService) RevokeAllUserTokens(ctx context.Context, userID int64) err
 }
 
 // hashToken 计算Token的SHA256哈希
+func hashTokenForLog(secret string) string {
+	if secret == "" {
+		return "<empty>"
+	}
+	sum := sha256.Sum256([]byte(secret))
+	// 日志只保留短 SHA-256 前缀，不暴露可兑换明文。
+	return hex.EncodeToString(sum[:8])
+}
+
 func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])
