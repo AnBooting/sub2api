@@ -2,6 +2,8 @@ package admin
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strconv"
@@ -97,6 +99,21 @@ func buildProxyKey(protocol, host string, port int, username, password string) s
 	return fmt.Sprintf("%s|%s|%d|%s|%s", strings.TrimSpace(protocol), strings.TrimSpace(host), port, strings.TrimSpace(username), strings.TrimSpace(password))
 }
 
+// redactProxyKeyForResponse 把内部代理标识替换为不含凭据的稳定指纹。
+// buildProxyKey 含明文 username/password，绝不能出现在 API 响应、日志或监控里；
+// 但仍需可区分不同代理，因此输出协议|主机|端口 + 短哈希。
+func redactProxyKeyForResponse(key string) string {
+	if key == "" {
+		return ""
+	}
+	parts := strings.SplitN(key, "|", 5)
+	if len(parts) < 3 {
+		return "***"
+	}
+	sum := sha256.Sum256([]byte(key))
+	return fmt.Sprintf("%s|%s|%s|%s", parts[0], parts[1], parts[2], hex.EncodeToString(sum[:4]))
+}
+
 func (h *AccountHandler) ExportData(c *gin.Context) {
 	ctx := c.Request.Context()
 
@@ -170,6 +187,8 @@ func (h *AccountHandler) ExportData(c *gin.Context) {
 			backupProxyName = proxyNameByID[*p.BackupProxyID]
 		}
 		dataProxies = append(dataProxies, DataProxy{
+			// 导出必须保留完整 key：导入侧靠它做代理去重与账号绑定匹配。
+			// 脱敏只用于错误响应，不用于备份数据本身。
 			ProxyKey:        key,
 			Name:            p.Name,
 			Protocol:        p.Protocol,
@@ -279,7 +298,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			result.Errors = append(result.Errors, DataImportError{
 				Kind:     "proxy",
 				Name:     item.Name,
-				ProxyKey: key,
+				ProxyKey: redactProxyKeyForResponse(key),
 				Message:  err.Error(),
 			})
 			continue
@@ -295,7 +314,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			result.Errors = append(result.Errors, DataImportError{
 				Kind:     "proxy",
 				Name:     item.Name,
-				ProxyKey: key,
+				ProxyKey: redactProxyKeyForResponse(key),
 				Message:  fmt.Sprintf("duplicate proxy name %q (already used by proxy #%d); refusing to overwrite", proxyName, ownerID),
 			})
 			continue
@@ -360,7 +379,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 				result.Errors = append(result.Errors, DataImportError{
 					Kind:     "proxy",
 					Name:     item.Name,
-					ProxyKey: key,
+					ProxyKey: redactProxyKeyForResponse(key),
 					Message:  fmt.Sprintf("backup_proxy_name %q not found, fallback_mode downgraded to none", item.BackupProxyName),
 				})
 			}
@@ -383,7 +402,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 			result.Errors = append(result.Errors, DataImportError{
 				Kind:     "proxy",
 				Name:     item.Name,
-				ProxyKey: key,
+				ProxyKey: redactProxyKeyForResponse(key),
 				Message:  createErr.Error(),
 			})
 			continue
@@ -439,7 +458,7 @@ func (h *AccountHandler) importData(ctx context.Context, req DataImportRequest) 
 				result.Errors = append(result.Errors, DataImportError{
 					Kind:     "account",
 					Name:     item.Name,
-					ProxyKey: *item.ProxyKey,
+					ProxyKey: redactProxyKeyForResponse(*item.ProxyKey),
 					Message:  "proxy_key not found",
 				})
 				continue
