@@ -12,6 +12,9 @@ const (
 
 // normalizePersistentText bounds attacker-controlled metadata before it reaches
 // logs or database columns while preserving valid UTF-8 content.
+//
+// 契约：maxBytes <= 0 表示不设上限（调用方必须显式传入正数上限；
+// 现有调用方均传 maxPersistentUserAgentBytes）。
 func normalizePersistentText(value string, maxBytes int) string {
 	value = strings.TrimSpace(strings.ToValidUTF8(value, ""))
 	if maxBytes <= 0 || len(value) <= maxBytes {
