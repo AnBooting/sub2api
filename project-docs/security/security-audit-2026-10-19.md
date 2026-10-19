@@ -245,3 +245,43 @@ Redis 实现与内存实现（`memory_refresh_token_cache.go`）同步补齐；�
 - `go build ./...` → exit 0
 - `internal/server`、`internal/server/middleware`、`internal/server/routes`、`internal/handler`、`internal/handler/yunmao`、`internal/handler/admin`、`internal/service`、`internal/service/yunmao`、`internal/repository`、`internal/pkg/httputil`、`cmd/jwtgen` → 全绿
 - `internal/handler/admin` 在满载并发下曾出现一次失败，隔离连跑两次均通过（`ok 22.9s` / `ok 28.1s`），判定为既有 flaky，非本轮改动引入
+
+## 追加记录（Live 计费 + 前端加固，2026-10-20 凌晨）
+
+### Q1：Live 会话按时长计费（已实施）
+
+**Live 是什么**：不是文本模型，是 OpenAI 的 Realtime/语音会话能力（上游 `intent=quicksilver&architecture=avas`，
+经 `POST /v1/live` 建会话 + `GET /v1/live/:call_id` 建控制通道，媒体不经过网关）。
+模型名来自 `session.model`，缺省 `gpt-live`；该名字在价格目录里**没有条目**，所以不能走 token 计费。
+
+**实现（`9c0b7d296`）**：
+
+- 新增 `BillingService.CalculateLiveSessionCost(durationMs, perMinutePrice, rateMultiplier)`，口径 `单价 × 分钟数 × 倍率`。
+- 复用既有分组字段 `audio_realtime_price_per_min`（ent/admin/cache 链路本就齐全，无需新增迁移）。
+- **开播即冻结单价**：`LiveCallIdentity.RealtimePricePerMin` → `LiveCallRecord.RealtimePricePerMin`，结算用冻结值，避免会话期间改价导致报价与扣费不一致。
+- 结算写 `UsageLog.TotalCost/ActualCost/BillingMode`；`finalizeLiveCall` 里原来的 `TODO(billing)` 已消除。
+
+**与既有 `CalculateAudioCost("realtime")` 的关键差异**：后者在分组未配置时会回落到内置默认价 `0.05/分钟`。
+Live 明确不允许猜价——未配置单价时返回 `ErrLivePricingUnavailable`，写零成本账单并告警，符合"缺价不得放行"红线。
+
+**验证**：新增 3 个测试（按时长计费、缺价不伪造成本、计费函数三种拒绝路径）。
+**变异验证**：把缺价分支改回"回落 0.05"，两个测试立即失败；恢复后通过。
+全量回归：`internal/service` 236s、`internal/handler` 242s、`internal/server/routes` 39s 全绿。
+
+### Q4+Q5：前端嵌入页加固（已实施）
+
+`0d43699d5`：
+
+- **令牌不再进 URL**：`buildEmbeddedUrl` 移除 `token` 参数。iframe 的 `src` 会进入浏览器历史、`Referer` 与各级访问日志，
+  把 JWT 放进去等于经 URL 泄露。改为 iframe `@load` 后经 `postMessage` 定向交付（`targetOrigin` 精确限定为菜单配置的源）。
+- **iframe 加 sandbox**：`allow-scripts allow-same-origin allow-forms allow-popups-to-escape-sandbox`，
+  禁止 top-level 跳转/弹窗/下载，防止嵌入页劫持整站导航。
+- **加 `referrerpolicy="strict-origin-when-cross-origin"`**，避免带 query 的完整 URL 泄露给下游。
+
+**验证**：前端 typecheck exit 0；381 文件 / 3013 测试全通过。
+**变异验证**：把 `token` 塞回 URL，`embedded-url.spec.ts` 立即失败；恢复后通过。
+
+### 仍未实施
+
+- **Q10 localStorage 存 token 改 HttpOnly cookie**：涉及后端 CORS/CSRF 整体改造与会话模型变更，属架构级调整。
+- **Q5 插件 bridge token 会话模型**：需重新设计插件桥接协议。
