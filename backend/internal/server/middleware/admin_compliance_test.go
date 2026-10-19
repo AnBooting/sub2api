@@ -43,6 +43,26 @@ func (r *complianceGuardRepoStub) GetAll(ctx context.Context) (map[string]string
 }
 func (r *complianceGuardRepoStub) Delete(ctx context.Context, key string) error { return nil }
 
+func TestAdminComplianceGuardFailsClosedWhenServiceMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Set(string(ContextKeyUser), AuthSubject{UserID: 1})
+		c.Next()
+	})
+	router.Use(AdminComplianceGuard(nil))
+	router.GET("/api/v1/admin/users", func(c *gin.Context) {
+		c.String(http.StatusOK, "ok")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/admin/users", nil)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	// 授权类门禁必须 fail-closed：service 缺失不得放行管理路由。
+	require.Equal(t, http.StatusLocked, w.Code)
+}
+
 func TestAdminComplianceGuardBlocksAdminRouteWhenMissing(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	svc := service.NewSettingService(&complianceGuardRepoStub{}, &config.Config{})
