@@ -160,3 +160,24 @@
 - `backend/internal/handler/yunmao/{dto,shop_handler}.go`。
 - `backend/ent/schema/*.go`、`backend/migrations/*.sql`。
 - `backend/internal/service` 剩余文件、前端 `api/admin`、`types/utils`、`deploy/tools`、`project-docs`。
+
+### 第二轮追加修复（同日晚，路由/handler/service 串行扫描）
+
+| 文件 | 问题 | 提交 |
+| --- | --- | --- |
+| `middleware/admin_compliance.go` | 合规门禁在 `settingService == nil` 时直接放行（fail-open），而 service 层对 nil 返回 `Required: true` 本可正确阻断；已改为 fail-closed 并加变异验证 | `4f792992e` |
+| `server/router.go` | `refreshFrameOrigins` 失败路径完全静默，启动期 DB 不可用会让已配置 iframe 静默失效；补 warn 日志 | `5f45093e8` |
+| `service/websearch_config.go` | 读配置失败直接 `SetWebSearchManager(nil)` 且无日志，websearch 模拟静默禁用且无重试 | `393a62a32` |
+| `handler/yunmao/shop_handler.go` | 4 个接口缺少文档承诺的 nil service 守卫（会 panic 而非 503）；`Notify` 把所有回调失败统一返回 401，未知订单/上游不可用被误判为鉴权失败导致上游无限重试；已按错误码分类（签名类仍 401，保持 PRD-03 AC-B1 红线） | `f85680a23` |
+
+### 已复核为不修
+
+- `routes/admin.go`：`panelRateLimiter` 为 nil 时管理面限流静默失效——现有测试大量以 `nil` 传入 `RegisterAdminRoutes`，改为 panic 会破坏测试契约，记录为后续项。
+- `routes/admin.go`：`pricing/settings` 内联 step-up 中间件按字段“出现”而非“变更”触发 TOTP——属产品语义取舍，记录不修。
+- `server/router.go`：`frame-src` 动态回调与 settings 保存路径的两次性能开销——属优化项，记录不修。
+- `middleware/admin_only.go`：`AdminOnly()` 无引用，但为上游 2025-12-26 既有代码，非本 diff 引入，不删除导出 API。
+
+### 未覆盖（provider 侧失败）
+
+- `middleware/{group_model_allowlist,server_timing,artex_guard}.go`：多次卡死或 OCR 返回非法行号范围。
+- `server/http.go` 首轮失败、重试成功（3 条已记录：websearch 启用判定按未过滤配置、websearch 启动期静默禁用、全局 body 上限压过插件上传上限）。
