@@ -16,10 +16,14 @@ type ArtexGuardConfig struct {
 }
 
 func (c ArtexGuardConfig) EffectiveMode() string {
-	if c.Mode == "" {
+	switch c.Mode {
+	case "":
+		return ArtexGuardEnforce
+	case ArtexGuardOff, ArtexGuardMonitor, ArtexGuardEnforce:
+		return c.Mode
+	default:
 		return ArtexGuardEnforce
 	}
-	return c.Mode
 }
 func (c ArtexGuardConfig) Validate() error {
 	switch c.Mode {

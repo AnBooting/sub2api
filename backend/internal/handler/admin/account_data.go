@@ -676,6 +676,9 @@ func validateDataProxy(item DataProxy) error {
 			return fmt.Errorf("proxy status is invalid: %s", item.Status)
 		}
 	}
+	if item.ExpiryWarnDays < 0 {
+		return errors.New("expiry_warn_days must be >= 0")
+	}
 	return nil
 }
 

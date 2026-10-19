@@ -317,3 +317,14 @@ func TestImportDataReusesProxyAndSkipsDefaultGroup(t *testing.T) {
 	require.Len(t, adminSvc.createdAccounts, 1)
 	require.True(t, adminSvc.createdAccounts[0].SkipDefaultGroupBind)
 }
+
+func TestValidateDataProxyRejectsNegativeExpiryWarnDays(t *testing.T) {
+	err := validateDataProxy(DataProxy{
+		Protocol:       "http",
+		Host:           "127.0.0.1",
+		Port:           8080,
+		ExpiryWarnDays: -1,
+	})
+	require.ErrorContains(t, err, "expiry_warn_days")
+}
+

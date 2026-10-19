@@ -47,6 +47,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to resolve admin user: %v", err)
 	}
+	if user == nil {
+		log.Fatalf("admin user not found")
+	}
 
 	token, err := authService.GenerateToken(ctx, user)
 	if err != nil {
