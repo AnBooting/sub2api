@@ -875,7 +875,54 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	if billingMode != "" {
 		usageLog.BillingMode = &billingMode
 	}
+	// 先结算、再落日志：账单金额必须对应真实的余额/订阅变更，否则会出现
+	// “有费用但不结算”的对账缺口。结算以 request_id（CallHash）幂等，
+	// 与 usage_logs 的唯一键一致，重试不会重复扣费。
+	if err := s.settleLiveCallUsage(record, usageLog, cost); err != nil {
+		logger.FromContext(context.Background()).Warn(
+			"Live 会话扣费失败：本次账单按未计费落库",
+			zap.Int64("user_id", record.UserID),
+			zap.Int64("api_key_id", record.APIKeyID),
+			zap.String("call_hash", record.CallHash),
+			zap.Error(err),
+		)
+		usageLog.ActualCost = 0
+	}
 	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+}
+
+// settleLiveCallUsage 把本次 Live 会话的冻结费用写入统一计费账本。
+// 只依赖会话记录里的 ID，不重新回源取价；金额已在 liveSessionCost 计算完毕。
+// 无计费仓储（降级/只记录用量的测试装配）时跳过，不伪造扣费。
+func (s *OpenAIGatewayService) settleLiveCallUsage(record *LiveCallRecord, usageLog *UsageLog, cost *CostBreakdown) error {
+	if s == nil || record == nil || usageLog == nil || cost == nil || cost.ActualCost <= 0 {
+		return nil
+	}
+	if s.usageBillingRepo == nil {
+		return nil
+	}
+	// 计费命令只需要 ID 与计费开关；会话创建时没有冻结完整实体，
+	// 因此这里构造最小实体，金额以 cost/usageLog 为准。
+	user := &User{ID: record.UserID}
+	apiKey := &APIKey{ID: record.APIKeyID}
+	if record.GroupID > 0 {
+		groupID := record.GroupID
+		apiKey.GroupID = &groupID
+	}
+	account := &Account{ID: record.AccountID}
+	var subscription *UserSubscription
+	if record.SubscriptionID > 0 {
+		subscription = &UserSubscription{ID: record.SubscriptionID}
+	}
+	_, err := applyUsageBilling(context.Background(), record.CallHash, usageLog, &postUsageBillingParams{
+		Cost:               cost,
+		User:               user,
+		APIKey:             apiKey,
+		Account:            account,
+		Subscription:       subscription,
+		IsSubscriptionBill: record.SubscriptionID > 0,
+	}, s.billingDeps(), s.usageBillingRepo)
+	return err
 }
 
 // liveSessionCost 用开播时冻结的单价结算本次 Live 会话。

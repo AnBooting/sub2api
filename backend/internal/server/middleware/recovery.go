@@ -16,6 +16,10 @@ import (
 // when the client connection is already gone.
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(gin.DefaultErrorWriter, func(c *gin.Context, recovered any) {
+		// 访问日志必须在最终状态写入之后记录：本函数返回时 500/已写状态才生效，
+		// 由 Logger 的 defer 提前读取会得到 200。这里接管 panic 请求的访问日志。
+		defer logPanickedRequestAccess(c)
+
 		recoveredErr, _ := recovered.(error)
 
 		if isBrokenPipe(recoveredErr) {
