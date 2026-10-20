@@ -78,6 +78,7 @@ export default {
       "empty": "No ordinary groups bound",
       "unavailable": "Group #{id} (currently unavailable)",
       "haAuthorized": "User-authorized HA fallback",
+      "dragHandle": "Drag to reorder",
       "singleHint": "The single-group picker above replaces the ordinary chain. HA consent is unchanged.",
       "edit": "Edit ordinary group order"
     },
@@ -90,7 +91,9 @@ export default {
       "enable": "Enable fallback",
       "enabled": "Enabled",
       "scopeMismatch": "This group's model scope does not match this key, so it cannot be enabled",
-      "accessRequired": "This is an exclusive group; you need an access grant before you can enable it as a fallback"
+      "accessRequired": "This is an exclusive group; you need an access grant before you can enable it as a fallback",
+      "createHint": "Pick fallback groups while creating a key; the consent is applied right after the key is created. A single failure does not affect the key itself.",
+      "enablePartialFailed": "{count} fallback group(s) could not be enabled. Please enable them again on the edit page."
     },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
@@ -473,6 +476,12 @@ export default {
     compactionOnly: 'Compaction Only',
     cyber: 'Cyber',
     live: 'Live',
+    liveTitle: 'Live session',
+    liveSessionDuration: 'Live session duration',
+    liveDurationSeconds: '{seconds}s',
+    liveDurationMinutes: '{minutes}m {seconds}s',
+    liveBilling: 'Billing basis',
+    liveNoCharge: 'This Live session was not charged (0 Credit)',
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
@@ -866,7 +875,39 @@ export default {
     historyLoadFailed: 'Failed to load activity. Please try again.',
     userRefreshFailed: 'Redeemed successfully, but failed to refresh account information.',
     subscriptionRefreshFailed: 'Redeemed successfully, but failed to refresh subscription status.',
-    pleaseEnterCode: 'Please enter a redeem code'
+    pleaseEnterCode: 'Please enter a redeem code',
+    creditRateHint: '\u00a51 gets you 1 Credit (no currency conversion)',
+    manualCreditHint: 'Your balance only changes after you redeem the card code; a successful payment is not credited automatically.',
+    errors: {
+      REDEEM_CODE_USED: 'This redeem code has already been used',
+      REDEEM_CODE_NOT_FOUND: 'This redeem code does not exist',
+      REDEEM_CODE_EXPIRED: 'This redeem code has expired',
+      REDEEM_CODE_INVALID: 'Invalid redeem code'
+    }
+  },
+
+  // User-facing video task list (GET /api/v1/videos/tasks)
+  videoTasks: {
+    title: 'Video tasks',
+    subtitle: 'Track the status of the video generation tasks you submitted',
+    entry: 'Video tasks',
+    loading: 'Loading video tasks\u2026',
+    empty: 'No video tasks yet',
+    loadFailed: 'Failed to load video tasks. Please try again later.',
+    lastError: 'Failure reason',
+    columns: {
+      taskNo: 'Task number',
+      model: 'Model',
+      platform: 'Platform',
+      billingMode: 'Billing mode',
+      createdAt: 'Created at',
+      settledAt: 'Settled at'
+    },
+    status: {
+      processing: 'Processing',
+      completed: 'Completed',
+      failed: 'Failed'
+    }
   },
 
   // Profile

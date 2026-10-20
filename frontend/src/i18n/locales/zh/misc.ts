@@ -17,6 +17,12 @@ export default {
     unlimited: '无限制'
   },
 
+  // 分组 Live / Realtime 展示（用户侧）
+  groupLive: {
+    badge: 'Live',
+    realtimePrice: 'Realtime {price}/分钟（源价，非最终扣费）'
+  },
+
   // Version Badge
   version: {
     currentVersion: '当前版本',

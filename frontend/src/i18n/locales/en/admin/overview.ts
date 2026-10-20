@@ -1110,8 +1110,8 @@ export default {
         withInput: '(with video input)'
       },
       explicitPricing: {
-        title: 'Grok Search & Voice Pricing',
-        description: 'Optional per-group prices for web_search (per 1k calls) and Voice realtime / TTS / STT (USD). Leave empty if unused.',
+        title: 'Grok Search Pricing',
+        description: 'Optional per-group web_search price (per 1k calls, USD). Grok platform only; leave empty if unused.',
         searchPricePer1k: 'Search price per 1k calls (USD)',
         pricePlaceholder: 'optional'
       },
@@ -1123,8 +1123,8 @@ export default {
         add: 'Add model price'
       },
       voicePricing: {
-        title: 'Grok Voice Pricing',
-        description: 'Optional per-group prices for Voice realtime / TTS / STT (USD). Leave empty to leave unpriced.',
+        title: 'Voice / Realtime Pricing',
+        description: 'Optional per-group prices for Voice realtime / TTS / STT (USD). Available on every platform; leave empty to leave unpriced.',
         audioRealtimePerMin: 'Realtime price per minute (USD)',
         audioTtsPerMillionChars: 'TTS price per million chars (USD)',
         audioSttPerHour: 'STT price per hour (USD)',

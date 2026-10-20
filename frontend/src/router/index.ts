@@ -277,6 +277,19 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // 用户侧视频任务列表（后端已就绪：GET /api/v1/videos/tasks，登录态）。
+    path: '/video-tasks',
+    name: 'VideoTasks',
+    component: () => import('@/views/user/VideoTasksView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Video Tasks',
+      titleKey: 'videoTasks.title',
+      descriptionKey: 'videoTasks.subtitle'
+    }
+  },
+  {
     path: '/profile',
     name: 'Profile',
     component: () => import('@/views/user/ProfileView.vue'),
@@ -327,6 +340,19 @@ const routes: RouteRecordRaw[] = [
       titleKey: 'shop.title',
       descriptionKey: 'shop.subtitle',
       requiresPayment: true
+    }
+  },
+  {
+    // 站内帮助页（task-4 / help-center）：与既有用户页一致，需要登录态。
+    path: '/help',
+    name: 'Help',
+    component: () => import('@/views/public/HelpView.vue'),
+    meta: {
+      requiresAuth: true,
+      requiresAdmin: false,
+      title: 'Help',
+      titleKey: 'nav.help',
+      descriptionKey: 'help.subtitle'
     }
   },
   {

@@ -1107,8 +1107,8 @@ export default {
         withInput: '（含输入视频）'
       },
       explicitPricing: {
-        title: 'Grok 搜索与 Voice 定价',
-        description: '分组级 web_search（每千次）与 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
+        title: 'Grok 搜索定价',
+        description: '分组级 web_search（每千次）单价（USD）。仅 Grok 平台可用；留空表示未配置。',
         searchPricePer1k: '搜索每千次价格（USD）',
         pricePlaceholder: '可选'
       },
@@ -1120,8 +1120,8 @@ export default {
         add: '添加模型价格'
       },
       voicePricing: {
-        title: 'Grok Voice 定价',
-        description: '分组级 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
+        title: '语音 / Realtime 显式定价',
+        description: '分组级 Voice realtime / TTS / STT 单价（USD）。所有平台可用；留空表示未配置。',
         audioRealtimePerMin: 'Realtime 每分钟价格（USD）',
         audioTtsPerMillionChars: 'TTS 每百万字符价格（USD）',
         audioSttPerHour: 'STT 每小时价格（USD）',

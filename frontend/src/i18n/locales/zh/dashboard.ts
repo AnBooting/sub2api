@@ -78,6 +78,7 @@ export default {
       "empty": "未绑定普通分组",
       "unavailable": "分组 #{id}（当前不可用）",
       "haAuthorized": "用户已授权的高可用兜底",
+      "dragHandle": "拖拽调整顺序",
       "singleHint": "上方单组选项会将普通链替换为该组，兜底授权保持不变。",
       "edit": "编辑普通分组顺序"
     },
@@ -90,7 +91,9 @@ export default {
       "enable": "开启兜底",
       "enabled": "已开启",
       "scopeMismatch": "该分组的模型范围与本密钥不匹配，暂不可开启",
-      "accessRequired": "该分组为专属分组，需先获得访问授权才能开启兜底"
+      "accessRequired": "该分组为专属分组，需先获得访问授权才能开启兜底",
+      "createHint": "新建 Key 时可勾选兜底分组；Key 创建成功后会自动逐个开通授权，个别失败不影响 Key 本身创建。",
+      "enablePartialFailed": "有 {count} 个兜底分组未能开通，请稍后在编辑页重新开启。"
     },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
@@ -478,6 +481,12 @@ export default {
     compactionOnly: '仅原生压缩',
     cyber: '安全策略',
     live: 'Live',
+    liveTitle: 'Live 会话',
+    liveSessionDuration: 'Live 会话时长',
+    liveDurationSeconds: '{seconds} 秒',
+    liveDurationMinutes: '{minutes} 分 {seconds} 秒',
+    liveBilling: '计费口径',
+    liveNoCharge: '本次 Live 会话未产生扣费（0 Credit）',
     unknown: '未知',
     in: '输入',
     out: '输出',
@@ -870,7 +879,39 @@ export default {
     historyLoadFailed: '加载兑换记录失败，请重试。',
     userRefreshFailed: '兑换成功，但账户信息刷新失败。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
-    pleaseEnterCode: '请输入兑换码'
+    pleaseEnterCode: '请输入兑换码',
+    creditRateHint: '¥1 可得 1 Credit（不换汇）',
+    manualCreditHint: '卡密兑换后余额才会增加；支付成功不会自动到账。',
+    errors: {
+      REDEEM_CODE_USED: '该兑换码已被使用',
+      REDEEM_CODE_NOT_FOUND: '兑换码不存在',
+      REDEEM_CODE_EXPIRED: '兑换码已过期',
+      REDEEM_CODE_INVALID: '兑换码无效'
+    }
+  },
+
+  // 用户侧视频任务列表（GET /api/v1/videos/tasks）
+  videoTasks: {
+    title: '视频任务',
+    subtitle: '查看你提交的视频生成任务的处理状态',
+    entry: '视频任务',
+    loading: '正在加载视频任务…',
+    empty: '还没有视频任务',
+    loadFailed: '加载视频任务失败，请稍后重试',
+    lastError: '失败原因',
+    columns: {
+      taskNo: '任务号',
+      model: '模型',
+      platform: '平台',
+      billingMode: '计费模式',
+      createdAt: '创建时间',
+      settledAt: '结算时间'
+    },
+    status: {
+      processing: '处理中',
+      completed: '已完成',
+      failed: '失败'
+    }
   },
 
   // Profile

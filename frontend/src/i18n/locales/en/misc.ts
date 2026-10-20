@@ -17,6 +17,12 @@ export default {
     unlimited: 'Unlimited'
   },
 
+  // Group Live / Realtime display (user facing)
+  groupLive: {
+    badge: 'Live',
+    realtimePrice: 'Realtime {price}/min (source price, not the final charge)'
+  },
+
   // Version Badge
   version: {
     currentVersion: 'Current Version',

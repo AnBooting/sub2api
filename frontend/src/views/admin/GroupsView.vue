@@ -1619,30 +1619,15 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
-          v-if="createForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
+        <!-- 语音 / Realtime 显式定价（所有平台） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t("admin.groups.explicitPricing.title") }}
+            {{ t("admin.groups.voicePricing.title") }}
           </h4>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t("admin.groups.explicitPricing.description") }}
+            {{ t("admin.groups.voicePricing.description") }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
-              <input
-                v-model.number="createForm.search_price_per_1k"
-                type="number"
-                step="0.000001"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
-                data-testid="create-search-price"
-              />
-            </div>
             <div>
               <label class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
               <input
@@ -1677,6 +1662,33 @@
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
                 data-testid="create-audio-stt-price"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Grok 搜索显式定价（仅 grok 平台） -->
+        <div
+          v-if="createForm.platform === 'grok'"
+          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+        >
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t("admin.groups.explicitPricing.title") }}
+          </h4>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {{ t("admin.groups.explicitPricing.description") }}
+          </p>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
+              <input
+                v-model.number="createForm.search_price_per_1k"
+                type="number"
+                step="0.000001"
+                min="0"
+                class="input"
+                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
+                data-testid="create-search-price"
               />
             </div>
           </div>
@@ -3393,30 +3405,15 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
-          v-if="editForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
+        <!-- 语音 / Realtime 显式定价（所有平台） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t("admin.groups.explicitPricing.title") }}
+            {{ t("admin.groups.voicePricing.title") }}
           </h4>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t("admin.groups.explicitPricing.description") }}
+            {{ t("admin.groups.voicePricing.description") }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
-              <input
-                v-model.number="editForm.search_price_per_1k"
-                type="number"
-                step="0.000001"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
-                data-testid="edit-search-price"
-              />
-            </div>
             <div>
               <label class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
               <input
@@ -3451,6 +3448,33 @@
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
                 data-testid="edit-audio-stt-price"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- Grok 搜索显式定价（仅 grok 平台） -->
+        <div
+          v-if="editForm.platform === 'grok'"
+          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
+        >
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t("admin.groups.explicitPricing.title") }}
+          </h4>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {{ t("admin.groups.explicitPricing.description") }}
+          </p>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
+              <input
+                v-model.number="editForm.search_price_per_1k"
+                type="number"
+                step="0.000001"
+                min="0"
+                class="input"
+                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
+                data-testid="edit-search-price"
               />
             </div>
           </div>

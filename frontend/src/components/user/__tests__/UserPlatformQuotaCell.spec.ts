@@ -40,7 +40,7 @@ describe('UserPlatformQuotaCell', () => {
     expect(w.html()).toContain('admin.users.platformQuota.cellNotConfigured')
   })
 
-  it('已配置平台渲染 已用/限额，null 档显示 —，金额去尾零', () => {
+  it('已配置平台渲染 已用/限额（账户口径统一用 Credit），null 档显示 —', () => {
     const w = mount(UserPlatformQuotaCell, {
       props: {
         quotas: [
@@ -52,9 +52,9 @@ describe('UserPlatformQuotaCell', () => {
     })
     const html = w.html()
     expect(html).toContain('anthropic')
-    expect(html).toContain('30/100')
-    expect(html).toContain('0/—')
-    expect(html).toContain('90.5/2000')
+    expect(html).toContain('30.00 Credit/100.00 Credit')
+    expect(html).toContain('0.00 Credit/—')
+    expect(html).toContain('90.50 Credit/2000.00 Credit')
   })
 
   it('多平台按固定顺序展示 TypeSafe，且仅展示有限额的平台', () => {

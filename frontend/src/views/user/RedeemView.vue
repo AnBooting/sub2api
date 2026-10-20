@@ -19,6 +19,15 @@
         </div>
       </div>
 
+      <!-- 口径提示：¥1 = 1 Credit（不换汇）；卡密兑换后余额才会变化 -->
+      <div
+        class="card border-primary-200 bg-primary-50 p-4 text-xs text-primary-800 dark:border-primary-800/50 dark:bg-primary-900/20 dark:text-primary-200"
+        data-testid="redeem-credit-hints"
+      >
+        <p>{{ t('redeem.creditRateHint') }}</p>
+        <p class="mt-1">{{ t('redeem.manualCreditHint') }}</p>
+      </div>
+
       <!-- Redeem Form -->
       <div class="card">
         <div class="p-6">
@@ -372,6 +381,7 @@ import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { useSubscriptionStore } from '@/stores/subscriptions'
+import { extractI18nErrorMessage } from '@/utils/apiError'
 import { redeemAPI, authAPI, type RedeemHistoryItem } from '@/api'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
@@ -513,8 +523,11 @@ const handleRedeem = async () => {
 
     // Show success toast
     appStore.showSuccess(t('redeem.codeRedeemSuccess'))
-  } catch (error: any) {
-    errorMessage.value = error.response?.data?.detail || t('redeem.failedToRedeem')
+  } catch (error: unknown) {
+    // 后端错误信封里没有 detail 字段，稳定错误码在 reason 上（REDEEM_CODE_USED /
+    // REDEEM_CODE_NOT_FOUND / REDEEM_CODE_EXPIRED），走仓库既有的 i18n 错误提取方式，
+    // 未命中时回落到通用文案。
+    errorMessage.value = extractI18nErrorMessage(error, t, 'redeem.errors', t('redeem.failedToRedeem'))
 
     appStore.showError(t('redeem.redeemFailed'))
   } finally {
