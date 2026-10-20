@@ -149,6 +149,23 @@ func (f *fakeVideoTaskRepo) MarkFailed(_ context.Context, id int64, _ time.Time,
 	return false, nil
 }
 
+// ListByUser 假实现：按 user_id 过滤。worker 测试不依赖用户侧列表，
+// 但端口新增该方法后测试替身必须跟上（否则整包编译失败）。
+func (f *fakeVideoTaskRepo) ListByUser(_ context.Context, userID int64, limit int) ([]*VideoTask, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := []*VideoTask{}
+	for _, task := range f.tasks {
+		if task.UserID == userID {
+			out = append(out, task)
+		}
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
 func (f *fakeVideoTaskRepo) lastErrorOf(taskNo string) string {
 	f.mu.Lock()
 	defer f.mu.Unlock()

@@ -37,6 +37,15 @@ const (
 // 上游查询风暴打进承载账号。默认保守（见 video_task_worker.go 的周期说明）。
 const defaultVideoTaskBatchSize = 50
 
+// 用户侧任务列表的默认条数与上限。
+//
+// 上限是硬约束：用户侧列表只用于「我提交过哪些视频任务」，
+// 不做分页游标，超过上限的请求一律截断，避免一次拉爆数据库。
+const (
+	defaultVideoTaskListLimit = 20
+	maxVideoTaskListLimit     = 50
+)
+
 // VideoTaskPlatformGrok / VideoTaskPlatformSeedance 是任务行记录的平台标识，
 // 决定 worker 用哪套上游状态协议去查。
 const (
@@ -93,6 +102,11 @@ type VideoTaskRepository interface {
 	GetByTaskNo(ctx context.Context, taskNo string) (*VideoTask, error)
 	// ListDue 返回未终态且已到检查时刻的任务（PRD-06 §2.4 的扫描入口）。
 	ListDue(ctx context.Context, now time.Time, limit int) ([]*VideoTask, error)
+	// ListByUser 按用户列出任务（创建时间倒序）。
+	//
+	// 归属红线：实现必须按 user_id 过滤，且只返回最小字段；
+	// 绝不返回 upstream_task_id / account_id / billing_snapshot（可能含上游内部信息）。
+	ListByUser(ctx context.Context, userID int64, limit int) ([]*VideoTask, error)
 	// MarkChecked 记录一次尝试（不改变终态）。
 	MarkChecked(ctx context.Context, id int64, attempts int, nextCheckAt time.Time, lastError string) error
 	// AttachBilling 把创建时计费事实补写到已登记的任务行（幂等，仅在仍 processing 时生效）。
@@ -254,6 +268,42 @@ func (s *VideoTaskService) ListDue(ctx context.Context, now time.Time, limit int
 		now = time.Now()
 	}
 	return s.repo.ListDue(ctx, now, limit)
+}
+
+// ListUserTasks 列出当前用户的视频任务（创建时间倒序）。
+//
+// 归属校验：只按调用方给定的 userID 查询，接口层不得接受「查别人」的参数
+// （BE-03：查询一律按 user_id 限定，绝不跨用户泄漏）。
+// 空结果返回空切片（不是 404）。
+func (s *VideoTaskService) ListUserTasks(ctx context.Context, userID int64, limit int) ([]*VideoTask, error) {
+	if err := s.ensureRepo(); err != nil {
+		return nil, err
+	}
+	if userID <= 0 {
+		return nil, ErrVideoTaskForbidden
+	}
+	limit = NormalizeVideoTaskListLimit(limit)
+	tasks, err := s.repo.ListByUser(ctx, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	if tasks == nil {
+		return []*VideoTask{}, nil
+	}
+	return tasks, nil
+}
+
+// NormalizeVideoTaskListLimit 把用户传入的 limit 收敛到 [1, maxVideoTaskListLimit]。
+//
+// 非正数走默认值；超过上限直接截断（而不是报错），让前端不必处理两种失败。
+func NormalizeVideoTaskListLimit(limit int) int {
+	if limit <= 0 {
+		return defaultVideoTaskListLimit
+	}
+	if limit > maxVideoTaskListLimit {
+		return maxVideoTaskListLimit
+	}
+	return limit
 }
 
 // MarkChecked 记录一次上游查询尝试（保持 processing）。

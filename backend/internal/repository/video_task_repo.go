@@ -211,6 +211,67 @@ WHERE user_id = $1 AND api_key_id = $2 AND upstream_task_id = $3 AND status = 'p
 	return err
 }
 
+
+// ListByUser 按用户列出任务（创建时间倒序），只回最小字段。
+//
+// 归属红线（BE-03）：查询必须按 user_id 过滤，绝不跨用户泄漏；
+// 返回列刻意**不含** upstream_task_id / account_id / billing_snapshot：
+// 这三列分别是上游内部标识、承载账号与计费快照，不该出现在用户侧列表里。
+func (r *videoTaskRepository) ListByUser(ctx context.Context, userID int64, limit int) ([]*service.VideoTask, error) {
+	if err := r.ensureDB(); err != nil {
+		return nil, err
+	}
+	if userID <= 0 {
+		return nil, service.ErrVideoTaskForbidden
+	}
+	limit = service.NormalizeVideoTaskListLimit(limit)
+	// id DESC 只作同一时刻并列时的稳定次序（避免翻页抖动）。
+	const query = `
+SELECT task_no, status, model, platform, billing_mode, created_at, settled_at, COALESCE(last_error, '')
+FROM video_tasks
+WHERE user_id = $1
+ORDER BY created_at DESC, id DESC
+LIMIT $2`
+	rows, err := r.db.QueryContext(ctx, query, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	tasks := make([]*service.VideoTask, 0, limit)
+	for rows.Next() {
+		var (
+			task      service.VideoTask
+			settledAt sql.NullTime
+			lastError sql.NullString
+		)
+		if err := rows.Scan(
+			&task.TaskNo,
+			&task.Status,
+			&task.Model,
+			&task.Platform,
+			&task.BillingMode,
+			&task.CreatedAt,
+			&settledAt,
+			&lastError,
+		); err != nil {
+			return nil, err
+		}
+		if settledAt.Valid {
+			value := settledAt.Time
+			task.SettledAt = &value
+		}
+		if lastError.Valid {
+			task.LastError = lastError.String
+		}
+		tasks = append(tasks, &task)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return tasks, nil
+}
+
 // videoTaskScanner 抽象 *sql.Row 与 *sql.Rows 的公共读取能力。
 type videoTaskScanner interface {
 	Scan(dest ...any) error
