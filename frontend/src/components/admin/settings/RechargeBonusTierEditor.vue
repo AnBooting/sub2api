@@ -42,7 +42,7 @@
               'rounded-md px-3 py-1 text-sm font-medium transition-colors',
               currentMode === option.value
                 ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-gray-200',
+                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
             ]"
             :aria-pressed="currentMode === option.value"
             :data-testid="`recharge-bonus-mode-${option.value}`"

@@ -45,14 +45,10 @@
           <span>{{ t('common.selectAll') }}</span>
         </label>
       </div>
-      <!--
-        stagger-children 只加在移动端卡片列表：这里是"一次性渲染完整数据"，
-        进入动画不会重播。桌面端表格用虚拟滚动复用行，加动画会导致滚动闪烁。
-      -->
       <div
         v-for="(row, index) in sortedData"
         :key="resolveRowKey(row, index)"
-        class="motion-enter rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
+        class="rounded-lg border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900"
         :class="{
           'cursor-pointer': clickableRows,
           'border-primary-300 bg-primary-50/40 dark:border-primary-700 dark:bg-primary-900/10': selectable && isRowSelected(row, index)

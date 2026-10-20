@@ -163,17 +163,7 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <!--
-    路由级过渡：只做极短的淡入 + 微位移，不做"滑动切换"。
-    理由：后台的导航是高频、目标导向的动作，长动画或横向滑动会让每次点击都变慢；
-    淡入足够传达"内容已切换"，又不会挡住操作。
-    mode="out-in" 保证旧页面先卸载，避免两页叠加造成的布局跳动。
-  -->
-  <RouterView v-slot="{ Component, route }">
-    <Transition name="route" mode="out-in">
-      <component :is="Component" :key="route.path" />
-    </Transition>
-  </RouterView>
+  <RouterView />
   <Toast />
   <AnnouncementPopup />
   <AdminComplianceDialog />
