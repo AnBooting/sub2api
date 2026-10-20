@@ -117,10 +117,12 @@
   }
 
   .btn-primary {
-    @apply bg-primary-500 text-white shadow-sm;
-    @apply hover:bg-primary-600 hover:shadow-md;
-    @apply active:bg-primary-700 active:shadow-sm;
-    @apply dark:shadow-primary-500/10;
+    /* 底色用 600 而非 500：暖陶土 500 上的白字对比度只有 3.43，不达 WCAG AA。
+       600/700 分别为 4.98 / 7.00，既保留暖色层次又满足可读性。 */
+    @apply bg-primary-600 text-white shadow-sm;
+    @apply hover:bg-primary-700 hover:shadow-md;
+    @apply active:bg-primary-800 active:shadow-sm;
+    @apply dark:shadow-primary-600/10;
   }
 
   .btn-secondary {
@@ -1088,3 +1090,168 @@
   }
 }
 
+/* ============================================================================
+   电影开场（Cinematic opening）+ 现代编辑感
+   ============================================================================
+   刻意放在所有 @layer 之外：@layer utilities 内的手写类会被 Tailwind 当作
+   未被引用的工具类清除，之前踩过这个坑。
+
+   设计意图：
+   - keylight / rimlight / floor 三束暖光建立舞台纵深，替代 SaaS 的对称光球；
+   - grain 用 SVG 噪点做极淡的胶片质感，不引入图片资源；
+   - chapter-* 是编辑式章节标识（序号 + 细线 + 小字），只做视觉分层，不承载文案。
+   全部 pointer-events: none，且 reduced-motion 下关闭动画。
+   ============================================================================ */
+.cinema-backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.cinema-keylight,
+.cinema-rimlight,
+.cinema-floor {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* 顶部主光：像片头幕布透出的暖光 */
+.cinema-keylight {
+  left: -10%;
+  top: -38%;
+  width: 120%;
+  height: 62%;
+  background:
+    radial-gradient(ellipse 68% 56% at 52% 48%, rgba(201, 118, 47, 0.16), transparent 70%),
+    radial-gradient(ellipse 52% 44% at 38% 34%, rgba(236, 186, 132, 0.10), transparent 68%);
+  filter: blur(12px);
+  transform: rotate(-2deg);
+}
+
+/* 侧逆光：制造不对称景深 */
+.cinema-rimlight {
+  right: -16%;
+  top: 6%;
+  width: 46%;
+  height: 74%;
+  background:
+    linear-gradient(175deg, rgba(236, 186, 132, 0.10), transparent 58%),
+    radial-gradient(ellipse 52% 46% at 72% 42%, rgba(201, 118, 47, 0.08), transparent 72%);
+  filter: blur(14px);
+  transform: skewX(-7deg);
+}
+
+/* 地面暖光：给主视觉一个落地平台 */
+.cinema-floor {
+  left: 8%;
+  bottom: -26%;
+  width: 84%;
+  height: 46%;
+  background: radial-gradient(ellipse 58% 48% at 50% 36%, rgba(168, 92, 34, 0.12), transparent 74%);
+  filter: blur(20px);
+}
+
+.dark .cinema-keylight {
+  background:
+    radial-gradient(ellipse 68% 56% at 52% 48%, rgba(201, 118, 47, 0.20), transparent 70%),
+    radial-gradient(ellipse 52% 44% at 38% 34%, rgba(236, 186, 132, 0.12), transparent 68%);
+}
+
+.dark .cinema-floor {
+  background: radial-gradient(ellipse 58% 48% at 50% 36%, rgba(168, 92, 34, 0.18), transparent 74%);
+}
+
+/* 极淡胶片颗粒：避免画面过于干净的 SaaS 感 */
+.cinema-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.10;
+  mix-blend-mode: soft-light;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='cg'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23cg)'/%3E%3C/svg%3E");
+}
+
+.dark .cinema-grain {
+  opacity: 0.16;
+}
+
+/* ── 编辑式章节标识 ───────────────────────────────────────────── */
+.chapter-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  line-height: 1;
+  letter-spacing: 0.24em;
+  color: rgba(168, 92, 34, 0.78);
+}
+
+.dark .chapter-mark {
+  color: rgba(214, 170, 112, 0.72);
+}
+
+.chapter-index {
+  font-weight: 600;
+}
+
+.chapter-rule {
+  display: inline-block;
+  width: 42px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(201, 118, 47, 0.7), rgba(201, 118, 47, 0.1));
+}
+
+.chapter-label {
+  letter-spacing: 0.3em;
+  opacity: 0.85;
+}
+
+/* 片名字体：轻微收紧字距 + 平衡断行，避免标题末行只剩一个词 */
+.chapter-title {
+  letter-spacing: -0.02em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+/* 暖色玻璃卡片：用于登录卡片等"舞台中心"容器 */
+.cinema-card {
+  position: relative;
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(255, 252, 247, 0.92), rgba(255, 246, 232, 0.84));
+  border: 1px solid rgba(168, 92, 34, 0.16);
+  box-shadow:
+    0 36px 90px -36px rgba(55, 28, 10, 0.42),
+    0 4px 20px -12px rgba(55, 28, 10, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.dark .cinema-card {
+  background: linear-gradient(160deg, rgba(34, 23, 13, 0.90), rgba(24, 16, 9, 0.86));
+  border-color: rgba(190, 135, 75, 0.20);
+  box-shadow:
+    0 40px 100px -40px rgba(0, 0, 0, 0.68),
+    0 6px 26px -14px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 220, 180, 0.08);
+}
+
+/* 卡片顶部一道暖色描边，呼应章节线 */
+.cinema-card::before {
+  content: "";
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(201, 118, 47, 0.68), rgba(236, 186, 132, 0.18));
+  opacity: 0.7;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cinema-backdrop,
+  .cinema-backdrop * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

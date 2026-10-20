@@ -841,7 +841,7 @@
                       {{ getBetaDisplayName(rule.beta_token) }}
                     </span>
                     <span
-                      class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400"
+                      class="rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-300"
                     >
                       {{ rule.beta_token }}
                     </span>
@@ -8348,7 +8348,7 @@
                       :key="pt.value"
                       type="button"
                       @click="togglePaymentType(pt.value)"
-                      :class="[ 'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all', isPaymentTypeEnabled(pt.value) ? 'border-primary-500 bg-primary-500 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500', ]"
+                      :class="[ 'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all', isPaymentTypeEnabled(pt.value) ? 'border-primary-500 bg-primary-600 text-white shadow-sm' : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500', ]"
                     >
                       {{ pt.label }}
                     </button>
@@ -13375,7 +13375,7 @@ watch(
   height: 2px;
   border-radius: 9999px;
   content: "";
-  background: linear-gradient(90deg, #14b8a6, #0ea5e9);
+  background: linear-gradient(90deg, #c9762f, #a85c22);
 }
 
 .settings-tab-icon {

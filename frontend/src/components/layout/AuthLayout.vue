@@ -1,5 +1,12 @@
 <template>
-  <div class="motion-page relative flex min-h-screen items-center justify-center bg-surface-100 p-4 dark:bg-dark-950">
+  <div class="motion-page relative flex min-h-screen items-center justify-center overflow-hidden bg-surface-100 p-4 dark:bg-dark-950">
+    <!-- 电影开场背景：三束暖光 + 极淡胶片颗粒，纯装饰 -->
+    <div class="cinema-backdrop" aria-hidden="true">
+      <div class="cinema-keylight"></div>
+      <div class="cinema-rimlight"></div>
+      <div class="cinema-floor"></div>
+      <div class="cinema-grain"></div>
+    </div>
     <!-- Content Container -->
     <div class="relative z-10 w-full max-w-md">
       <!-- Logo/Brand -->
@@ -17,8 +24,15 @@
         </template>
       </div>
 
+      <!-- 编辑式章节标识：纯视觉分层，不承载文案 -->
+      <div class="chapter-mark">
+        <span class="chapter-index">01</span>
+        <span class="chapter-rule"></span>
+        <span class="chapter-label">OPENING</span>
+      </div>
+
       <!-- Card Container -->
-      <div class="rounded-panel border border-borderline-200 bg-white p-6 shadow-card dark:border-dark-700 dark:bg-dark-800 sm:p-7">
+      <div class="cinema-card p-6 sm:p-7">
         <slot />
       </div>
 

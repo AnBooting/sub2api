@@ -14,12 +14,19 @@
   <div
     v-else
     data-testid="compact-home"
-    class="flex min-h-screen flex-col bg-surface-100 text-ink-900 dark:bg-dark-950 dark:text-white"
+    class="relative flex min-h-screen flex-col overflow-hidden bg-surface-100 text-ink-900 dark:bg-dark-950 dark:text-white"
   >
-    <div class="motion-activity-line overflow-hidden">
+    <!-- 电影开场背景：三束暖光 + 极淡胶片颗粒，纯装饰 -->
+    <div class="cinema-backdrop" aria-hidden="true">
+      <div class="cinema-keylight"></div>
+      <div class="cinema-rimlight"></div>
+      <div class="cinema-floor"></div>
+      <div class="cinema-grain"></div>
+    </div>
+    <div class="motion-activity-line relative z-10 overflow-hidden">
       <div class="h-0.5 w-full origin-left bg-gradient-primary"></div>
     </div>
-    <header class="border-b border-borderline-200 bg-surface-50 dark:border-dark-800 dark:bg-dark-900">
+    <header class="relative z-10 border-b border-borderline-200 bg-surface-50 dark:border-dark-800 dark:bg-dark-900">
       <nav class="mx-auto flex min-h-14 max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
         <div class="flex min-w-0 flex-1 items-center gap-2.5">
           <img
@@ -73,11 +80,17 @@
       </nav>
     </header>
 
-    <main class="mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
+    <main class="relative z-10 mx-auto w-full max-w-6xl flex-1 px-4 py-10 sm:px-6">
       <div class="grid gap-8 lg:grid-cols-[1fr_360px] lg:items-start">
         <section class="min-w-0">
           <div class="mb-6">
-            <h1 class="text-2xl font-semibold tracking-tight sm:text-3xl">{{ homeHeadline }}</h1>
+            <!-- 编辑式章节标识：纯视觉分层，不承载文案 -->
+            <div class="chapter-mark">
+              <span class="chapter-index">01</span>
+              <span class="chapter-rule"></span>
+              <span class="chapter-label">OPENING</span>
+            </div>
+            <h1 class="chapter-title text-2xl font-semibold tracking-tight sm:text-3xl">{{ homeHeadline }}</h1>
             <p class="mt-2 max-w-2xl text-sm leading-6 text-ink-600 dark:text-dark-300">
               {{ siteSubtitle }}
             </p>
@@ -122,7 +135,7 @@
       </div>
     </main>
 
-    <footer class="border-t border-borderline-200 bg-surface-50 dark:border-dark-800 dark:bg-dark-900">
+    <footer class="relative z-10 border-t border-borderline-200 bg-surface-50 dark:border-dark-800 dark:bg-dark-900">
       <div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-3 px-4 py-4 text-xs text-ink-500 dark:text-dark-400 sm:flex-row sm:px-6">
         <span>&copy; {{ currentYear }} {{ siteName }}</span>
         <div class="flex items-center gap-4">

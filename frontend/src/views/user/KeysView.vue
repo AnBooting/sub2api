@@ -444,7 +444,7 @@
               </span>
               <span
                 v-if="createProvider === provider.value"
-                class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-500 text-white"
+                class="absolute right-1.5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary-600 text-white"
                 aria-hidden="true"
               >
                 <Icon name="check" size="xs" :stroke-width="3" />
@@ -821,14 +821,14 @@
                 :key="days"
                 type="button"
                 @click="setExpirationDays(parseInt(days))"
-                :class="[ 'rounded-lg px-3 py-1.5 text-sm transition-colors', formData.expiration_preset === days ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600' ]"
+                :class="[ 'rounded-lg px-3 py-1.5 text-sm transition-colors', formData.expiration_preset === days ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600' ]"
               >
                 {{ showEditModal ? t('keys.extendDays', { days }) : t('keys.expiresInDays', { days }) }}
               </button>
               <button
                 type="button"
                 @click="formData.expiration_preset = 'custom'"
-                :class="[ 'rounded-lg px-3 py-1.5 text-sm transition-colors', formData.expiration_preset === 'custom' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-400 dark:hover:bg-dark-600' ]"
+                :class="[ 'rounded-lg px-3 py-1.5 text-sm transition-colors', formData.expiration_preset === 'custom' ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400' : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600' ]"
               >
                 {{ t('keys.customDate') }}
               </button>

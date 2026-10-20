@@ -20,7 +20,7 @@
           <template v-for="(step, index) in steps" :key="step.id">
             <div class="flex items-center">
               <div
-                :class="[ 'flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all', currentStep > index ? 'bg-primary-500 text-white' : currentStep === index ? 'bg-primary-500 text-white ring-4 ring-primary-100 dark:ring-primary-900' : 'bg-gray-200 text-gray-500 dark:bg-dark-700 dark:text-dark-400' ]"
+                :class="[ 'flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold transition-all', currentStep > index ? 'bg-primary-600 text-white' : currentStep === index ? 'bg-primary-600 text-white ring-4 ring-primary-100 dark:ring-primary-900' : 'bg-gray-200 text-gray-500 dark:bg-dark-700 dark:text-dark-400' ]"
               >
                 <Icon
                   v-if="currentStep > index"

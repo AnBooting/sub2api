@@ -163,7 +163,15 @@ onMounted(async () => {
 
 <template>
   <NavigationProgress />
-  <router-view />
+  <!-- 路由过渡：接上 style.css 里已定义但一直未被使用的 .route-shift-* 类。
+       mode="out-in" 保证旧页面先卸载，避免两页叠加产生布局跳动。
+       以 route.path 作为 key：仅查询串变化（筛选/分页）不重建页面，
+       避免用户在列表页翻页时整页闪烁。 -->
+  <RouterView v-slot="{ Component, route }">
+    <Transition name="route-shift" mode="out-in">
+      <component :is="Component" :key="route.path" />
+    </Transition>
+  </RouterView>
   <Toast />
   <AnnouncementPopup />
   <AdminComplianceDialog />
