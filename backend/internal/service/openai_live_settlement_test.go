@@ -22,7 +22,10 @@ func newLiveSettlementTestService() (*OpenAIGatewayService, *liveTestStore, *liv
 		usageBillingRepo:   billingRepo,
 		userRepo:           &openAIRecordUsageUserRepoStub{},
 		userSubRepo:        &openAIRecordUsageSubRepoStub{},
-		billingService:     NewBillingService(rawChatCompletionsTestConfig(), nil),
+		// 生产上密钥额度/窗口限额由 APIKeyService 更新并失效鉴权缓存；
+		// 统一账本路径只把它当作启用开关与缓存失效入口。
+		apiKeyService:  &APIKeyService{},
+		billingService: NewBillingService(rawChatCompletionsTestConfig(), nil),
 	}
 	return svc, store, usageRepo, billingRepo
 }
@@ -43,6 +46,14 @@ func newLiveSettlementRecord(t *testing.T, store *liveTestStore, subscriptionID 
 		ExpiresAt:           time.Now().Add(time.Hour),
 		Controller:          LiveControllerPending,
 		RealtimePricePerMin: price,
+		// 模拟开播时冻结的计费策略：密钥有总额度且配置了 5h/1d/7d 窗口限额。
+		BillingPolicy: &LiveBillingPolicy{
+			APIKeyQuota:   1,
+			RateLimit5h:   1,
+			RateLimit1d:   1,
+			RateLimit7d:   1,
+			GroupPlatform: "openai",
+		},
 	}
 	require.NoError(t, store.SaveLiveCall(context.Background(), record, time.Hour))
 	return record

@@ -464,6 +464,7 @@ type OpenAIGatewayService struct {
 	usageBillingRepo      UsageBillingRepository
 	userRepo              UserRepository
 	userSubRepo           UserSubscriptionRepository
+	apiKeyService         *APIKeyService
 	cache                 GatewayCache
 	cfg                   *config.Config
 	codexDetector         CodexClientRestrictionDetector
@@ -709,6 +710,16 @@ func (s *OpenAIGatewayService) billingDeps() *billingDeps {
 		balanceNotifyService:  s.balanceNotifyService,
 		userPlatformQuotaRepo: s.userPlatformQuotaRepo,
 	}
+}
+
+// SetAPIKeyService 注入用于 Live 结算的密钥额度/窗口限额服务。
+// 构造函数参数已达 23 个且被大量测试装配引用，故生产注入放在 wire 装配层完成；
+// 未注入时 Live 结算仍会记余额/订阅，只是不累计密钥限额。
+func (s *OpenAIGatewayService) SetAPIKeyService(apiKeyService *APIKeyService) {
+	if s == nil {
+		return
+	}
+	s.apiKeyService = apiKeyService
 }
 
 // CloseOpenAIWSPool 关闭 OpenAI WebSocket 连接池的后台 worker 和空闲连接。

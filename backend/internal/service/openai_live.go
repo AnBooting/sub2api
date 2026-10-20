@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"github.com/google/uuid"
@@ -30,10 +31,27 @@ const (
 	liveObserverPollInterval      = 250 * time.Millisecond
 	liveObserverStoreRetryLimit   = 5
 	liveUpstreamBodyLimit         = 2 << 20
+	// liveSettlementRetryAttempts 是 observer 对 pending 结算的自动重试次数。
+	liveSettlementRetryAttempts = 4
 )
 
 // liveObserverStoreRetryInterval 是 var 以便测试缩短 store 报错的重试等待。
 var liveObserverStoreRetryInterval = time.Second
+
+// liveSettlementRetryInterval 是 var 以便测试缩短等待；逐步退避到分钟级，
+// 覆盖数据库/网络短时故障，又不至于在小时级故障里刷屏。
+var liveSettlementRetryInterval = func(attempt int) time.Duration {
+	switch attempt {
+	case 0:
+		return 5 * time.Second
+	case 1:
+		return 30 * time.Second
+	case 2:
+		return 2 * time.Minute
+	default:
+		return 5 * time.Minute
+	}
+}
 
 var (
 	chatGPTLiveCallsURL        = "https://chatgpt.com/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas"
@@ -228,8 +246,10 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			UserAgent:       identity.UserAgent,
 			IPAddress:       identity.IPAddress,
 			InboundEndpoint: identity.InboundEndpoint,
-			// 开播即冻结单价：结算在会话关闭时发生，期间改价不得影响本次会话。
+			// 开播即冻结单价与计费策略：结算在会话关闭时发生，期间改价或改限额
+			// 不得影响本次会话，observer 回读与失败重试也只能使用这份快照。
 			RealtimePricePerMin:   identity.RealtimePricePerMin,
+			BillingPolicy:         identity.BillingPolicy,
 			AttestationCiphertext: attestationCiphertext,
 		}
 		mappingTTL := s.liveMaxSessionDuration() + 5*time.Minute
@@ -653,6 +673,9 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 		storeErrStreak = 0
 		record = latest
 		if record.Controller != LiveControllerObserver {
+			// 控制权已交还（会话被 finalize）。若结算仍处于 pending（财务仓储
+			// 临时故障），由 observer 在关闭 TTL 内自动重试，避免只依赖人工补账。
+			s.retryPendingLiveSettlement(record)
 			return
 		}
 		if !time.Now().Before(record.ExpiresAt) {
@@ -762,6 +785,39 @@ func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *LiveCallRecord) 
 	return getErr == nil && controller == LiveControllerObserver
 }
 
+// retryPendingLiveSettlement 自动重试待结算的 Live 会话。
+// 只处理 Settlement.Status == pending 的记录：金额在首次尝试前已冻结，重试复用同一
+// 份金额，账本按 request_id 幂等。返回时记录要么已结算，要么已被 TTL 清理。
+func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord) {
+	if record == nil || record.Settlement == nil || record.Settlement.Status != LiveSettlementPending {
+		return
+	}
+	store, err := s.liveStore()
+	if err != nil {
+		return
+	}
+	for attempt := 0; attempt < liveSettlementRetryAttempts; attempt++ {
+		time.Sleep(liveSettlementRetryInterval(attempt))
+		latest, getErr := store.GetLiveCall(context.Background(), record.CallHash)
+		if getErr != nil {
+			return
+		}
+		if latest.Settlement == nil || latest.Settlement.Status != LiveSettlementPending {
+			return
+		}
+		s.finalizeLiveCall(latest)
+		// finalizeLiveCall 内部会重新读取记录，这里必须回读才能看到最新状态，
+		// 否则会话已结算后仍会多睡一整轮退避。
+		settled, getErr := store.GetLiveCall(context.Background(), record.CallHash)
+		if getErr != nil {
+			return
+		}
+		if settled.Settlement == nil || settled.Settlement.Status != LiveSettlementPending {
+			return
+		}
+	}
+}
+
 // finalizeLiveCallAfterExpiry 是 store 持续报错、observer 无法继续观察时的兜底：
 // 等到会话最长时限 ExpiresAt 再 finalize，保证 usage log 与租约释放最迟在会话到期
 // 时完成。MarkLiveCallClosed 的 first 语义保证与其他恢复路径不会重复落库。
@@ -804,54 +860,183 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	if err != nil {
 		return
 	}
+	// 结算可能由 observer 从 Redis 回读记录后触发，也可能是对上次失败的结算重试；
+	// 始终以存储中的最新记录为准，避免用过期副本覆盖已冻结的金额。
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	first, err := store.MarkLiveCallClosed(ctx, record.CallHash, liveClosedRecordTTL)
-	cancel()
-	if err != nil || !first {
+	current := record
+	if stored, getErr := store.GetLiveCall(ctx, record.CallHash); getErr == nil && stored != nil {
+		current = stored
+	}
+	if current.Settlement != nil && current.Settlement.Status == LiveSettlementSettled {
+		// 已结算的会话不重复扣费；但结算成功与写用量日志之间的崩溃窗口可能留下
+		// 缺日志，这里补一次（usage_logs 对 request_id 幂等，重复写入被忽略）。
+		cancel()
+		if s.usageLogRepo != nil && !current.Settlement.UsageLogWritten {
+			writeUsageLogBestEffort(context.Background(), s.usageLogRepo,
+				liveUsageLog(current, current.Settlement, current.Settlement.ActualCost), "service.openai_live")
+			current.Settlement.UsageLogWritten = true
+			s.persistLiveSettlement(current)
+		}
 		return
 	}
-	s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
+	first, markErr := store.MarkLiveCallClosed(ctx, current.CallHash, liveClosedRecordTTL)
+	cancel()
+	if markErr != nil {
+		return
+	}
+	retrying := current.Settlement != nil && current.Settlement.Status == LiveSettlementPending
+	if !first && !retrying {
+		return
+	}
+	if first {
+		s.releaseLiveLease(current.AccountID, current.UserID, current.APIKeyID, current.LeaseID)
+	}
 	if s.usageLogRepo == nil {
 		return
 	}
+
+	// 金额只在第一次尝试前冻结并持久化：重试复用同一份金额，不随再次调用时间增长。
+	if current.Settlement == nil {
+		current.Settlement = s.freezeLiveSettlement(current)
+		s.persistLiveSettlement(current)
+	}
+	settleState := current.Settlement
+	if settleState.Status == LiveSettlementSettled {
+		// 缺价/零费用：不伪造扣费，按未计费落库后结束。
+		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, liveUsageLog(current, settleState, 0), "service.openai_live")
+		settleState.UsageLogWritten = true
+		s.persistLiveSettlement(current)
+		return
+	}
+
+	apiKey, policy := liveBillingAPIKey(current)
+	skip, simpleModeKeyRateLimitOnly := s.liveSettlementPolicy(apiKey)
+	if skip {
+		// 简易模式且未开启密钥窗口限额：与请求路径一致，只记用量不做财务结算。
+		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, liveUsageLog(current, settleState, 0), "service.openai_live")
+		settleState.Status = LiveSettlementSettled
+		settleState.UsageLogWritten = true
+		s.persistLiveSettlement(current)
+		return
+	}
+
+	cost := &CostBreakdown{TotalCost: settleState.TotalCost, ActualCost: settleState.ActualCost, BillingMode: settleState.BillingMode}
+	usageLog := liveUsageLog(current, settleState, settleState.ActualCost)
+	if err := s.settleLiveCallUsage(current, usageLog, cost, apiKey, policy, simpleModeKeyRateLimitOnly); err != nil {
+		// 保留 pending 状态与冻结金额，后续 finalize 可安全重试（账本按 request_id 幂等）。
+		settleState.Attempts++
+		s.persistLiveSettlement(current)
+		logger.FromContext(context.Background()).Warn(
+			"Live 会话扣费失败：保留待结算状态，等待重试",
+			zap.Int64("user_id", current.UserID),
+			zap.Int64("api_key_id", current.APIKeyID),
+			zap.String("call_hash", current.CallHash),
+			zap.Int("attempts", settleState.Attempts),
+			zap.Error(err),
+		)
+		usageLog.ActualCost = 0
+		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+		return
+	}
+	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+	settleState.Status = LiveSettlementSettled
+	settleState.UsageLogWritten = true
+	s.persistLiveSettlement(current)
+}
+
+// freezeLiveSettlement 冻结本次会话的时长与金额（含缺价/零费用情形）。
+func (s *OpenAIGatewayService) freezeLiveSettlement(record *LiveCallRecord) *LiveSettlement {
 	duration := int(time.Since(record.CreatedAt).Milliseconds())
 	if duration < 0 {
 		duration = 0
 	}
-	inboundEndpoint := record.InboundEndpoint
-	upstreamEndpoint := "/backend-api/codex/realtime/calls"
-	userAgent := record.UserAgent
-	ipAddress := record.IPAddress
+	state := &LiveSettlement{Status: LiveSettlementSettled, DurationMs: duration, FrozenAt: time.Now()}
+	cost, err := s.liveSessionCost(record, duration)
+	if err != nil || cost == nil {
+		logger.FromContext(context.Background()).Warn(
+			"Live 会话结算缺少可用价格：按未计费落库",
+			zap.Int64("user_id", record.UserID),
+			zap.Int64("group_id", record.GroupID),
+			zap.Int("duration_ms", duration),
+			zap.Error(err),
+		)
+		return state
+	}
+	state.TotalCost = cost.TotalCost
+	state.ActualCost = cost.ActualCost
+	state.BillingMode = cost.BillingMode
+	if cost.ActualCost > 0 {
+		state.Status = LiveSettlementPending
+	}
+	return state
+}
+
+// persistLiveSettlement 把结算事实写回会话记录；失败只告警，不阻断财务结算。
+func (s *OpenAIGatewayService) persistLiveSettlement(record *LiveCallRecord) {
+	store, err := s.liveStore()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	defer cancel()
+	// 结算状态只在关闭标记写入之后持久化。记录副本里的 controller 可能还是关闭前
+	// 的旧值（MarkLiveCallClosed 只改存储里的标记），直接回写会把已关闭的会话“复活”：
+	// 下一次 finalize 又会拿到 first=true，会话也可能被重新 claim 成控制端。
+	record.Controller = LiveControllerClosed
+	record.ControllerOwner = ""
+	if err := store.SaveLiveCall(ctx, record, liveClosedRecordTTL); err != nil {
+		logger.FromContext(context.Background()).Warn(
+			"Live 结算状态持久化失败",
+			zap.String("call_hash", record.CallHash),
+			zap.Error(err),
+		)
+	}
+}
+
+// liveBillingAPIKey 用开播时冻结的策略构造最小 APIKey；会话创建时未冻结策略的
+// 旧记录按零值处理（不做密钥限额计量），但余额/订阅结算不受影响。
+func liveBillingAPIKey(record *LiveCallRecord) (*APIKey, *LiveBillingPolicy) {
+	policy := record.BillingPolicy
+	if policy == nil {
+		policy = &LiveBillingPolicy{}
+	}
+	apiKey := &APIKey{
+		ID:          record.APIKeyID,
+		Quota:       policy.APIKeyQuota,
+		RateLimit5h: policy.RateLimit5h,
+		RateLimit1d: policy.RateLimit1d,
+		RateLimit7d: policy.RateLimit7d,
+	}
+	if record.GroupID > 0 {
+		groupID := record.GroupID
+		apiKey.GroupID = &groupID
+	}
+	return apiKey, policy
+}
+
+// liveSettlementPolicy 与请求路径的简易模式语义保持一致：
+// 简易模式且未开启密钥窗口限额时，不扣余额/订阅，只记录用量。
+func (s *OpenAIGatewayService) liveSettlementPolicy(apiKey *APIKey) (skip bool, simpleModeKeyRateLimitOnly bool) {
+	if s == nil || s.cfg == nil || s.cfg.RunMode != config.RunModeSimple {
+		return false, false
+	}
+	if simpleModeKeyRateLimitBillingEnabled(s.cfg, apiKey) {
+		return false, true
+	}
+	return true, false
+}
+
+func liveUsageLog(record *LiveCallRecord, state *LiveSettlement, actualCost float64) *UsageLog {
 	billingType := int8(BillingTypeBalance)
 	if record.SubscriptionID > 0 {
 		billingType = BillingTypeSubscription
 	}
-	// Live 按时长计费：单价在开播时冻结（record.RealtimePricePerMin），此处只做结算。
-	// 缺价（分组未配置单价）时不得按零价放行、也不得回落到内置默认价——那等于给
-	// 未定价分组开免费额度。此时明确告警，账单按未计费落库以便事后补账。
-	cost, costErr := s.liveSessionCost(record, duration)
-	if costErr != nil {
-		logger.FromContext(context.Background()).Warn(
-			"Live 会话结算失败：分组未配置实时语音单价，本次按未计费落库",
-			zap.Int64("user_id", record.UserID),
-			zap.Int64("api_key_id", record.APIKeyID),
-			zap.Int64("group_id", record.GroupID),
-			zap.String("model", record.Model),
-			zap.Int("duration_ms", duration),
-			zap.Error(costErr),
-		)
-	}
-	totalCost, actualCost := 0.0, 0.0
-	billingMode := ""
-	if cost != nil {
-		totalCost = cost.TotalCost
-		actualCost = cost.ActualCost
-		billingMode = cost.BillingMode
-	}
-	//
-	// 这是该会话唯一一次落库机会（MarkLiveCallClosed 已标记 first），失败即永久
-	// 丢失，因此走带日志与同步兜底的 writeUsageLogBestEffort（issue #3656）。
-	usageLog := &UsageLog{
+	duration := state.DurationMs
+	userAgent := record.UserAgent
+	ipAddress := record.IPAddress
+	inboundEndpoint := record.InboundEndpoint
+	upstreamEndpoint := "/backend-api/codex/realtime/calls"
+	log := &UsageLog{
 		UserID:           record.UserID,
 		APIKeyID:         record.APIKeyID,
 		AccountID:        record.AccountID,
@@ -863,7 +1048,7 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		RateMultiplier:   1,
 		BillingType:      billingType,
 		RequestType:      RequestTypeLive,
-		TotalCost:        totalCost,
+		TotalCost:        state.TotalCost,
 		ActualCost:       actualCost,
 		DurationMs:       &duration,
 		UserAgent:        &userAgent,
@@ -872,55 +1057,41 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		UpstreamEndpoint: &upstreamEndpoint,
 		CreatedAt:        record.CreatedAt,
 	}
-	if billingMode != "" {
-		usageLog.BillingMode = &billingMode
+	if state.BillingMode != "" {
+		billingMode := state.BillingMode
+		log.BillingMode = &billingMode
 	}
-	// 先结算、再落日志：账单金额必须对应真实的余额/订阅变更，否则会出现
-	// “有费用但不结算”的对账缺口。结算以 request_id（CallHash）幂等，
-	// 与 usage_logs 的唯一键一致，重试不会重复扣费。
-	if err := s.settleLiveCallUsage(record, usageLog, cost); err != nil {
-		logger.FromContext(context.Background()).Warn(
-			"Live 会话扣费失败：本次账单按未计费落库",
-			zap.Int64("user_id", record.UserID),
-			zap.Int64("api_key_id", record.APIKeyID),
-			zap.String("call_hash", record.CallHash),
-			zap.Error(err),
-		)
-		usageLog.ActualCost = 0
-	}
-	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+	return log
 }
 
-// settleLiveCallUsage 把本次 Live 会话的冻结费用写入统一计费账本。
-// 只依赖会话记录里的 ID，不重新回源取价；金额已在 liveSessionCost 计算完毕。
-// 无计费仓储（降级/只记录用量的测试装配）时跳过，不伪造扣费。
-func (s *OpenAIGatewayService) settleLiveCallUsage(record *LiveCallRecord, usageLog *UsageLog, cost *CostBreakdown) error {
+// settleLiveCallUsage 把冻结费用写入统一计费账本。request_id 使用 CallHash，
+// 与 usage_logs 唯一键一致，重复结算由账本去重，不会重复扣费。
+func (s *OpenAIGatewayService) settleLiveCallUsage(record *LiveCallRecord, usageLog *UsageLog, cost *CostBreakdown, apiKey *APIKey, policy *LiveBillingPolicy, simpleModeKeyRateLimitOnly bool) error {
 	if s == nil || record == nil || usageLog == nil || cost == nil || cost.ActualCost <= 0 {
 		return nil
 	}
 	if s.usageBillingRepo == nil {
 		return nil
 	}
-	// 计费命令只需要 ID 与计费开关；会话创建时没有冻结完整实体，
-	// 因此这里构造最小实体，金额以 cost/usageLog 为准。
-	user := &User{ID: record.UserID}
-	apiKey := &APIKey{ID: record.APIKeyID}
-	if record.GroupID > 0 {
-		groupID := record.GroupID
-		apiKey.GroupID = &groupID
-	}
-	account := &Account{ID: record.AccountID}
+	isSubscription := record.SubscriptionID > 0 && !simpleModeKeyRateLimitOnly
 	var subscription *UserSubscription
-	if record.SubscriptionID > 0 {
+	if isSubscription {
 		subscription = &UserSubscription{ID: record.SubscriptionID}
 	}
+	platform := ""
+	if policy != nil {
+		platform = policy.GroupPlatform
+	}
 	_, err := applyUsageBilling(context.Background(), record.CallHash, usageLog, &postUsageBillingParams{
-		Cost:               cost,
-		User:               user,
-		APIKey:             apiKey,
-		Account:            account,
-		Subscription:       subscription,
-		IsSubscriptionBill: record.SubscriptionID > 0,
+		Cost:                       cost,
+		User:                       &User{ID: record.UserID},
+		APIKey:                     apiKey,
+		Account:                    &Account{ID: record.AccountID},
+		Subscription:               subscription,
+		IsSubscriptionBill:         isSubscription,
+		APIKeyService:              s.apiKeyService,
+		SimpleModeKeyRateLimitOnly: simpleModeKeyRateLimitOnly,
+		Platform:                   platform,
 	}, s.billingDeps(), s.usageBillingRepo)
 	return err
 }

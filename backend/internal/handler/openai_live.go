@@ -169,8 +169,15 @@ func liveCallIdentity(
 	// 开播即冻结分组单价：结算在会话关闭时才发生，期间管理员改价不得影响本次会话，
 	// 否则用户看到的报价与最终扣费会不一致。
 	var realtimePricePerMin *float64
+	policy := &service.LiveBillingPolicy{
+		APIKeyQuota: apiKey.Quota,
+		RateLimit5h: apiKey.RateLimit5h,
+		RateLimit1d: apiKey.RateLimit1d,
+		RateLimit7d: apiKey.RateLimit7d,
+	}
 	if apiKey.Group != nil {
 		realtimePricePerMin = apiKey.Group.AudioRealtimePricePerMin
+		policy.GroupPlatform = apiKey.Group.Platform
 	}
 	return service.LiveCallIdentity{
 		APIKeyID:            apiKey.ID,
@@ -181,6 +188,9 @@ func liveCallIdentity(
 		IPAddress:           ip.GetClientIP(c),
 		InboundEndpoint:     GetInboundEndpoint(c),
 		RealtimePricePerMin: realtimePricePerMin,
+		// 结算可能在 observer 从 Redis 回读记录后发生，也可能对失败结算重试：
+		// 密钥额度/窗口限额/平台必须在开播时冻结，不能回源读取可能已变化的配置。
+		BillingPolicy: policy,
 	}
 }
 
