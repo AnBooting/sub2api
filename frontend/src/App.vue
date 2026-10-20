@@ -169,7 +169,13 @@ onMounted(async () => {
        避免用户在列表页翻页时整页闪烁。 -->
   <RouterView v-slot="{ Component, route }">
     <Transition name="route-shift" mode="out-in">
-      <component :is="Component" :key="route.path" />
+      <!-- Transition 只接受单元素根节点。LoginView 这类页面根节点是 Fragment
+           （AuthLayout + 条件渲染的 TotpLoginModal），直接包裹会让 out-in 的离场
+           永远无法完成，登录成功跳转后目标页不渲染。这里用稳定 div 包裹路由组件，
+           既保留过渡，也让任意页面满足单根约束。 -->
+      <div :key="route.path" class="route-shift-view">
+        <component :is="Component" />
+      </div>
     </Transition>
   </RouterView>
   <Toast />
