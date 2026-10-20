@@ -95,23 +95,18 @@
     v-else
     class="relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950"
   >
-    <!-- Background Decorations -->
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/20 blur-3xl"
-      ></div>
-      <div
-        class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/15 blur-3xl"
-      ></div>
-      <div
-        class="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-primary-300/10 blur-3xl"
-      ></div>
-      <div
-        class="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl"
-      ></div>
-      <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
-      ></div>
+    <!-- Cinematic Warm Background -->
+    <div class="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+      <!-- 顶部柔光：像电影开场时幕布透出的暖光 -->
+      <div class="cinema-light cinema-light-top"></div>
+      <!-- 底部暖光平台：给主视觉一个落地空间 -->
+      <div class="cinema-light cinema-light-floor"></div>
+      <!-- 侧光：模拟舞台侧灯，制造不对称景深 -->
+      <div class="cinema-light cinema-light-side"></div>
+      <!-- 极淡胶片颗粒：避免画面过于干净的 SaaS 感 -->
+      <div class="film-grain"></div>
+      <!-- 扫描微光：极慢速移动，制造"画面还活着"的感觉 -->
+      <div class="light-sweep"></div>
     </div>
 
     <!-- Header -->
@@ -206,8 +201,14 @@
         <div class="mb-12 flex flex-col items-center justify-between gap-12 lg:flex-row lg:gap-16">
           <!-- Left: Text Content -->
           <div class="flex-1 text-center lg:text-left">
+            <!-- Editorial chapter mark: 电影片头的章节标识 -->
+            <div class="chapter-mark">
+              <span class="chapter-index">01</span>
+              <span class="chapter-rule"></span>
+              <span class="chapter-label">OPENING</span>
+            </div>
             <h1
-              class="mb-4 text-4xl font-bold text-gray-900 dark:text-white md:text-5xl lg:text-6xl"
+              class="chapter-title mb-4 text-4xl font-bold text-gray-900 dark:text-white md:text-5xl lg:text-6xl"
             >
               {{ siteName }}
             </h1>
@@ -238,10 +239,16 @@
                     <span class="btn-minimize"></span>
                     <span class="btn-maximize"></span>
                   </div>
-                  <span class="terminal-title">terminal</span>
+                  <span class="terminal-title">
+                    <span class="terminal-title-label">SUB2API /</span>
+                    {{ t('home.heroSubtitle') }}
+                  </span>
                 </div>
                 <!-- Terminal content -->
                 <div class="terminal-body">
+                  <div class="code-line editorial-trace">
+                    <span class="code-comment"># {{ t('home.heroDescription') }}</span>
+                  </div>
                   <div class="code-line line-1">
                     <span class="code-prompt">$</span>
                     <span class="code-cmd">curl</span>
@@ -589,16 +596,29 @@ onMounted(() => {
 
 /* Terminal Window */
 .terminal-window {
-  width: 420px;
-  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+  width: 460px;
+  background: linear-gradient(145deg, rgba(29, 21, 14, 0.96), rgba(16, 11, 7, 0.98));
   border-radius: 14px;
   box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 32px 80px -32px rgba(55, 28, 10, 0.5),
+    0 0 0 1px rgba(190, 135, 75, 0.16),
+    inset 0 1px 0 rgba(255, 220, 180, 0.08);
   overflow: hidden;
   transform: perspective(1000px) rotateX(2deg) rotateY(-2deg);
   transition: transform 0.3s ease;
+  position: relative;
+}
+
+/* 暖光投影：不是 CRT 扫描线，而是屏幕玻璃上的柔和反光 */
+.terminal-window::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  background:
+    radial-gradient(ellipse 75% 55% at 62% 12%, rgba(255, 214, 165, 0.07), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), transparent 24%);
 }
 
 .terminal-window:hover {
@@ -610,8 +630,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   padding: 12px 16px;
-  background: rgba(30, 41, 59, 0.8);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(36, 27, 18, 0.92);
+  border-bottom: 1px solid rgba(190, 135, 75, 0.14);
 }
 
 .terminal-buttons {
@@ -640,8 +660,18 @@ onMounted(() => {
   text-align: center;
   font-size: 12px;
   font-family: ui-monospace, monospace;
-  color: #64748b;
+  color: #b98a55;
   margin-right: 52px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+
+
+.terminal-title-label {
+  color: rgba(185, 138, 85, 0.62);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+}
+
 }
 
 /* Terminal Body */
@@ -650,6 +680,18 @@ onMounted(() => {
   font-family: ui-monospace, 'Fira Code', monospace;
   font-size: 14px;
   line-height: 2;
+}
+
+
+.editorial-trace {
+  opacity: 0.92;
+  border-left: 2px solid rgba(201, 118, 47, 0.42);
+  padding-left: 8px;
+  color: #a87943;
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  animation: line-appear 0.6s ease forwards;
+  animation-delay: 0.1s;
 }
 
 .code-line {
@@ -696,7 +738,7 @@ onMounted(() => {
   color: #a78bfa;
 }
 .code-url {
-  color: #14b8a6;
+  color: #c9762f;
 }
 .code-comment {
   color: #64748b;
@@ -737,8 +779,134 @@ onMounted(() => {
 :deep(.dark) .terminal-window {
   box-shadow:
     0 25px 50px -12px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(20, 184, 166, 0.2),
-    0 0 40px rgba(20, 184, 166, 0.1),
+    0 0 0 1px rgba(201, 118, 47, 0.2),
+    0 0 40px rgba(201, 118, 47, 0.1),
     inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================================================
+   Cinematic opening — editorial chapter marks
+   ============================================================================
+   电影片头的"章节感"：序号 + 细线 + 小字标签，配合更大的标题字距。
+   纯装饰，不参与 i18n（OPENING 为视觉标签，不是文案）。
+   ============================================================================ */
+.chapter-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: rgba(168, 92, 34, 0.75);
+}
+
+:global(.dark) .chapter-mark {
+  color: rgba(214, 170, 112, 0.7);
+}
+
+.chapter-index {
+  font-weight: 600;
+}
+
+.chapter-rule {
+  display: inline-block;
+  width: 42px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(201, 118, 47, 0.7), rgba(201, 118, 47, 0.1));
+}
+
+.chapter-label {
+  letter-spacing: 0.3em;
+  opacity: 0.85;
+}
+
+/* 主标题：轻微收紧字距，更像片名字体 */
+.chapter-title {
+  letter-spacing: -0.02em;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+
+/* ============================================================================
+   Cinematic Warm Background
+   ============================================================================
+   用 CSS 模拟电影感，不引入图片资源：
+   - 光带：径向渐变制造"灯光透幕"的纵深感
+   - 颗粒：SVG 噪点 data URI，覆盖在光带上，避免过于干净
+   - 扫描光：极慢的 8s 平移，给静止背景一点呼吸感
+   所有元素 pointer-events: none；reduced-motion 下由全局规则停掉动画。
+   ============================================================================ */
+.cinema-light {
+  position: absolute;
+  pointer-events: none;
+}
+
+.cinema-light-top {
+  left: -10%;
+  top: -42%;
+  width: 120%;
+  height: 65%;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 45%, rgba(201, 118, 47, 0.18), transparent 68%),
+    radial-gradient(ellipse 55% 45% at 62% 38%, rgba(221, 151, 87, 0.12), transparent 65%);
+  filter: blur(14px);
+  transform: rotate(-2deg);
+}
+
+.cinema-light-floor {
+  left: 12%;
+  bottom: -28%;
+  width: 76%;
+  height: 55%;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 40%, rgba(168, 92, 34, 0.16), transparent 70%);
+  filter: blur(18px);
+}
+
+.cinema-light-side {
+  right: -14%;
+  top: 8%;
+  width: 45%;
+  height: 78%;
+  background:
+    linear-gradient(165deg, rgba(236, 186, 132, 0.09), transparent 55%),
+    radial-gradient(ellipse 60% 50% at 70% 45%, rgba(201, 118, 47, 0.08), transparent 70%);
+  filter: blur(10px);
+  transform: skewX(-8deg);
+}
+
+.film-grain {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.72' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  mix-blend-mode: soft-light;
+}
+
+.light-sweep {
+  position: absolute;
+  top: -20%;
+  left: -30%;
+  width: 36%;
+  height: 140%;
+  background: linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.05) 48%, transparent 100%);
+  transform: rotate(12deg);
+  animation: cinema-sweep 9s ease-in-out infinite;
+}
+
+@keyframes cinema-sweep {
+  0%, 100% { transform: translateX(0) rotate(12deg); opacity: 0; }
+  18% { opacity: 1; }
+  45% { transform: translateX(360%) rotate(12deg); opacity: 0; }
+}
+
+/* 深色模式增强光感：浅色太亮，深色需要更明确的舞台轮廓 */
+:global(.dark) .cinema-light-top {
+  opacity: 1.15;
+}
+:global(.dark) .film-grain {
+  opacity: 0.22;
 }
 </style>

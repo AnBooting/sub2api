@@ -117,7 +117,9 @@ const ACCENT: Record<Platform, string> = {
   cline: '#8b5cf6', // violet-500（Cline 品牌紫 #9F58FA）
   composite: '#06b6d4', // cyan-500
 }
-const ACCENT_DEFAULT = '#14b8a6' // primary-500 (teal)
+// 主题主色（暖陶土）。注意：上面 ACCENT 表里的 teal/cyan 属于 deepseek/composite 的
+// 品牌标识色，与主题无关，不能一起改，否则平台图标会失去区分度。
+const ACCENT_DEFAULT = '#c9762f' // primary-500 (warm terracotta)
 
 // ── Accent bar (gradient) ───────────────────────────────────────────
 const ACCENT_BAR: Record<Platform, string> = {

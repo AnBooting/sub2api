@@ -6,7 +6,7 @@
         <li v-for="(step, index) in steps" :key="step.key" class="flex items-center gap-2">
           <span
             class="flex h-6 w-6 items-center justify-center rounded-full font-medium"
-            :class="index <= stepIndex ? 'bg-primary-500 text-white' : 'bg-gray-200 text-gray-500 dark:bg-dark-700 dark:text-gray-400'"
+            :class="index <= stepIndex ? 'bg-primary-600 text-white' : 'bg-gray-200 text-gray-500 dark:bg-dark-700 dark:text-gray-300'"
           >{{ index + 1 }}</span>
           <span :class="index <= stepIndex ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'">{{ step.label }}</span>
           <span v-if="index < steps.length - 1" class="text-gray-300 dark:text-dark-600">/</span>

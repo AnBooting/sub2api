@@ -133,10 +133,12 @@
   }
 
   .btn-primary {
-    @apply bg-gradient-to-r from-primary-500 to-primary-600;
-    @apply text-white shadow-md shadow-primary-500/25;
-    @apply hover:from-primary-600 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-500/30;
-    @apply dark:shadow-primary-500/20;
+    /* 起点用 600 而非 500：500 上白字对比度仅 3.43，不达 WCAG AA。
+       600/700 分别为 4.98 / 7.0，既保留暖色渐变又满足可读性。 */
+    @apply bg-gradient-to-r from-primary-600 to-primary-700;
+    @apply text-white shadow-md shadow-primary-600/25;
+    @apply hover:from-primary-700 hover:to-primary-800 hover:shadow-lg hover:shadow-primary-600/30;
+    @apply dark:shadow-primary-600/20;
   }
 
   .btn-secondary {
@@ -873,7 +875,7 @@
 
 /* 统一的可见焦点环：只对键盘聚焦生效，鼠标点击不显示。 */
 .focus-ring:focus-visible {
-  outline: 2px solid rgb(20 184 166 / 0.6);
+  outline: 2px solid rgb(201 118 47 / 0.65);
   outline-offset: 2px;
   border-radius: inherit;
 }
@@ -891,7 +893,7 @@
 
 @keyframes motion-flash {
   0% {
-    background-color: rgb(20 184 166 / 0.18);
+    background-color: rgb(201 118 47 / 0.18);
   }
   100% {
     background-color: transparent;
@@ -925,6 +927,42 @@ button:not(:disabled):not([data-no-motion]):active {
 button:focus-visible,
 a:focus-visible,
 [role="button"]:focus-visible {
-  outline: 2px solid rgb(20 184 166 / 0.6);
+  outline: 2px solid rgb(201 118 47 / 0.65);
   outline-offset: 2px;
+}
+
+/* ============================================================================
+   路由级过渡
+   ============================================================================
+   刻意做得很短（120ms 出 / 180ms 入）且只有淡入：后台导航是高频目标导向动作，
+   长动画会让每次点击都"变慢"。这里只求消除"内容硬切"的突兀感。
+   reduced-motion 下由全局规则压到瞬时。
+   ============================================================================ */
+.route-enter-active {
+  transition: opacity var(--motion-duration-base) var(--motion-ease-decelerate),
+    transform var(--motion-duration-base) var(--motion-ease-decelerate);
+}
+
+.route-leave-active {
+  transition: opacity var(--motion-duration-fast) var(--motion-ease-accelerate);
+}
+
+/* 必须显式声明目标态：只写 -from 会让元素停留在 opacity:0（Vue 移除 -from 后
+   若没有 -to 规则接管，计算值取决于元素自身样式，实测会卡在 0）。 */
+.route-enter-from {
+  opacity: 0;
+  transform: translateY(var(--motion-shift-xs));
+}
+
+.route-enter-to {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.route-leave-from {
+  opacity: 1;
+}
+
+.route-leave-to {
+  opacity: 0;
 }
