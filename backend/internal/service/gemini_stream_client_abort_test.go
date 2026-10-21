@@ -87,13 +87,20 @@ func TestGeminiForwardNative_ClientDisconnectWithoutUsageStaysUnbilled(t *testin
 	require.Nil(t, result)
 }
 
-func TestGeminiForwardNative_UpstreamReadErrorWithLiveClientStaysError(t *testing.T) {
+// TestGeminiForwardNative_UpstreamReadErrorWithLiveClientKeepsUsage 结束分片
+// (finishReason=STOP) 与 usage 已经到达客户端之后又出现上游读错误时，**必须**保留用量：
+// 完整响应已经发给客户端、上游也已计费，丢掉用量等于白送（读错误本身仍然上报）。
+//
+// 这条断言此前被写成"返回 nil result"，把合并引入的漏计费行为固化成了正确行为。
+func TestGeminiForwardNative_UpstreamReadErrorWithLiveClientKeepsUsage(t *testing.T) {
 	reqBody := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]}]}`)
 	svc, c, _ := newGeminiAbortingStreamService(t, "/v1beta/models/gemini-3-flash-preview:streamGenerateContent", reqBody, geminiAbortTextChunk+geminiAbortFinalChunk, false)
 
 	result, err := svc.ForwardNative(context.Background(), c, geminiVertexAPIKeyTestAccount(""), "gemini-3-flash-preview", "streamGenerateContent", true, reqBody)
 	require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-	require.Nil(t, result)
+	require.NotNil(t, result, "已观测到可计费用量：读错误也必须保留结果，否则已发给客户端的完整响应不记账")
+	require.Equal(t, 10, result.Usage.InputTokens)
+	require.Equal(t, 5, result.Usage.OutputTokens)
 }
 
 func TestGeminiForwardNative_ClientDisconnectBillsOnlyDeliveredImages(t *testing.T) {
@@ -129,11 +136,15 @@ func TestGeminiCompatForward_ClientDisconnectAfterFinalChunkBillsCollectedUsage(
 		require.Equal(t, 5, result.Usage.OutputTokens)
 	})
 
+	// 结束分片与 usage 已经到达客户端之后又出现上游读错误：读错误照常上报，但**必须**
+	// 保留用量（完整响应已发给客户端、上游已计费，丢掉用量等于白送）。
 	t.Run("upstream read error with live client", func(t *testing.T) {
 		svc, c, _ := newGeminiAbortingStreamService(t, "/v1/messages", reqBody, geminiAbortTextChunk+geminiAbortFinalChunk, false)
 		result, err := svc.Forward(context.Background(), c, geminiVertexAPIKeyTestAccount(""), reqBody)
 		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
-		require.Nil(t, result)
+		require.NotNil(t, result, "已观测到可计费用量：读错误也必须保留结果，否则已发给客户端的完整响应不记账")
+		require.Equal(t, 10, result.Usage.InputTokens)
+		require.Equal(t, 5, result.Usage.OutputTokens)
 	})
 }
 

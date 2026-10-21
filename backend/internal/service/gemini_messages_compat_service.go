@@ -2233,9 +2233,12 @@ func (s *GeminiMessagesCompatService) handleStreamingResponse(c *gin.Context, re
 					finished:         finishReason != "",
 				}, nil
 			}
-			// 上游读错误：尚未收到结束分片且已观测到可计费输出 → 按部分结果计费；
-			// 已收到结束分片说明上游应答完整，按错误处理，不计费。
-			if finishReason == "" && hasMeasuredGeminiResult(c, &usage) {
+			// 上游读错误：只要已观测到可计费用量就保留结果（连同错误一起返回），由调用方照常计费。
+			//
+			// 结束分片（finishReason）只说明"上游应答是否完整"，**不决定是否保留用量**：结束分片
+			// 之后仍可能读到读错误，而此时完整响应已经发给客户端、上游也已经计费；丢掉用量
+			// 等于白送这一段消耗。合并前的第一父 d5c2b5edb 就是这个口径。
+			if hasMeasuredGeminiResult(c, &usage) {
 				return &geminiStreamResult{usage: &usage, firstTokenMs: firstTokenMs}, fmt.Errorf("stream read error: %w", terminalReadErr)
 			}
 			return nil, fmt.Errorf("stream read error: %w", terminalReadErr)
@@ -3025,9 +3028,13 @@ func (s *GeminiMessagesCompatService) handleNativeStreamingResponse(c *gin.Conte
 				logger.LegacyPrintf("service.gemini_messages_compat", "[GeminiAPI] Client disconnected during native stream (account=%d), billing collected usage: %v", account.ID, err)
 				break
 			}
-			// 上游读错误：尚未收到结束分片且已观测到可计费输出 → 按部分结果计费；
-			// 已收到结束分片说明上游应答完整，按错误处理，不计费。
-			if !finished && hasMeasuredGeminiResult(c, usage) {
+			// 上游读错误：只要已观测到可计费用量就保留结果（连同错误一起返回），由调用方照常计费。
+			//
+			// 结束分片（finishReason）只说明"上游应答是否完整"，**不决定是否保留用量**：结束分片
+			// 之后仍可能读到 io.ErrUnexpectedEOF 之类的读错误，而此时完整响应已经发给客户端、
+			// 上游也已经计费；丢掉用量等于白送这一段消耗。
+			// 合并前的第一父 d5c2b5edb 就是这个口径，合并时误加"尚未收到结束分片"条件造成漏计费回归。
+			if hasMeasuredGeminiResult(c, usage) {
 				return &geminiNativeStreamResult{usage: usage, firstTokenMs: firstTokenMs}, err
 			}
 			return nil, err
