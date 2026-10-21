@@ -813,12 +813,11 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	billingModel := ""
 	var cost *CostBreakdown
 	if requestPricing != nil {
-		lockedCost, quote, scope, lockedErr := s.calculateLockedSharedGatewayUsageCost(ctx, requestPricing, result, account)
+		lockedCost, quote, _, lockedErr := s.calculateLockedSharedGatewayUsageCost(ctx, requestPricing, result, account)
 		if lockedErr != nil {
 			return lockedErr
 		}
 		cost = lockedCost
-		billingModel = scope.BillingModel
 		// Token 使用冻结高峰倍率；按图使用最终报价的冻结分组独立倍率或基础倍率。
 		multiplier = quote.EffectiveMultiplier()
 		imageMultiplier = resolveImageRateMultiplier(&APIKey{Group: quote.candidate.group}, quote.BaseMultiplier())

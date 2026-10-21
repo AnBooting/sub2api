@@ -305,8 +305,8 @@ func (h *ProxyHandler) GetStats(c *gin.Context) {
 	// Proxy stats require request/account aggregation and are not implemented yet.
 	response.Success(c, gin.H{
 		"implemented": false,
-		"reason": "proxy stats are not implemented",
-		"proxy_id": proxyID,
+		"reason":      "proxy stats are not implemented",
+		"proxy_id":    proxyID,
 	})
 }
 

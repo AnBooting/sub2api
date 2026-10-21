@@ -327,4 +327,3 @@ func TestValidateDataProxyRejectsNegativeExpiryWarnDays(t *testing.T) {
 	})
 	require.ErrorContains(t, err, "expiry_warn_days")
 }
-

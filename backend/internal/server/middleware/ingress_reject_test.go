@@ -60,4 +60,3 @@ func TestInvalidAuthClientKeyDefersToLimiterEmptyKeyPolicy(t *testing.T) {
 	// 不可识别客户端不得折叠成共享哨兵，否则所有此类客户端共用一个限流桶互相连带封禁。
 	require.Empty(t, invalidAuthClientKey(c))
 }
-

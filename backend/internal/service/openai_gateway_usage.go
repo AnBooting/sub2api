@@ -14,7 +14,6 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/tidwall/gjson"
 	"go.uber.org/zap"
 )
@@ -127,15 +126,6 @@ func (s *OpenAIGatewayService) ResolveUserGroupRateMultiplier(ctx context.Contex
 		resolver = newUserGroupRateResolver(nil, nil, resolveUserGroupRateCacheTTL(s.cfg), nil, "service.openai_gateway")
 	}
 	return resolver.Resolve(ctx, userID, groupID, groupDefaultMultiplier)
-}
-
-// openAIUsagePricingAt 返回本次用量记录使用的定价时刻：优先请求级 PricingAt
-// （与利润门 D 同源同刻），未装配时回退记录时刻（既有行为）。
-func openAIUsagePricingAt(input *OpenAIRecordUsageInput) time.Time {
-	if input != nil && !input.PricingAt.IsZero() {
-		return input.PricingAt
-	}
-	return timezone.Now()
 }
 
 func groupBillsOpenAIFastAtStandard(apiKey *APIKey, account *Account, serviceTier string) bool {
@@ -1076,24 +1066,11 @@ func (s *OpenAIGatewayService) calculateOpenAIRecordUsageCost(
 	return tokenCost, nil
 }
 
-// hasSeedanceVideoPlan reports whether the group declares a Seedance video price
-// plan for this model. It is the routing gate that lets Ark Seedance results reach
-// the plan cost path even though they carry no VideoCount.
-func hasSeedanceVideoPlan(apiKey *APIKey, billingModel string) bool {
-	if apiKey == nil || apiKey.Group == nil {
-		return false
-	}
-	if canonicalSeedanceVideoPriceFamily(billingModel) == "" {
-		return false
-	}
-	return GroupHasVideoPricePlan(apiKey.Group, billingModel)
-}
-
 // seedanceVideoPricingAvailable reports whether a Seedance result can be priced for
 // this group, which is exactly the set the create-time gate accepts
 // (GroupHasSeedanceVideoPrice: a metering plan OR the legacy per-model slots).
 //
-// The routing gate must use this rather than hasSeedanceVideoPlan alone. Otherwise a
+// The routing gate must use this rather than the Seedance plan check alone. Otherwise a
 // group configured with only the legacy per-model slots passes the create gate,
 // generates upstream, and then never enters the video cost path — it falls through to
 // LLM token billing and is recorded at zero cost with a warning. Keeping the two sets

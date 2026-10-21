@@ -406,7 +406,7 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Contains(t, enhanced, "'nonce-existing'")
 	})
 
-t.Run("adds_nonce_when_only_other_directive_has_nonce", func(t *testing.T) {
+	t.Run("adds_nonce_when_only_other_directive_has_nonce", func(t *testing.T) {
 		// nonce 出现在 default-src 不等于 script-src 已具备 nonce；
 		// 否则每请求生成的 nonce 永远不会注入 script-src，内联脚本会被浏览器拦截。
 		policy := "default-src 'self' 'nonce-abc123'; script-src 'self'"

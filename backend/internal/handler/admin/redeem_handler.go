@@ -377,7 +377,7 @@ func (h *RedeemHandler) GetStats(c *gin.Context) {
 	// Redeem stats require repository aggregation and are not implemented yet.
 	response.Success(c, gin.H{
 		"implemented": false,
-		"reason": "redeem stats are not implemented",
+		"reason":      "redeem stats are not implemented",
 	})
 }
 

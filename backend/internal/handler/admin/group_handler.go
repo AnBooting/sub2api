@@ -965,8 +965,8 @@ func (h *GroupHandler) GetStats(c *gin.Context) {
 	// Group stats need dashboard/repository aggregation and are not implemented yet.
 	response.Success(c, gin.H{
 		"implemented": false,
-		"reason": "group stats are not implemented",
-		"group_id": groupID,
+		"reason":      "group stats are not implemented",
+		"group_id":    groupID,
 	})
 }
 

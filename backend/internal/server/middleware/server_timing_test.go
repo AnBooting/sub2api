@@ -94,8 +94,8 @@ func TestServerTimingScopesAndRoleGate(t *testing.T) {
 func TestIsUserTimingPathRequiresSeparator(t *testing.T) {
 	// /api/v1keys 不在 /api/v1/ 下，不得被拼接成 /keys 后误判为命中。
 	for path, want := range map[string]bool{
-		"/api/v1keys": false,
-		"/api/v1user": false,
+		"/api/v1keys":  false,
+		"/api/v1user":  false,
 		"/api/v1/keys": true,
 		"/api/v1/user": true,
 	} {
