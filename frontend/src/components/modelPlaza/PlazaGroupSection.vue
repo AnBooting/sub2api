@@ -18,6 +18,8 @@
           :peak-rate-multiplier="group.peak_rate_multiplier"
           always-show-rate
         />
+        <!-- DeepSeek 峰谷当前状态：后端下发，字段缺失时自动隐藏 -->
+        <GroupPricingStateBadge :group="group" />
         <span
           v-if="group.is_exclusive"
           class="inline-flex items-center gap-1 rounded-md bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-600 dark:bg-purple-900/20 dark:text-purple-400"
@@ -78,6 +80,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
+import GroupPricingStateBadge from '@/components/user/GroupPricingStateBadge.vue'
 import PlazaModelPricingTable from './PlazaModelPricingTable.vue'
 import type { ModelPlazaGroup } from '@/api/modelPlaza'
 import type { GroupPlatform, SubscriptionType } from '@/types'

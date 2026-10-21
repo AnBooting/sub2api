@@ -217,7 +217,7 @@ describe("GroupsView Voice / Realtime group pricing", () => {
     getLiveCapability.mockResolvedValue({ supported: false });
   });
 
-  it("shows the Voice / Realtime price fields for a non-Grok platform in the create form", async () => {
+  it("shows the Voice / Realtime and web_search price fields for a non-Grok platform in the create form", async () => {
     const wrapper = mountView();
     await flushPromises();
     await openCreateModal(wrapper);
@@ -227,13 +227,13 @@ describe("GroupsView Voice / Realtime group pricing", () => {
     expect(wrapper.find('[data-testid="create-audio-tts-price"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="create-audio-stt-price"]').exists()).toBe(true);
 
-    // The Grok-only web_search price stays out of non-Grok platform forms.
-    expect(wrapper.find('[data-testid="create-search-price"]').exists()).toBe(false);
+    // The web_search price is a group level field, so it is shown for every platform.
+    expect(wrapper.find('[data-testid="create-search-price"]').exists()).toBe(true);
 
     wrapper.unmount();
   });
 
-  it("shows the Voice / Realtime price fields for a non-Grok group in the edit form", async () => {
+  it("shows the Voice / Realtime and web_search price fields for a non-Grok group in the edit form", async () => {
     const wrapper = mountView();
     await flushPromises();
     await openEditModal(wrapper);
@@ -241,7 +241,7 @@ describe("GroupsView Voice / Realtime group pricing", () => {
     expect(wrapper.find('[data-testid="edit-audio-realtime-price"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="edit-audio-tts-price"]').exists()).toBe(true);
     expect(wrapper.find('[data-testid="edit-audio-stt-price"]').exists()).toBe(true);
-    expect(wrapper.find('[data-testid="edit-search-price"]').exists()).toBe(false);
+    expect(wrapper.find('[data-testid="edit-search-price"]').exists()).toBe(true);
 
     wrapper.unmount();
   });

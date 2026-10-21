@@ -1,7 +1,8 @@
 -- PRD-04 / TS-04 fix: relax the api_key_group_links authorization CHECK.
 --
--- Migration 244 constrained role='ha' to always carry a non-null
--- enabled_by_user_at:
+-- Migration 252 (formerly 244; renamed during the 0.2.17 upstream sync to avoid a
+-- numbering collision with upstream 244_gemini_cached_contents_channel_usage.sql)
+-- constrained role='ha' to always carry a non-null enabled_by_user_at:
 --
 --     (role = 'normal' AND enabled_by_user_at IS NULL) OR
 --     (role = 'ha'     AND enabled_by_user_at IS NOT NULL)
@@ -21,7 +22,7 @@
 -- The intent of the constraint is that a NORMAL link never carries an authorization
 -- timestamp, and that only the 'ha' role may carry one. Both are preserved below.
 --
--- This migration is additive and does not rewrite 244, whose checksum the runner
+-- This migration is additive and does not rewrite 252, whose checksum the runner
 -- verifies for already-applied migrations.
 ALTER TABLE api_key_group_links
     DROP CONSTRAINT IF EXISTS api_key_group_links_authorization;

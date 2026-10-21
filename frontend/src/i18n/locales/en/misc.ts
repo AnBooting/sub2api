@@ -18,14 +18,6 @@ export default {
     usageUnitTitle: 'Usage / limit unit: Credit'
   },
 
-  // DeepSeek peak/valley pricing badge (user facing, read only)
-  groupPricingState: {
-    badgePeak: 'Peak',
-    badgeValley: 'Valley',
-    badgeNone: 'Not enabled',
-    tooltip: 'Determined automatically from the official window ({timezone}); administrators cannot override it.'
-  },
-
   // Group Live / Realtime display (user facing)
   groupLive: {
     badge: 'Live',
@@ -663,6 +655,15 @@ export default {
         revoked: 'Revoked',
       },
     },
+  },
+
+  // DeepSeek peak/valley pricing badge (user facing, read only; the state and label come from the backend)
+  groupPricingState: {
+    badgePeak: 'Peak',
+    badgeValley: 'Valley',
+    badgeNone: 'Not enabled',
+    tooltip: 'Determined automatically from the official window ({timezone}); administrators cannot override it.',
+    nextSwitch: 'Next switch at {time}'
   },
 
 }

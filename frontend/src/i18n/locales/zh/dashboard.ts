@@ -693,7 +693,7 @@ export default {
     searchPlaceholder: '搜索渠道或模型...',
     empty: '暂无可用渠道',
     noModels: '未配置模型',
-    noPricing: '未配置定价',
+    noPricing: '未配置定价（缺价不放行）',
     exclusive: '专属',
     public: '公开',
     exclusiveTooltip: '管理员授权给你的专属分组',
@@ -1174,6 +1174,16 @@ export default {
     endDate: '结束日期',
     apply: '应用',
     selectDateRange: '选择日期范围'
+  },
+
+  // 缺价提示：后端口径是「缺价不放行」
+  missingPrice: {
+    title: '模型没有配置价格时不会被放行',
+    description:
+      '未配置价格的模型，平台会在转发给上游之前直接拒绝请求（503 pricing_unavailable），不会按零价或兜底价放行。可用渠道里带「未配置定价」标记的模型就属于这种情况。',
+    badge: '缺价',
+    badgeTooltip: '该模型没有配置价格，平台不放行（缺价不放行）',
+    viewPriceCard: '查看全站价卡'
   },
 
   // Admin

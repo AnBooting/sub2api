@@ -30,7 +30,7 @@
 |---|---|
 | 开关 | 系统设置 → 功能开关 → 模型价格与额度计费 → 「使用国模人民币价格源」；配置键 `pricing.native_cny_enabled`，**默认关闭** |
 | 计价规则 | 国模按原始 CNY 单价，Claude/GPT 等按 USD 单价；**¥1 或 $1 都对应 1 额度，不换汇**，分组倍率继续生效 |
-| 币种列 | 迁移 `243_native_currency_pricing.sql` 给 `channel_model_pricing` 加 `currency`（USD/CNY） |
+| 币种列 | 迁移 `251_native_currency_pricing.sql` 给 `channel_model_pricing` 加 `currency`（USD/CNY） |
 | 快照 | `usage_logs.pricing_snapshot`（jsonb）记录实际采用的价格 |
 | 主数据源 | `https://basellm.github.io/llm-metadata/api/all.json`（CNY 字段 / `currency_options.CNY`） |
 | 补齐源 | `https://raw.githubusercontent.com/szp2005/llm-prices-cn/main/prices.json`（LLM Abacus，CC-BY-4.0） |
@@ -45,7 +45,9 @@
 - `backend/internal/service/pricing_controls.go`（127 行，新增）
 - `backend/internal/service/pricing_snapshot.go`（34 行，新增）
 - `backend/internal/handler/admin/pricing_controls_handler.go`（新增）
-- `backend/migrations/243_native_currency_pricing.sql`
+- `backend/migrations/251_native_currency_pricing.sql`
+
+> **迁移号提示**：迁移号已随 0.2.17 上游同步整体重编号（原 243–250 → 现 **251–258**），映射表见 [上游同步说明](上游同步说明.md)；本 fork 下一个新迁移从 **259** 起。
 
 **我们要做的**：不重做。做**验证与补漏**：
 - [ ] 端到端验证：国模走 CNY、Claude/GPT 走 USD，账本数值正确
@@ -296,7 +298,7 @@ video_model_prices          按模型族和分辨率覆盖视频每秒价格
 1. **两套「国模」识别机制**：一个按模型名，一个按分组字段。同时开启会打架。
 2. **两套计价口径**：¥1=1额度 vs 1元=1美元当USD数字。数值上不同（除非汇率恰好为 1 的设定被有意统一）。
 3. **两套价格数据源**：远程目录 vs 内置快照。
-4. **迁移编号冲突**：fork 已占 **243**；移植包的 196/197/198 需要重编号到 **244/245/246**。
+4. **迁移编号冲突**：fork 已占 **251–258**（原 243–250，已随 0.2.17 上游同步重编号）；上游占 243/244/245，**246–250 留空**，移植包的 196/197/198 需重编号到 **259+**。
 
 **必须由你决策**（这是需求 1/5「有人在做」的核心问题）：
 

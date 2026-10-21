@@ -7,7 +7,7 @@ import (
 )
 
 func TestAPIKeyGroupChainMigrationPreservesHistory(t *testing.T) {
-	raw, err := FS.ReadFile("244_api_key_group_links.sql")
+	raw, err := FS.ReadFile("252_api_key_group_links.sql")
 	require.NoError(t, err)
 	sql := strings.Join(strings.Fields(string(raw)), " ")
 	require.Contains(t, sql, "group_chain_revision BIGINT NOT NULL DEFAULT 0")

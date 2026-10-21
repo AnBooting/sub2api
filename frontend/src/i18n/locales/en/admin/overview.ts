@@ -975,6 +975,12 @@ export default {
         yes: 'Yes',
         no: 'No'
       },
+      i18nField: {
+        default: 'Default',
+        add: 'Add {language} version',
+        edit: 'Edit {language} version',
+        placeholder: '{language} version; leave empty to show the default text'
+      },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
       platformHint: 'Select the platform this group is associated with',
@@ -1110,8 +1116,8 @@ export default {
         withInput: '(with video input)'
       },
       explicitPricing: {
-        title: 'Grok Search Pricing',
-        description: 'Optional per-group web_search price (per 1k calls, USD). Grok platform only; leave empty if unused.',
+        title: 'Search and voice / realtime pricing',
+        description: 'Optional per-group prices for web_search (per 1k calls) and Voice realtime / TTS / STT (USD). Leave empty if unused.',
         searchPricePer1k: 'Search price per 1k calls (USD)',
         pricePlaceholder: 'optional'
       },
@@ -1120,7 +1126,40 @@ export default {
         description: 'Overrides channel and built-in prices for matching models. Long-context tiers come from official presets — do not enter custom intervals. Use per-request tiers such as realtime, tts, and stt for audio.',
         longContext: 'Enable long-context tier pricing',
         longContextHint: 'When checked, channel intervals or official preset tiers apply. Otherwise the first tier is used unless the account explicitly enables long-context billing.',
-        add: 'Add model price'
+        add: 'Add model price',
+        priceSourceHint:
+          "Models without a price are billed at the official built-in price (price card) — the built-in price is that model's own official price, not a missing-price pass-through. Only models that have no built-in price at all are rejected before billing (pricing_unavailable)."
+      },
+      pricingStatus: {
+        complete: 'Pricing complete',
+        incomplete: '{count} model(s) missing price fields',
+        builtinOnly: 'No price set · billed at official built-in price',
+        noRules: 'No per-model pricing rules',
+        tip: {
+          complete:
+            'Every per-model pricing rule of this group is complete; billing uses the prices you set.',
+          incomplete:
+            'Some rules are incomplete: a model with missing price fields is rejected before the upstream call (pricing_unavailable) unless it has an official built-in price, in which case that built-in price is billed.',
+          builtinOnly:
+            'These rules only register models without prices: a model with an official built-in price is billed at that built-in price (the model\'s own official price, not a missing-price pass-through); a model without one is rejected.',
+          noRules:
+            'This group has no per-model pricing rules: billing uses channel pricing or the official built-in price card.'
+        },
+        tipModels: 'Models with missing price fields: {models}'
+      },
+      peakWindow: {
+        peak: 'Peak {multiplier}x',
+        valley: 'Off-peak 1x',
+        invalid: 'Invalid peak window',
+        disabled: 'Peak multiplier off',
+        peakWord: 'peak',
+        valleyWord: 'off-peak',
+        today: 'today',
+        tomorrow: 'tomorrow',
+        window: 'Window {start}–{end}',
+        multiplier: 'Peak multiplier {multiplier}x',
+        nextSwitch: 'Next switch {day} {time} ({next})',
+        hint: 'The group peak multiplier is evaluated in the server timezone (Asia/Shanghai) and only applies to token billing of this group; it is separate from the DeepSeek official peak/off-peak schedule.'
       },
       voicePricing: {
         title: 'Voice / Realtime Pricing',
@@ -1168,6 +1207,8 @@ export default {
       modelAllowlist: {
         title: 'Model Allowlist',
         hint: 'When enabled, models outside the allowlist are rejected with 404 model_not_found, and model listing endpoints only show allowlisted models. Entries support exact model IDs and * wildcards anywhere (e.g., gpt-*-codex). Note: Claude Code probes with haiku-family models for titles/summaries and /messages/count_tokens is also allowlist-controlled, so make sure the small models you need are selected too.',
+        gpt55RetirementHint:
+          "GPT-5.5: ChatGPT sign-in accounts (OAuth / SetupToken / shadow accounts) retired this model on 2026-10-14 at 19:00 UTC; API-key upstreams still support it. A group served only by subscription accounts returns 404 model_not_found for GPT-5.5.",
         loading: 'Loading candidate models...',
         empty: 'No candidate models; add custom entries below',
         selectedSummary: 'Selected {selected} / {total}',

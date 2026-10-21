@@ -18,14 +18,6 @@ export default {
     usageUnitTitle: '已用/限额单位：Credit'
   },
 
-  // DeepSeek 峰谷计价状态徽标（用户侧只读展示）
-  groupPricingState: {
-    badgePeak: '峰',
-    badgeValley: '谷',
-    badgeNone: '未启用',
-    tooltip: '按官方时段自动判定（{timezone}），管理员改不了判定'
-  },
-
   // 分组 Live / Realtime 展示（用户侧）
   groupLive: {
     badge: 'Live',
@@ -687,6 +679,15 @@ export default {
         revoked: '已撤销',
       },
     },
+  },
+
+  // DeepSeek 峰谷计价状态徽标（用户侧只读展示，状态与文案均由后端下发）
+  groupPricingState: {
+    badgePeak: '峰',
+    badgeValley: '谷',
+    badgeNone: '未启用',
+    tooltip: '按官方时段自动判定（{timezone}），管理员改不了判定',
+    nextSwitch: '下一档切换时间：{time}'
   },
 
 }

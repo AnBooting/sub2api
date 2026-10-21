@@ -50,7 +50,7 @@ func (p Product) Purchasable() bool {
 
 // DisplayStatus 是本站对上游支付/交付结果的**展示映射**，不是独立支付状态机。
 //
-// 取值与迁移 248 的 CHECK 约束一一对应（PRD-03 §2、共享契约 order_delivery_pending）。
+// 取值与迁移 256 的 CHECK 约束一一对应（PRD-03 §2、共享契约 order_delivery_pending）。
 type DisplayStatus string
 
 const (

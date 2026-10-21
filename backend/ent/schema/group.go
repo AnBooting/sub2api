@@ -44,6 +44,11 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			SchemaType(map[string]string{dialect.Postgres: "text"}),
+		// 名称与描述的界面语言译文 (added by migration 242)
+		field.JSON("i18n", domain.GroupI18n{}).
+			Default(domain.GroupI18n{}).
+			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
+			Comment("名称与描述的界面语言译文：语言代码 -> {name, description}；缺失的语言沿用 name/description"),
 		field.Float("rate_multiplier").
 			SchemaType(map[string]string{dialect.Postgres: "decimal(10,4)"}).
 			Default(1.0),
@@ -154,9 +159,9 @@ func (Group) Fields() []ent.Field {
 			Optional().
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("按模型族和分辨率覆盖视频每秒价格"),
-		// 视频计费计划 (added by migration 247)：按模型族声明计量模式
+		// 视频计费计划 (added by migration 255)：按模型族声明计量模式
 		// （per_request / per_second / per_token）与单价，替代「所有视频都按秒」的隐含假设。
-		// Non-optional WITH a default: migration 247 creates this column as
+		// Non-optional WITH a default: migration 255 creates this column as
 		// JSONB NOT NULL DEFAULT '{}', so declaring it Optional() made ent model a
 		// nullable column, generate dead IsNil/NotNil predicates (IS NULL can never
 		// match, IS NOT NULL matches everything) and a Clear method that would emit
@@ -166,7 +171,7 @@ func (Group) Fields() []ent.Field {
 			Default(map[string]domain.VideoPricePlan{}).
 			SchemaType(map[string]string{dialect.Postgres: "jsonb"}).
 			Comment("按模型族的视频计费计划：模式 + 单价；未配置必须 fail closed"),
-		// HA 兜底分组标记 (added by migration 246)。
+		// HA 兜底分组标记 (added by migration 254)。
 		field.Bool("allow_high_availability").
 			Default(false).
 			Comment("是否可作为用户主动开启的高可用兜底分组（PRD-04）"),
@@ -320,7 +325,7 @@ func (Group) Fields() []ent.Field {
 			Default(0).
 			Comment("安全缓冲，小数；与 margin 相加后从下游倍率中扣除，默认 0"),
 
-		// 分组级调度策略覆盖（added by migration 245，C-4）：
+		// 分组级调度策略覆盖（added by migration 253，C-4）：
 		// inherit（默认，随全局 scheduling.strategy）或 stable/balanced/latency。
 		field.String("scheduling_strategy").
 			MaxLen(20).

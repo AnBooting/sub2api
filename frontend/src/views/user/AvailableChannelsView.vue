@@ -2,6 +2,8 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
+        <!-- 缺价口径：模型没配价时平台不放行（后端 503 pricing_unavailable） -->
+        <MissingPriceNotice class="mb-3" />
         <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
           <div class="flex flex-1 flex-wrap items-center gap-3">
             <div class="relative w-full sm:w-80">
@@ -59,6 +61,7 @@ import AppLayout from '@/components/layout/AppLayout.vue'
 import TablePageLayout from '@/components/layout/TablePageLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import AvailableChannelsTable from '@/components/channels/AvailableChannelsTable.vue'
+import MissingPriceNotice from '@/components/user/MissingPriceNotice.vue'
 import userChannelsAPI, { type UserAvailableChannel } from '@/api/channels'
 import userGroupsAPI from '@/api/groups'
 import { useAppStore } from '@/stores/app'

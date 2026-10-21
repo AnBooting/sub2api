@@ -63,6 +63,34 @@
         <p v-if="status.deepseek_calendar_error" class="text-sm text-amber-600" role="alert">{{ status.deepseek_calendar_error }}</p>
         <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.sources') }} <a href="https://github.com/basellm/llm-metadata" target="_blank" rel="noopener noreferrer" class="underline">basellm</a> · <a href="https://llmabacus.com" target="_blank" rel="noopener noreferrer" class="underline">LLM Abacus</a></p>
         <button type="button" class="btn btn-secondary" :disabled="saving || refreshing || !status.remote_enabled" data-testid="refresh-pricing" @click="refresh">{{ t('admin.settings.pricing.refresh') }}</button>
+        <section
+          v-if="deepSeekPeriod"
+          class="space-y-2 border-t border-gray-100 pt-5 dark:border-dark-700"
+          aria-labelledby="deepseek-period-title"
+          data-testid="deepseek-period"
+        >
+          <h3 id="deepseek-period-title" class="font-semibold">{{ t('admin.settings.pricing.deepseekPeriod.title') }}</h3>
+          <p class="text-sm" data-testid="deepseek-period-state">
+            {{ t('admin.settings.pricing.deepseekPeriod.current') }}: {{ deepSeekPeriodLabel }}
+            <span v-if="deepSeekPeriod && deepSeekPeriod.multiplier != null" data-testid="deepseek-period-multiplier">
+              · {{ t('admin.settings.pricing.deepseekPeriod.multiplier', { multiplier: deepSeekPeriod.multiplier }) }}
+            </span>
+          </p>
+          <p
+            v-if="deepSeekPeriod && deepSeekPeriod.nextSwitchText"
+            class="text-xs text-gray-500"
+            data-testid="deepseek-period-next-switch"
+          >
+            {{ t('admin.settings.pricing.deepseekPeriod.nextSwitch', { time: deepSeekPeriod.nextSwitchText, timezone: deepSeekPeriod.timezone }) }}
+          </p>
+          <p
+            v-if="deepSeekPeriod && deepSeekPeriod.calendarYearMissing"
+            class="text-sm text-amber-600"
+            data-testid="deepseek-period-year-missing"
+          >
+            {{ t('admin.settings.pricing.deepseekPeriod.yearMissing') }}
+          </p>
+        </section>
         <section class="space-y-3 border-t border-gray-100 pt-5 dark:border-dark-700" aria-labelledby="deepseek-calendar-title" data-testid="deepseek-calendar">
           <h3 id="deepseek-calendar-title" class="font-semibold">{{ t('admin.settings.pricing.calendar.title') }}</h3>
           <p class="text-sm text-gray-500">{{ t('admin.settings.pricing.calendar.rules') }}</p>
@@ -102,6 +130,7 @@ import { useStepUp, isStepUpCancelled, isStepUpBlocked, stepUpBlockReason } from
 import TotpStepUpDialog from '@/components/auth/TotpStepUpDialog.vue'
 import { parseDeepSeekCalendar, serializeDeepSeekCalendar, validateDeepSeekCalendar } from '@/utils/deepseekCalendar'
 import { getPricingControls, updatePricingControls, refreshPricing, type PricingStatus, type PricingControls } from '@/api/admin/pricing'
+import { readDeepSeekPeriod, resolvePeriodLabel } from '@/components/admin/pricing/deepseekPeriod'
 
 const { t } = useI18n()
 const app = useAppStore()
@@ -119,6 +148,10 @@ const savedCalendarText = ref('')
 const intervalDraft = ref(0)
 const intervalError = ref('')
 const intervalDirty = computed(() => intervalDraft.value !== (status.value?.update_interval_hours ?? 0))
+const deepSeekPeriod = computed(() => readDeepSeekPeriod(status.value))
+const deepSeekPeriodLabel = computed(() =>
+  deepSeekPeriod.value ? resolvePeriodLabel(deepSeekPeriod.value, t) : ''
+)
 const calendarError = ref('')
 const calendarDirty = computed(() => calendarDraft.value !== savedCalendarText.value)
 const calendarSupported = computed(() => status.value?.deepseek_holidays !== undefined && typeof status.value?.deepseek_calendar_year_missing === 'boolean' && validateDeepSeekCalendar(status.value.deepseek_holidays).ok)

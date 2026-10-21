@@ -242,7 +242,7 @@ func TestPR2ChannelInheritanceUsesFrozenInstantInBothGateways(t *testing.T) {
 		cost := shared.calculateRecordUsageCost(context.Background(), &ForwardResult{Usage: ClaudeUsage{OutputTokens: 100}}, key, "deepseek-v4-pro", 1, 1, at)
 		require.NotNil(t, cost)
 		require.InDelta(t, want*100, cost.OutputCost, 1e-12)
-		cost, err := openai.calculateOpenAIRecordUsageCost(context.Background(), &OpenAIForwardResult{}, key, []string{"deepseek-v4-pro"}, 1, 1, 1, 1, UsageTokens{OutputTokens: 100}, "", nil, at)
+		cost, err := openai.calculateOpenAIRecordUsageCost(context.Background(), &OpenAIForwardResult{}, key, []string{"deepseek-v4-pro"}, 1, 1, 1, 1, UsageTokens{OutputTokens: 100}, "", nil, false, at)
 		require.NoError(t, err)
 		require.InDelta(t, want*100, cost.OutputCost, 1e-12)
 	}
