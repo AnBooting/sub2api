@@ -1,8 +1,6 @@
 package service
 
 import (
-	"net/http"
-	"strings"
 	"time"
 )
 
@@ -119,7 +117,7 @@ func UserErrorCode(e *OpsErrorLog) string {
 	if e == nil {
 		return "other"
 	}
-	if isMissingPriceErrorLog(e) {
+	if IsMissingPriceRejection(e.StatusCode, e.Message) {
 		return UserErrorRequestCodeMissingPrice
 	}
 	switch e.Phase {
@@ -144,32 +142,6 @@ func UserErrorCode(e *OpsErrorLog) string {
 		}
 	}
 	return "other"
-}
-
-// isMissingPriceErrorLog 判断该错误请求是不是「缺价被拒」。
-//
-// 口径与网关一致：缺价一律 503，且错误文案来自 billingErrorDetails 的固定几句
-// （"no pricing available for model: X: pricing not found" 等）。
-// 只认 503 + 文案特征，避免把普通 5xx 误报成缺价。
-func isMissingPriceErrorLog(e *OpsErrorLog) bool {
-	if e == nil || e.StatusCode != http.StatusServiceUnavailable {
-		return false
-	}
-	message := strings.ToLower(strings.TrimSpace(e.Message))
-	if message == "" {
-		return false
-	}
-	for _, marker := range []string{
-		"pricing not found",
-		"no pricing available",
-		"pricing is unavailable",
-		"pricing_unavailable",
-	} {
-		if strings.Contains(message, marker) {
-			return true
-		}
-	}
-	return false
 }
 
 // ToUserErrorRequest 把内部 OpsErrorLog 裁剪为用户安全视图。
