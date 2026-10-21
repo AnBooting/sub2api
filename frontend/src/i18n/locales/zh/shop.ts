@@ -4,6 +4,8 @@ export default {
     subtitle: '在本站完成商品选购、下单与卡密领取',
     accountLabel: '充值账户',
     currentBalance: '当前余额',
+    creditRateHint: '¥1 可得 1 Credit（不换汇）',
+    manualRedeemHint: '支付成功不会自动到账，需要用卡密在「兑换」页兑换',
     tabs: {
       products: '商品',
       orders: '我的订单',
@@ -55,9 +57,18 @@ export default {
       title: '请完成支付',
       qrHint: '请使用支付应用扫描下方二维码完成支付',
       redirectHint: '请前往支付页面完成支付',
+      goPay: '前往支付',
       redirectBlocked: '支付跳转目标未获授权，已阻止跳转，请联系站长。',
       pendingHint: '支付完成后点击「查询最新状态」；本页不会仅凭前端结果判定支付成功。',
       expiresAt: '支付有效期至 {time}',
+    },
+    orders: {
+      title: '我的订单',
+      detailTitle: '订单详情',
+      backToList: '返回订单列表',
+      empty: '暂无订单',
+      loading: '正在加载订单…',
+      paidAt: '支付时间',
     },
     steps: {
       select: '选择商品',

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 )
@@ -49,18 +50,88 @@ func (s *PricingService) GetControls() PricingControls {
 
 func (s *PricingService) RemotePullEnabled() bool { return s.GetControls().RemoteEnabled }
 
+// 后台定价任务的来源标签，用于把崩溃记录成可区分的同步失败。
+const (
+	pricingSourceNativeCNYRefresh = "native CNY refresh"
+	pricingSourceScheduledSync    = "scheduled pricing sync"
+)
+
+// RefreshNativeCNY 触发一次后台原生 CNY 价格刷新。
+//
+// 后台任务必须满足两个硬性要求：
+//
+//  1. 生命周期绑定到服务：任务登记在 s.refreshes 上，Stop() 与
+//     WaitForBackgroundRefresh() 都能等它结束，任务不会越过触发者（HTTP 请求、
+//     单元测试用例）的边界继续跑。
+//  2. 不许把进程带崩：任务在自己的 goroutine 里跑，没有调用方能 recover 它的
+//     panic，而未被 recover 的 panic 会终止整个进程。recoverBackgroundRefresh
+//     把 panic 转成一次可见的同步失败，而不是让定价源的异常把整个 API 服务带下线。
 func (s *PricingService) RefreshNativeCNY() {
 	s.controlsMu.Lock()
 	if s.stopping || !s.controlsLocked().RemoteEnabled || !s.controlsLocked().NativeCNYEnabled {
 		s.controlsMu.Unlock()
 		return
 	}
-	s.wg.Add(1)
+	s.refreshes.start()
 	s.controlsMu.Unlock()
 	go func() {
-		defer s.wg.Done()
+		// done 最后执行：等待方必须等到 panic 已经被处理、失败已经记录之后才返回。
+		defer s.refreshes.done()
+		defer s.recoverBackgroundRefresh(pricingSourceNativeCNYRefresh)
 		_ = s.syncNativeCNY(true) // The sync method records failures and alerts once.
 	}()
+}
+
+// recoverBackgroundRefresh 把后台定价任务里的 panic 转成一次可见的同步失败。
+//
+// 后台任务没有调用方：未 recover 的 panic 会直接终止进程（单元测试里表现为整包
+// FAIL，生产里表现为定价源的一次异常把整个 API 服务带下线）。这里把 panic 记成
+// 同步错误并打日志，失败因此在定价状态接口与告警链路里看得见，而不是被吞掉。
+func (s *PricingService) recoverBackgroundRefresh(source string) {
+	r := recover()
+	if r == nil {
+		return
+	}
+	slog.Error("Pricing background task panicked", "source", source, "panic", r)
+	s.recordBackgroundRefreshFailure(source, fmt.Errorf("%s panicked: %v", source, r))
+}
+
+// recordBackgroundRefreshFailure 记录后台任务的崩溃，让失败在定价状态里可见。
+func (s *PricingService) recordBackgroundRefreshFailure(source string, err error) {
+	if err == nil {
+		return
+	}
+	s.recordBackgroundRefreshError(source, err)
+	s.recordPricingSyncResult(source, err)
+}
+
+// recordBackgroundRefreshError 把失败写进定价状态。
+//
+// 这里绝不能阻塞等待 s.mu：收敛 panic 的路径一旦卡在锁上，整个进程就废了
+// （panic 现场可能正持着这把锁——那几处 s.mu 临界区没有用 defer 解锁）。
+// 所以只做有界尝试：抢不到就放弃写状态字段，失败仍然进日志与告警链路。
+func (s *PricingService) recordBackgroundRefreshError(source string, err error) {
+	deadline := time.Now().Add(200 * time.Millisecond)
+	for {
+		if s.mu.TryLock() {
+			switch source {
+			case pricingSourceNativeCNYRefresh:
+				s.nativeCNYError = err.Error()
+			default:
+				// 定时同步同时跑 USD 目录与原生 CNY 两路，崩溃点无法判定属于哪一路：
+				// 两路状态都记下同一条错误，运维至少能看到「定时同步崩了」。
+				s.usdPricingError = err.Error()
+				s.nativeCNYError = err.Error()
+			}
+			s.mu.Unlock()
+			return
+		}
+		if time.Now().After(deadline) {
+			slog.Error("Could not record the pricing background task failure", "source", source, "error", err)
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
 }
 
 func (s *PricingService) GetPricingControlStatus() map[string]any {
@@ -84,10 +155,37 @@ func (s *PricingService) GetPricingControlStatus() map[string]any {
 		"deepseek_holiday_dates":         holidayDates,
 		"deepseek_calendar_year_missing": calendarMissing,
 		"deepseek_calendar_years":        years, "deepseek_calendar_error": calendarError,
-		"usd_model_count": len(s.pricingData), "usd_last_updated": s.lastUpdated,
+		"deepseek_current_period": s.deepseekCurrentPeriod(),
+		"usd_model_count":         len(s.pricingData), "usd_last_updated": s.lastUpdated,
 		"usd_error":       s.usdPricingError,
 		"cny_model_count": len(s.nativeCNYCards), "cny_last_updated": s.nativeCNYUpdated, "cny_error": s.nativeCNYError,
 	}
+}
+
+// deepseekCurrentPeriod 返回 DeepSeek 官方峰谷的当前档位。
+//
+// 判定口径与计费路径完全一致：同一份假日日历（deepseekCalendarAt）、
+// 同一套窗口规则（deepseekOfficialStateAt / deepseekOfficialNextSwitchAt），
+// 因此管理端看到的「现在是峰还是谷、下一档什么时候切」与实际计费不会两套。
+func (s *PricingService) deepseekCurrentPeriod() map[string]any {
+	now := time.Now()
+	calendar := s.deepseekCalendarAt(now)
+	state, label, multiplier := deepseekOfficialStateAt(now, calendar)
+	period := deepseekPricingPeriodWithCalendar(now, calendar)
+	out := map[string]any{
+		"state":                 state,
+		"label":                 label,
+		"timezone":              DeepSeekPricingTimezone,
+		"window":                deepseekOfficialPeakWindow,
+		"multiplier":            multiplier,
+		"calendar_year_missing": period.CalendarYearMissing,
+	}
+	if next, ok := deepseekOfficialNextSwitchAt(now, calendar); ok {
+		out["next_switch_at"] = next.Format(time.RFC3339)
+	} else {
+		out["next_switch_at"] = nil
+	}
+	return out
 }
 
 func (s *PricingService) loadControls(ctx context.Context) error {

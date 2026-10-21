@@ -93,7 +93,7 @@
                       }"
                     ></div>
                   </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
+                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500" :title="t('subscriptionProgress.usageUnitTitle')">
                     {{
                       formatUsage(subscription.daily_usage_usd, subscription.group?.daily_limit_usd)
                     }}
@@ -121,7 +121,7 @@
                       }"
                     ></div>
                   </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
+                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500" :title="t('subscriptionProgress.usageUnitTitle')">
                     {{
                       formatUsage(subscription.weekly_usage_usd, subscription.group?.weekly_limit_usd)
                     }}
@@ -149,7 +149,7 @@
                       }"
                     ></div>
                   </div>
-                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500">
+                  <span class="w-24 flex-shrink-0 text-right text-[10px] text-gray-500" :title="t('subscriptionProgress.usageUnitTitle')">
                     {{
                       formatUsage(
                         subscription.monthly_usage_usd,
@@ -180,6 +180,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import Icon from '@/components/icons/Icon.vue'
 import { useSubscriptionStore } from '@/stores'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
@@ -256,9 +257,10 @@ function getProgressWidth(used: number | undefined, limit: number | null | undef
 }
 
 function formatUsage(used: number | undefined, limit: number | null | undefined): string {
-  const usedValue = (used || 0).toFixed(2)
-  const limitValue = limit?.toFixed(2) || '∞'
-  return `$${usedValue}/$${limitValue}`
+  // 账户口径统一用 Credit（客户账本单位），不再混用 $ 前缀。
+  const usedValue = formatCustomerCredit(used || 0)
+  const limitValue = limit ? formatCustomerCredit(limit) : '∞'
+  return `${usedValue}/${limitValue}`
 }
 
 function formatDaysRemaining(expiresAt: string): string {

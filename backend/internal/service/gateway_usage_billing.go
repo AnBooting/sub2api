@@ -823,7 +823,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	var imageMultiplier float64
 	pricingAt := requestPricingAt(ctx, input.PricingAt)
 	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
-	billingModel := ""
+	var billingModel string
 	var cost *CostBreakdown
 	var lockedQuote *LockedRequestPricing
 	if requestPricing != nil {

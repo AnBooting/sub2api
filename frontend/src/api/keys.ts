@@ -202,6 +202,31 @@ export async function setKeyHAGroup(
 }
 
 /**
+ * 为**新建**的 Key 补开高可用兜底授权。
+ *
+ * 授权对象是具体的 Key，因此只能在 Key 建好之后逐个开通。
+ * 服务端会重新校验分组标记与模型范围，所以失败项单独返回，由调用方提示用户。
+ * @param id - API key ID
+ * @param groupIDs - 需要开启兜底的分组 ID
+ */
+export async function enableKeyHAGroups(
+  id: number,
+  groupIDs: number[]
+): Promise<{ enabled: number[]; failed: number[] }> {
+  const enabled: number[] = []
+  const failed: number[] = []
+  for (const groupID of [...new Set(groupIDs)]) {
+    try {
+      await setKeyHAGroup(id, groupID, true)
+      enabled.push(groupID)
+    } catch {
+      failed.push(groupID)
+    }
+  }
+  return { enabled, failed }
+}
+
+/**
  * Delete API key
  * @param id - API key ID
  * @returns Success confirmation
@@ -227,6 +252,7 @@ export const keysAPI = {
   create,
   update,
   bulkUpdate,
+  enableKeyHAGroups,
   delete: deleteKey,
   toggleStatus
 }
