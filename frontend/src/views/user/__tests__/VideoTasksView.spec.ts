@@ -11,7 +11,12 @@ vi.mock('@/api/videos', () => ({
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
+  // 真实 i18n 会翻译；这里只为错误码那组键提供译文，其余键按键名回显，
+  // 便于断言「界面用的是稳定错误码的译文，而不是后端文案」。
+  const translations: Record<string, string> = {
+    'videoTasks.errors.account_load_failed': '任务读取上游账号失败',
+  }
+  return { ...actual, useI18n: () => ({ t: (key: string) => translations[key] ?? key }) }
 })
 
 vi.mock('@/utils/platformColors', () => ({
@@ -108,6 +113,27 @@ describe('VideoTasksView', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-testid="video-task-error"]').text()).toContain('upstream timeout')
+    wrapper.unmount()
+  })
+
+  it('shows the failure reason by the stable error code and never renders the backend text', async () => {
+    listVideoTasks.mockResolvedValue({
+      items: [{
+        ...baseTask,
+        status: 'failed',
+        last_error: 'load carrying account 99 failed: database temporarily unavailable',
+        last_error_code: 'account_load_failed',
+      }],
+      next_cursor: null,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.get('[data-testid="video-task-error"]').text()
+    expect(text).toContain('任务读取上游账号失败')
+    expect(text).not.toContain('load carrying account')
+    expect(text).not.toContain('99')
     wrapper.unmount()
   })
 

@@ -899,6 +899,14 @@ export default {
     loadMoreFailed: 'Failed to load more video tasks. Please try again.',
     loadMore: 'Load more',
     lastError: 'Failure reason',
+    errors: {
+      account_not_bound: 'No usable upstream account for this task right now. Please retry later or contact support.',
+      account_load_failed: 'The task could not load its upstream account. Please retry later or contact support.',
+      dependency_unavailable: 'A task dependency is temporarily unavailable. Please retry later or contact support.',
+      upstream_failed: 'The video generation service is temporarily unavailable. Please retry later or contact support.',
+      settlement_failed: 'The video was generated but settlement has not completed yet. It will be retried automatically.',
+      internal_error: 'The task failed. Please retry later or contact support.'
+    },
     billingMode: {
       per_token: 'Usage based (token)',
       per_request: 'Per request',
