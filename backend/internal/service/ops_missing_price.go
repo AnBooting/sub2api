@@ -2,8 +2,6 @@ package service
 
 import (
 	"context"
-	"net/http"
-	"strings"
 	"time"
 )
 
@@ -14,41 +12,6 @@ import (
 //
 // 数据来源是既有的 ops_error_logs（审计/错误日志机制）：缺价拒绝本来就会落一条错误记录，
 // 这里按「模型 + 分组」聚合出管理员可查的清单，**不新增表、不新增迁移**。
-
-// missingPriceRejectionMarkers 是缺价拒绝的文案特征。
-//
-// 与网关 billingErrorDetails 的错误文案一致（缺价一律 503，code=pricing_unavailable）：
-//   - "no pricing available for model: X: pricing not found"
-//   - "Model pricing is unavailable. Please retry later."
-var MissingPriceRejectionMarkers = []string{
-	"pricing not found",
-	"no pricing available",
-	"pricing is unavailable",
-	"pricing_unavailable",
-}
-
-// MissingPriceRejectionStatusCode 是缺价拒绝的固定状态码（网关 billingErrorDetails → 503）。
-const MissingPriceRejectionStatusCode = http.StatusServiceUnavailable
-
-// IsMissingPriceRejection 判断一条错误记录是不是「缺价被拒」。
-//
-// 口径：HTTP 503（网关缺价拒绝的固定状态码）+ 文案命中缺价特征。
-// 只认 503 + 文案，避免把普通 5xx 误报成缺价。
-func IsMissingPriceRejection(statusCode int, message string) bool {
-	if statusCode != MissingPriceRejectionStatusCode {
-		return false
-	}
-	lowered := strings.ToLower(strings.TrimSpace(message))
-	if lowered == "" {
-		return false
-	}
-	for _, marker := range MissingPriceRejectionMarkers {
-		if strings.Contains(lowered, marker) {
-			return true
-		}
-	}
-	return false
-}
 
 // MissingPriceRejection 是按「模型 + 分组」聚合出的一条缺价告警。
 type MissingPriceRejection struct {
