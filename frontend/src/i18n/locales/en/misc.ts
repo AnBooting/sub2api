@@ -14,7 +14,16 @@ export default {
     expiresTomorrow: 'Expires tomorrow',
     viewAll: 'View all subscriptions',
     noSubscriptions: 'No active subscriptions',
-    unlimited: 'Unlimited'
+    unlimited: 'Unlimited',
+    usageUnitTitle: 'Usage / limit unit: Credit'
+  },
+
+  // DeepSeek peak/valley pricing badge (user facing, read only)
+  groupPricingState: {
+    badgePeak: 'Peak',
+    badgeValley: 'Valley',
+    badgeNone: 'Not enabled',
+    tooltip: 'Determined automatically from the official window ({timezone}); administrators cannot override it.'
   },
 
   // Group Live / Realtime display (user facing)
@@ -287,6 +296,26 @@ export default {
       keySubmit: {
         title: '🎉 Complete Creation',
         description: '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;">Click to confirm and create your API key.</p><div style="padding: 8px 12px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>⚠️ Important:</b><ul style="margin: 8px 0 0 16px;"><li>Copy the key (sk-xxx) immediately after creation</li><li>Key is only shown once, need to regenerate if lost</li></ul></div><p style="padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>🚀 How to Use:</b><br/>Configure the key in any OpenAI-compatible client (like ChatBox, OpenCat, etc.) and start using!</p><p style="margin-top: 12px; color: #10b981; font-weight: 600;">👉 Click "Create" button</p></div>'
+      },
+      recharge: {
+        title: '💳 Top-up and redeem',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">The only available route is "Top-up / Subscription" (/purchase) in the sidebar: <b>¥1 = 1 Credit</b> (no currency conversion).</p><p style="padding: 8px 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>⚠️ A successful payment is not credited automatically</b><br/>Redeem the card code on the Redeem page (/redeem) — only then does the balance grow.</p><p style="color: #6b7280; font-size: 13px;">The white-label shop (/shop) is <b>not open yet</b>.</p></div>'
+      },
+      keyChain: {
+        title: '🔗 Group order and high-availability fallback',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">When creating a key you can set the <b>order of normal groups</b>: they are used in order, and the next group is only tried after the current one runs out.</p><p style="margin-bottom: 12px;">You can also enable <b>high-availability fallback groups</b>: they are tried in order once every normal group is unavailable.</p><p style="color: #6b7280; font-size: 13px;">Billing uses the effective rate of the <b>group that actually served the request</b>.</p></div>'
+      },
+      usage: {
+        title: '📊 Reading the usage records',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">Every entry records the <b>group that actually served the request</b> (it may differ from the one you picked), the <b>failover</b> that happened (account / group / high-availability fallback) and the <b>pricing snapshot</b> of that call (per-item unit prices and the Credit total).</p><p style="color: #6b7280; font-size: 13px;">For billing questions, the Credit charged here is the reference.</p></div>'
+      },
+      help: {
+        title: '❓ In-site help',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">The "Help" page in the sidebar (/help) collects the common questions about balance and pricing, redemption rules, key quotas and failure categories.</p><p style="color: #10b981; font-weight: 600;">Check it before asking someone.</p></div>'
       }
     }
   },
@@ -296,12 +325,12 @@ export default {
     title: 'Recharge / Subscription',
     amountLabel: 'Amount',
     paymentAmount: 'Payment Amount',
-    creditedBalance: 'Credited Balance',
+    creditedBalance: 'Credited Balance (Credit)',
     rechargeBonus: {
       creditedShort: 'Get {amount}',
       payShort: 'Pay {amount}',
-      amountLabel: 'Bonus',
-      amountLabelWithPercent: 'Bonus (+{percent}%)',
+      amountLabel: 'Bonus (Credit)',
+      amountLabelWithPercent: 'Bonus (Credit) (+{percent}%)',
       discountLabelWithPercent: 'Discount ({percent}% OFF)',
     },
     quickAmounts: 'Quick Amounts',
@@ -369,8 +398,8 @@ export default {
       orderNo: 'Order No.',
       amount: 'Amount',
       payAmount: 'Paid',
-      creditedAmount: 'Credited Amount',
-      bonusAmount: 'Bonus',
+      creditedAmount: 'Credited Amount (Credit)',
+      bonusAmount: 'Bonus (Credit)',
       bonusIncluded: 'incl. bonus {amount}',
       fee: 'Fee',
       baseAmount: 'Base Amount',
@@ -393,7 +422,7 @@ export default {
       backToRecharge: 'Back to Recharge',
       viewOrders: 'View Orders',
     },
-    currentBalance: 'Current Balance',
+    currentBalance: 'Current Balance (Credit)',
     groupFallback: 'Group #{id}',
     rechargeAccount: 'Recharge Account',
     activeSubscription: 'Active Subscription',
@@ -477,10 +506,10 @@ export default {
     planCard: {
       rate: 'Rate',
       peakRate: 'Peak Rate',
-      dailyLimit: 'Daily',
-      weeklyLimit: 'Weekly',
-      monthlyLimit: 'Monthly',
-      quota: 'Quota',
+      dailyLimit: 'Daily limit (Credit)',
+      weeklyLimit: 'Weekly limit (Credit)',
+      monthlyLimit: 'Monthly limit (Credit)',
+      quota: 'Quota (Credit)',
       unlimited: 'Unlimited',
       models: 'Models',
     },

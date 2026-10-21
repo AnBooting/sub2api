@@ -47,6 +47,29 @@ export default {
         note: 'Official source price amounts are not shown to users. Usage records only contain the base price converted to Credit, plus currency and source metadata.'
       },
 
+      peak: {
+        title: 'Peak and off-peak hours: detected automatically from official pricing',
+        intro:
+          'Official DeepSeek pricing comes with peak and off-peak hours. The platform detects which one applies using the official rules, so you never switch it yourself.',
+        bullets: {
+          window:
+            'Detection is fixed to the Asia/Shanghai time zone. On weekdays (excluding public holidays) the peak windows are 09:00-12:00 and 14:00-18:00; every other time is off-peak.',
+          holiday:
+            'The public-holiday calendar takes priority: maintained holidays are billed at the off-peak rate, and weekends are off-peak too, including weekends that are make-up workdays.',
+          multiplier: 'Peak hours are billed at 2x, off-peak hours at 1x; the multiplier that applies is the one for the current period.',
+          display:
+            'The group badge shows whether the group is currently at peak or off-peak and which multiplier applies. The badge only reflects the current state of the group, it does not take part in billing, and the billing rules still follow the backend price table.',
+          custom:
+            'If the group has its own peak window configured (the site owner sets it in the group form), that configured window and multiplier win; the official DeepSeek window is only the fallback.',
+          lock:
+            'Peak and off-peak detection follows price lock like everything else: the state at the moment the request starts decides the pricing of that request, and crossing into another period does not change it.',
+          scope:
+            'Scope: the peak/off-peak rules only apply to models and groups that use the official DeepSeek price card. Groups on other platforms are not covered and are shown as not applicable.'
+        },
+        note:
+          'If a year has neither a maintained holiday calendar nor built-in coverage, the platform disables the official peak surcharge for that year (everything is billed off-peak) instead of charging the weekday peak rate.'
+      },
+
       groups: {
         title: 'Regular group order and high-availability fallback',
         intro:
@@ -69,6 +92,26 @@ export default {
         }
       },
 
+      pricingTable: {
+        title: 'Missing prices and the price overview: how to check pricing',
+        intro:
+          'A pricing_unavailable error is a site-side pricing configuration problem, not a problem with your key or your balance. The site owner can check it directly in the missing-price list and the price overview.',
+        bullets: {
+          meaning:
+            'What a missing price means: when a model has no valid price configured, the platform rejects the request before it reaches the upstream (pricing_unavailable) and never lets it through at zero cost. There is nothing for you to do; send the site owner the model name and the timestamp.',
+          adminTable:
+            'Price overview (the "Price overview" view on the admin channel pricing page): a read-only summary of the models that appear in channel and group pricing rules, with their currency, pricing unit and each unit price.',
+          adminMissing:
+            'Missing-price list (the "Missing price list" view on the same page): lists models that are configured but have incomplete prices, states whether the input price, output price, cache price or image price is missing, and links to the pricing editor.',
+          probe:
+            'Detection basis: the "default price card" column in both views is produced by probing the current default price card model by model, so it may differ from actual billing. Wildcard rules are not probed per model.',
+          scope:
+            'Coverage: the default price card only offers a single-model query, so the price overview lists only the models that appear in channel and group rules; it is not a full catalogue of every model on the site.'
+        },
+        note:
+          'Those two admin views are for the site owner and operators. What you see in usage records is the actual charge converted into Credit plus the pricing snapshot; official source price amounts are not shown.'
+      },
+
       recharge: {
         title: 'Top-up and redemption: two paths, different states',
         intro: 'There are currently two top-up paths with different states. Check the entry before you operate.',
@@ -80,20 +123,20 @@ export default {
           },
           shop: {
             t: 'Recharge Center (/shop)',
-            d: 'A white-label product center (product, payment, card key, redemption). It is not enabled yet. When it is not configured, the page says "top-up service is not enabled / the site owner has not finished configuring the top-up service, please try again later or contact the site owner".'
+            d: 'A white-label product center (product, payment, card key, redemption). It is not enabled yet. When it is not configured, the page says "top-up service is not enabled / the site owner has not finished configuring the top-up service, please try again later or contact the site owner". Once enabled, a successful payment does not credit the balance automatically: you copy the card key and redeem it on the redemption page.'
           },
           redeem: {
             t: 'Redeem (/redeem)',
-            d: 'Only site-issued redemption codes work. Codes are case-sensitive and can be redeemed once; they can add balance, add concurrency, or grant trial permissions. The failure message is currently always "redemption failed, please check the code and try again", without telling apart already-used, non-existent and expired codes.'
+            d: 'Only site-issued redemption codes work. Codes are case-sensitive and can be redeemed once; they can add balance, add concurrency, or grant trial permissions. The failure message tells the reasons apart: this code has already been used / the code does not exist / the code has expired / the code is invalid.'
           }
         },
         bullets: {
           unit:
-            'Two amount conventions: the in-site accounting unit is Credit (balance, spend, key quota, redemption page, subscription group limits), while the top-up and order pages still show $ for credited and bonus amounts, subscription plan limits, the sidebar subscription progress card, the dashboard platform quota, batch image generation costs, and Model Plaza unit prices.',
+            'Two amount conventions: the in-site accounting unit is Credit, and balance, spend, key quota, subscription group limits, the redemption page, credited and bonus amounts on the top-up and order pages, the sidebar subscription progress card, the dashboard platform quota and batch image generation costs now all carry a "(Credit)" unit label. The Model Plaza price table shows source-currency prices (USD, no conversion) instead of account balance Credit; the real deduction is the Credit shown in usage records.',
           rate:
-            'The recharge multiplier is a different convention: the "current rate" shown on the top-up and order pages describes the recharge rate, not the 1 CNY = 1 Credit ratio. There is currently no on-site wording for "¥1 = 1 Credit", so the actual ratio follows the site configuration.'
+            'The recharge multiplier is a different convention: the "current rate" shown on the top-up and order pages describes the recharge rate, not the 1 CNY = 1 Credit ratio. The redemption page and the recharge center now state "¥1 gives 1 Credit (no conversion)" explicitly; the actual ratio follows the site configuration.'
         },
-        note: 'Even once the white-label product center is enabled, there is no "my orders" list to recover the original order after a refresh or network drop; you have to give the site owner the order number shown in the notice.'
+        note: 'Once the white-label product center is enabled, the recharge center has a "my orders" list where you can look up past orders and query them again; only the most recent order number is kept locally, so after a network drop or clearing browser data, give the site owner the order number shown in the notice.'
       },
 
       usage: {
@@ -129,11 +172,35 @@ export default {
             'Video (per call): billed by request count. Per-second and per-call are mutually exclusive and configured per model × group; video may use an independent multiplier, separate from the text multiplier.',
           live: 'Realtime audio (Live / Realtime): billed by session duration, priced from the per-minute voice price configured on the group.',
           liveGap:
-            'Current gap: the Realtime per-minute price can only be configured for Grok-platform groups. An OpenAI Live group without a configured price settles that session as unbilled (the backend raises an alert). When Live consumption is 0, ask the site owner to confirm whether the group has a price configured.',
+            'Current status: the Realtime per-minute price can now be configured for groups on every platform (the "Voice / Realtime explicit pricing" block of the admin group form). A group without a configured price settles that session as unbilled (the backend raises an alert). When Live consumption is 0, ask the site owner to confirm whether the group has a price configured.',
           visibility:
-            'Visibility: on the user side you can currently only see the "Live" badge in usage records, not the unit price or the duration breakdown; there is no user-side video task entry yet (no task list or download page), so video consumption can only be seen indirectly through the "per-call (video)" billing-mode badge.',
+            'Visibility: the group badge shows the Live badge and the Realtime per-minute price (labelled as a source price, not the final charge); the usage record details show the Live session duration and the billing basis. Video tasks have their own "Video tasks" page (see that section), but the finished video is still not downloadable.',
           lock: 'Price lock: video and image tasks follow the same "locked at submission" rule.'
         }
+      },
+
+      videoTasks: {
+        title: 'Video tasks: looking up your own video tasks',
+        intro: 'The sidebar entry "Video tasks" shows the video generation tasks you submitted, their current state and their billing mode.',
+        tableHead: { t: 'Field', d: 'Meaning' },
+        rows: {
+          taskNo: { t: 'Task number', d: 'The site-side task identifier; give this to the site owner when you need to cross-check.' },
+          status: { t: 'Status', d: 'Processing / completed / failed.' },
+          model: { t: 'Model and platform', d: 'The model this task actually used and the platform it ran on.' },
+          billingMode: { t: 'Billing mode', d: 'Per token / per call / per second.' },
+          createdAt: { t: 'Created at', d: 'When the task was created.' },
+          settledAt: { t: 'Settled at', d: 'When the task finished settling; hidden while it is not settled yet.' },
+          lastError: { t: 'Failure reason', d: 'Shown for failed tasks, empty for successful or in-progress ones.' }
+        },
+        bullets: {
+          snapshot:
+            'The billing mode comes from the billing snapshot taken when the task was created: the mode matched for your group and model at that moment is fixed, and later price changes do not change the billing mode of that task.',
+          paging:
+            'The list is ordered by creation time, newest first, 20 per page (up to 50). When more exist, click "Load more" to page through with the cursor.',
+          scope: 'Only your own tasks are returned; internal fields such as the upstream task number are never included.'
+        },
+        note:
+          'The video task page shows task and billing information only; it does not offer downloads of the finished video. Video charges are still authoritative in the usage records.'
       },
 
       faq: {
@@ -146,7 +213,7 @@ export default {
           },
           q2: {
             q: 'The request failed with pricing_unavailable or a missing price?',
-            a: 'The model has no valid price right now, and the platform rejects the request before the upstream call, following the no-free-ride rule for missing prices. This is a price configuration issue on the platform side; please report the model name and the timestamp to the site owner.'
+            a: 'The model has no valid price right now, and the platform rejects the request before the upstream call, following the no-free-ride rule for missing prices. This is a price configuration issue on the platform side; please report the model name and the timestamp to the site owner; they can check it in the admin missing-price list and price overview.'
           },
           q3: {
             q: 'The request was rate limited (429)?',
@@ -154,11 +221,11 @@ export default {
           },
           q4: {
             q: 'The balance did not arrive?',
-            a: 'There are two cases. For Recharge / Subscription, the self-hosted payment credits the balance as soon as payment succeeds; if it did not arrive, give the site owner the order number. For the white-label Recharge Center, a card key still has to be redeemed after payment, but that entry is not enabled yet, so the page simply says the top-up service is not enabled.'
+            a: 'There are two cases. For Recharge / Subscription, the self-hosted payment credits the balance as soon as payment succeeds; if it did not arrive, give the site owner the order number. For the white-label Recharge Center, a successful payment does not credit the balance automatically: you copy the card key and redeem it on the Redeem page. That entry is not enabled yet, so the page simply says the top-up service is not enabled.'
           },
           q5: {
             q: 'The card key fails on the Redeem page?',
-            a: 'The Redeem page currently only accepts codes issued by this site. Card keys from external channels are not connected to the site redemption table yet, so send the card key and the site order number to the site owner. The failure message is always "redemption failed, please check the code and try again", without telling apart already-used, non-existent and expired codes.'
+            a: 'The Redeem page currently only accepts codes issued by this site. Card keys from external channels are not connected to the site redemption table yet, so send the card key and the site order number to the site owner. The failure message tells the reasons apart: this code has already been used / the code does not exist / the code has expired / the code is invalid.'
           },
           q6: {
             q: 'I was charged but cannot find the record?',
@@ -205,7 +272,13 @@ export default {
           currencyGuard:
             'Currency and unit anomalies must not silently overwrite: when CNY data shows USD, USD data shows CNY, or a unit mapping looks wrong, the current valid price is kept.',
           missing:
-            'Missing-price red line: an unpriced model is rejected before the upstream call (pricing_unavailable). Zero-cost pass-through is not allowed and there is no switch to enable it; media models are not allowed to fall back either. An explicit zero price settles at 0 as a normal price, which is a different thing from a missing price.'
+            'Missing-price red line: an unpriced model is rejected before the upstream call (pricing_unavailable). Zero-cost pass-through is not allowed and there is no switch to enable it; media models are not allowed to fall back either. An explicit zero price settles at 0 as a normal price, which is a different thing from a missing price.',
+          missingList:
+            'Missing-price list and price overview: the admin channel pricing page has three views, channel list / price overview / missing-price list. The price overview is a read-only summary, and the missing-price list probes price completeness model by model against the current default price card and links to the pricing editor.',
+          missingListLimit:
+            'Neither view is an authoritative site-wide price catalogue: the default price card only offers a single-model query, so the price overview lists only the models appearing in channel and group rules; the probe results may differ from actual billing, and wildcard rules are not probed per model.',
+          peak:
+            'Peak/off-peak detection: the official DeepSeek price card uses Asia/Shanghai, with 09:00-12:00 and 14:00-18:00 on weekdays priced at 2x and everything else at 1x; the public-holiday calendar takes priority and weekends (including make-up workdays) are off-peak. A group with its own peak window uses that configuration. The holiday calendar is maintained per year in the pricing settings, and a year with neither a custom nor a built-in calendar has the official peak surcharge disabled.'
         }
       },
 
@@ -274,6 +347,7 @@ export default {
         shop: { t: 'Recharge Center (white-label products, not enabled yet)', d: '/shop' },
         orders: { t: 'My orders', d: '/orders' },
         redeem: { t: 'Redeem', d: '/redeem' },
+        videoTasks: { t: 'Video tasks', d: '/video-tasks' },
         batchImage: { t: 'Batch images', d: 'Sidebar "Batch Images"' }
       }
     }

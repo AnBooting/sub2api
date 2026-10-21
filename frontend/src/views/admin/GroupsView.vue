@@ -261,10 +261,15 @@
             </div>
           </template>
 
-          <template #cell-rate_multiplier="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300"
-              >{{ value }}x</span
-            >
+          <template #cell-rate_multiplier="{ value, row }">
+            <div class="space-y-0.5">
+              <span class="text-sm text-gray-700 dark:text-gray-300"
+                >{{ value }}x</span
+              >
+              <DeepSeekPricingStateBadge
+                :state="row.deepseek_pricing_state"
+              />
+            </div>
           </template>
 
           <template #cell-is_exclusive="{ value }">
@@ -2399,6 +2404,22 @@
             class="input"
             data-tour="group-form-multiplier"
           />
+        </div>
+        <!-- 峰谷状态：官方时段自动判定，只读展示，管理员不能手动改判定 -->
+        <div
+          v-if="editingGroup?.deepseek_pricing_state"
+          class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+          data-testid="edit-peak-state"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              t("admin.groups.peakState.title")
+            }}</span>
+            <DeepSeekPricingStateBadge :state="editingGroup.deepseek_pricing_state" />
+          </div>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.peakState.autoJudged") }}
+          </p>
         </div>
         <SchedulingStrategySelect v-model="editForm.scheduling_strategy" allow-inherit :disabled="submitting" :effective-strategy="savedEffectiveStrategy" />
         <div>
@@ -4544,6 +4565,7 @@ import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
+import type { AdminGroupWithPricingState } from "@/api/admin/groups";
 import type {
   AdminGroup,
   CodexModelsManifestConfig,
@@ -4578,6 +4600,7 @@ import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesMo
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
+import DeepSeekPricingStateBadge from "@/components/admin/group/DeepSeekPricingStateBadge.vue";
 import PricingEntryCard from "@/components/admin/channel/PricingEntryCard.vue";
 import type { PricingFormEntry } from "@/components/admin/channel/types";
 import {
@@ -5062,7 +5085,7 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
   }));
 });
 
-const groups = ref<AdminGroup[]>([]);
+const groups = ref<AdminGroupWithPricingState[]>([]);
 const loading = ref(false);
 type GroupUsageSummary = {
   today_cost: number;
@@ -5119,7 +5142,7 @@ let liveCapabilityRequest: Promise<{
 const showSortModal = ref(false);
 const submitting = ref(false);
 const sortSubmitting = ref(false);
-const editingGroup = ref<AdminGroup | null>(null);
+const editingGroup = ref<AdminGroupWithPricingState | null>(null);
 const deletingGroup = ref<AdminGroup | null>(null);
 const duplicatingGroupIds = reactive(new Set<number>());
 const showRateMultipliersModal = ref(false);
@@ -6352,7 +6375,7 @@ const handleCreateGroup = async () => {
   }
 };
 
-const handleEdit = async (group: AdminGroup) => {
+const handleEdit = async (group: AdminGroupWithPricingState) => {
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";

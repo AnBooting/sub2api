@@ -37,6 +37,8 @@
           <span v-else class="text-sm text-gray-500">{{ t('keys.chain.unavailable', { id }) }}</span>
           <!-- Live 开关与 Realtime 每分钟单价（分组 DTO 已下发） -->
           <GroupLiveBadge :group="groupById(id)" />
+          <!-- DeepSeek 峰谷计价状态（分组 DTO 已下发，字段缺失时自动隐藏） -->
+          <GroupPricingStateBadge :group="groupById(id)" />
         </div>
         <div class="flex items-center gap-1">
           <button type="button" class="btn btn-secondary px-2 py-1" :disabled="disabled || index === 0" :aria-label="t('keys.chain.moveUp', { name: groupById(id)?.name ?? id })" data-action="up" @click="move(index, -1)">↑</button>
@@ -65,6 +67,7 @@ import { VueDraggable } from 'vue-draggable-plus'
 import type { Group } from '@/types'
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupLiveBadge from '@/components/user/GroupLiveBadge.vue'
+import GroupPricingStateBadge from '@/components/user/GroupPricingStateBadge.vue'
 import { applyDraggedOrder, moveChainItem } from './groupChainOrder'
 
 const props = withDefaults(defineProps<{ modelValue: number[]; groups: Group[]; userRates?: Record<number, number>; disabled?: boolean }>(), { userRates: () => ({}), disabled: false })

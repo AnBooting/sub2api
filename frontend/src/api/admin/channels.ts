@@ -186,9 +186,13 @@ export interface ModelDefaultPricing {
   reasoning_effort_multipliers?: Record<string, number> | null
 }
 
-export async function getModelDefaultPricing(model: string): Promise<ModelDefaultPricing> {
+export async function getModelDefaultPricing(
+  model: string,
+  options?: { signal?: AbortSignal }
+): Promise<ModelDefaultPricing> {
   const { data } = await apiClient.get<ModelDefaultPricing>('/admin/channels/model-pricing', {
-    params: { model }
+    params: { model },
+    signal: options?.signal
   })
   return data
 }

@@ -26,10 +26,10 @@ export default {
           "duplicate": "Duplicate date: {value}"
         }
       },
-	    creditUnit: 'credits', rechargeHint: 'Credit mode: a base recharge of ¥1 or $1 adds 1 credit. Bonuses and fees are calculated separately.',
+	    creditUnit: 'Credit', rechargeHint: 'Credit mode: a base recharge of ¥1 or $1 adds 1 Credit. Bonuses and fees are calculated separately.',
 	    currency: 'Price currency', manualCNYHint: 'CNY token cards require input, output, cache read and cache write rates. Enter 0 for free items; USD rates are never inherited.',
-	    title: 'Model pricing and credits', description: 'Choose native CNY prices and control all remote pricing requests. Changes take effect immediately.',
-	    nativeCNY: 'Use native CNY model prices', nativeCNYHint: 'Chinese models use original CNY lists; Claude/GPT keep USD lists. ¥1 and $1 each consume 1 credit, with no FX conversion; recharge credits use a ratio of 1. Missing CNY prices require manual pricing.',
+	    title: 'Model pricing and Credit billing', description: 'Choose native CNY prices and control all remote pricing requests. Changes take effect immediately.',
+	    nativeCNY: 'Use native CNY model prices', nativeCNYHint: 'Chinese models use original CNY lists; Claude/GPT keep USD lists. ¥1 and $1 each consume 1 Credit, with no FX conversion; recharge credits use a ratio of 1. Missing CNY prices require manual pricing.',
 	    remote: 'Allow remote pricing requests', remoteHint: 'Turning this off stops startup checks, scheduled sync, remote hash checks and manual refresh. Cached and manual prices remain available.',
     syncInterval: 'Pricing sync period (hours)', syncIntervalHint: 'Enter {min}–{max} hours. Saving rearms the timer immediately, so the next boundary uses the new period without a restart. Leave empty to keep the config-file default.', syncIntervalEffective: 'Effective period: {hours} hours', syncIntervalSave: 'Save period', syncIntervalInvalid: 'Enter a whole number of hours between 1 and 720.',
 	    offline: 'Remote pricing is off. Local prices are in use.', noCNY: 'No CNY price cache yet. Enable requests to sync, or configure manual prices with an explicit currency.',
@@ -441,7 +441,7 @@ export default {
       defaults: {
         title: 'Default User Settings',
         description: 'Default values for new users',
-        defaultBalance: 'Default Balance',
+        defaultBalance: 'Default Balance (Credit)',
         defaultBalanceHint: 'Initial balance for new users',
         affiliateRebateRate: 'Affiliate Rebate Rate',
         affiliateRebateRateHint:
@@ -464,9 +464,9 @@ export default {
       },
       platformQuota: {
         platform:    'Platform',
-        daily:       'Daily (USD)',
-        weekly:      'Weekly (USD)',
-        monthly:     'Monthly (USD, 30d rolling)',
+        daily:       'Daily limit (Credit)',
+        weekly:      'Weekly limit (Credit)',
+        monthly:     'Monthly limit (Credit, 30d rolling)',
         placeholder: 'Unlimited',
       },
       claudeCode: {
@@ -990,7 +990,7 @@ export default {
         title: 'Balance Low Notification',
         description: 'Send email notification when user balance falls below threshold',
         enabled: 'Enable Balance Low Notification',
-        threshold: 'Default Threshold',
+        threshold: 'Default Threshold (Credit)',
         thresholdHint: 'Used when user has not set a custom value',
         thresholdPlaceholder: 'Enter amount',
         rechargeUrl: 'Recharge Page URL',

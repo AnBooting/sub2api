@@ -139,7 +139,18 @@ type Row = { t: string; d: string }
 type QA = { q: string; a: string }
 
 // 章节顺序与 i18n/locales/{zh,en}/help.ts 的结构保持一致。
-const userSections = ['credit', 'groups', 'recharge', 'usage', 'media', 'faq', 'contact'] as const
+const userSections = [
+  'credit',
+  'peak',
+  'groups',
+  'pricingTable',
+  'recharge',
+  'usage',
+  'media',
+  'videoTasks',
+  'faq',
+  'contact',
+] as const
 const adminSections = ['pricing', 'scheduling', 'concurrency', 'reconciliation'] as const
 
 function message(path: string): Record<string, unknown> {

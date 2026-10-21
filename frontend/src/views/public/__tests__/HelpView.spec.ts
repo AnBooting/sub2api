@@ -26,8 +26,30 @@ function mountHelp(locale: 'zh' | 'en') {
   return mount(HelpView, { global: { plugins: [i18n] } })
 }
 
+/**
+ * 找到包含指定文本的表格。
+ * 用唯一行内容定位，而不是按出现顺序取下标——表头文案在不同小节之间可能重复
+ * （usage 与 videoTasks 的表头都是「字段/含义」），按下标取会取错表。
+ */
+function tableContaining(wrapper: ReturnType<typeof mountHelp>, needle: string) {
+  const table = wrapper.findAll('table').find((candidate) => candidate.text().includes(needle))
+  expect(table, 'no table containing ' + needle).toBeTruthy()
+  return table!
+}
+
 // 用户篇小节：与 HelpView.vue 中的 userSections 保持一致。
-const USER_SECTIONS = ['credit', 'groups', 'recharge', 'usage', 'media', 'faq', 'contact'] as const
+const USER_SECTIONS = [
+  'credit',
+  'peak',
+  'groups',
+  'pricingTable',
+  'recharge',
+  'usage',
+  'media',
+  'videoTasks',
+  'faq',
+  'contact',
+] as const
 // 管理员小节：与 HelpView.vue 中的 adminSections 保持一致。
 const ADMIN_SECTIONS = ['pricing', 'scheduling', 'concurrency', 'reconciliation'] as const
 
@@ -74,7 +96,7 @@ describe('HelpView', () => {
 
   it('renders the path lookup table with a header and one row per entry', () => {
     const wrapper = mountHelp('zh')
-    const pathsTable = wrapper.findAll('table')[3]
+    const pathsTable = tableContaining(wrapper, zh.help.paths.rows.keys.t)
     const pathRows = pathsTable.findAll('tbody tr')
 
     expect(pathsTable.findAll('th').map((cell) => cell.text())).toEqual([
@@ -87,25 +109,65 @@ describe('HelpView', () => {
     )
     expect(wrapper.text()).toContain('/keys')
     expect(wrapper.text()).toContain('/purchase')
+    expect(wrapper.text()).toContain('/video-tasks')
   })
 
   it('renders each rows-based section with a header taken from its own locale entry', () => {
     const wrapper = mountHelp('zh')
-    const tables = wrapper.findAll('table')
 
-    // recharge / usage / contact / paths 都有 rows，表头必须来自 locale 的 tableHead，
-    // 而不是空单元格（空表头说明该小节漏了 tableHead）。
-    const expectedHeads = [
-      zh.help.user.recharge.tableHead,
-      zh.help.user.usage.tableHead,
-      zh.help.user.contact.tableHead,
-      zh.help.paths.tableHead,
+    // recharge / usage / videoTasks / contact / paths 都有 rows，表头必须来自 locale 的
+    // tableHead，而不是空单元格（空表头说明该小节漏了 tableHead）。
+    const cases: Array<[string, { t: string; d: string }]> = [
+      [zh.help.user.recharge.rows.purchase.t, zh.help.user.recharge.tableHead],
+      [zh.help.user.usage.rows.recordCost.t, zh.help.user.usage.tableHead],
+      [zh.help.user.videoTasks.rows.taskNo.t, zh.help.user.videoTasks.tableHead],
+      [zh.help.user.contact.rows.topup.t, zh.help.user.contact.tableHead],
+      [zh.help.paths.rows.keys.t, zh.help.paths.tableHead],
     ]
 
-    expect(tables).toHaveLength(expectedHeads.length + 1)
-    expectedHeads.forEach((head, index) => {
-      expect(tables[index].findAll('th').map((cell) => cell.text())).toEqual([head.t, head.d])
-    })
+    for (const [anchor, head] of cases) {
+      const table = tableContaining(wrapper, anchor)
+      expect(table.findAll('th').map((cell) => cell.text())).toEqual([head.t, head.d])
+    }
+  })
+
+  it('renders the peak/off-peak section with the official windows and multiplier', () => {
+    const wrapper = mountHelp('zh')
+    const text = wrapper.text()
+
+    expect(text).toContain(zh.help.user.peak.title)
+    expect(text).toContain(zh.help.user.peak.intro)
+    expect(text).toContain(zh.help.user.peak.bullets.window)
+    expect(text).toContain(zh.help.user.peak.bullets.holiday)
+    expect(text).toContain(zh.help.user.peak.bullets.multiplier)
+    expect(text).toContain(zh.help.user.peak.bullets.display)
+    expect(text).toContain(zh.help.user.peak.note)
+  })
+
+  it('renders the missing-price and price-overview section', () => {
+    const wrapper = mountHelp('zh')
+    const text = wrapper.text()
+
+    expect(text).toContain(zh.help.user.pricingTable.title)
+    expect(text).toContain(zh.help.user.pricingTable.bullets.meaning)
+    expect(text).toContain(zh.help.user.pricingTable.bullets.adminTable)
+    expect(text).toContain(zh.help.user.pricingTable.bullets.adminMissing)
+    expect(text).toContain(zh.help.user.pricingTable.bullets.probe)
+  })
+
+  it('renders the video task section with its fields and billing snapshot', () => {
+    const wrapper = mountHelp('zh')
+    const text = wrapper.text()
+    const table = tableContaining(wrapper, zh.help.user.videoTasks.rows.taskNo.t)
+
+    expect(text).toContain(zh.help.user.videoTasks.title)
+    expect(text).toContain(zh.help.user.videoTasks.bullets.snapshot)
+    expect(text).toContain(zh.help.user.videoTasks.bullets.paging)
+    expect(table.findAll('tbody tr')).toHaveLength(Object.keys(zh.help.user.videoTasks.rows).length)
+    expect(table.findAll('th').map((cell) => cell.text())).toEqual([
+      zh.help.user.videoTasks.tableHead.t,
+      zh.help.user.videoTasks.tableHead.d,
+    ])
   })
 
   it('renders the section notes as closing paragraphs', () => {

@@ -246,7 +246,7 @@ export default {
       searchCodes: 'Search codes or email...',
       allTypes: 'All Types',
       allStatus: 'All Status',
-      balance: 'Balance',
+      balance: 'Balance (Credit)',
       concurrency: 'Concurrency',
       subscription: 'Subscription',
       invitation: 'Invitation',
@@ -312,7 +312,7 @@ export default {
       failedToDeleteUnused: 'Failed to delete unused codes',
       failedToCopy: 'Failed to copy codes',
       types: {
-        balance: 'Balance',
+        balance: 'Balance (Credit)',
         concurrency: 'Concurrency',
         subscription: 'Subscription',
         invitation: 'Invitation',
@@ -419,9 +419,9 @@ export default {
         addAndCondition: 'Add AND condition',
         conditionType: 'Condition type',
         conditionSubscription: 'Subscription',
-        conditionBalance: 'Balance',
+        conditionBalance: 'Balance (Credit)',
         operator: 'Operator',
-        balanceValue: 'Balance threshold',
+        balanceValue: 'Balance threshold (Credit)',
         selectPackages: 'Select packages'
       },
       operators: {
@@ -543,7 +543,7 @@ export default {
       failedToLoad: 'Failed to load usage records',
       billingType: 'Billing Type',
       allBillingTypes: 'All Billing Types',
-      billingTypeBalance: 'Balance',
+      billingTypeBalance: 'Balance (Credit)',
       billingTypeSubscription: 'Subscription',
       billingMode: 'Billing Mode',
       billingModeToken: 'Token',

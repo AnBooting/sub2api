@@ -14,7 +14,16 @@ export default {
     expiresTomorrow: '明天到期',
     viewAll: '查看全部订阅',
     noSubscriptions: '暂无有效订阅',
-    unlimited: '无限制'
+    unlimited: '无限制',
+    usageUnitTitle: '已用/限额单位：Credit'
+  },
+
+  // DeepSeek 峰谷计价状态徽标（用户侧只读展示）
+  groupPricingState: {
+    badgePeak: '峰',
+    badgeValley: '谷',
+    badgeNone: '未启用',
+    tooltip: '按官方时段自动判定（{timezone}），管理员改不了判定'
   },
 
   // 分组 Live / Realtime 展示（用户侧）
@@ -311,6 +320,26 @@ export default {
         title: '🎉 完成创建',
         description:
           '<div style="line-height: 1.7;"><p style="margin-bottom: 12px;">点击确认创建您的 API 密钥。</p><div style="padding: 8px 12px; background: #fee2e2; border-left: 3px solid #ef4444; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>⚠️ 重要：</b><ul style="margin: 8px 0 0 16px;"><li>创建后请立即复制密钥（sk-xxx）</li><li>密钥只显示一次，丢失需重新生成</li></ul></div><p style="padding: 8px 12px; background: #f0fdf4; border-left: 3px solid #10b981; border-radius: 4px; font-size: 13px;"><b>🚀 如何使用：</b><br/>将密钥配置到支持 OpenAI 接口的任何客户端（如 ChatBox、OpenCat 等），即可开始使用！</p><p style="margin-top: 12px; color: #10b981; font-weight: 600;">👉 点击"创建"按钮</p></div>'
+      },
+      recharge: {
+        title: '💳 充值与兑换',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">当前可用的是侧栏「充值/订阅」（/purchase）：<b>¥1 = 1 Credit</b>（不换汇）。</p><p style="padding: 8px 12px; background: #fef3c7; border-left: 3px solid #f59e0b; border-radius: 4px; font-size: 13px; margin-bottom: 12px;"><b>⚠️ 支付成功不会自动到账</b><br/>需要用卡密在「兑换」页（/redeem）兑换，余额才会增加。</p><p style="color: #6b7280; font-size: 13px;">白标商品页（/shop）<b>尚未开通</b>，先别按已开通来用。</p></div>'
+      },
+      keyChain: {
+        title: '🔗 普通分组顺序与高可用兜底',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">创建 Key 时可以配置<b>普通分组尝试顺序</b>：按顺序优先使用，当前组内候选耗尽后才尝试下一组。</p><p style="margin-bottom: 12px;">也可以额外开启<b>高可用兜底分组</b>：普通分组全部不可用时，按顺序尝试你已开启的兜底分组。</p><p style="color: #6b7280; font-size: 13px;">计费按<b>实际服务分组</b>的有效倍率算。</p></div>'
+      },
+      usage: {
+        title: '📊 使用记录怎么看',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">每条记录都写明<b>实际服务的分组</b>（可能不是你指定的分组）、<b>故障转移</b>（换号 / 换组 / 高可用兜底）和当次的<b>锁价快照</b>（分项单价与本次 Credit 合计）。</p><p style="color: #6b7280; font-size: 13px;">对账有疑问时以这里的 Credit 扣费为准。</p></div>'
+      },
+      help: {
+        title: '❓ 站内帮助页',
+        description:
+          '<div style="line-height: 1.8;"><p style="margin-bottom: 12px;">侧栏「帮助」（/help）整理了余额与计费口径、兑换规则、Key 额度、故障分类等常见问题。</p><p style="color: #10b981; font-weight: 600;">先查它，比问人快。</p></div>'
       }
     }
   },
@@ -320,12 +349,12 @@ export default {
     title: '充值/订阅',
     amountLabel: '充值金额',
     paymentAmount: '支付金额',
-    creditedBalance: '到账余额',
+    creditedBalance: '到账余额（Credit）',
     rechargeBonus: {
       creditedShort: '到账 {amount}',
       payShort: '实付 {amount}',
-      amountLabel: '赠送额度',
-      amountLabelWithPercent: '赠送额度 (+{percent}%)',
+      amountLabel: '赠送额度（Credit）',
+      amountLabelWithPercent: '赠送额度（Credit） (+{percent}%)',
       discountLabelWithPercent: '优惠 ({percent}% OFF)',
     },
     quickAmounts: '快捷金额',
@@ -393,8 +422,8 @@ export default {
       orderNo: '订单编号',
       amount: '金额',
       payAmount: '实付',
-      creditedAmount: '到账金额',
-      bonusAmount: '赠送额度',
+      creditedAmount: '到账金额（Credit）',
+      bonusAmount: '赠送额度（Credit）',
       bonusIncluded: '含赠送 {amount}',
       fee: '手续费',
       baseAmount: '充值金额',
@@ -417,7 +446,7 @@ export default {
       backToRecharge: '返回充值',
       viewOrders: '查看订单',
     },
-    currentBalance: '当前余额',
+    currentBalance: '当前余额（Credit）',
     groupFallback: '分组 #{id}',
     rechargeAccount: '充值账户',
     activeSubscription: '当前订阅',
@@ -501,10 +530,10 @@ export default {
     planCard: {
       rate: '倍率',
       peakRate: '高峰倍率',
-      dailyLimit: '日限额',
-      weeklyLimit: '周限额',
-      monthlyLimit: '月限额',
-      quota: '配额',
+      dailyLimit: '日限额（Credit）',
+      weeklyLimit: '周限额（Credit）',
+      monthlyLimit: '月限额（Credit）',
+      quota: '配额（Credit）',
       unlimited: '无限制',
       models: '模型',
     },

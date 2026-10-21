@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import VideoTasksView from '../VideoTasksView.vue'
 
-const { listTasks } = vi.hoisted(() => ({ listTasks: vi.fn() }))
+const { listVideoTasks } = vi.hoisted(() => ({ listVideoTasks: vi.fn() }))
 
 vi.mock('@/api/videos', () => ({
-  videosAPI: { listTasks },
+  listVideoTasks,
   VIDEO_TASK_LIST_LIMIT: 20,
 }))
 
@@ -37,7 +37,7 @@ function mountView() {
 describe('VideoTasksView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    listTasks.mockResolvedValue([baseTask])
+    listVideoTasks.mockResolvedValue({ items: [baseTask], next_cursor: null })
   })
 
   it('renders the task list with model, status and timestamps', async () => {
@@ -59,7 +59,7 @@ describe('VideoTasksView', () => {
     ['completed', 'videoTasks.status.completed'],
     ['failed', 'videoTasks.status.failed'],
   ])('maps the %s status', async (status, expected) => {
-    listTasks.mockResolvedValue([{ ...baseTask, status }])
+    listVideoTasks.mockResolvedValue({ items: [{ ...baseTask, status }], next_cursor: null })
 
     const wrapper = mountView()
     await flushPromises()
@@ -68,8 +68,41 @@ describe('VideoTasksView', () => {
     wrapper.unmount()
   })
 
+  it.each([
+    ['per_token', 'videoTasks.billingMode.per_token'],
+    ['per_request', 'videoTasks.billingMode.per_request'],
+    ['per_second', 'videoTasks.billingMode.per_second'],
+  ])('shows the %s billing mode', async (billing_mode, expected) => {
+    listVideoTasks.mockResolvedValue({
+      items: [{ ...baseTask, billing_mode }],
+      next_cursor: null,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="video-task-row"]').text()).toContain(expected)
+    wrapper.unmount()
+  })
+
+  it('does not render an empty billing mode label when the field is missing', async () => {
+    listVideoTasks.mockResolvedValue({
+      items: [{ ...baseTask, billing_mode: undefined }],
+      next_cursor: null,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="video-task-row"]').text()).not.toContain('videoTasks.billingMode')
+    wrapper.unmount()
+  })
+
   it('shows the failure reason when the task carries one', async () => {
-    listTasks.mockResolvedValue([{ ...baseTask, status: 'failed', last_error: 'upstream timeout' }])
+    listVideoTasks.mockResolvedValue({
+      items: [{ ...baseTask, status: 'failed', last_error: 'upstream timeout' }],
+      next_cursor: null,
+    })
 
     const wrapper = mountView()
     await flushPromises()
@@ -79,12 +112,15 @@ describe('VideoTasksView', () => {
   })
 
   it('renders only the fields the user-side contract exposes', async () => {
-    listTasks.mockResolvedValue([{
-      ...baseTask,
-      upstream_task_id: 'secret-upstream-id',
-      account_id: 42,
-      billing_snapshot: 'secret-snapshot',
-    }])
+    listVideoTasks.mockResolvedValue({
+      items: [{
+        ...baseTask,
+        upstream_task_id: 'secret-upstream-id',
+        account_id: 42,
+        billing_snapshot: 'secret-snapshot',
+      }],
+      next_cursor: null,
+    })
 
     const wrapper = mountView()
     await flushPromises()
@@ -97,24 +133,62 @@ describe('VideoTasksView', () => {
   })
 
   it('shows an empty state when there is no task', async () => {
-    listTasks.mockResolvedValue([])
+    listVideoTasks.mockResolvedValue({ items: [], next_cursor: null })
 
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.get('[data-testid="video-tasks-empty"]').text()).toContain('videoTasks.empty')
     expect(wrapper.find('[data-testid="video-tasks-list"]').exists()).toBe(false)
+    expect(wrapper.find('[data-testid="video-tasks-load-more"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
   it('shows the failure state when the request fails', async () => {
-    listTasks.mockRejectedValue({ status: 500 })
+    listVideoTasks.mockRejectedValue({ status: 500 })
 
     const wrapper = mountView()
     await flushPromises()
 
     expect(wrapper.get('[data-testid="video-tasks-error"]').text()).toContain('videoTasks.loadFailed')
     expect(wrapper.find('[data-testid="video-tasks-list"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('loads the next page by cursor and appends it to the list', async () => {
+    listVideoTasks.mockResolvedValueOnce({ items: [baseTask], next_cursor: 'cursor-2' })
+    listVideoTasks.mockResolvedValueOnce({
+      items: [{ ...baseTask, task_no: 'VT-2' }],
+      next_cursor: null,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.get('[data-testid="video-tasks-load-more"]').exists()).toBe(true)
+    await wrapper.get('[data-testid="video-tasks-load-more"]').trigger('click')
+    await flushPromises()
+
+    expect(listVideoTasks).toHaveBeenLastCalledWith({ limit: 20, cursor: 'cursor-2' })
+    expect(wrapper.findAll('[data-testid="video-task-row"]')).toHaveLength(2)
+    expect(wrapper.text()).toContain('VT-2')
+    // 没有下一页时隐藏按钮
+    expect(wrapper.find('[data-testid="video-tasks-load-more"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('keeps the loaded list when loading the next page fails', async () => {
+    listVideoTasks.mockResolvedValueOnce({ items: [baseTask], next_cursor: 'cursor-2' })
+    listVideoTasks.mockRejectedValueOnce({ status: 500 })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('[data-testid="video-tasks-load-more"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-testid="video-task-row"]')).toHaveLength(1)
+    expect(wrapper.get('[data-testid="video-tasks-load-more-error"]').text()).toContain('videoTasks.loadMoreFailed')
     wrapper.unmount()
   })
 })
