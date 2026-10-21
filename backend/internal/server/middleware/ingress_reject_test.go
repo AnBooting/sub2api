@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
@@ -47,4 +48,15 @@ func TestLoggerRecordsIngressRejectOnce(t *testing.T) {
 	require.Equal(t, 1, recorder.calls)
 	require.Equal(t, "2001:db8:abcd:1234::", recorder.clientIP)
 	recorder.mu.Unlock()
+}
+
+func TestInvalidAuthClientKeyDefersToLimiterEmptyKeyPolicy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	req := httptest.NewRequest(http.MethodGet, "/v1/messages", nil)
+	// 注入不可解析的客户端 IP，模拟 Gin 在边缘配置下给出空值/非 IP 的情况。
+	req = req.WithContext(service.WithSessionBinding(req.Context(), &service.SessionBinding{IP: "not-an-ip"}))
+	c.Request = req
+	// 不可识别客户端不得折叠成共享哨兵，否则所有此类客户端共用一个限流桶互相连带封禁。
+	require.Empty(t, invalidAuthClientKey(c))
 }

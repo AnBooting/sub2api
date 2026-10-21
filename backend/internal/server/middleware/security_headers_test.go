@@ -406,6 +406,15 @@ func TestEnhanceCSPPolicy(t *testing.T) {
 		assert.Contains(t, enhanced, "'nonce-existing'")
 	})
 
+	t.Run("adds_nonce_when_only_other_directive_has_nonce", func(t *testing.T) {
+		// nonce 出现在 default-src 不等于 script-src 已具备 nonce；
+		// 否则每请求生成的 nonce 永远不会注入 script-src，内联脚本会被浏览器拦截。
+		policy := "default-src 'self' 'nonce-abc123'; script-src 'self'"
+		enhanced := enhanceCSPPolicy(policy)
+
+		assert.Contains(t, enhanced, NonceTemplate)
+	})
+
 	t.Run("adds_airwallex_domains_for_payment_sdk", func(t *testing.T) {
 		policy := "default-src 'self'; script-src 'self' __CSP_NONCE__; style-src 'self'; frame-src 'self'"
 		enhanced := enhanceCSPPolicy(policy)

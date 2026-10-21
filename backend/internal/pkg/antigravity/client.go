@@ -284,6 +284,8 @@ const (
 	proxyTLSHandshakeTimeout = 5 * time.Second
 	// clientTimeout 整体请求超时（含连接、发送、等待响应、读取 body）
 	clientTimeout = 10 * time.Second
+	// antigravityResponseBodyLimit 限制非流式上游响应体大小，防止恶意/异常上游撑爆内存。
+	antigravityResponseBodyLimit = 2 << 20
 )
 
 func NewClient(proxyURL string) (*Client, error) {
@@ -502,10 +504,13 @@ func (c *Client) LoadCodeAssist(ctx context.Context, accessToken string) (*LoadC
 			return nil, nil, lastErr
 		}
 
-		respBodyBytes, err := io.ReadAll(resp.Body)
+		respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, antigravityResponseBodyLimit+1))
 		_ = resp.Body.Close() // 立即关闭，避免循环内 defer 导致的资源泄漏
 		if err != nil {
 			return nil, nil, fmt.Errorf("读取响应失败: %w", err)
+		}
+		if int64(len(respBodyBytes)) > antigravityResponseBodyLimit {
+			return nil, nil, fmt.Errorf("loadCodeAssist response exceeds %d bytes", antigravityResponseBodyLimit)
 		}
 
 		// 检查是否需要 URL 降级
@@ -581,10 +586,13 @@ func (c *Client) OnboardUser(ctx context.Context, accessToken, tierID string) (s
 				return "", lastErr
 			}
 
-			respBodyBytes, err := io.ReadAll(resp.Body)
+			respBodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, antigravityResponseBodyLimit+1))
 			_ = resp.Body.Close()
 			if err != nil {
 				return "", fmt.Errorf("读取响应失败: %w", err)
+			}
+			if int64(len(respBodyBytes)) > antigravityResponseBodyLimit {
+				return "", fmt.Errorf("onboardUser response exceeds %d bytes", antigravityResponseBodyLimit)
 			}
 
 			if shouldFallbackToNextURL(nil, resp.StatusCode) && urlIdx < len(availableURLs)-1 {

@@ -1,6 +1,10 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+	"time"
+)
 
 func TestHistoricalIngressRejectReason(t *testing.T) {
 	tests := []struct {
@@ -25,5 +29,80 @@ func TestHistoricalIngressRejectReason(t *testing.T) {
 				t.Fatalf("got (%q, %v), want (%q, %v)", reason, ok, tt.reason, tt.match)
 			}
 		})
+	}
+}
+
+// Q7: 删除谓词必须同时满足 created_at <= now() 与保留窗口两个条件，
+// 避免未来时间戳的记录被当作历史数据清掉，也避免误删仍在保留窗口内的日志。
+func TestResolveCutoffClampsFutureBeforeToNow(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	future := now.Add(48 * time.Hour)
+
+	cutoff, err := resolveCutoff(future, now, 30)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cutoff.After(now) {
+		t.Fatalf("cutoff must never exceed now(); got %s", cutoff)
+	}
+	want := now.AddDate(0, 0, -30)
+	if !cutoff.Equal(want) {
+		t.Fatalf("cutoff = %s, want retention floor %s", cutoff, want)
+	}
+}
+
+func TestResolveCutoffAppliesRetentionWindow(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	before := now.Add(-1 * time.Hour)
+
+	cutoff, err := resolveCutoff(before, now, 30)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := now.AddDate(0, 0, -30)
+	if !cutoff.Equal(want) {
+		t.Fatalf("cutoff = %s, want retention floor %s (retention wins over a too-recent --before)", cutoff, want)
+	}
+}
+
+func TestResolveCutoffKeepsOlderBeforeWhenRetentionIsZero(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	before := now.AddDate(0, 0, -90)
+
+	cutoff, err := resolveCutoff(before, now, 0)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cutoff.Equal(before) {
+		t.Fatalf("cutoff = %s, want %s when retention window is disabled", cutoff, before)
+	}
+}
+
+func TestResolveCutoffRejectsNegativeRetention(t *testing.T) {
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.UTC)
+	if _, err := resolveCutoff(now, now, -1); err == nil {
+		t.Fatal("negative retention days must be rejected")
+	}
+}
+
+// dry-run 必须输出可核对的计数：would_delete 是「将要删除」的数量，
+// execute 模式下 deleted 必须等于该数量。
+func TestSummarizeReportsDryRunCounts(t *testing.T) {
+	counts := map[string]int64{"invalid_key": 3, "missing_key": 2}
+	line := summarize("dry-run", time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC), 100, 5, 0, counts)
+
+	for _, want := range []string{"mode=dry-run", "scanned=100", "matched=5", "would_delete=5", "deleted=0", "reasons=2"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("dry-run summary %q missing %q", line, want)
+		}
+	}
+}
+
+func TestSummarizeExecuteReportsDeletedCount(t *testing.T) {
+	line := summarize("execute", time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC), 100, 5, 5, nil)
+	for _, want := range []string{"mode=execute", "matched=5", "would_delete=5", "deleted=5"} {
+		if !strings.Contains(line, want) {
+			t.Fatalf("execute summary %q missing %q", line, want)
+		}
 	}
 }

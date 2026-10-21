@@ -321,6 +321,7 @@ func (h *AuthHandler) DingTalkOAuthCallback(c *gin.Context) {
 		clearDingTalkCookie(c, dingTalkOAuthStateCookieName, secureCookie)
 		clearDingTalkCookie(c, dingTalkOAuthRedirectCookie, secureCookie)
 		clearDingTalkCookie(c, dingTalkOAuthIntentCookieName, secureCookie)
+		clearDingTalkCookie(c, dingTalkOAuthBindUserCookieName, secureCookie)
 		clearOAuthPromoCodeCookie(c, secureCookie)
 	}()
 
@@ -563,6 +564,9 @@ func dingTalkBindLoginCompletionResponse(redirectTo string) map[string]any {
 }
 
 func buildDingTalkUpstreamClaims(staff *DingTalkStaffInfo, unionID, corpID string) map[string]any {
+	if staff == nil {
+		staff = &DingTalkStaffInfo{}
+	}
 	primaryDeptID := int64(0)
 	if len(staff.DeptIDs) > 0 {
 		primaryDeptID = staff.DeptIDs[0]

@@ -290,6 +290,42 @@ func TestCORS_VaryHeader_SetForSpecificOrigin(t *testing.T) {
 		"非通配符允许的 origin 应设置 Vary: Origin")
 }
 
+func TestCORS_OriginMatchIsCaseInsensitive(t *testing.T) {
+	cfg := config.CORSConfig{AllowedOrigins: []string{"https://Example.COM"}}
+	middleware := CORS(cfg)
+
+	r := gin.New()
+	r.Use(middleware)
+	r.GET("/t", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	// 浏览器按 RFC 6454 发送小写 scheme/host。
+	req.Header.Set("Origin", "https://example.com")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, "https://example.com", w.Header().Get("Access-Control-Allow-Origin"))
+}
+
+func TestCORS_WarningStateIsPerConfiguration(t *testing.T) {
+	// 先构造一个空配置消耗诊断，再构造通配符+凭证配置；
+	// 后者必须仍能独立判定并关闭凭证，不能因包级 Once 被静默。
+	_ = CORS(config.CORSConfig{})
+	middleware := CORS(config.CORSConfig{AllowedOrigins: []string{"*"}, AllowCredentials: true})
+
+	r := gin.New()
+	r.Use(middleware)
+	r.GET("/t", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Header.Set("Origin", "https://any.example.com")
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
+
+	assert.Equal(t, "*", w.Header().Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, w.Header().Get("Access-Control-Allow-Credentials"))
+}
+
 func TestNormalizeOrigins(t *testing.T) {
 	tests := []struct {
 		name   string

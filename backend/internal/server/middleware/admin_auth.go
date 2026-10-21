@@ -149,7 +149,7 @@ func validateAdminAPIKey(
 	})
 	c.Set(string(ContextKeyUserRole), admin.Role)
 	c.Set(ContextKeyAuthEmail, admin.Email)
-	c.Set("auth_method", "admin_api_key")
+	c.Set("auth_method", service.AuditAuthMethodAdminAPIKey)
 	return true
 }
 
@@ -214,7 +214,7 @@ func validateJWTForAdmin(
 	c.Set(string(ContextKeyUserRole), user.Role)
 	c.Set(ContextKeyAuthEmail, user.Email)
 	c.Set(ContextKeySessionID, claims.SessionID)
-	c.Set("auth_method", "jwt")
+	c.Set("auth_method", service.AuditAuthMethodJWT)
 
 	return true
 }

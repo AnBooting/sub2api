@@ -72,6 +72,21 @@ func TestRequestBodyLimit_LimitsBody(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code)
 }
 
+func TestRequestBodyLimit_DoesNotPanicOnNilBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	r.Use(RequestBodyLimit(4))
+	r.GET("/t", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/t", nil)
+	req.Body = nil
+	r.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestForcePlatform_SetsContextAndGinValue(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

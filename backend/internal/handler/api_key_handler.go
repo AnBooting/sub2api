@@ -152,16 +152,18 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 	var filters service.APIKeyListFilters
 	if search := strings.TrimSpace(c.Query("search")); search != "" {
 		if len(search) > 100 {
-			search = search[:100]
+			search = strings.ToValidUTF8(search[:100], "")
 		}
 		filters.Search = search
 	}
 	filters.Status = c.Query("status")
 	if groupIDStr := c.Query("group_id"); groupIDStr != "" {
 		gid, err := strconv.ParseInt(groupIDStr, 10, 64)
-		if err == nil {
-			filters.GroupID = &gid
+		if err != nil {
+			response.BadRequest(c, "Invalid group_id")
+			return
 		}
+		filters.GroupID = &gid
 	}
 
 	keys, result, err := h.apiKeyService.List(c.Request.Context(), subject.UserID, params, filters)

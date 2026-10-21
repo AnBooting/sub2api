@@ -513,6 +513,16 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 	auditReq := settingsAuditRequest(req)
 	omitted := omittedSettingKeys(sentFields)
 
+	// 存储边界内容校验（审计 Q3/Q9）：渲染端消毒只是兜底，写入端必须拒绝
+	// 超出白名单的结构，否则任何遗漏消毒的新渲染点都会把已存内容变成 XSS。
+	// 只校验本次真正提交的字段，省略的字段由 omitted 保留旧值。
+	if _, sent := sentFields["home_content"]; sent {
+		if err := validateHomeContent(req.HomeContent); err != nil {
+			response.BadRequest(c, "Home content is invalid: "+err.Error())
+			return
+		}
+	}
+
 	previousSettings, err := h.settingService.GetAllSettings(c.Request.Context())
 	if err != nil {
 		response.ErrorFrom(c, err)
@@ -1327,6 +1337,12 @@ func (h *SettingHandler) UpdateSettings(c *gin.Context) {
 			}
 			if len(item.IconSVG) > maxMenuItemIconSVGLen {
 				response.BadRequest(c, "Custom menu item icon SVG is too large (max 10KB)")
+				return
+			}
+			// 结构白名单：只接受安全 SVG 子集，脚本/事件处理器/foreignObject/
+			// javascript: 链接一律拒绝写入（审计 Q3）。
+			if err := validateMenuIconSVG(item.IconSVG); err != nil {
+				response.BadRequest(c, "Custom menu item icon SVG is invalid: "+err.Error())
 				return
 			}
 			// Auto-generate ID if missing
