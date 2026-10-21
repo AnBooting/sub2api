@@ -80,3 +80,11 @@ describe('AppSidebar subscription feature flag', () => {
     expect(componentSource).toMatch(/path: '\/purchase'[^\n]*label: purchaseNavLabel\.value/)
   })
 })
+
+describe('AppSidebar price card entry', () => {
+  it('exposes the site-wide price list behind the model plaza flag', () => {
+    expect(componentSource).toContain('const flagModelPlaza = makeSidebarFlag(FeatureFlags.modelPlaza)')
+    expect(componentSource).toMatch(/path: '\/model-plaza'[^\n]*label: t\('nav\.priceCard'\)/)
+    expect(componentSource).toMatch(/path: '\/model-plaza'[^\n]*featureFlag: flagModelPlaza/)
+  })
+})

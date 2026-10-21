@@ -654,4 +654,12 @@ export default {
     },
   },
 
+  // DeepSeek 峰谷计价状态徽标（用户侧只读展示，状态与文案均由后端下发）
+  groupPricingState: {
+    badgePeak: '峰',
+    badgeValley: '谷',
+    badgeNone: '未启用',
+    tooltip: '按官方时段自动判定（{timezone}），管理员改不了判定'
+  },
+
 }
