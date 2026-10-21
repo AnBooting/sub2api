@@ -54,6 +54,8 @@
                   <span v-if="subscriptionHasPeakRate(subscription)" class="text-amber-700 dark:text-amber-300">
                     {{ t('payment.planCard.peakRate') }}: {{ subscriptionPeakRateLabel(subscription) }}
                   </span>
+                  <!-- DeepSeek 峰谷当前状态：状态/文案/倍率都按后端下发，字段缺失时自动隐藏 -->
+                  <GroupPricingStateBadge :group="subscription.group" />
                 </div>
               </div>
             </div>
@@ -250,6 +252,7 @@ import { useAppStore } from '@/stores/app'
 import subscriptionsAPI from '@/api/subscriptions'
 import type { UserSubscription } from '@/types'
 import AppLayout from '@/components/layout/AppLayout.vue'
+import GroupPricingStateBadge from '@/components/user/GroupPricingStateBadge.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { formatDateTimeToMinute } from '@/utils/format'
 import { hasPeakRate, formatPeakRateWindow, serverTimezoneLabel } from '@/utils/peak-rate'

@@ -24,7 +24,8 @@ func TestPricingHolidayRouteRequiresStepUpAndAuditsReset(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Next()
 		if value, ok := c.Get("audit_extra"); ok {
-			audit = value.(map[string]any)
+			audit, ok = value.(map[string]any)
+			require.True(t, ok, "audit extra must be an object")
 		}
 	})
 	gateCalls := 0
@@ -66,7 +67,8 @@ func TestPricingSettingsCalendarCannotBypassHolidayStepUp(t *testing.T) {
 	r.Use(func(c *gin.Context) {
 		c.Next()
 		if extra, ok := c.Get("audit_extra"); ok {
-			audit = extra.(map[string]any)
+			audit, ok = extra.(map[string]any)
+			require.True(t, ok, "audit extra must be an object")
 		}
 	})
 	gateCalls := 0

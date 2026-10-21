@@ -150,6 +150,8 @@ type simpleModeGroupResponse struct {
 	Platform    string `json:"platform"`
 	Status      string `json:"status"`
 
+	I18n service.GroupI18n `json:"i18n,omitempty"`
+
 	AccountCount            int64     `json:"account_count,omitempty"`
 	ActiveAccountCount      int64     `json:"active_account_count,omitempty"`
 	RateLimitedAccountCount int64     `json:"rate_limited_account_count,omitempty"`
@@ -165,6 +167,7 @@ func groupForSimpleMode(group *service.Group) *simpleModeGroupResponse {
 	return &simpleModeGroupResponse{
 		ID: group.ID, Name: group.Name, Description: group.Description, Platform: group.Platform,
 		Status:             group.Status,
+		I18n:               group.I18n,
 		AccountCount:       group.AccountCount,
 		ActiveAccountCount: group.ActiveAccountCount, RateLimitedAccountCount: group.RateLimitedAccountCount,
 		SortOrder: group.SortOrder, CreatedAt: group.CreatedAt, UpdatedAt: group.UpdatedAt,
@@ -175,7 +178,7 @@ func sanitizeCreateGroupRequestForSimpleMode(req *CreateGroupRequest) {
 	if req == nil {
 		return
 	}
-	allowed := CreateGroupRequest{Name: req.Name, Description: req.Description, Platform: req.Platform}
+	allowed := CreateGroupRequest{Name: req.Name, Description: req.Description, I18n: req.I18n, Platform: req.Platform}
 	allowed.RateMultiplier = 1
 	allowed.SubscriptionType = service.SubscriptionTypeStandard
 	*req = allowed
@@ -185,13 +188,14 @@ func sanitizeUpdateGroupRequestForSimpleMode(req *UpdateGroupRequest) {
 	if req == nil {
 		return
 	}
-	*req = UpdateGroupRequest{Name: req.Name, Description: req.Description}
+	*req = UpdateGroupRequest{Name: req.Name, Description: req.Description, I18n: req.I18n}
 }
 
 // CreateGroupRequest represents create group request
 type CreateGroupRequest struct {
 	Name                      string                        `json:"name" binding:"required"`
 	Description               string                        `json:"description"`
+	I18n                      service.GroupI18n             `json:"i18n"` // 名称与描述的界面语言译文
 	Platform                  string                        `json:"platform" binding:"omitempty,group_platform"`
 	RateMultiplier            float64                       `json:"rate_multiplier"`
 	IsExclusive               bool                          `json:"is_exclusive"`
@@ -202,37 +206,37 @@ type CreateGroupRequest struct {
 	LongContextPricingEnabled bool                          `json:"long_context_pricing_enabled"`
 	ModelPricing              []service.ChannelModelPricing `json:"model_pricing"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
-	AllowImageGeneration            bool                          `json:"allow_image_generation"`
-	AllowBatchImageGeneration       bool                          `json:"allow_batch_image_generation"`
-	ImageRateIndependent            bool                          `json:"image_rate_independent"`
-	ImageRateMultiplier             *float64                      `json:"image_rate_multiplier"`
-	BatchImageDiscountMultiplier    *float64                      `json:"batch_image_discount_multiplier"`
-	BatchImageHoldMultiplier        *float64                      `json:"batch_image_hold_multiplier"`
-	VideoRateIndependent            bool                          `json:"video_rate_independent"`
-	VideoRateMultiplier             *float64                      `json:"video_rate_multiplier"`
-	PeakRateEnabled                 bool                          `json:"peak_rate_enabled"`
-	PeakStart                       string                        `json:"peak_start"`
-	PeakEnd                         string                        `json:"peak_end"`
-	PeakRateMultiplier              *float64                      `json:"peak_rate_multiplier"`
-	ProfitControlEnabled            bool                          `json:"profit_control_enabled"`
-	ProfitMinMargin                 *float64                      `json:"profit_min_margin"`
-	ProfitSafetyBuffer              *float64                      `json:"profit_safety_buffer"`
-	ImagePrice1K                    *float64                      `json:"image_price_1k"`
-	ImagePrice2K                    *float64                      `json:"image_price_2k"`
-	ImagePrice4K                    *float64                      `json:"image_price_4k"`
-	VideoPrice480P                  *float64                      `json:"video_price_480p"`
-	VideoPrice720P                  *float64                      `json:"video_price_720p"`
-	VideoPrice1080P                 *float64                      `json:"video_price_1080p"`
-	VideoModelPrices                map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	AllowImageGeneration            bool                             `json:"allow_image_generation"`
+	AllowBatchImageGeneration       bool                             `json:"allow_batch_image_generation"`
+	ImageRateIndependent            bool                             `json:"image_rate_independent"`
+	ImageRateMultiplier             *float64                         `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier    *float64                         `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier        *float64                         `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent            bool                             `json:"video_rate_independent"`
+	VideoRateMultiplier             *float64                         `json:"video_rate_multiplier"`
+	PeakRateEnabled                 bool                             `json:"peak_rate_enabled"`
+	PeakStart                       string                           `json:"peak_start"`
+	PeakEnd                         string                           `json:"peak_end"`
+	PeakRateMultiplier              *float64                         `json:"peak_rate_multiplier"`
+	ProfitControlEnabled            bool                             `json:"profit_control_enabled"`
+	ProfitMinMargin                 *float64                         `json:"profit_min_margin"`
+	ProfitSafetyBuffer              *float64                         `json:"profit_safety_buffer"`
+	ImagePrice1K                    *float64                         `json:"image_price_1k"`
+	ImagePrice2K                    *float64                         `json:"image_price_2k"`
+	ImagePrice4K                    *float64                         `json:"image_price_4k"`
+	VideoPrice480P                  *float64                         `json:"video_price_480p"`
+	VideoPrice720P                  *float64                         `json:"video_price_720p"`
+	VideoPrice1080P                 *float64                         `json:"video_price_1080p"`
+	VideoModelPrices                map[string]map[string]float64    `json:"video_model_prices,omitempty"`
 	VideoPricePlans                 map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
-	WebSearchPricePerCall           *float64                      `json:"web_search_price_per_call"`
-	SearchPricePer1k                *float64                      `json:"search_price_per_1k"`
-	AudioRealtimePricePerMin        *float64                      `json:"audio_realtime_price_per_min"`
-	AudioTtsPricePerMillionChars    *float64                      `json:"audio_tts_price_per_million_chars"`
-	AudioSttPricePerHour            *float64                      `json:"audio_stt_price_per_hour"`
-	ClaudeCodeOnly                  bool                          `json:"claude_code_only"`
-	FallbackGroupID                 *int64                        `json:"fallback_group_id"`
-	FallbackGroupIDOnInvalidRequest *int64                        `json:"fallback_group_id_on_invalid_request"`
+	WebSearchPricePerCall           *float64                         `json:"web_search_price_per_call"`
+	SearchPricePer1k                *float64                         `json:"search_price_per_1k"`
+	AudioRealtimePricePerMin        *float64                         `json:"audio_realtime_price_per_min"`
+	AudioTtsPricePerMillionChars    *float64                         `json:"audio_tts_price_per_million_chars"`
+	AudioSttPricePerHour            *float64                         `json:"audio_stt_price_per_hour"`
+	ClaudeCodeOnly                  bool                             `json:"claude_code_only"`
+	FallbackGroupID                 *int64                           `json:"fallback_group_id"`
+	FallbackGroupIDOnInvalidRequest *int64                           `json:"fallback_group_id_on_invalid_request"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled bool               `json:"model_routing_enabled"`
@@ -274,6 +278,7 @@ type CreateGroupRequest struct {
 type UpdateGroupRequest struct {
 	Name                      string                         `json:"name"`
 	Description               *string                        `json:"description"`
+	I18n                      *service.GroupI18n             `json:"i18n"` // 缺省不修改，传入则整体替换
 	Platform                  string                         `json:"platform" binding:"omitempty,group_platform"`
 	RateMultiplier            *float64                       `json:"rate_multiplier"`
 	IsExclusive               *bool                          `json:"is_exclusive"`
@@ -285,37 +290,37 @@ type UpdateGroupRequest struct {
 	LongContextPricingEnabled *bool                          `json:"long_context_pricing_enabled"`
 	ModelPricing              *[]service.ChannelModelPricing `json:"model_pricing"`
 	// 图片生成计费配置（antigravity 和 gemini 平台使用，负数表示清除配置）
-	AllowImageGeneration            *bool                         `json:"allow_image_generation"`
-	AllowBatchImageGeneration       *bool                         `json:"allow_batch_image_generation"`
-	ImageRateIndependent            *bool                         `json:"image_rate_independent"`
-	ImageRateMultiplier             *float64                      `json:"image_rate_multiplier"`
-	BatchImageDiscountMultiplier    *float64                      `json:"batch_image_discount_multiplier"`
-	BatchImageHoldMultiplier        *float64                      `json:"batch_image_hold_multiplier"`
-	VideoRateIndependent            *bool                         `json:"video_rate_independent"`
-	VideoRateMultiplier             *float64                      `json:"video_rate_multiplier"`
-	PeakRateEnabled                 *bool                         `json:"peak_rate_enabled"`
-	PeakStart                       *string                       `json:"peak_start"`
-	PeakEnd                         *string                       `json:"peak_end"`
-	PeakRateMultiplier              *float64                      `json:"peak_rate_multiplier"`
-	ProfitControlEnabled            *bool                         `json:"profit_control_enabled"`
-	ProfitMinMargin                 *float64                      `json:"profit_min_margin"`
-	ProfitSafetyBuffer              *float64                      `json:"profit_safety_buffer"`
-	ImagePrice1K                    *float64                      `json:"image_price_1k"`
-	ImagePrice2K                    *float64                      `json:"image_price_2k"`
-	ImagePrice4K                    *float64                      `json:"image_price_4k"`
-	VideoPrice480P                  *float64                      `json:"video_price_480p"`
-	VideoPrice720P                  *float64                      `json:"video_price_720p"`
-	VideoPrice1080P                 *float64                      `json:"video_price_1080p"`
-	VideoModelPrices                map[string]map[string]float64 `json:"video_model_prices,omitempty"`
+	AllowImageGeneration            *bool                             `json:"allow_image_generation"`
+	AllowBatchImageGeneration       *bool                             `json:"allow_batch_image_generation"`
+	ImageRateIndependent            *bool                             `json:"image_rate_independent"`
+	ImageRateMultiplier             *float64                          `json:"image_rate_multiplier"`
+	BatchImageDiscountMultiplier    *float64                          `json:"batch_image_discount_multiplier"`
+	BatchImageHoldMultiplier        *float64                          `json:"batch_image_hold_multiplier"`
+	VideoRateIndependent            *bool                             `json:"video_rate_independent"`
+	VideoRateMultiplier             *float64                          `json:"video_rate_multiplier"`
+	PeakRateEnabled                 *bool                             `json:"peak_rate_enabled"`
+	PeakStart                       *string                           `json:"peak_start"`
+	PeakEnd                         *string                           `json:"peak_end"`
+	PeakRateMultiplier              *float64                          `json:"peak_rate_multiplier"`
+	ProfitControlEnabled            *bool                             `json:"profit_control_enabled"`
+	ProfitMinMargin                 *float64                          `json:"profit_min_margin"`
+	ProfitSafetyBuffer              *float64                          `json:"profit_safety_buffer"`
+	ImagePrice1K                    *float64                          `json:"image_price_1k"`
+	ImagePrice2K                    *float64                          `json:"image_price_2k"`
+	ImagePrice4K                    *float64                          `json:"image_price_4k"`
+	VideoPrice480P                  *float64                          `json:"video_price_480p"`
+	VideoPrice720P                  *float64                          `json:"video_price_720p"`
+	VideoPrice1080P                 *float64                          `json:"video_price_1080p"`
+	VideoModelPrices                map[string]map[string]float64     `json:"video_model_prices,omitempty"`
 	VideoPricePlans                 *map[string]domain.VideoPricePlan `json:"video_price_plans,omitempty"`
-	WebSearchPricePerCall           *float64                      `json:"web_search_price_per_call"`
-	SearchPricePer1k                *float64                      `json:"search_price_per_1k"`
-	AudioRealtimePricePerMin        *float64                      `json:"audio_realtime_price_per_min"`
-	AudioTtsPricePerMillionChars    *float64                      `json:"audio_tts_price_per_million_chars"`
-	AudioSttPricePerHour            *float64                      `json:"audio_stt_price_per_hour"`
-	ClaudeCodeOnly                  *bool                         `json:"claude_code_only"`
-	FallbackGroupID                 *int64                        `json:"fallback_group_id"`
-	FallbackGroupIDOnInvalidRequest *int64                        `json:"fallback_group_id_on_invalid_request"`
+	WebSearchPricePerCall           *float64                          `json:"web_search_price_per_call"`
+	SearchPricePer1k                *float64                          `json:"search_price_per_1k"`
+	AudioRealtimePricePerMin        *float64                          `json:"audio_realtime_price_per_min"`
+	AudioTtsPricePerMillionChars    *float64                          `json:"audio_tts_price_per_million_chars"`
+	AudioSttPricePerHour            *float64                          `json:"audio_stt_price_per_hour"`
+	ClaudeCodeOnly                  *bool                             `json:"claude_code_only"`
+	FallbackGroupID                 *int64                            `json:"fallback_group_id"`
+	FallbackGroupIDOnInvalidRequest *int64                            `json:"fallback_group_id_on_invalid_request"`
 	// 模型路由配置（仅 anthropic 平台使用）
 	ModelRouting        map[string][]int64 `json:"model_routing"`
 	ModelRoutingEnabled *bool              `json:"model_routing_enabled"`
@@ -701,6 +706,7 @@ func (h *GroupHandler) Create(c *gin.Context) {
 	group, err := h.adminService.CreateGroup(c.Request.Context(), &service.CreateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
+		I18n:                            req.I18n,
 		Platform:                        req.Platform,
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,
@@ -849,6 +855,7 @@ func (h *GroupHandler) Update(c *gin.Context) {
 	group, err := h.adminService.UpdateGroup(c.Request.Context(), groupID, &service.UpdateGroupInput{
 		Name:                            req.Name,
 		Description:                     req.Description,
+		I18n:                            req.I18n,
 		Platform:                        req.Platform,
 		RateMultiplier:                  req.RateMultiplier,
 		IsExclusive:                     req.IsExclusive,

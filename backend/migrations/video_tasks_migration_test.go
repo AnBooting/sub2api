@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// PRD-06/TS-06：249 只新增 video_tasks 表（本站视频任务账本），不改写任何历史列/数据。
+// PRD-06/TS-06：257 只新增 video_tasks 表（本站视频任务账本），不改写任何历史列/数据。
 func TestVideoTasksMigration(t *testing.T) {
-	content, err := FS.ReadFile("249_video_tasks.sql")
+	content, err := FS.ReadFile("257_video_tasks.sql")
 	require.NoError(t, err)
 
 	sql := strings.Join(strings.Fields(string(content)), " ")

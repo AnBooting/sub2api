@@ -116,6 +116,11 @@ func (s *GatewayService) calculateLockedSharedGatewayUsageCost(
 		Tokens:            tokens,
 		ServiceTier:       optionalStringValue(result.ServiceTier),
 		ReasoningEffort:   optionalStringValue(result.ReasoningEffort),
+		// 显式上下文缓存的存储量：随请求冻结的价卡计价（上游 0.2.17 维度），
+		// 缺存储单价时由冻结 quote fail-closed。
+		CacheStorageTokenHours: result.CacheStorageTokenHours,
+		// 纯存储量请求不是一次模型请求（与 live 路径 isCacheStorageOnlyResult 同口径）。
+		CacheStorageOnly: isCacheStorageOnlyResult(result),
 	}
 	cost, costErr := calculateLockedSharedQuoteCost(quote, result, costInput)
 	if costErr != nil {

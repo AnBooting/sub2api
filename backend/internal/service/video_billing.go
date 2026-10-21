@@ -390,6 +390,7 @@ func SeedanceLegacyPerSecondPlan(group *Group, model string) *domain.VideoPriceP
 	}
 	return &domain.VideoPricePlan{Mode: domain.VideoBillingModePerSecond, PerSecondPrices: prices}
 }
+
 // ---- PRD-06/K-4 video price plans (per_request / per_second / per_token) ----
 
 // VideoPricePlanForGroup resolves the operator-set video billing plan for a

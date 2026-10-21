@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +18,24 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+// artexFixtureObject 是带检查的类型断言：夹具结构不合法时立刻失败。
+func artexFixtureObject(value any) map[string]any {
+	obj, ok := value.(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("artex fixture value is not an object: %T", value))
+	}
+	return obj
+}
+
+// artexFixtureList 是带检查的 []any 断言。
+func artexFixtureList(value any) []any {
+	list, ok := value.([]any)
+	if !ok {
+		panic(fmt.Sprintf("artex fixture value is not a list: %T", value))
+	}
+	return list
+}
 
 const artexHTTPWorkerTail = "**中间产物输出规约**：脚本、payload、抓到的响应体、临时数据等一切中间产物，**一律写到本次意图的专属工作目录 dir-variable**（已自动建好，直接用相对路径写在这里即可，无需再手动建目录）——**不要写 /tmp、不要用其它绝对路径**。"
 
@@ -181,19 +200,19 @@ func TestArtexHTTPKeywordCaseNegativesReachActualMockUpstream(t *testing.T) {
 				t.Run(protocol+"/"+mode+"/"+mutation, func(t *testing.T) {
 					var request map[string]any
 					require.NoError(t, json.Unmarshal(artexHTTPFixture(t, protocol, true), &request))
-					tool := request["tools"].([]any)[0].(map[string]any)
+					tool := artexFixtureObject(artexFixtureList(request["tools"])[0])
 					if protocol == "chat" {
-						tool = tool["function"].(map[string]any)
+						tool = artexFixtureObject(tool["function"])
 					}
 					field := "parameters"
 					if protocol == "anthropic" {
 						field = "input_schema"
 					}
-					schema := tool[field].(map[string]any)
-					props := schema["properties"].(map[string]any)
-					prop := props["vulnclass"].(map[string]any)
-					array := props["asset_ids"].(map[string]any)
-					item := array["items"].(map[string]any)
+					schema := artexFixtureObject(tool[field])
+					props := artexFixtureObject(schema["properties"])
+					prop := artexFixtureObject(props["vulnclass"])
+					array := artexFixtureObject(props["asset_ids"])
+					item := artexFixtureObject(array["items"])
 					switch mutation {
 					case "root_TYPE":
 						schema["TYPE"] = schema["type"]
@@ -252,7 +271,7 @@ func TestArtexHTTPKeywordCaseNegativesReachActualMockUpstream(t *testing.T) {
 					router.POST(path, RequestBodyLimit(int64(len(body))), ArtexGuard(cfg), func(c *gin.Context) {
 						response, err := http.Post(upstream.URL, "application/json", c.Request.Body)
 						require.NoError(t, err)
-						defer response.Body.Close()
+						defer func() { _ = response.Body.Close() }()
 						c.Status(response.StatusCode)
 					})
 					recorder := httptest.NewRecorder()
@@ -295,7 +314,8 @@ func TestArtexHTTPProtocolBlocksAndFullToolRoleBoundaries(t *testing.T) {
 							request["instructions"] = "normal assistant"
 						}
 						tail := artexHTTPWorkerTail
-						if place == "right" || place == "wrong" {
+						switch place {
+						case "right", "wrong":
 							kind := "text"
 							if (protocol == "responses") == (place == "right") {
 								kind = "input_text"
@@ -310,9 +330,9 @@ func TestArtexHTTPProtocolBlocksAndFullToolRoleBoundaries(t *testing.T) {
 								delete(request, "instructions")
 								request["input"] = []any{map[string]any{"type": "message", "role": "developer", "content": blocks}}
 							}
-						} else if place == "metadata" {
+						case "metadata":
 							request["metadata"] = map[string]any{"reference": tail}
-						} else {
+						default:
 							switch protocol {
 							case "anthropic":
 								role := place
@@ -327,7 +347,7 @@ func TestArtexHTTPProtocolBlocksAndFullToolRoleBoundaries(t *testing.T) {
 								if place == "tool_result" {
 									message = map[string]any{"role": "tool", "tool_call_id": "fixture", "content": tail}
 								}
-								request["messages"] = append(request["messages"].([]any), message)
+								request["messages"] = append(artexFixtureList(request["messages"]), message)
 							default:
 								kind := "input_text"
 								if place == "assistant" {
@@ -364,7 +384,7 @@ func TestArtexHTTPProtocolBlocksAndFullToolRoleBoundaries(t *testing.T) {
 					router.POST(path, RequestBodyLimit(int64(len(body))), ArtexGuard(cfg), func(c *gin.Context) {
 						response, err := http.Post(upstream.URL, "application/json", c.Request.Body)
 						require.NoError(t, err)
-						defer response.Body.Close()
+						defer func() { _ = response.Body.Close() }()
 						c.Status(response.StatusCode)
 					})
 					recorder := httptest.NewRecorder()
