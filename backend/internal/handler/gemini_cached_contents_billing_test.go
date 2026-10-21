@@ -234,6 +234,9 @@ func (u *cachedBillingUpstream) Do(req *http.Request, _ string, _ int64, _ int) 
 	body := "{}"
 	switch req.Method {
 	case http.MethodPost:
+		if u.beforePost != nil {
+			u.beforePost(n)
+		}
 		body = u.createBody
 	case http.MethodPatch:
 		if u.beforePost != nil {
@@ -305,19 +308,38 @@ type cachedBillingEnv struct {
 	usage    *cachedBillingUsageRepo
 	apiKey   *service.APIKey
 	group    *service.Group
+	// pricing 是实时价表：测试可在请求中途改价，验证"已冻结的写侧金额不受影响"。
+	pricing *service.PricingService
 	// accounts 是调度快照桩直接返回的账号对象，测试可改其凭据。
 	accounts map[int64]*service.Account
 }
 
-func newCachedBillingEnv(t *testing.T, balance float64, accountIDs ...int64) *cachedBillingEnv {
-	t.Helper()
-	dir := t.TempDir()
-	require.NoError(t, os.WriteFile(filepath.Join(dir, "model_pricing.json"), []byte(fmt.Sprintf(`{"gemini-2.5-pro":{
+// cachedBillingCatalogJSON 是测试用的价卡：完整 token 价卡（input / output / cache read /
+// cache write 四项齐备）+ 显式缓存存储价。
+//
+// 显式缓存的 create/patch 已纳入请求锁价（D5）：冻结价卡必须是完整价卡，缺一即缺价
+// 不得放行；价卡缺项时锁价准入会以 pricing_unavailable 拒绝——这是契约，不是缺陷。
+func cachedBillingCatalogJSON() string {
+	return fmt.Sprintf(`{"gemini-2.5-pro":{
 		"litellm_provider":"gemini","mode":"chat","input_cost_per_token":%g,"output_cost_per_token":0.00001,
+		"cache_creation_input_token_cost":0.00000125,"cache_read_input_token_cost":0.000000125,
 		"cache_storage_cost_per_token_per_hour":%g},"gemini-alias":{
 		"litellm_provider":"gemini","mode":"chat","input_cost_per_token":%g,"output_cost_per_token":0.00001,
+		"cache_creation_input_token_cost":0.00000125,"cache_read_input_token_cost":0.000000125,
 		"cache_storage_cost_per_token_per_hour":%g}}`,
-		cachedBillingInputPrice, cachedBillingStoragePrice, cachedBillingInputPrice, cachedBillingAliasStoragePrice)), 0o644))
+		cachedBillingInputPrice, cachedBillingStoragePrice, cachedBillingInputPrice, cachedBillingAliasStoragePrice)
+}
+
+func newCachedBillingEnv(t *testing.T, balance float64, accountIDs ...int64) *cachedBillingEnv {
+	t.Helper()
+	return newCachedBillingEnvWithCatalog(t, balance, cachedBillingCatalogJSON(), accountIDs...)
+}
+
+// newCachedBillingEnvWithCatalog 用指定价卡构造环境（缺价、缺存储价等场景）。
+func newCachedBillingEnvWithCatalog(t *testing.T, balance float64, catalogJSON string, accountIDs ...int64) *cachedBillingEnv {
+	t.Helper()
+	dir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "model_pricing.json"), []byte(catalogJSON), 0o644))
 	cfg := &config.Config{}
 	cfg.Pricing.DataDir = dir
 	cfg.Pricing.UpdateIntervalHours = 100000
@@ -355,7 +377,7 @@ func newCachedBillingEnv(t *testing.T, balance float64, accountIDs ...int64) *ca
 	}
 	apiKey := &service.APIKey{ID: 7, UserID: 3, GroupID: &groupID, Group: group, Status: service.StatusActive,
 		User: &service.User{ID: 3, Concurrency: 10, Balance: balance}}
-	return &cachedBillingEnv{h: h, repo: repo, upstream: upstream, usage: usage, apiKey: apiKey, group: group, accounts: accounts}
+	return &cachedBillingEnv{h: h, repo: repo, upstream: upstream, usage: usage, apiKey: apiKey, group: group, accounts: accounts, pricing: pricing}
 }
 
 // TestGeminiExplicitCacheExclusions_FiltersUnsupportedAccountsFromSnapshot 候选过滤直接按快照里的凭据判定：
@@ -433,7 +455,9 @@ func TestGeminiCachedContentsPatch_UsesChannelUsageRecordedAtCreate(t *testing.T
 	usageLog := env.usage.first()
 	require.NotNil(t, usageLog.ChannelID)
 	require.Equal(t, int64(5), *usageLog.ChannelID)
-	require.True(t, strings.HasPrefix(usageLog.RequestID, "gcache:patch:abc:"), usageLog.RequestID)
+	// 锁价路径（D5）：费用行标识由 session_id 承载（扣费幂等键固定为锁价 requestID）。
+	require.NotNil(t, usageLog.SessionID)
+	require.True(t, strings.HasPrefix(*usageLog.SessionID, "gcache:patch:abc:"), *usageLog.SessionID)
 }
 
 func cachedBillingCreateBody(expire time.Time) string {
@@ -453,7 +477,12 @@ func TestGeminiCachedContentsCreate_ChargesInputAndStorage(t *testing.T) {
 	require.Len(t, env.repo.records, 1)
 	for _, record := range env.repo.records {
 		require.False(t, record.ExpireTime.After(time.Now().Add(24*time.Hour)), "本地到期时间不超过请求的有效期")
-		require.Equal(t, "gcache:create:"+record.PublicID, env.usage.first().RequestID, "费用行按缓存 ID 可检索")
+		// 锁价路径（D5）：扣费幂等键固定为请求建立时生成的 requestID（与 OpenAI 消费侧同语义），
+		// 缓存费用行标识改由 session_id 承载，费用行仍可按缓存 ID 检索。
+		createUsageLog := env.usage.first()
+		require.NotNil(t, createUsageLog.SessionID)
+		require.Equal(t, "gcache:create:"+record.PublicID, *createUsageLog.SessionID, "费用行按缓存 ID 可检索")
+		require.True(t, strings.HasPrefix(createUsageLog.RequestID, "locked:"), createUsageLog.RequestID)
 	}
 }
 

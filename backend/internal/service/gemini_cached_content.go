@@ -1224,3 +1224,88 @@ func (s *GatewayService) GeminiExplicitCacheExclusions(ctx context.Context, grou
 	}
 	return excluded, nil
 }
+
+// ---------------------------------------------------------------------------
+// 显式缓存写侧（create/patch）的锁价支持
+//
+// 写侧（缓存输入费 + 存储费）与读侧（生成请求的 cache_read 费）必须用同一份冻结价卡
+// 与冻结倍率，否则同一笔缓存业务会出现两套 price_version / 倍率（管理员中途改价表
+// 就会分裂）。计价侧由锁价链承担（applyFrozenCacheStorageCost），本文件只提供
+// 两个入口需要的两件事：
+//   - 冻结价卡里的存储单价查询（缺价 fail-closed，用于上游建缓存之前的准入）；
+//   - 冻结价口径的金额报价（与 RecordUsage 的锁价消费分支同源，保证预留 == 记账）。
+// ---------------------------------------------------------------------------
+
+// GeminiCachedContentFrozenStoragePrice 返回请求冻结价卡里该账号的显式缓存存储单价
+// （每 token 每小时，USD）。
+//
+// 口径与锁价消费侧 applyFrozenCacheStorageCost 完全一致：先看冻结的计费模型，再回退到
+// 该账号的冻结出站模型与请求模型；三者都没有配置时返回缺价错误
+// （ErrModelPricingUnavailable）——显式缓存是上游已计费的维度，按 0 记账等于白送存储，
+// 不能静默少收，也不能回落兜底价。
+func GeminiCachedContentFrozenStoragePrice(requestPricing *RequestBillingContext, groupID, accountID int64) (float64, error) {
+	if requestPricing == nil {
+		return 0, fmt.Errorf("%w: frozen request pricing bundle is missing", ErrModelPricingUnavailable)
+	}
+	upstream, err := requestPricing.UpstreamModelFor(groupID, accountID)
+	if err != nil {
+		return 0, err
+	}
+	scope, err := requestPricing.ScopeFor(groupID, upstream, "")
+	if err != nil {
+		return 0, err
+	}
+	quote, err := requestPricing.PricingFor(scope)
+	if err != nil {
+		return 0, err
+	}
+	if err := quote.Availability(); err != nil {
+		return 0, err
+	}
+	price := quote.frozenCacheStoragePrice(accountID)
+	if price <= 0 {
+		return 0, fmt.Errorf("%w: explicit cache storage has no frozen price (model=%q)", ErrModelPricingUnavailable, scope.BillingModel)
+	}
+	return price, nil
+}
+
+// QuoteGeminiCachedContentLockedCost 按请求冻结的价卡计算显式缓存的应付金额（倍率后 USD）。
+//
+// 与 RecordUsage 的锁价消费分支同源（calculateLockedSharedGatewayUsageCost）：同样只读
+// 冻结的分组/渠道价、冻结倍率与冻结的存储单价，不回源查实时目录；缺价 fail-closed。
+// 调用方用它做余额/额度预扣，因此**预留金额与最终扣费金额必然一致**（同一份冻结价卡、
+// 同一套计价函数；create 的 token 数在上游建缓存之后才确定，按冻结价卡而不是冻结
+// token 数计费）。
+//
+// upstreamModel 必须是该账号的冻结出站模型（RequestBillingContext.UpstreamModelFor），
+// 否则锁价消费侧会因"实际出站模型 != 冻结模型"而 fail-closed。
+func (s *GatewayService) QuoteGeminiCachedContentLockedCost(
+	ctx context.Context,
+	requestPricing *RequestBillingContext,
+	account *Account,
+	model string,
+	upstreamModel string,
+	inputTokens int,
+	cacheStorageTokenHours float64,
+) (float64, error) {
+	if requestPricing == nil {
+		return 0, fmt.Errorf("%w: frozen request pricing bundle is missing", ErrModelPricingUnavailable)
+	}
+	if account == nil {
+		return 0, fmt.Errorf("%w: locked usage input is incomplete", ErrModelPricingUnavailable)
+	}
+	result := &ForwardResult{
+		Model:                  model,
+		UpstreamModel:          upstreamModel,
+		Usage:                  ClaudeUsage{InputTokens: inputTokens},
+		CacheStorageTokenHours: cacheStorageTokenHours,
+	}
+	cost, _, _, err := s.calculateLockedSharedGatewayUsageCost(ctx, requestPricing, result, account)
+	if err != nil {
+		return 0, err
+	}
+	if cost == nil {
+		return 0, fmt.Errorf("%w: locked cost is missing", ErrModelPricingUnavailable)
+	}
+	return cost.ActualCost, nil
+}

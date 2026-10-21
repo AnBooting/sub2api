@@ -28,6 +28,15 @@ const geminiCachedContentPersistTimeout = 15 * time.Second
 
 const geminiCachedContentUnavailableMessage = "The account holding this cached content is temporarily unavailable"
 
+// geminiCachedContentLockedBillingEligible 判断该 API Key 是否纳入请求锁价：
+// composite 分组不纳入（其成员分组绑定属 S5 边界），其余纳入。
+//
+// cachedContents 的前置条件已经拒绝 composite 分组（见 geminiCachedContentsPreamble），
+// 这里仍按分组平台显式判定，避免将来前置条件放宽后静默走回 live 计价。
+func geminiCachedContentLockedBillingEligible(apiKey *service.APIKey) bool {
+	return apiKey != nil && apiKey.Group != nil && apiKey.Group.Platform != service.PlatformComposite
+}
+
 // geminiCachedContentsPreamble 校验显式缓存管理接口的公共前置条件：gemini 分组、非 composite 分组、功能已装配。
 func (h *GatewayHandler) geminiCachedContentsPreamble(c *gin.Context, component string) (*service.APIKey, middleware.AuthSubject, *zap.Logger, bool) {
 	apiKey, ok := middleware.GetAPIKeyFromContext(c)
@@ -125,6 +134,19 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 
 	channelMapping, _ := h.gatewayService.ResolveChannelMappingAndRestrict(c.Request.Context(), apiKey.GroupID, modelName)
 	reqModel := modelName
+
+	// 锁价（D5）：显式缓存的**写侧**（缓存输入费 + 存储费）与读侧（生成请求的 cache_read 费）
+	// 必须用同一份冻结价卡与冻结倍率，否则同一笔缓存业务会出现两套 price_version / 倍率。
+	// 缺价模型在上游建缓存之前即拒绝（pricing_unavailable），不按零价放行。
+	lockedCached, lockedCachedOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, reqModel, body, reqLog,
+		geminiCachedContentLockedBillingEligible(apiKey), false,
+		writeGoogleGatewayLockedBillingError,
+	)
+	if !lockedCachedOK {
+		return
+	}
+	channelMapping = lockedCached.apply(channelMapping)
 	if channelMapping.Mapped {
 		modelName = channelMapping.MappedModel
 	}
@@ -210,8 +232,33 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 		setOpsSelectedAccount(c, account.ID, account.Platform)
 
 		mappedModel := account.GetMappedModel(modelName)
-		usageFields := clientRequestedUsageFields(c, channelMapping, reqModel, mappedModel)
-		if !h.gatewayService.CacheStoragePriced(c.Request.Context(), &service.RecordUsageInput{
+		// 锁价：绑定冻结账号事实（锁价消费侧据此核对"实际执行账号 == 冻结账号"），并取该账号的
+		// 冻结出站模型——计价与记账都用它，避免出现第二套模型口径。
+		billingUpstreamModel := mappedModel
+		if lockedCached.active {
+			if _, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedCached, lockedCached.groupID, account.ID, modelName, reqLog); bindErr != nil {
+				accountReleaseFunc()
+				writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_account_bind_rejected", modelName, bindErr)
+				return
+			}
+			frozenUpstream, modelErr := service.GatewayRequestBillingFromContext(c.Request.Context()).UpstreamModelFor(lockedCached.groupID, account.ID)
+			if modelErr != nil {
+				accountReleaseFunc()
+				writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_model_unavailable", modelName, modelErr)
+				return
+			}
+			billingUpstreamModel = frozenUpstream
+		}
+		usageFields := clientRequestedUsageFields(c, channelMapping, reqModel, billingUpstreamModel)
+		if lockedCached.active {
+			// 冻结价卡里没有存储单价 → fail-closed：显式缓存是上游已计费的维度，
+			// 按 0 记账等于白送存储，必须拒绝而不是少收。
+			if _, priceErr := service.GeminiCachedContentFrozenStoragePrice(service.GatewayRequestBillingFromContext(c.Request.Context()), lockedCached.groupID, account.ID); priceErr != nil {
+				accountReleaseFunc()
+				writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_storage_unavailable", modelName, priceErr)
+				return
+			}
+		} else if !h.gatewayService.CacheStoragePriced(c.Request.Context(), &service.RecordUsageInput{
 			Result:             &service.ForwardResult{Model: modelName, UpstreamModel: mappedModel, CacheStorageTokenHours: 1},
 			APIKey:             apiKey,
 			ChannelUsageFields: usageFields,
@@ -270,20 +317,45 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 		// 只收取已发生的缓存 token 输入费。
 		tokens := upstream.TotalTokenCount
 		storageTokenHours := service.GeminiCachedContentStorageTokenHours(tokens, ttl)
-		amount := h.gatewayService.QuoteUsageCost(c.Request.Context(), &service.RecordUsageInput{
-			Result: &service.ForwardResult{
-				Model: modelName, UpstreamModel: mappedModel,
-				Usage: service.ClaudeUsage{InputTokens: int(tokens)}, CacheStorageTokenHours: storageTokenHours,
-			},
-			APIKey: apiKey, User: apiKey.User, Subscription: subscription, PricingAt: pricingAt, ChannelUsageFields: usageFields,
-		})
+		// 预留口径必须与记账口径一致：锁价路径按冻结价卡报价，live 路径保持既有 QuoteUsageCost。
+		// create 的 token 数在上游建缓存之后才确定，因此按"冻结价卡 × 实际 token 数"计费，
+		// 而不是冻结 token 数。
+		//
+		// 计价维度说明（决策 2，沿用上游口径）：显式缓存的缓存 token 按**普通输入价**计费
+		// （Gemini 官方口径：显式缓存的写入计入输入用量）。共享契约里的 cache_write 维度
+		// 指的是渠道/分组人工价卡与 Anthropic 式缓存写入，**不是**显式缓存写入，两者是不同维度，
+		// 不得互相套用。
+		amount := 0.0
+		if lockedCached.active {
+			lockedAmount, amountErr := h.gatewayService.QuoteGeminiCachedContentLockedCost(
+				c.Request.Context(), service.GatewayRequestBillingFromContext(c.Request.Context()),
+				account, modelName, billingUpstreamModel, int(tokens), storageTokenHours)
+			if amountErr != nil {
+				// 冻结价卡算不出这一笔：删除已建的上游缓存（不留无人付费的存储），
+				// 只保留已发生的缓存输入费，并按 pricing_unavailable 拒绝。
+				h.cleanupGeminiCachedContentUpstream(reqLog, account, upstream.Name)
+				h.submitGeminiCachedContentUsage(c, apiKey, account, subscription, pricingAt,
+					service.GeminiCachedContentCreateUsageRequestID(publicID), modelName, billingUpstreamModel, int(tokens), 0, usageFields, body)
+				writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_quote_rejected", modelName, amountErr)
+				return
+			}
+			amount = lockedAmount
+		} else {
+			amount = h.gatewayService.QuoteUsageCost(c.Request.Context(), &service.RecordUsageInput{
+				Result: &service.ForwardResult{
+					Model: modelName, UpstreamModel: mappedModel,
+					Usage: service.ClaudeUsage{InputTokens: int(tokens)}, CacheStorageTokenHours: storageTokenHours,
+				},
+				APIKey: apiKey, User: apiKey.User, Subscription: subscription, PricingAt: pricingAt, ChannelUsageFields: usageFields,
+			})
+		}
 		inflightRelease()
 		chargeDone, err := h.reserveGeminiCachedContentCharge(c, apiKey, subscription, amount)
 		if err != nil {
 			reqLog.Info("gemini.cached_content.storage_charge_rejected", zap.Float64("amount", amount), zap.Error(err))
 			h.cleanupGeminiCachedContentUpstream(reqLog, account, upstream.Name)
 			h.submitGeminiCachedContentUsage(c, apiKey, account, subscription, pricingAt,
-				service.GeminiCachedContentCreateUsageRequestID(publicID), modelName, mappedModel, int(tokens), 0, usageFields, body)
+				service.GeminiCachedContentCreateUsageRequestID(publicID), modelName, billingUpstreamModel, int(tokens), 0, usageFields, body)
 			writeGeminiCachedContentBillingError(c, err)
 			return
 		}
@@ -315,7 +387,7 @@ func (h *GatewayHandler) GeminiCachedContentsCreate(c *gin.Context) {
 		}
 
 		h.submitGeminiCachedContentUsage(c, apiKey, account, subscription, pricingAt,
-			service.GeminiCachedContentCreateUsageRequestID(publicID), modelName, mappedModel, int(tokens), storageTokenHours, usageFields, body)
+			service.GeminiCachedContentCreateUsageRequestID(publicID), modelName, billingUpstreamModel, int(tokens), storageTokenHours, usageFields, body)
 		c.JSON(http.StatusOK, service.GeminiCachedContentView(record))
 		return
 	}
@@ -426,28 +498,85 @@ func (h *GatewayHandler) GeminiCachedContentsPatch(c *gin.Context) {
 		googleError(c, http.StatusBadRequest, err.Error())
 		return
 	}
+
+	// 锁价（D5）：显式缓存的写侧（延长有效期的存储费）与读侧用同一份冻结价卡与冻结倍率。
+	// 延长有效期沿用**创建时**的渠道计费口径（请求模型别名），因此冻结用的模型取创建时
+	// 记录的口径（ChannelUsage.OriginalModel），没有记录时退回缓存自身的模型。
+	billingModel := record.Model
+	if original := strings.TrimSpace(record.ChannelUsage.OriginalModel); original != "" {
+		billingModel = original
+	}
+	lockedCached, lockedCachedOK := prepareSharedGatewayLockedBillingWithErrorWriter(
+		c, h.gatewayService, apiKey, billingModel, body, reqLog,
+		geminiCachedContentLockedBillingEligible(apiKey), false,
+		writeGoogleGatewayLockedBillingError,
+	)
+	if !lockedCachedOK {
+		return
+	}
+	// 锁价：绑定冻结账号事实（锁价消费侧据此核对"实际执行账号 == 冻结账号"），并取该账号的
+	// 冻结出站模型——计价与记账都用它，避免出现第二套模型口径。
+	billingUpstreamModel := record.UpstreamModelID()
+	if lockedCached.active {
+		if _, bindErr := bindSharedGatewayLockedBillingAccount(c, lockedCached, lockedCached.groupID, account.ID, record.Model, reqLog); bindErr != nil {
+			writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_account_bind_rejected", record.Model, bindErr)
+			return
+		}
+		frozenUpstream, modelErr := service.GatewayRequestBillingFromContext(c.Request.Context()).UpstreamModelFor(lockedCached.groupID, account.ID)
+		if modelErr != nil {
+			writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_model_unavailable", record.Model, modelErr)
+			return
+		}
+		billingUpstreamModel = frozenUpstream
+	}
 	setOpsRequestContext(c, record.Model, false)
 	pricingCtx, pricingAt := service.WithGatewayTokenRequestPricing(c.Request.Context())
 	c.Request = c.Request.WithContext(pricingCtx)
 
 	subscription, _ := middleware.GetSubscriptionFromContext(c)
 	if extension := svc.Now().Add(ttl).Sub(record.ExpireTime); extension > 0 {
+		storageTokenHours := service.GeminiCachedContentStorageTokenHours(record.TotalTokenCount, extension)
 		usage := &service.RecordUsageInput{
 			Result: &service.ForwardResult{
-				Model: record.Model, UpstreamModel: record.UpstreamModelID(),
-				CacheStorageTokenHours: service.GeminiCachedContentStorageTokenHours(record.TotalTokenCount, extension),
+				Model: record.Model, UpstreamModel: billingUpstreamModel,
+				CacheStorageTokenHours: storageTokenHours,
 			},
 			APIKey: apiKey, User: apiKey.User, Subscription: subscription, PricingAt: pricingAt,
 			ChannelUsageFields: record.ChannelUsage,
 		}
-		if !h.gatewayService.CacheStoragePriced(c.Request.Context(), usage) {
+		if lockedCached.active {
+			// 冻结价卡里没有存储单价 → fail-closed：显式缓存是上游已计费的维度，
+			// 按 0 记账等于白送存储，必须拒绝而不是少收。
+			if _, priceErr := service.GeminiCachedContentFrozenStoragePrice(service.GatewayRequestBillingFromContext(c.Request.Context()), lockedCached.groupID, account.ID); priceErr != nil {
+				writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_storage_unavailable", record.Model, priceErr)
+				return
+			}
+		} else if !h.gatewayService.CacheStoragePriced(c.Request.Context(), usage) {
 			googlePlatformError(c, http.StatusBadRequest, fmt.Sprintf("Explicit context caching is not available for model %s: storage pricing is not configured", record.Model))
 			return
 		}
 		if !h.checkGeminiCachedContentBilling(c, reqLog, apiKey, subscription) {
 			return
 		}
-		chargeDone, err := h.reserveGeminiCachedContentCharge(c, apiKey, subscription, h.gatewayService.QuoteUsageCost(c.Request.Context(), usage))
+		// 预留口径必须与记账口径一致：锁价路径按冻结价卡报价，live 路径保持既有 QuoteUsageCost。
+		//
+		// 预检与实收的口径差（决策 3，沿用上游口径，不收紧）：这里的预检按**请求的**延长期
+		// （requested TTL extension）估算预留，最终记账按**上游实际的**延长期，二者的差额随预留
+		// 释放。价卡口径两侧一致（同价版本、同倍率），差额只在量上，不在价上。
+		amount := 0.0
+		if lockedCached.active {
+			lockedAmount, amountErr := h.gatewayService.QuoteGeminiCachedContentLockedCost(
+				c.Request.Context(), service.GatewayRequestBillingFromContext(c.Request.Context()),
+				account, record.Model, billingUpstreamModel, 0, storageTokenHours)
+			if amountErr != nil {
+				writeGoogleGatewayLockedBillingError(c, reqLog, "gemini.cached_content.locked_pricing_quote_rejected", record.Model, amountErr)
+				return
+			}
+			amount = lockedAmount
+		} else {
+			amount = h.gatewayService.QuoteUsageCost(c.Request.Context(), usage)
+		}
+		chargeDone, err := h.reserveGeminiCachedContentCharge(c, apiKey, subscription, amount)
 		if err != nil {
 			reqLog.Info("gemini.cached_content.storage_charge_rejected", zap.Error(err))
 			writeGeminiCachedContentBillingError(c, err)
@@ -512,7 +641,7 @@ func (h *GatewayHandler) GeminiCachedContentsPatch(c *gin.Context) {
 	// 提交前库中的到期时间一直是修改前的值：按本次实际推进的时长收费。
 	if extended := expireTime.Sub(mutation.Baseline()); extended > 0 {
 		h.submitGeminiCachedContentUsage(c, apiKey, account, subscription, pricingAt,
-			service.GeminiCachedContentPatchUsageRequestID(record.PublicID), record.Model, record.UpstreamModelID(), 0,
+			service.GeminiCachedContentPatchUsageRequestID(record.PublicID), record.Model, billingUpstreamModel, 0,
 			service.GeminiCachedContentStorageTokenHours(record.TotalTokenCount, extended), record.ChannelUsage, body)
 	}
 	c.JSON(http.StatusOK, service.GeminiCachedContentView(record))
@@ -673,7 +802,9 @@ func (h *GatewayHandler) submitGeminiCachedContentUsage(
 	if inputTokens <= 0 && storageTokenHours <= 0 {
 		return
 	}
-	if upstreamModel == model {
+	// 锁价路径必须保留上游模型：锁价消费侧要拿它与冻结的账号出站模型做等值核对，
+	// 清空会直接 fail-closed（已发生的用量不记账）。live 路径保持原有归一化。
+	if upstreamModel == model && service.GatewayRequestBillingFromContext(c.Request.Context()) == nil {
 		upstreamModel = ""
 	}
 	result := &service.ForwardResult{
@@ -702,6 +833,9 @@ func (h *GatewayHandler) submitGeminiCachedContentUsage(
 			UserAgent:          userAgent,
 			IPAddress:          clientIP,
 			RequestPayloadHash: requestPayloadHash,
+			// 锁价路径的扣费幂等键固定为请求建立时生成的 requestID（与 OpenAI 消费侧同语义），
+			// 因此缓存费用行标识改由 session_id 承载，费用行仍可按缓存 ID 检索。
+			SessionID:          requestID,
 			APIKeyService:      h.apiKeyService,
 			QuotaPlatform:      quotaPlatform,
 			ChannelUsageFields: usageFields,
