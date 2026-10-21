@@ -470,8 +470,8 @@ func decodeHAEnablementJSON(c *gin.Context, req *SetAPIKeyHAGroupRequest) error 
 // writeHAEnablementResponse 统一 PUT/DELETE 的成功响应，倍率恒为服务端配置值。
 func (h *APIKeyHandler) writeHAEnablementResponse(c *gin.Context, result *service.APIKeyHAGroupEnablementResult) {
 	response.Success(c, gin.H{
-		"api_key":              dto.APIKeyFromService(result.APIKey),
-		"group":                dto.GroupFromService(result.Group),
+		"api_key":              dto.APIKeyFromService(result.APIKey).Localized(c.GetHeader("Accept-Language")),
+		"group":                dto.GroupFromService(result.Group).Localized(c.GetHeader("Accept-Language")),
 		"enabled":              result.Enabled,
 		"rate_multiplier":      result.RateMultiplier,
 		"group_chain_revision": result.GroupChainRevision,
