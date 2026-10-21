@@ -1,0 +1,17 @@
+{
+  "head": "067d74dbcef41e482507c0db9fcb90b8625cda15",
+  "fixture": "production CSS and real main/modal root tags with 1600px content height",
+  "viewport": {"width": 1280, "height": 720},
+  "withAnimation": {
+    "mainTransform": "matrix(1, 0, 0, 1, 0, 0)",
+    "main": {"x": 240, "y": 56, "width": 1032, "height": 1600},
+    "overlay": {"x": 240, "y": 56, "width": 1032, "height": 1600},
+    "panel": {"x": 606, "y": 796, "width": 300, "height": 120},
+    "sidebar": {"x": 0, "y": 0, "width": 256, "height": 720}
+  },
+  "withoutAnimation": {
+    "mainTransform": "none",
+    "overlay": {"x": 0, "y": 0, "width": 1272, "height": 720},
+    "panel": {"x": 486, "y": 300, "width": 300, "height": 120}
+  }
+}

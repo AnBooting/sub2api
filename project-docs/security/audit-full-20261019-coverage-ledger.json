@@ -1,0 +1,329 @@
+[
+  {
+    "coverage_id": "http-api%3A%2F%2Fbackend%2Finternal%2Fserver%2Froutes%23admin-group::admin-auth%23admin-middleware::backend::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "http-api:backend/internal/server/routes#admin-group",
+      "boundary": "admin-auth:backend/internal/server/middleware#admin",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "HTTP admin API",
+    "boundary": "Admin auth/authorization",
+    "subsystem": "backend",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "backend/internal/server/routes",
+      "backend/internal/server/middleware",
+      "backend/internal/handler/admin"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Authentication and session management",
+      "WEB-PROTOCOL-AND-AUTH.md#Authorization and cross-tenant isolation"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "http-api%3A%2F%2Fgateway-handlers%23openai-credentials::upstream-credential-boundary%23gateway-forward::backend::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "http-api:gateway-handlers#openai-credentials",
+      "boundary": "upstream-credential-boundary:gateway-forward",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "HTTP/WS gateway",
+    "boundary": "Upstream credential handling",
+    "subsystem": "backend",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "backend/internal/handler/openai_gateway_handler.go",
+      "backend/internal/handler/gateway_handler.go",
+      "backend/internal/service/openai_gateway_*",
+      "backend/internal/service/account.go"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "http-api%3A%2F%2Fpricing-billing%23request-pricing::billing-invariant%23billing-service::backend::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "http-api:pricing-billing#request-pricing",
+      "boundary": "billing-invariant:billing-service",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "HTTP/WS/media gateway",
+    "boundary": "Pricing/billing invariant",
+    "subsystem": "backend",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "backend/internal/service/pricing_*",
+      "backend/internal/service/billing_service.go",
+      "backend/internal/service/video_billing*",
+      "backend/internal/service/openai_gateway_usage.go",
+      "backend/internal/repository/usage_*"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline",
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "web%23frontend-src::api-contract%23frontend-api::frontend::ATTACK-CLASSES.md%23Access%20control",
+    "canonical_refs": {
+      "surface": "web:frontend-src",
+      "boundary": "api-contract:frontend-api",
+      "subsystem": "frontend",
+      "attack_class": "ATTACK-CLASSES.md#Access control"
+    },
+    "surface": "Browser SPA",
+    "boundary": "API/authorization/credential handling",
+    "subsystem": "frontend",
+    "attack_class": "Access control",
+    "starting_paths": [
+      "frontend/src/api",
+      "frontend/src/views",
+      "frontend/src/components"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Access control",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "deploy%23deploy-files::deployment-boundary%23docker-compose::deploy::ATTACK-CLASSES.md%23Resource%20and%20file%20handling",
+    "canonical_refs": {
+      "surface": "deploy:deploy-files",
+      "boundary": "deployment-boundary:docker-compose",
+      "subsystem": "deploy",
+      "attack_class": "ATTACK-CLASSES.md#Resource and file handling"
+    },
+    "surface": "Deployment/config",
+    "boundary": "Deployment and secret handling",
+    "subsystem": "deploy",
+    "attack_class": "Resource and file handling",
+    "starting_paths": [
+      "deploy",
+      "tools",
+      "README.md"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource and file handling",
+    "selected_companion_blocks": [
+      "CLOUD-AND-DEPLOYMENT.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "frontend%23client-side-rendering::xss%23template-rendering::frontend::ATTACK-CLASSES.md%23Injection",
+    "canonical_refs": {
+      "surface": "frontend:client-side-rendering",
+      "boundary": "xss:template-rendering",
+      "subsystem": "frontend",
+      "attack_class": "ATTACK-CLASSES.md#Injection"
+    },
+    "surface": "Browser SPA",
+    "boundary": "Template/DOM rendering",
+    "subsystem": "frontend",
+    "attack_class": "Injection",
+    "starting_paths": [
+      "frontend/src/components",
+      "frontend/src/views"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Injection",
+    "selected_companion_blocks": [
+      "CLIENT-SIDE.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "callback%23yunmao-signature::integrity%23callback-service::backend::ATTACK-CLASSES.md%23Cryptography%20and%20secrets",
+    "canonical_refs": {
+      "surface": "callback:yunmao-signature",
+      "boundary": "integrity:callback-service",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Cryptography and secrets"
+    },
+    "surface": "Shop callback",
+    "boundary": "Signature/authentication",
+    "subsystem": "backend",
+    "attack_class": "Cryptography and secrets",
+    "starting_paths": [
+      "backend/internal/service/yunmao",
+      "backend/internal/handler/yunmao",
+      "backend/migrations/248_yunmao_orders.sql"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Cryptography and secrets",
+    "selected_companion_blocks": [
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "http-api%3A%2F%2Fvideo-tasks%23task-worker::state-machine%23video-task::backend::ATTACK-CLASSES.md%23Business%20logic",
+    "canonical_refs": {
+      "surface": "http-api:video-tasks#task-worker",
+      "boundary": "state-machine:video-task",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Business logic"
+    },
+    "surface": "Video/media/gateway",
+    "boundary": "Task state/billing settlement",
+    "subsystem": "backend",
+    "attack_class": "Business logic",
+    "starting_paths": [
+      "backend/internal/service/video_task*.go",
+      "backend/internal/repository/video_task_repo.go",
+      "backend/internal/service/video_billing*.go"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Business logic",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "http-api%3A%2F%2Fsse-websocket%23streaming::resource-limits%23gateway-handlers::backend::ATTACK-CLASSES.md%23Resource%20exhaustion",
+    "canonical_refs": {
+      "surface": "http-api:sse-websocket#streaming",
+      "boundary": "resource-limits:gateway-handlers",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Resource exhaustion"
+    },
+    "surface": "HTTP/SSE/WS gateway",
+    "boundary": "Unbounded/retry/budget handling",
+    "subsystem": "backend",
+    "attack_class": "Resource exhaustion",
+    "starting_paths": [
+      "backend/internal/handler/openai_*",
+      "backend/internal/handler/gateway_handler*.go",
+      "backend/internal/handler/responses_*",
+      "backend/internal/service/gateway_request_budget.go"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Resource exhaustion",
+    "selected_companion_blocks": [
+      "RESOURCE-EXHAUSTION-AND-AVAILABILITY.md#Core discipline",
+      "WEB-PROTOCOL-AND-AUTH.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  },
+  {
+    "coverage_id": "admin%23redemption-import-export::operation-authority%23redeem-service::backend::ATTACK-CLASSES.md%23Chained%20vulnerabilities%20and%20trust%20boundaries",
+    "canonical_refs": {
+      "surface": "admin:redemption-import-export",
+      "boundary": "operation-authority:redeem-service",
+      "subsystem": "backend",
+      "attack_class": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries"
+    },
+    "surface": "Admin APIs",
+    "boundary": "Import/export/redeem authority",
+    "subsystem": "backend",
+    "attack_class": "Chained vulnerabilities and trust boundaries",
+    "starting_paths": [
+      "backend/internal/service/redeem_service.go",
+      "backend/internal/handler/admin/redeem*",
+      "backend/internal/service/account_service.go"
+    ],
+    "ordinary_attack_class_block": "ATTACK-CLASSES.md#Chained vulnerabilities and trust boundaries",
+    "selected_companion_blocks": [
+      "DATA-ISOLATION-AND-LIFECYCLE.md#Core discipline"
+    ],
+    "excluded_blocks": [],
+    "prior_status": "none",
+    "attempts": [],
+    "wave": 1,
+    "status": "planned",
+    "agent_id": null,
+    "reviewed_paths": [],
+    "local_checks": [],
+    "result_fingerprints": [],
+    "unresolved": []
+  }
+]
