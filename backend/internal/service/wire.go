@@ -44,6 +44,9 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient,
 	if err := svc.loadControls(context.Background()); err != nil {
 		return nil, err // Never fall back to enabled remote access on a settings read failure.
 	}
+	// 发布当前生效的 DeepSeek 假日日历：分组只读状态（deepseek_pricing_state）
+	// 与计费路径必须看到同一份日历，否则展示的峰/谷会和实际计费对不上。
+	setDeepseekPricingCalendarProvider(func() *deepseekHolidayCalendar { return svc.deepseekCalendar() })
 	if err := svc.Initialize(); err != nil {
 		// Pricing service initialization failure should not block startup, use fallback prices
 		println("[Service] Warning: Pricing service initialization failed:", err.Error())

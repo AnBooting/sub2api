@@ -17,11 +17,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// stubVideoTaskRepo 记录收到的归属与 limit，用于断言查询参数。
+// stubVideoTaskRepo 记录收到的归属、游标与 limit，用于断言查询参数。
 type stubVideoTaskRepo struct {
 	userID int64
 	limit  int
 	calls  int
+	cursor *service.VideoTaskCursor
 	tasks  []*service.VideoTask
 }
 
@@ -53,10 +54,11 @@ func (s *stubVideoTaskRepo) MarkFailed(context.Context, int64, time.Time, string
 	return false, errors.New("unexpected call")
 }
 
-func (s *stubVideoTaskRepo) ListByUser(_ context.Context, userID int64, limit int) ([]*service.VideoTask, error) {
+func (s *stubVideoTaskRepo) ListByUser(_ context.Context, userID int64, cursor *service.VideoTaskCursor, limit int) ([]*service.VideoTask, error) {
 	s.calls++
 	s.userID = userID
 	s.limit = limit
+	s.cursor = cursor
 	return s.tasks, nil
 }
 
@@ -80,26 +82,39 @@ func callListVideoTasks(t *testing.T, handler *VideoTaskHandler, userID int64, q
 	return recorder.Code, recorder.Body.String()
 }
 
-// decodeVideoTaskList 解析响应信封里的任务数组。
-func decodeVideoTaskList(t *testing.T, body string) []map[string]any {
+// videoTaskPageEnvelope 是用户侧分页响应的信封。
+type videoTaskPageEnvelope struct {
+	Code int `json:"code"`
+	Data struct {
+		Items      []map[string]any `json:"items"`
+		NextCursor *string          `json:"next_cursor"`
+	} `json:"data"`
+}
+
+// decodeVideoTaskPage 解析分页信封。
+func decodeVideoTaskPage(t *testing.T, body string) videoTaskPageEnvelope {
 	t.Helper()
-	var envelope map[string]any
+	var envelope videoTaskPageEnvelope
 	if err := json.Unmarshal([]byte(body), &envelope); err != nil {
 		t.Fatalf("响应不是合法 JSON：%v（body=%s）", err, body)
 	}
-	raw, ok := envelope["data"].([]any)
-	if !ok {
-		t.Fatalf("data 必须是数组：%s", body)
+	return envelope
+}
+
+// stubVideoTasks 返回 count 条任务（created_at 依次递减）。
+func stubVideoTasks(count int) []*service.VideoTask {
+	base := time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC)
+	out := make([]*service.VideoTask, 0, count)
+	for i := 0; i < count; i++ {
+		out = append(out, &service.VideoTask{
+			ID:        int64(100 - i),
+			TaskNo:    "task-" + string(rune('a'+i)),
+			Status:    service.VideoTaskStatusCompleted,
+			Model:     "grok-video",
+			CreatedAt: base.Add(-time.Duration(i) * time.Minute),
+		})
 	}
-	items := make([]map[string]any, 0, len(raw))
-	for _, entry := range raw {
-		item, ok := entry.(map[string]any)
-		if !ok {
-			t.Fatalf("任务项必须是对象：%s", body)
-		}
-		items = append(items, item)
-	}
-	return items
+	return out
 }
 
 // TestVideoTaskHandler_ListTasks_RequiresAuth 未登录必须 401，且不得查库。
@@ -143,15 +158,15 @@ func TestVideoTaskHandler_ListTasks_UsesAuthenticatedUser(t *testing.T) {
 	if repo.userID != 42 {
 		t.Fatalf("必须按登录用户查询，实际 userID=%d", repo.userID)
 	}
-	items := decodeVideoTaskList(t, body)
-	if len(items) != 1 {
-		t.Fatalf("应返回 1 条任务，实际 %d（body=%s）", len(items), body)
+	envelope := decodeVideoTaskPage(t, body)
+	if len(envelope.Data.Items) != 1 {
+		t.Fatalf("应返回 1 条任务，实际 %d（body=%s）", len(envelope.Data.Items), body)
 	}
-	if items[0]["task_no"] != "task-1" {
-		t.Fatalf("task_no 不对：%v", items[0]["task_no"])
+	if envelope.Data.Items[0]["task_no"] != "task-1" {
+		t.Fatalf("task_no 不对：%v", envelope.Data.Items[0]["task_no"])
 	}
-	if items[0]["status"] != service.VideoTaskStatusCompleted {
-		t.Fatalf("status 不对：%v", items[0]["status"])
+	if envelope.Data.Items[0]["status"] != service.VideoTaskStatusCompleted {
+		t.Fatalf("status 不对：%v", envelope.Data.Items[0]["status"])
 	}
 	// 最小字段：不得出现上游任务号与承载账号。
 	for _, forbidden := range []string{"upstream-secret-id", "upstream_task_id", "account_id", "billing_snapshot"} {
@@ -162,17 +177,18 @@ func TestVideoTaskHandler_ListTasks_UsesAuthenticatedUser(t *testing.T) {
 }
 
 // TestVideoTaskHandler_ListTasks_Limit limit 默认 20、上限 50。
+// 服务层会多取一条判断是否还有下一页，因此仓储收到 limit+1。
 func TestVideoTaskHandler_ListTasks_Limit(t *testing.T) {
 	cases := []struct {
 		name  string
 		query string
 		want  int
 	}{
-		{name: "默认", query: "", want: 20},
-		{name: "非法值回落默认", query: "limit=abc", want: 20},
-		{name: "负数回落默认", query: "limit=-5", want: 20},
-		{name: "合法值", query: "limit=5", want: 5},
-		{name: "超上限截断", query: "limit=999", want: 50},
+		{name: "默认", query: "", want: 21},
+		{name: "非法值回落默认", query: "limit=abc", want: 21},
+		{name: "负数回落默认", query: "limit=-5", want: 21},
+		{name: "合法值", query: "limit=5", want: 6},
+		{name: "超上限截断", query: "limit=999", want: 51},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -185,9 +201,80 @@ func TestVideoTaskHandler_ListTasks_Limit(t *testing.T) {
 				t.Fatalf("必须返回 200，实际 %d（body=%s）", status, body)
 			}
 			if repo.limit != tc.want {
-				t.Fatalf("limit 应为 %d，实际 %d", tc.want, repo.limit)
+				t.Fatalf("仓储应收到 limit+1=%d，实际 %d", tc.want, repo.limit)
 			}
 		})
+	}
+}
+
+// TestVideoTaskHandler_ListTasks_Cursor 合法游标必须原样传给服务层。
+func TestVideoTaskHandler_ListTasks_Cursor(t *testing.T) {
+	repo := &stubVideoTaskRepo{}
+	handler := NewVideoTaskHandler(service.NewVideoTaskService(repo))
+	cursor := service.EncodeVideoTaskCursor(time.Date(2026, 10, 1, 12, 0, 0, 0, time.UTC), 4242)
+
+	status, body := callListVideoTasks(t, handler, 42, "cursor="+cursor)
+
+	if status != http.StatusOK {
+		t.Fatalf("必须返回 200，实际 %d（body=%s）", status, body)
+	}
+	if repo.cursor == nil {
+		t.Fatal("游标必须传到仓储")
+	}
+	if repo.cursor.ID != 4242 {
+		t.Fatalf("游标 id 不对：%d", repo.cursor.ID)
+	}
+}
+
+// TestVideoTaskHandler_ListTasks_InvalidCursor 非法游标必须回落到第一页且不 500。
+func TestVideoTaskHandler_ListTasks_InvalidCursor(t *testing.T) {
+	for _, raw := range []string{"not-base64!!", "YWJj"} {
+		repo := &stubVideoTaskRepo{}
+		handler := NewVideoTaskHandler(service.NewVideoTaskService(repo))
+
+		status, body := callListVideoTasks(t, handler, 42, "cursor="+raw)
+
+		if status != http.StatusOK {
+			t.Fatalf("非法游标必须返回 200，实际 %d（body=%s）", status, body)
+		}
+		if repo.cursor != nil {
+			t.Fatalf("非法游标必须回落到第一页，实际 cursor=%+v", repo.cursor)
+		}
+	}
+}
+
+// TestVideoTaskHandler_ListTasks_NextCursor 还有更多时返回 next_cursor。
+func TestVideoTaskHandler_ListTasks_NextCursor(t *testing.T) {
+	repo := &stubVideoTaskRepo{tasks: stubVideoTasks(21)}
+	handler := NewVideoTaskHandler(service.NewVideoTaskService(repo))
+
+	status, body := callListVideoTasks(t, handler, 42, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("必须返回 200，实际 %d（body=%s）", status, body)
+	}
+	envelope := decodeVideoTaskPage(t, body)
+	if len(envelope.Data.Items) != 20 {
+		t.Fatalf("当前页应有 20 条，实际 %d", len(envelope.Data.Items))
+	}
+	if envelope.Data.NextCursor == nil || *envelope.Data.NextCursor == "" {
+		t.Fatalf("还有更多时必须返回 next_cursor：%s", body)
+	}
+}
+
+// TestVideoTaskHandler_ListTasks_NoMore 没有更多时 next_cursor 为 null。
+func TestVideoTaskHandler_ListTasks_NoMore(t *testing.T) {
+	repo := &stubVideoTaskRepo{tasks: stubVideoTasks(3)}
+	handler := NewVideoTaskHandler(service.NewVideoTaskService(repo))
+
+	status, body := callListVideoTasks(t, handler, 42, "")
+
+	if status != http.StatusOK {
+		t.Fatalf("必须返回 200，实际 %d（body=%s）", status, body)
+	}
+	envelope := decodeVideoTaskPage(t, body)
+	if envelope.Data.NextCursor != nil {
+		t.Fatalf("没有更多时 next_cursor 必须是 null，实际 %q", *envelope.Data.NextCursor)
 	}
 }
 
@@ -201,7 +288,7 @@ func TestVideoTaskHandler_ListTasks_EmptyList(t *testing.T) {
 	if status != http.StatusOK {
 		t.Fatalf("必须返回 200，实际 %d（body=%s）", status, body)
 	}
-	if !strings.Contains(body, "\"data\":[]") {
+	if !strings.Contains(body, "\"items\":[]") {
 		t.Fatalf("空列表必须返回空数组：%s", body)
 	}
 }

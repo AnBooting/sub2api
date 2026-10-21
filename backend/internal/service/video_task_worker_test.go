@@ -151,7 +151,7 @@ func (f *fakeVideoTaskRepo) MarkFailed(_ context.Context, id int64, _ time.Time,
 
 // ListByUser 假实现：按 user_id 过滤。worker 测试不依赖用户侧列表，
 // 但端口新增该方法后测试替身必须跟上（否则整包编译失败）。
-func (f *fakeVideoTaskRepo) ListByUser(_ context.Context, userID int64, limit int) ([]*VideoTask, error) {
+func (f *fakeVideoTaskRepo) ListByUser(_ context.Context, userID int64, _ *VideoTaskCursor, limit int) ([]*VideoTask, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	out := []*VideoTask{}
@@ -1053,4 +1053,3 @@ func TestVideoTaskNoFromKeyIsCollisionSafe(t *testing.T) {
 	require.Equal(t, "short-key", videoTaskNoFromKey("short-key"))
 	require.Equal(t, "", videoTaskNoFromKey("   "))
 }
-

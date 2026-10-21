@@ -22,6 +22,14 @@ type VideoTaskSummaryDTO struct {
 	LastError   string  `json:"last_error,omitempty"`
 }
 
+// VideoTaskPageDTO 是用户侧视频任务列表的分页响应。
+//
+// next_cursor 为 null 表示没有更多；非空时把它原样回传即可取下一页。
+type VideoTaskPageDTO struct {
+	Items      []VideoTaskSummaryDTO `json:"items"`
+	NextCursor *string               `json:"next_cursor"`
+}
+
 // ToVideoTaskSummaryDTO 把任务行映射成用户侧摘要。
 func ToVideoTaskSummaryDTO(task *service.VideoTask) VideoTaskSummaryDTO {
 	if task == nil {

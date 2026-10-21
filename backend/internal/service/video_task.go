@@ -19,8 +19,11 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -104,9 +107,10 @@ type VideoTaskRepository interface {
 	ListDue(ctx context.Context, now time.Time, limit int) ([]*VideoTask, error)
 	// ListByUser 按用户列出任务（创建时间倒序）。
 	//
+	// cursor 非 nil 时只返回该游标位置之后（严格小于 created_at/id）的行。
 	// 归属红线：实现必须按 user_id 过滤，且只返回最小字段；
 	// 绝不返回 upstream_task_id / account_id / billing_snapshot（可能含上游内部信息）。
-	ListByUser(ctx context.Context, userID int64, limit int) ([]*VideoTask, error)
+	ListByUser(ctx context.Context, userID int64, cursor *VideoTaskCursor, limit int) ([]*VideoTask, error)
 	// MarkChecked 记录一次尝试（不改变终态）。
 	MarkChecked(ctx context.Context, id int64, attempts int, nextCheckAt time.Time, lastError string) error
 	// AttachBilling 把创建时计费事实补写到已登记的任务行（幂等，仅在仍 processing 时生效）。
@@ -270,12 +274,66 @@ func (s *VideoTaskService) ListDue(ctx context.Context, now time.Time, limit int
 	return s.repo.ListDue(ctx, now, limit)
 }
 
-// ListUserTasks 列出当前用户的视频任务（创建时间倒序）。
+// VideoTaskCursor 是不透明的翻页位置（编码 created_at + id）。
+//
+// 为什么用「时间 + id」两元组：只用 created_at 定位时，同一时刻的多行会互相遮挡，
+// 翻页会漏行或重复；加上 id 作为并列时的兜底，顺序严格稳定。
+type VideoTaskCursor struct {
+	CreatedAt time.Time
+	ID        int64
+}
+
+// EncodeVideoTaskCursor 把 (created_at, id) 编码成不透明游标。
+//
+// 用 base64url（无 padding）：可直接放进 URL 查询参数，且不暴露内部 id。
+func EncodeVideoTaskCursor(createdAt time.Time, id int64) string {
+	raw := strconv.FormatInt(createdAt.UTC().UnixNano(), 10) + ":" + strconv.FormatInt(id, 10)
+	return base64.RawURLEncoding.EncodeToString([]byte(raw))
+}
+
+// DecodeVideoTaskCursor 解码游标。
+//
+// 格式非法（编码错误 / 载荷错误 / 数值非法）时返回错误：
+// 调用方应回落到第一页并记日志，而不是把坏参数变成 500。
+func DecodeVideoTaskCursor(raw string) (*VideoTaskCursor, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, errors.New("empty cursor")
+	}
+	decoded, err := base64.RawURLEncoding.DecodeString(trimmed)
+	if err != nil {
+		return nil, fmt.Errorf("invalid cursor encoding: %w", err)
+	}
+	parts := strings.SplitN(string(decoded), ":", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("invalid cursor payload")
+	}
+	nanos, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || nanos <= 0 {
+		return nil, errors.New("invalid cursor timestamp")
+	}
+	id, err := strconv.ParseInt(parts[1], 10, 64)
+	if err != nil || id <= 0 {
+		return nil, errors.New("invalid cursor id")
+	}
+	return &VideoTaskCursor{CreatedAt: time.Unix(0, nanos).UTC(), ID: id}, nil
+}
+
+// VideoTaskPage 是一页用户任务。
+type VideoTaskPage struct {
+	// Items 是当前页的任务（创建时间倒序）。
+	Items []*VideoTask
+	// NextCursor 是下一页游标；空串表示没有更多。
+	NextCursor string
+}
+
+// ListUserTasks 列出当前用户的视频任务（创建时间倒序，支持游标翻页）。
 //
 // 归属校验：只按调用方给定的 userID 查询，接口层不得接受「查别人」的参数
 // （BE-03：查询一律按 user_id 限定，绝不跨用户泄漏）。
-// 空结果返回空切片（不是 404）。
-func (s *VideoTaskService) ListUserTasks(ctx context.Context, userID int64, limit int) ([]*VideoTask, error) {
+// cursor 为 nil 表示第一页。
+// 空结果返回空页（不是 404），NextCursor 为空串。
+func (s *VideoTaskService) ListUserTasks(ctx context.Context, userID int64, cursor *VideoTaskCursor, limit int) (*VideoTaskPage, error) {
 	if err := s.ensureRepo(); err != nil {
 		return nil, err
 	}
@@ -283,14 +341,25 @@ func (s *VideoTaskService) ListUserTasks(ctx context.Context, userID int64, limi
 		return nil, ErrVideoTaskForbidden
 	}
 	limit = NormalizeVideoTaskListLimit(limit)
-	tasks, err := s.repo.ListByUser(ctx, userID, limit)
+	// 多取一条判断是否还有下一页；仓储不负责上限收敛（上限只在这里判定）。
+	tasks, err := s.repo.ListByUser(ctx, userID, cursor, limit+1)
 	if err != nil {
 		return nil, err
 	}
-	if tasks == nil {
-		return []*VideoTask{}, nil
+	page := &VideoTaskPage{Items: []*VideoTask{}}
+	if len(tasks) == 0 {
+		return page, nil
 	}
-	return tasks, nil
+	hasMore := len(tasks) > limit
+	if hasMore {
+		tasks = tasks[:limit]
+	}
+	page.Items = tasks
+	if hasMore {
+		last := tasks[len(tasks)-1]
+		page.NextCursor = EncodeVideoTaskCursor(last.CreatedAt, last.ID)
+	}
+	return page, nil
 }
 
 // NormalizeVideoTaskListLimit 把用户传入的 limit 收敛到 [1, maxVideoTaskListLimit]。

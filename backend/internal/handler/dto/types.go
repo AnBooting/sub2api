@@ -92,6 +92,15 @@ type APIKey struct {
 	Group *Group `json:"group,omitempty"`
 }
 
+// DeepSeekPricingStateDTO 是当前 DeepSeek 官方计价状态（只读暴露，不影响计费）。
+//
+// state 取值：peak（当前在官方峰价窗口）/ valley（谷价）/ none（该分组不适用）。
+type DeepSeekPricingStateDTO struct {
+	State      string  `json:"state"`      // "peak" | "valley" | "none"
+	Label      string  `json:"label"`      // 人类可读，如 "峰价时段 09:00-12:00 / 14:00-18:00"
+	Timezone   string  `json:"timezone"`   // 固定 "Asia/Shanghai"
+	Multiplier float64 `json:"multiplier"` // 当前生效的峰谷倍率；未启用峰谷倍率时为 1
+}
 type Group struct {
 	ID             int64   `json:"id"`
 	Name           string  `json:"name"`
@@ -117,16 +126,18 @@ type Group struct {
 	VideoRateIndependent         bool    `json:"video_rate_independent"`
 	VideoRateMultiplier          float64 `json:"video_rate_multiplier"`
 	// 高峰时段倍率配置
-	PeakRateEnabled    bool     `json:"peak_rate_enabled"`
-	PeakStart          string   `json:"peak_start"`
-	PeakEnd            string   `json:"peak_end"`
-	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
-	ImagePrice1K       *float64 `json:"image_price_1k"`
-	ImagePrice2K       *float64 `json:"image_price_2k"`
-	ImagePrice4K       *float64 `json:"image_price_4k"`
-	VideoPrice480P     *float64 `json:"video_price_480p"`
-	VideoPrice720P     *float64 `json:"video_price_720p"`
-	VideoPrice1080P    *float64 `json:"video_price_1080p"`
+	PeakRateEnabled    bool    `json:"peak_rate_enabled"`
+	PeakStart          string  `json:"peak_start"`
+	PeakEnd            string  `json:"peak_end"`
+	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
+	// 当前 DeepSeek 官方计价状态（只读暴露，不影响计费行为）
+	DeepSeekPricingState *DeepSeekPricingStateDTO `json:"deepseek_pricing_state,omitempty"`
+	ImagePrice1K         *float64                 `json:"image_price_1k"`
+	ImagePrice2K         *float64                 `json:"image_price_2k"`
+	ImagePrice4K         *float64                 `json:"image_price_4k"`
+	VideoPrice480P       *float64                 `json:"video_price_480p"`
+	VideoPrice720P       *float64                 `json:"video_price_720p"`
+	VideoPrice1080P      *float64                 `json:"video_price_1080p"`
 	// VideoModelPrices 可选按模型族×分辨率覆盖视频每秒单价 (USD/s)。
 	VideoModelPrices map[string]map[string]float64 `json:"video_model_prices,omitempty"`
 	// Codex alpha/search 网页搜索单次价格（USD/次）；null 表示使用默认价 0.01

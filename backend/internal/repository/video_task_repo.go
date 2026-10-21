@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -211,28 +212,39 @@ WHERE user_id = $1 AND api_key_id = $2 AND upstream_task_id = $3 AND status = 'p
 	return err
 }
 
-
 // ListByUser 按用户列出任务（创建时间倒序），只回最小字段。
 //
 // 归属红线（BE-03）：查询必须按 user_id 过滤，绝不跨用户泄漏；
 // 返回列刻意**不含** upstream_task_id / account_id / billing_snapshot：
 // 这三列分别是上游内部标识、承载账号与计费快照，不该出现在用户侧列表里。
-func (r *videoTaskRepository) ListByUser(ctx context.Context, userID int64, limit int) ([]*service.VideoTask, error) {
+func (r *videoTaskRepository) ListByUser(ctx context.Context, userID int64, cursor *service.VideoTaskCursor, limit int) ([]*service.VideoTask, error) {
 	if err := r.ensureDB(); err != nil {
 		return nil, err
 	}
 	if userID <= 0 {
 		return nil, service.ErrVideoTaskForbidden
 	}
-	limit = service.NormalizeVideoTaskListLimit(limit)
+	if limit <= 0 {
+		limit = 1
+	}
 	// id DESC 只作同一时刻并列时的稳定次序（避免翻页抖动）。
-	const query = `
-SELECT task_no, status, model, platform, billing_mode, created_at, settled_at, COALESCE(last_error, '')
+	// 返回列刻意**不含** upstream_task_id / account_id / billing_snapshot；
+	// id 只用于生成游标，不出现在用户侧响应里。
+	query := `
+SELECT id, task_no, status, model, platform, billing_mode, created_at, settled_at, COALESCE(last_error, '')
 FROM video_tasks
-WHERE user_id = $1
-ORDER BY created_at DESC, id DESC
-LIMIT $2`
-	rows, err := r.db.QueryContext(ctx, query, userID, limit)
+WHERE user_id = $1`
+	args := []any{userID}
+	if cursor != nil {
+		// 行比较：(created_at, id) 严格小于游标位置 → 同一时刻用 id 兜底，避免并列抖动。
+		query += "\nAND (created_at, id) < ($2, $3)"
+		args = append(args, cursor.CreatedAt.UTC(), cursor.ID)
+	}
+	limitPlaceholder := len(args) + 1
+	query += fmt.Sprintf("\nORDER BY created_at DESC, id DESC\nLIMIT $%d", limitPlaceholder)
+	args = append(args, limit)
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +258,7 @@ LIMIT $2`
 			lastError sql.NullString
 		)
 		if err := rows.Scan(
+			&task.ID,
 			&task.TaskNo,
 			&task.Status,
 			&task.Model,

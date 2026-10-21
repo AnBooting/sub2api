@@ -182,6 +182,23 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 	return out
 }
 
+// deepSeekPricingStateDTOFromService 把服务层的峰谷状态映射成 DTO。
+//
+// 用户分组 DTO 与管理员分组 DTO 共用 groupFromServiceBase，
+// 因此两条映射都会带上这个字段（前端按同一份契约接线）。
+func deepSeekPricingStateDTOFromService(g *service.Group) *DeepSeekPricingStateDTO {
+	state := g.DeepSeekPricingStateAt(time.Now())
+	if state == nil {
+		return nil
+	}
+	return &DeepSeekPricingStateDTO{
+		State:      state.State,
+		Label:      state.Label,
+		Timezone:   state.Timezone,
+		Multiplier: state.Multiplier,
+	}
+}
+
 func groupFromServiceBase(g *service.Group) Group {
 	return Group{
 		ID:                              g.ID,
@@ -208,6 +225,7 @@ func groupFromServiceBase(g *service.Group) Group {
 		PeakStart:                       g.PeakStart,
 		PeakEnd:                         g.PeakEnd,
 		PeakRateMultiplier:              g.PeakRateMultiplier,
+		DeepSeekPricingState:            deepSeekPricingStateDTOFromService(g),
 		ImagePrice1K:                    g.ImagePrice1K,
 		ImagePrice2K:                    g.ImagePrice2K,
 		ImagePrice4K:                    g.ImagePrice4K,

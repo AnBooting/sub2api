@@ -362,6 +362,12 @@ func TestAPIContracts(t *testing.T) {
 						"peak_start": "",
 						"peak_end": "",
 						"peak_rate_multiplier": 1,
+						"deepseek_pricing_state": {
+							"state": "none",
+							"label": "本分组不适用 DeepSeek 官方峰谷",
+							"timezone": "Asia/Shanghai",
+							"multiplier": 1
+						},
 						"is_exclusive": false,
 						"status": "active",
 						"subscription_type": "standard",
