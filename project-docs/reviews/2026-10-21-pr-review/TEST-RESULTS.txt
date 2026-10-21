@@ -1,0 +1,17 @@
+--- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts (0.00s)
+--- PASS: TestReviewLiveTransientSettlementFailureCanBeRetried (0.00s)
+--- PASS: TestReviewLiveCommandPreservesKeyLimitCosts (0.00s)
+--- FAIL: TestReviewLiveRetryUpdatesDurableUsageAmount (0.00s)
+--- FAIL: TestReviewLivePendingSurvivesCheckpointWriteFailure (0.00s)
+--- FAIL: TestReviewLiveObserverExpiryAutomaticallyRetriesPendingSettlement (0.00s)
+--- PASS: TestReviewLiveReportedChargeHasFinancialSettlement (0.00s)
+--- PASS: TestReviewPanicAccessLogMatchesReturnedStatus (0.00s)
+PR #5 review tests exit code: 1
+--- FAIL: TestReviewVideoTaskWorkerErrorIsPrivateInUserResponse (0.00s)
+--- FAIL: TestReviewVideoTaskSummaryHidesInternalAccountError (0.00s)
+PR #8 review tests exit code: 1
+--- FAIL: TestReviewRenamedMigrationUpgradesExistingDevelopDatabase (0.00s)
+PR #9 review tests exit code: 1
+PR #7 route regression exit code: 0
+PR #10: actual Go 1.27.2 mod download exits 1: go.mod requires go >= 1.27.3 (running go 1.27.2; GOTOOLCHAIN=local).
+PR #10: Python root Dockerfile minimum toolchain contract fails: 1.27.2 < 1.27.3.
