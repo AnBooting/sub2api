@@ -298,9 +298,64 @@ type PricingService struct {
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 
+	// stopOnce 让 Stop 幂等：服务端关停钩子与调用方（例如单元测试的收尾）
+	// 都有可能停止同一个服务，第二次 close(stopCh) 会 panic。
+	stopOnce sync.Once
+
+	// refreshes 跟踪后台刷新任务（RefreshNativeCNY 派生的 goroutine）。
+	// 服务的持有方必须能「等它做完」：后台任务的生命周期必须绑定到服务上，
+	// 不能越过调用方（HTTP 请求、测试用例）的边界继续跑。
+	refreshes refreshGroup
+
 	// rescheduleCh 让管理员改动同步周期后立即重排定时器（PRD-01/K-6 热更新），
 	// 而不必等到下一个旧周期。缓冲 1 + 非阻塞发送：多次连续改动只合并成一次重排。
 	rescheduleCh chan struct{}
+}
+
+// refreshGroup 跟踪服务自身拥有的后台任务数量，并提供「等到没有后台任务在跑」
+// 的等待点。用条件变量而不是裸 sync.WaitGroup：sync.WaitGroup 在 Add 与 Wait
+// 竞争时会 panic（"WaitGroup misuse"），而后台刷新可以在别的 goroutine 里被
+// 触发，等待方与触发方并发是常态。
+type refreshGroup struct {
+	mu     sync.Mutex
+	cond   *sync.Cond
+	once   sync.Once
+	active int
+}
+
+// init 惰性创建条件变量，使零值的 refreshGroup 也能直接使用（服务可能被以
+// 结构体字面量构造，而不是走 NewPricingService）。
+func (g *refreshGroup) init() {
+	g.once.Do(func() { g.cond = sync.NewCond(&g.mu) })
+}
+
+// start 登记一个后台任务。
+func (g *refreshGroup) start() {
+	g.init()
+	g.mu.Lock()
+	g.active++
+	g.mu.Unlock()
+}
+
+// done 注销一个后台任务；最后一个任务结束时唤醒所有等待方。
+func (g *refreshGroup) done() {
+	g.init()
+	g.mu.Lock()
+	g.active--
+	if g.active <= 0 {
+		g.cond.Broadcast()
+	}
+	g.mu.Unlock()
+}
+
+// wait 阻塞直到没有后台任务在跑。
+func (g *refreshGroup) wait() {
+	g.init()
+	g.mu.Lock()
+	for g.active > 0 {
+		g.cond.Wait()
+	}
+	g.mu.Unlock()
 }
 
 // NewPricingService 创建价格服务
@@ -343,16 +398,42 @@ func (s *PricingService) Initialize() error {
 }
 
 // Stop 停止价格服务
+//
+// 幂等：关停钩子与调用方（例如测试收尾）都可能停止同一个服务，重复调用不会
+// panic。停止后服务不再接受新的后台刷新任务，并等待已派生的后台任务结束，
+// 使后台工作不会越过调用方的生命周期继续运行。
 func (s *PricingService) Stop() {
-	s.controlsMu.Lock()
-	s.stopping = true
-	for _, cancel := range s.remoteCancels {
-		cancel()
-	}
-	s.controlsMu.Unlock()
-	close(s.stopCh)
+	first := false
+	s.stopOnce.Do(func() {
+		first = true
+		s.controlsMu.Lock()
+		s.stopping = true
+		for _, cancel := range s.remoteCancels {
+			cancel()
+		}
+		s.controlsMu.Unlock()
+		if s.stopCh != nil {
+			close(s.stopCh)
+		}
+	})
+	// The scheduler goroutine and the background refresh tasks are both owned by
+	// the service: both must be finished before the caller may consider the
+	// service stopped.
 	s.wg.Wait()
-	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
+	s.refreshes.wait()
+	if first {
+		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
+	}
+}
+
+// WaitForBackgroundRefresh 阻塞直到当前已触发的后台刷新任务全部结束。
+//
+// 后台刷新（RefreshNativeCNY）在自己的 goroutine 里跑，没有调用方可以 recover
+// 它的 panic，也没有任何东西把它绑定到触发者（HTTP 请求、测试用例）的生命周期上。
+// 这个等待点让服务的持有方能显式地「等它做完」：既用于优雅关停，也用于让单元测试
+// 在用例结束前把后台工作收干净。
+func (s *PricingService) WaitForBackgroundRefresh() {
+	s.refreshes.wait()
 }
 
 // schedulerInterval resolves the ticker period. PRD-01/K-6 makes the sync period
@@ -401,6 +482,10 @@ func (s *PricingService) startUpdateScheduler() {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		// A panic in this goroutine has no caller to recover it and would take the
+		// whole process down, so a broken pricing source must not be able to kill
+		// the API server. The failure is reported as a pricing sync error instead.
+		defer s.recoverBackgroundRefresh(pricingSourceScheduledSync)
 		// The ticker is rebuilt whenever the effective sync period changes, so an
 		// administrator edit takes effect on the next boundary instead of after the
 		// previously scheduled period elapses.

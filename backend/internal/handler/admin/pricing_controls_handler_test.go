@@ -10,23 +10,48 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
-type noPricingNetwork struct{}
+// noPricingNetwork 是单元测试的「禁止联网」哨兵：任何一次出站定价请求都会
+// 被记下来，让测试能断言服务确实没有联网。它同时 panic，是为了让同步路径上的
+// 越界请求立刻暴露；后台刷新路径上的 panic 由服务自己收敛成一次可见的同步失败
+// （见 service.PricingService），那里靠 attemptCount 断言。
+type noPricingNetwork struct {
+	mu       sync.Mutex
+	attempts int
+}
 
-func (noPricingNetwork) FetchPricingJSON(context.Context, string) ([]byte, error) {
+func (n *noPricingNetwork) FetchPricingJSON(context.Context, string) ([]byte, error) {
+	n.mu.Lock()
+	n.attempts++
+	n.mu.Unlock()
 	panic("pricing network must be disabled")
 }
-func (noPricingNetwork) FetchHashText(context.Context, string) (string, error) {
+func (n *noPricingNetwork) FetchHashText(context.Context, string) (string, error) {
+	n.mu.Lock()
+	n.attempts++
+	n.mu.Unlock()
 	panic("pricing network must be disabled")
+}
+
+// attemptCount 返回出站定价请求的次数。
+func (n *noPricingNetwork) attemptCount() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.attempts
 }
 
 func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
 	cfg.Pricing.DataDir = t.TempDir()
-	pricing := service.NewPricingService(cfg, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(cfg, net)
+	// The service owns background refresh tasks: stop it so no goroutine can
+	// outlive this test case.
+	t.Cleanup(pricing.Stop)
 	settings := &service.SettingService{}
 	invalidations := 0
 	settings.SetOnUpdateCallback(func() { invalidations++ })
@@ -45,11 +70,14 @@ func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 	blocked := httptest.NewRecorder()
 	router.ServeHTTP(blocked, httptest.NewRequest(http.MethodPost, "/pricing/refresh", nil))
 	require.Equal(t, http.StatusConflict, blocked.Code)
+	require.Zero(t, net.attemptCount(), "the disabled remote pull must not reach the network")
 }
 
 func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(&config.Config{}, net)
+	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/holidays", h.UpdateDeepseekHolidays)
@@ -68,11 +96,14 @@ func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 	}
 	require.Contains(t, pricing.DeepseekHolidayDates(), "2026-10-01", "empty list restores built-in holidays")
+	require.Zero(t, net.attemptCount(), "updating the holiday calendar must not reach the network")
 }
 
 func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(&config.Config{}, net)
+	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/pricing/settings", h.UpdatePricingControls)
@@ -112,4 +143,5 @@ func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	result = httptest.NewRecorder()
 	router.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/pricing/settings", nil))
 	require.Contains(t, result.Body.String(), `"deepseek_holidays":{}`)
+	require.Zero(t, net.attemptCount(), "a switch-only update with the remote pull disabled must not reach the network")
 }
