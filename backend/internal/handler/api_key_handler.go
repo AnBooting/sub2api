@@ -174,7 +174,7 @@ func (h *APIKeyHandler) List(c *gin.Context) {
 
 	out := make([]dto.APIKey, 0, len(keys))
 	for i := range keys {
-		out = append(out, *dto.APIKeyFromService(&keys[i]))
+		out = append(out, *dto.APIKeyFromService(&keys[i]).Localized(c.GetHeader("Accept-Language")))
 	}
 	response.Paginated(c, out, result.Total, page, pageSize)
 }
@@ -206,7 +206,7 @@ func (h *APIKeyHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.APIKeyFromService(key))
+	response.Success(c, dto.APIKeyFromService(key).Localized(c.GetHeader("Accept-Language")))
 }
 
 // Create handles creating a new API key
@@ -263,7 +263,7 @@ func (h *APIKeyHandler) Create(c *gin.Context) {
 		if err != nil {
 			return nil, err
 		}
-		return dto.APIKeyFromService(key), nil
+		return dto.APIKeyFromService(key).Localized(c.GetHeader("Accept-Language")), nil
 	})
 }
 
@@ -335,7 +335,7 @@ func (h *APIKeyHandler) Update(c *gin.Context) {
 		return
 	}
 
-	response.Success(c, dto.APIKeyFromService(key))
+	response.Success(c, dto.APIKeyFromService(key).Localized(c.GetHeader("Accept-Language")))
 }
 
 // Delete handles deleting an API key
@@ -472,8 +472,8 @@ func decodeHAEnablementJSON(c *gin.Context, req *SetAPIKeyHAGroupRequest) error 
 // writeHAEnablementResponse 统一 PUT/DELETE 的成功响应，倍率恒为服务端配置值。
 func (h *APIKeyHandler) writeHAEnablementResponse(c *gin.Context, result *service.APIKeyHAGroupEnablementResult) {
 	response.Success(c, gin.H{
-		"api_key":              dto.APIKeyFromService(result.APIKey),
-		"group":                dto.GroupFromService(result.Group),
+		"api_key":              dto.APIKeyFromService(result.APIKey).Localized(c.GetHeader("Accept-Language")),
+		"group":                dto.GroupFromService(result.Group).Localized(c.GetHeader("Accept-Language")),
 		"enabled":              result.Enabled,
 		"rate_multiplier":      result.RateMultiplier,
 		"group_chain_revision": result.GroupChainRevision,
@@ -497,7 +497,7 @@ func (h *APIKeyHandler) GetAvailableGroups(c *gin.Context) {
 
 	out := make([]dto.Group, 0, len(groups))
 	for i := range groups {
-		out = append(out, *dto.GroupFromService(&groups[i]))
+		out = append(out, *dto.GroupFromService(&groups[i]).Localized(c.GetHeader("Accept-Language")))
 	}
 	response.Success(c, out)
 }

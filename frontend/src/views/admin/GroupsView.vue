@@ -261,10 +261,19 @@
             </div>
           </template>
 
-          <template #cell-rate_multiplier="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300"
-              >{{ value }}x</span
-            >
+          <template #cell-rate_multiplier="{ value, row }">
+            <div class="space-y-1">
+              <span class="text-sm text-gray-700 dark:text-gray-300"
+                >{{ value }}x</span
+              >
+              <GroupPricingStatusBadge :rules="row.model_pricing" />
+              <GroupPeakWindowStatus
+                :enabled="!!row.peak_rate_enabled"
+                :start="row.peak_start"
+                :end="row.peak_end"
+                :multiplier="row.peak_rate_multiplier"
+              />
+            </div>
           </template>
 
           <template #cell-is_exclusive="{ value }">
@@ -488,26 +497,26 @@
         class="space-y-5"
       >
         <div>
-          <label class="input-label">{{ t("admin.groups.form.name") }}</label>
-          <input
+          <GroupI18nField
             v-model="createForm.name"
-            type="text"
+            v-model:i18n="createForm.i18n"
+            :label="t('admin.groups.form.name')"
+            field="name"
             required
-            class="input"
             :placeholder="t('admin.groups.enterGroupName')"
             data-tour="group-form-name"
           />
         </div>
         <div>
-          <label class="input-label">{{
-            t("admin.groups.form.description")
-          }}</label>
-          <textarea
+          <GroupI18nField
             v-model="createForm.description"
+            v-model:i18n="createForm.i18n"
+            :label="t('admin.groups.form.description')"
+            field="description"
+            multiline
             rows="3"
-            class="input"
             :placeholder="t('admin.groups.optionalDescription')"
-          ></textarea>
+          />
         </div>
         <div>
           <label class="input-label">{{
@@ -788,6 +797,12 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.hint") }}
+              </p>
+              <p
+                v-if="createForm.platform === 'openai' || createForm.platform === 'composite'"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t("admin.groups.modelAllowlist.gpt55RetirementHint") }}
               </p>
             </div>
             <Toggle v-model="createModelAllowlistState.enabled" />
@@ -1605,6 +1620,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t("admin.groups.modelPricing.priceSourceHint") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -1619,11 +1635,8 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
-          v-if="createForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
+        <!-- 搜索与语音/实时显式定价（分组级字段，所有平台可见） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {{ t("admin.groups.explicitPricing.title") }}
           </h4>
@@ -2251,24 +2264,24 @@
         class="space-y-5"
       >
         <div>
-          <label class="input-label">{{ t("admin.groups.form.name") }}</label>
-          <input
+          <GroupI18nField
             v-model="editForm.name"
-            type="text"
+            v-model:i18n="editForm.i18n"
+            :label="t('admin.groups.form.name')"
+            field="name"
             required
-            class="input"
             data-tour="edit-group-form-name"
           />
         </div>
         <div>
-          <label class="input-label">{{
-            t("admin.groups.form.description")
-          }}</label>
-          <textarea
+          <GroupI18nField
             v-model="editForm.description"
+            v-model:i18n="editForm.i18n"
+            :label="t('admin.groups.form.description')"
+            field="description"
+            multiline
             rows="3"
-            class="input"
-          ></textarea>
+          />
         </div>
         <div>
           <label class="input-label">{{
@@ -2552,6 +2565,12 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.hint") }}
+              </p>
+              <p
+                v-if="editForm.platform === 'openai' || editForm.platform === 'composite'"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t("admin.groups.modelAllowlist.gpt55RetirementHint") }}
               </p>
             </div>
             <Toggle v-model="editModelAllowlistState.enabled" />
@@ -3071,6 +3090,13 @@
               />
               <span>{{ t("admin.groups.peakRate.enable") }}</span>
             </label>
+            <GroupPeakWindowStatus
+              show-when-disabled
+              :enabled="editForm.peak_rate_enabled"
+              :start="editForm.peak_start"
+              :end="editForm.peak_end"
+              :multiplier="editForm.peak_rate_multiplier"
+            />
           </div>
           <div
             v-if="editForm.peak_rate_enabled"
@@ -3379,6 +3405,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t("admin.groups.modelPricing.priceSourceHint") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -3393,11 +3420,8 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
-          v-if="editForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
+        <!-- 搜索与语音/实时显式定价（分组级字段，所有平台可见） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
             {{ t("admin.groups.explicitPricing.title") }}
           </h4>
@@ -4528,6 +4552,7 @@ import type {
   CompositeRouteDecision,
   CompositeRouteEndpoint,
   CompositeRouteMatchType,
+  GroupI18n,
   GroupPlatform,
   SubscriptionType,
 } from "@/types";
@@ -4549,8 +4574,11 @@ import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelec
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import { platformLabel } from "@/utils/platformColors";
 import Icon from "@/components/icons/Icon.vue";
+import GroupI18nField from "@/components/admin/group/GroupI18nField.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import GroupPricingStatusBadge from "@/components/admin/group/GroupPricingStatusBadge.vue";
+import GroupPeakWindowStatus from "@/components/admin/group/GroupPeakWindowStatus.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
@@ -5200,6 +5228,7 @@ const submitEditAllowlistCustomEntry = () => {
 const createForm = reactive({
   name: "",
   description: "",
+  i18n: {} as GroupI18n,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
@@ -5570,6 +5599,7 @@ const savedEffectiveStrategy = ref<import("@/types").SchedulingStrategy>();
 const editForm = reactive({
   name: "",
   description: "",
+  i18n: {} as GroupI18n,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
@@ -6038,6 +6068,7 @@ const closeCreateModal = () => {
   clearAllAccountSearchState();
   createForm.name = "";
   createForm.description = "";
+  createForm.i18n = {};
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.scheduling_strategy = "inherit";
@@ -6306,6 +6337,7 @@ const handleCreateGroup = async () => {
       ? {
           name: createForm.name,
           description: createForm.description,
+          i18n: createForm.i18n,
           platform: createForm.platform,
         }
       : requestData;
@@ -6332,6 +6364,12 @@ const handleEdit = async (group: AdminGroup) => {
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";
+  editForm.i18n = Object.fromEntries(
+    Object.entries(group.i18n ?? {}).map(([locale, text]) => [
+      locale,
+      { ...text },
+    ]),
+  );
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.scheduling_strategy = group.scheduling_strategy ?? "inherit";
@@ -6664,6 +6702,7 @@ const handleUpdateGroup = async () => {
       ? {
           name: editForm.name,
           description: editForm.description,
+          i18n: editForm.i18n,
         }
       : payload;
     await adminAPI.groups.update(editingGroup.value.id, requestData);

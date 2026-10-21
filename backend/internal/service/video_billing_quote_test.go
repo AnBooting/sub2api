@@ -68,7 +68,7 @@ func TestVideoQuoteTariffPrecedence(t *testing.T) {
 			svc.resolver = NewModelPricingResolver(channel, svc.billingService)
 			key := &APIKey{UserID: 10, GroupID: &group.ID, Group: group}
 			result := &OpenAIForwardResult{Model: model, BillingModel: model, VideoCount: 1, VideoResolution: "720p", VideoDurationSeconds: 8}
-			live, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{model}, 1, 1, 1, 1, UsageTokens{}, "", nil, time.Time{})
+			live, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{model}, 1, 1, 1, 1, UsageTokens{}, "", nil, false, time.Time{})
 			require.NoError(t, err)
 			quote, err := svc.FreezeVideoBilling(context.Background(), key, model, "720p", false)
 			require.NoError(t, err)
@@ -83,7 +83,7 @@ func TestVideoQuoteTariffPrecedence(t *testing.T) {
 			group.VideoModelPrices = nil
 			group.VideoPrice720P = videoPlanPricePtr(99)
 			restored.ApplyToVideoResult(result)
-			cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{model}, 9, 9, 9, 9, UsageTokens{}, "", nil, time.Time{})
+			cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{model}, 9, 9, 9, 9, UsageTokens{}, "", nil, false, time.Time{})
 			require.NoError(t, err)
 			require.InDelta(t, tc.want, cost.ActualCost, 1e-12)
 		})

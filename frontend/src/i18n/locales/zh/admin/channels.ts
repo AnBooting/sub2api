@@ -246,7 +246,8 @@ export default {
         autoPricing: '自动定价',
         autoPricingLoading: '定价中...',
         autoPricingSuccess: '已为 {count} 个模型填入当前价格，请检查后保存',
-        autoPricingMissing: '以下模型缺少完整价格，请手动定价：{models}',
+        autoPricingMissing:
+          '以下模型没有完整的手工价格，请手动定价：{models}。若该模型有官方内置价，仍会按官方内置价计费；官方内置价也没有时，请求会在计费前被拒绝（pricing_unavailable）。',
         autoPricingNoModels: '没有待定价模型，请先映射或同步模型；已有手动定价会保留',
         autoPricingError: '自动定价失败'
       }

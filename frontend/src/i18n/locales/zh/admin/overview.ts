@@ -1009,6 +1009,12 @@ export default {
         privacySetOnlyEnabled: '已启用 — Privacy 未设置的账号将被排除',
         disabled: '未启用'
       },
+      i18nField: {
+        default: '默认',
+        add: '新增 {language} 版',
+        edit: '编辑 {language} 版',
+        placeholder: '{language} 版，留空则显示默认内容'
+      },
       enterGroupName: '请输入分组名称',
       optionalDescription: '可选描述',
       platformHint: '选择此分组关联的平台',
@@ -1107,7 +1113,7 @@ export default {
         withInput: '（含输入视频）'
       },
       explicitPricing: {
-        title: 'Grok 搜索与 Voice 定价',
+        title: '搜索与语音/实时定价',
         description: '分组级 web_search（每千次）与 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
         searchPricePer1k: '搜索每千次价格（USD）',
         pricePlaceholder: '可选'
@@ -1117,10 +1123,41 @@ export default {
         description: '匹配模型后覆盖渠道和内置价格。长上下文阶梯沿用官方/预设价卡，无需再手填区间。音频可用按次层级配置 realtime、tts、stt。',
         longContext: '启用长上下文阶梯定价',
         longContextHint: '勾选后按渠道区间或官方预设阶梯计费；关闭后默认按第一档，账号显式开启时除外。',
-        add: '添加模型价格'
+        add: '添加模型价格',
+        priceSourceHint:
+          '没填价的模型按官方内置价（价卡）计费——官方内置价是该模型自身的官方价，不是缺价放行；只有连官方内置价都没有的模型才会在计费前被拒绝（pricing_unavailable）。'
+      },
+      pricingStatus: {
+        complete: '定价完整',
+        incomplete: '{count} 个模型缺价字段',
+        builtinOnly: '未填价 · 按官方内置价计费',
+        noRules: '未配置定价规则',
+        tip: {
+          complete: '该分组的逐模型定价规则都填全了，按填写的单价计费。',
+          incomplete:
+            '规则未填全：缺价字段的模型若没有官方内置价，请求会在计费前被拒绝（pricing_unavailable）；有官方内置价时按官方内置价计费。',
+          builtinOnly:
+            '这些规则只登记了模型、没有填价格：该模型有官方内置价时按官方内置价计费（官方内置价是该模型自身的官方价，不是缺价放行）；没有官方内置价时请求会被拒绝。',
+          noRules: '该分组没有逐模型定价规则：完全按渠道价格或官方内置价（价卡）计费。'
+        },
+        tipModels: '缺价字段的模型：{models}'
+      },
+      peakWindow: {
+        peak: '高峰中 {multiplier}x',
+        valley: '非高峰 1x',
+        invalid: '高峰时段配置无效',
+        disabled: '未启用高峰倍率',
+        peakWord: '高峰',
+        valleyWord: '非高峰',
+        today: '今天',
+        tomorrow: '明天',
+        window: '时段 {start}–{end}',
+        multiplier: '高峰倍率 {multiplier}x',
+        nextSwitch: '下次切换 {day} {time}（{next}）',
+        hint: '分组高峰倍率按服务器本地时区（Asia/Shanghai）判定，只作用于该分组的 token 计费；与 DeepSeek 官方峰谷是两套机制。'
       },
       voicePricing: {
-        title: 'Grok Voice 定价',
+        title: '语音 / 实时定价',
         description: '分组级 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
         audioRealtimePerMin: 'Realtime 每分钟价格（USD）',
         audioTtsPerMillionChars: 'TTS 每百万字符价格（USD）',
@@ -1156,6 +1193,8 @@ export default {
       modelAllowlist: {
         title: '模型白名单',
         hint: '开启后，不在白名单中的模型会被拒绝（404 model_not_found），模型列表接口也只展示白名单内的模型。条目支持精确模型 ID 与任意位置的 * 通配（如 gpt-*-codex）。注意：Claude Code 会用 haiku 系小模型做标题/摘要等探测，/messages/count_tokens 同样受白名单控制，请一并勾选所需的小模型。',
+        gpt55RetirementHint:
+          'GPT-5.5：ChatGPT 订阅账号（OAuth / SetupToken / 影子账号）已于 2026-10-14 19:00 UTC 下线该模型，API Key 上游仍可用。只挂订阅账号的分组放行 GPT-5.5 会返回 404 model_not_found。',
         loading: '正在加载候选模型...',
         empty: '暂无候选模型，可在下方手工添加条目',
         selectedSummary: '已选 {selected} / {total}',
