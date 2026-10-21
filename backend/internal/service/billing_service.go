@@ -355,7 +355,7 @@ var ErrModelPricingUnavailable = errors.New("pricing not found")
 //	https://api-docs.deepseek.com/quick_start/pricing
 //
 // 高峰价 = 2× 低谷价；高峰时段 01:00–04:00 与 06:00–10:00 UTC（仅工作日），
-// 北京时间周六/周日全天低谷。时段判定见 deepseekPeakMultiplierAt。
+// 北京时间周六/周日全天低谷。时段判定见 deepseekPeakMultiplierWithCalendar。
 const (
 	deepseekFlashOffPeakInputPrice  = 1.5e-7  // $0.15 per MTok (cache miss)
 	deepseekFlashOffPeakOutputPrice = 6.0e-7  // $0.60 per MTok
@@ -385,13 +385,6 @@ func isDeepSeekModel(model string) bool {
 		key = key[i+1:]
 	}
 	return strings.HasPrefix(key, "deepseek-")
-}
-
-// deepseekPeakMultiplierAt is the weekday/weekend policy without an installed calendar.
-// Weekends, including make-up workdays, remain offpeak. Configured holidays
-// use the same chooser through BillingService.deepSeekPricingPeriodAt.
-func deepseekPeakMultiplierAt(now time.Time) float64 {
-	return deepseekPeakMultiplierWithCalendar(now, defaultDeepseekCalendar)
 }
 
 // Official Pro-to-Flash routing takes effect at Beijing 2026-09-14 12:00.
@@ -760,7 +753,7 @@ func (s *BillingService) initFallbackPricing() {
 	// 其余 deepseek-*（含未知型号）统一按 flash 价兜底（见 getFallbackPricing），
 	// 避免计费中断。
 	// 以下均为官方低谷价；高峰价 = 2× 低谷价（高峰时段 01:00–04:00
-	// 与 06:00–10:00 UTC，仅工作日；北京时间周六/周日全天低谷），见 deepseekPeakMultiplierAt。
+	// 与 06:00–10:00 UTC，仅工作日；北京时间周六/周日全天低谷），见 deepseekPeakMultiplierWithCalendar。
 	s.fallbackPrices["deepseek-v4-pro"] = &ModelPricing{
 		InputPricePerToken:     deepseekProOffPeakInputPrice,  // $0.66 per MTok (cache miss, off-peak)
 		OutputPricePerToken:    deepseekProOffPeakOutputPrice, // $1.98 per MTok
@@ -2133,7 +2126,7 @@ func (s *BillingService) applyModelSpecificPricingPolicyEx(model string, pricing
 	// 其余 deepseek-*（含已停服的 chat/reasoner 与未知型号）统一归 flash 档。
 	// 2026-09-14 04:00 UTC 起上游把 pro 请求路由到 V4.1-Flash，pro 档改按
 	// Flash 三档价计费；历史时点（早于切换时刻）仍按 Pro 价。
-	// 高峰时段倍率不在本函数处理，由 calculateTokenCost 按 deepseekPeakMultiplierAt
+	// 高峰时段倍率不在本函数处理，由 calculateTokenCost 按 deepseekPeakMultiplierWithCalendar
 	// 对默认价卡另行叠加（分组/渠道自定义定价不叠加）。
 	if forceDeepSeekRates && isDeepSeekModel(model) {
 		cloned := *pricing

@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
@@ -69,18 +70,49 @@ func artexFixtureMarshal(t *testing.T, value any) []byte {
 	return body
 }
 func artexFixtureTool(tool any, p ArtexProtocol) map[string]any {
-	decl := tool.(map[string]any)
+	decl, ok := tool.(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("artex fixture tool is not an object: %T", tool))
+	}
 	if p == ArtexChat {
-		return decl["function"].(map[string]any)
+		fn, ok := decl["function"].(map[string]any)
+		if !ok {
+			panic("artex fixture tool has no function object")
+		}
+		return fn
 	}
 	return decl
 }
+
+// artexFixtureObject 是带检查的类型断言：夹具结构不合法时立刻失败，
+// 而不是让未检查的断言把 panic 丢到断言之外。
+func artexFixtureObject(value any) map[string]any {
+	obj, ok := value.(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("artex fixture value is not an object: %T", value))
+	}
+	return obj
+}
+
+// artexFixtureList 是带检查的 []any 断言。
+func artexFixtureList(value any) []any {
+	list, ok := value.([]any)
+	if !ok {
+		panic(fmt.Sprintf("artex fixture value is not a list: %T", value))
+	}
+	return list
+}
+
 func artexFixtureSchema(tool any, p ArtexProtocol) map[string]any {
 	field := "parameters"
 	if p == ArtexAnthropic {
 		field = "input_schema"
 	}
-	return artexFixtureTool(tool, p)[field].(map[string]any)
+	decl, ok := artexFixtureTool(tool, p)[field].(map[string]any)
+	if !ok {
+		panic(fmt.Sprintf("artex fixture tool has no %s object", field))
+	}
+	return decl
 }
 
 func TestArtexCoreNineSourceBoundFamilies(t *testing.T) {
@@ -96,11 +128,11 @@ func TestArtexCoreNineSourceBoundFamilies(t *testing.T) {
 					tail = artexFixtureWorkerTail
 				}
 				artexFixtureSetInstruction(request, p, "entirely custom BODY\r\n"+strings.ReplaceAll(tail, "\n", "\r\n")+strings.Repeat("after-tail constraints ", 100))
-				for _, tool := range request["tools"].([]any) {
+				for _, tool := range artexFixtureList(request["tools"]) {
 					schema := artexFixtureSchema(tool, p)
 					schema["description"] = "edited"
 					schema["default"] = map[string]any{}
-					schema["properties"].(map[string]any)["extra"] = map[string]any{"type": "boolean"}
+					artexFixtureObject(schema["properties"])["extra"] = map[string]any{"type": "boolean"}
 					schema["required"] = append([]any{"extra"}, func() []any {
 						if r, ok := schema["required"].([]any); ok {
 							return r
@@ -151,28 +183,28 @@ func TestArtexCoreNormalAndNearMatchNegatives(t *testing.T) {
 						}
 					}
 				case "missing_tool":
-					request["tools"] = request["tools"].([]any)[:2]
+					request["tools"] = artexFixtureList(request["tools"])[:2]
 				case "case_name":
-					artexFixtureTool(request["tools"].([]any)[0], p)["name"] = "Get_Worker_Trace"
+					artexFixtureTool(artexFixtureList(request["tools"])[0], p)["name"] = "Get_Worker_Trace"
 				case "wrong_type":
-					artexFixtureSchema(request["tools"].([]any)[0], p)["properties"].(map[string]any)["intent_id"] = map[string]any{"type": "number"}
+					artexFixtureObject(artexFixtureSchema(artexFixtureList(request["tools"])[0], p)["properties"])["intent_id"] = map[string]any{"type": "number"}
 				case "wrong_item_type":
-					artexFixtureSchema(request["tools"].([]any)[0], p)["properties"].(map[string]any)["step_ids"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
+					artexFixtureObject(artexFixtureSchema(artexFixtureList(request["tools"])[0], p)["properties"])["step_ids"] = map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
 				case "root_not_object":
-					artexFixtureSchema(request["tools"].([]any)[0], p)["type"] = "array"
+					artexFixtureSchema(artexFixtureList(request["tools"])[0], p)["type"] = "array"
 				case "missing_required":
-					artexFixtureSchema(request["tools"].([]any)[0], p)["required"] = []any{}
+					artexFixtureSchema(artexFixtureList(request["tools"])[0], p)["required"] = []any{}
 				case "split_same_name":
-					tools := request["tools"].([]any)
+					tools := artexFixtureList(request["tools"])
 					clonedBytes := artexFixtureMarshal(t, tools[0])
 					var other map[string]any
 					require.NoError(t, json.Unmarshal(clonedBytes, &other))
-					delete(artexFixtureSchema(tools[0], p)["properties"].(map[string]any), "q")
-					delete(artexFixtureSchema(other, p)["properties"].(map[string]any), "limit")
+					delete(artexFixtureObject(artexFixtureSchema(tools[0], p)["properties"]), "q")
+					delete(artexFixtureObject(artexFixtureSchema(other, p)["properties"]), "limit")
 					request["tools"] = append(tools, other)
 				case "batch_not_root":
-					schema := artexFixtureSchema(request["tools"].([]any)[1], p)
-					props := schema["properties"].(map[string]any)
+					schema := artexFixtureSchema(artexFixtureList(request["tools"])[1], p)
+					props := artexFixtureObject(schema["properties"])
 					nested := map[string]any{}
 					for key, value := range props {
 						if key != "facts" {
@@ -180,7 +212,7 @@ func TestArtexCoreNormalAndNearMatchNegatives(t *testing.T) {
 							delete(props, key)
 						}
 					}
-					props["facts"].(map[string]any)["items"] = map[string]any{"type": "object", "properties": nested}
+					artexFixtureObject(props["facts"])["items"] = map[string]any{"type": "object", "properties": nested}
 				}
 				_, found := DetectArtexCore(p, artexFixtureMarshal(t, request))
 				require.False(t, found)
@@ -202,7 +234,7 @@ func TestArtexCoreLegalTextBlocksOnly(t *testing.T) {
 	request["input"] = []any{map[string]any{"type": "message", "role": "system", "content": []any{map[string]any{"type": "input_text", "text": artexFixtureTaskTail}}}}
 	_, found = DetectArtexCore(ArtexResponses, artexFixtureMarshal(t, request))
 	require.True(t, found)
-	request["input"].([]any)[0].(map[string]any)["type"] = "function_call_output"
+	artexFixtureObject(artexFixtureList(request["input"])[0])["type"] = "function_call_output"
 	_, found = DetectArtexCore(ArtexResponses, artexFixtureMarshal(t, request))
 	require.False(t, found)
 	for _, raw := range []string{"not-json", "null", "[]", "{}"} {
@@ -255,11 +287,11 @@ func TestArtexSchemaKeywordsRequireExactCanonicalCase(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(string(protocol)+"/"+tc.name, func(t *testing.T) {
 				request := artexFixtureRequest(t, protocol, "worker")
-				schema := artexFixtureSchema(request["tools"].([]any)[0], protocol) // trace has original required
-				props := schema["properties"].(map[string]any)
-				intent := props["intent_id"].(map[string]any)
-				array := props["step_ids"].(map[string]any)
-				item := array["items"].(map[string]any)
+				schema := artexFixtureSchema(artexFixtureList(request["tools"])[0], protocol) // trace has original required
+				props := artexFixtureObject(schema["properties"])
+				intent := artexFixtureObject(props["intent_id"])
+				array := artexFixtureObject(props["step_ids"])
+				item := artexFixtureObject(array["items"])
 				switch tc.level {
 				case "root", "prop", "array", "item":
 					target := map[string]map[string]any{"root": schema, "prop": intent, "array": array, "item": item}[tc.level]
@@ -393,7 +425,7 @@ func TestArtexQuotedToolJSONStringIsNeverAnActualDeclaration(t *testing.T) {
 		for _, place := range []string{"string_array", "metadata", "schema_string"} {
 			t.Run(string(protocol)+"/"+place, func(t *testing.T) {
 				request := artexFixtureRequest(t, protocol, "worker") // effective full tail remains
-				tools := request["tools"].([]any)
+				tools := artexFixtureList(request["tools"])
 				saved := string(artexFixtureMarshal(t, tools))
 				switch place {
 				case "string_array":
