@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "modernc.org/sqlite"
 	"github.com/stretchr/testify/require"
+	_ "modernc.org/sqlite"
 )
 
 // Regression for the review finding: migration 244 constrained role='ha' to always
@@ -43,7 +43,7 @@ func TestGroupLinkAuthorizationCheckMatchesWriteContract(t *testing.T) {
 
 	db, err := sql.Open("sqlite", ":memory:")
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Apply the constraint as migration 250 leaves it.
 	_, err = db.Exec(`

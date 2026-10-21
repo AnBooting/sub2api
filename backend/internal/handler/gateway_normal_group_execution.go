@@ -68,17 +68,6 @@ func (p *normalGroupPlan) first() (int64, bool, bool) {
 	return p.haIDs[0], true, true
 }
 
-// current returns the serving group id and whether it is an HA candidate.
-func (p *normalGroupPlan) current() (int64, bool) {
-	if p == nil || p.index >= len(p.normalIDs)+len(p.haIDs) {
-		return 0, false
-	}
-	if p.index < len(p.normalIDs) {
-		return p.normalIDs[p.index], false
-	}
-	return p.haIDs[p.index-len(p.normalIDs)], true
-}
-
 // peek returns the next candidate WITHOUT consuming it. Callers run every guard
 // first and only then call commit, so a rejected attempt never skips a candidate.
 // retryable must be true to cross from the normal chain into the HA phase.
@@ -190,13 +179,13 @@ func (h *GatewayHandler) authorizeSharedTextGroupPolicyWith(c *gin.Context, orig
 		writeError(c, http.StatusServiceUnavailable, "no_available_group", "Group does not support Gemini native requests")
 		return nil, nil, false
 	}
-	if len(nativeModel) == 0 && key.Group.Platform != service.PlatformAnthropic && key.Group.Platform != service.PlatformAntigravity && !((chat || messages) && key.Group.Platform == service.PlatformGemini) {
+	if len(nativeModel) == 0 && key.Group.Platform != service.PlatformAnthropic && key.Group.Platform != service.PlatformAntigravity && (!chat && !messages || key.Group.Platform != service.PlatformGemini) {
 		writeError(c, http.StatusServiceUnavailable, "no_available_group", "This group forwarding family is not supported by the requested endpoint")
 		return nil, nil, false
 	}
 	// Never let the scheduler silently substitute a Claude-Code-only fallback group
 	// outside this request's explicit, frozen candidate chain.
-	if key.Group.ClaudeCodeOnly && !(messages && service.IsClaudeCodeClient(c.Request.Context())) {
+	if key.Group.ClaudeCodeOnly && (!messages || !service.IsClaudeCodeClient(c.Request.Context())) {
 		writeError(c, http.StatusForbidden, "permission_error", "This group is restricted to Claude Code clients (/v1/messages only)")
 		return nil, nil, false
 	}
@@ -274,4 +263,3 @@ func classifyGroupFailover(requestedGroupID, servedGroupID int64, haIDs []int64,
 	}
 	return service.RoutingFailoverNone
 }
-

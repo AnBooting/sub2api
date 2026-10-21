@@ -8,10 +8,10 @@ import (
 
 // Regression for three false rejections / false acceptances found in review.
 //
-// 1. An omitted "strict" was rejected: the converter applies defaultStrictFalse, so
-//    the converted side carries &false while the original is nil, and
-//    reflect.DeepEqual(&false, nil) is false. Clients rarely send strict, so this
-//    misclassified the common case as unsupported.
+//  1. An omitted "strict" was rejected: the converter applies defaultStrictFalse, so
+//     the converted side carries &false while the original is nil, and
+//     reflect.DeepEqual(&false, nil) is false. Clients rarely send strict, so this
+//     misclassified the common case as unsupported.
 func TestChatBridgeResponsesToolOmittingStrictIsCompatible(t *testing.T) {
 	body := []byte(`{"model":"client-model","messages":[{"role":"user","content":"hi"}],"tools":[{"type":"function","function":{"name":"lookup","parameters":{"type":"object","properties":{"q":{"type":"string"}}}}}]}`)
 	require.Equal(t, chatBridgeCompatible, assessChatBridgeCapability(body, "gpt-5.5", chatBridgeResponses).Class)
@@ -26,9 +26,9 @@ func TestChatBridgeResponsesToolOmittingStrictIsCompatible(t *testing.T) {
 	require.Equal(t, chatBridgeCompatible, assessChatBridgeCapability(explicitTrue, "gpt-5.5", chatBridgeResponses).Class)
 }
 
-// 2. A function tool that omits "parameters" was rejected: the converter copies
-//    Parameters verbatim, so both sides are nil, but json.Valid(nil) is false and
-//    the two absent values were reported as a changed definition.
+//  2. A function tool that omits "parameters" was rejected: the converter copies
+//     Parameters verbatim, so both sides are nil, but json.Valid(nil) is false and
+//     the two absent values were reported as a changed definition.
 func TestChatBridgeEmptyParametersCompareEqual(t *testing.T) {
 	require.True(t, chatBridgeJSONEqual(nil, nil), "two absent values are equal")
 	require.True(t, chatBridgeJSONEqual(nil, []byte("")), "absent and empty are equal")
@@ -41,11 +41,11 @@ func TestChatBridgeEmptyParametersCompareEqual(t *testing.T) {
 	require.False(t, chatBridgeJSONEqual([]byte(`{"type":"object"}`), nil))
 }
 
-// 3. The Responses gate converted with the client-visible model while the forward
-//    path rewrites the model to the frozen upstream model before converting. The
-//    converter drops temperature/top_p for reasoning models, so a cross-family
-//    bridge passed the sampling check and then silently lost the client's sampling
-//    parameters. The gate must assess the conversion that will actually run.
+//  3. The Responses gate converted with the client-visible model while the forward
+//     path rewrites the model to the frozen upstream model before converting. The
+//     converter drops temperature/top_p for reasoning models, so a cross-family
+//     bridge passed the sampling check and then silently lost the client's sampling
+//     parameters. The gate must assess the conversion that will actually run.
 func TestChatBridgeResponsesGateUsesFrozenModelForConversion(t *testing.T) {
 	// Client-visible model is not a reasoning model, the frozen upstream model is.
 	body := []byte(`{"model":"claude-sonnet-4","messages":[{"role":"user","content":"hi"}],"temperature":0.7,"top_p":0.8}`)

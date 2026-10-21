@@ -806,8 +806,8 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	// 时完全保持既有行为（显式 if 分支，见 recon §1.C）。
 	requestPricing := GatewayRequestBillingFromContext(ctx)
 
-	multiplier := 1.0
-	imageMultiplier := 1.0
+	var multiplier float64
+	var imageMultiplier float64
 	pricingAt := requestPricingAt(ctx, input.PricingAt)
 	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	billingModel := ""

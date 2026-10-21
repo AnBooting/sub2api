@@ -18,7 +18,7 @@ import (
 func TestAPIKeyGroupChainRepositoryPostgresCASLocksBeforeCallback(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	client := dbent.NewClient(dbent.Driver(entsql.OpenDB(dialect.Postgres, db)))
 	repo := newAPIKeyRepositoryWithSQL(client, db)
 	mock.ExpectBegin()
@@ -225,7 +225,9 @@ func TestAPIKeyGroupChainAdminRepositoryDTOResponseMatchesGET(t *testing.T) {
 	_, err = client.APIKeyGroupLink.Create().SetAPIKeyID(key.ID).SetGroupID(ha.ID).SetRole(apikeygrouplink.RoleHa).SetPosition(0).SetEnabledByUserAt(at).Save(ctx)
 	require.NoError(t, err)
 	// Real service+real SQLite repository+real DTO, not a response-only stub.
-	groupRepo := NewAdminGroupRepository(client, repo.sql.(*sql.DB))
+	sqlDB, ok := repo.sql.(*sql.DB)
+	require.True(t, ok, "repository must expose the *sql.DB handle")
+	groupRepo := NewAdminGroupRepository(client, sqlDB)
 	admin := service.NewAdminService(nil, nil, groupRepo, nil, nil, repo, nil, nil, nil, nil, nil, nil, nil, client, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	_, err = repo.IncrementQuotaUsed(ctx, key.ID, 31)
 	require.NoError(t, err)

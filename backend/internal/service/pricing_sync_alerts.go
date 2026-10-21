@@ -96,7 +96,7 @@ func (s *PricingService) recordPricingSyncResult(source string, err error) {
 	if cfgErr != nil {
 		slog.Warn("Could not read pricing alert email settings", "error", cfgErr)
 		s.alertsMu.Lock()
-		if s.syncAlertTimes[source] == now {
+		if s.syncAlertTimes[source].Equal(now) {
 			delete(s.syncAlertTimes, source)
 		}
 		s.alertsMu.Unlock()
@@ -121,7 +121,7 @@ func (s *PricingService) recordPricingSyncResult(source string, err error) {
 	}
 	if failed && !succeeded {
 		s.alertsMu.Lock()
-		if s.syncAlertTimes[source] == now {
+		if s.syncAlertTimes[source].Equal(now) {
 			delete(s.syncAlertTimes, source)
 		}
 		s.alertsMu.Unlock()
