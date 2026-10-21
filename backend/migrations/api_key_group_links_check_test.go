@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Regression for the review finding: migration 244 constrained role='ha' to always
+// Regression for the review finding: migration 252 constrained role='ha' to always
 // carry a non-null enabled_by_user_at, but two normal code paths write role='ha' with
 // a NULL timestamp:
 //
@@ -23,20 +23,20 @@ import (
 // they build tables through enttest and ent/migrate/schema.go declares no check
 // constraints, while production runs these SQL migrations via ApplyMigrations.
 //
-// Migration 250 relaxes the constraint to "normal must be NULL, ha may be either".
+// Migration 258 relaxes the constraint to "normal must be NULL, ha may be either".
 // This test executes the real DDL for both migrations so the contract is exercised
 // rather than assumed.
 func TestGroupLinkAuthorizationCheckMatchesWriteContract(t *testing.T) {
-	oldSQL, err := os.ReadFile(filepath.Join("..", "migrations", "244_api_key_group_links.sql"))
-	require.NoError(t, err, "migration 244 must be readable")
-	newSQL, err := os.ReadFile(filepath.Join("..", "migrations", "250_relax_group_link_authorization_check.sql"))
-	require.NoError(t, err, "migration 250 must be readable")
+	oldSQL, err := os.ReadFile(filepath.Join("..", "migrations", "252_api_key_group_links.sql"))
+	require.NoError(t, err, "migration 252 must be readable")
+	newSQL, err := os.ReadFile(filepath.Join("..", "migrations", "258_relax_group_link_authorization_check.sql"))
+	require.NoError(t, err, "migration 258 must be readable")
 
-	// 244 must keep its original (over-strict) shape: we never rewrite it, because the
+	// 252 must keep its original (over-strict) shape: we never rewrite it, because the
 	// runner verifies the checksum of already-applied migrations.
 	require.Contains(t, string(oldSQL), "(role = 'ha' AND enabled_by_user_at IS NOT NULL)",
-		"migration 244 must not be modified")
-	// 250 must relax exactly the role=ha half and keep the role=normal half.
+		"migration 252 must not be modified")
+	// 258 must relax exactly the role=ha half and keep the role=normal half.
 	require.Contains(t, string(newSQL), "DROP CONSTRAINT IF EXISTS api_key_group_links_authorization")
 	require.Contains(t, string(newSQL), "(role = 'normal' AND enabled_by_user_at IS NULL) OR")
 	require.Contains(t, string(newSQL), "(role = 'ha')")
@@ -45,7 +45,7 @@ func TestGroupLinkAuthorizationCheckMatchesWriteContract(t *testing.T) {
 	require.NoError(t, err)
 	defer db.Close()
 
-	// Apply the constraint as migration 250 leaves it.
+	// Apply the constraint as migration 258 leaves it.
 	_, err = db.Exec(`
 		CREATE TABLE api_key_group_links (
 			id INTEGER PRIMARY KEY,

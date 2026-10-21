@@ -3,17 +3,32 @@
 package service
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 )
 
-// TS-02 S2 接线完整性：按源码文本锁定白名单，防「漏接线」与「误接线」。
+// TS-02 S2 接线完整性：所有真实上游发送都必须经过请求级发送预算闸门。
 // 先例：backend/internal/server/routes/prompt_audit_route_coverage_test.go、
 // backend/internal/repository/affiliate_repo_test.go 都直接读源码断言。
+//
+// 断言方式（2026-10-21 修订）：**不再按「某文件里钩子出现几次」计数**。
+// 计数把断言绑死在具体文件与次数上：上游 0.2.17 把 models 端点从
+// gemini_messages_compat_service.go 搬到 gemini_models_endpoints.go，计数立刻假红；
+// 而真正的缺口（新增一个直接 httpUpstream.Do 的发送点）反而数不出来。
+// 现在的口径是按行为立护栏：
+//  1. 反向扫描全包：每个直发上游调用的所在函数要么带预算闸门
+//     （sendUpstreamWithBudget / allowUpstreamSend），要么所在文件/函数在
+//     排除清单里显式登记为「非推理发送」；
+//  2. 正向登记：budgetHookWiringTable 里的文件必须真的用到闸门（漏接线检测），
+//     且不得出现未经闸门的直发调用。
+//
+// 行为级断言见 gemini_models_endpoints_budget_test.go（预算耗尽时 models 端点必须被拒）。
 const (
 	budgetHookSendMarker  = "sendUpstreamWithBudget("
 	budgetHookAllowMarker = "allowUpstreamSend("
@@ -21,38 +36,53 @@ const (
 	budgetHookDefinitionFile = "gateway_request_budget_upstream.go"
 )
 
+// budgetDirectSendMarkers 是绕过预算闸门的直发上游调用形态。
+var budgetDirectSendMarkers = []string{
+	"httpUpstream.Do(",
+	"httpUpstream.DoWithTLS(",
+}
+
+// budgetGateMarkers 是受请求发送预算约束的闸门。
+var budgetGateMarkers = []string{
+	budgetHookSendMarker,
+	budgetHookAllowMarker,
+}
+
 type budgetHookWiringCase struct {
 	file   string
 	marker string
-	count  int
 }
 
-// budgetHookWiringTable 是 S2 发送点白名单（行号基准 23a4e24b8）。
+// budgetHookWiringTable 是 S2 发送点登记表（只登记「允许接线」的文件，不绑定调用次数）。
 // OpenAI 家族走唯一汇聚点 doOpenAIUpstream 的 allowUpstreamSend，其余走
 // sendUpstreamWithBudget；profile 参数保持原样。
 //
 // TS-02 S3b：文本类 embedding/alpha-search 也经 doOpenAIUpstream 发送，
-// 因此自动被 allowUpstreamSend 计数，无需新增白名单条目；媒体
+// 因此自动被 allowUpstreamSend 计数，无需新增登记条目；媒体
 // openai_images.go / grok_media.go、codex 元数据 openai_codex_models_handler.go
 // 与 count_tokens 仍刻意不挂预算（见排除清单与下方隐式依赖注释）。
+//
+// 2026-10-21：新增 gemini_models_endpoints.go —— 上游 0.2.17 把 models 端点
+// 搬到独立文件后曾直接调用 httpUpstream.Do，绕过发送预算；现已改回预算闸门。
 var budgetHookWiringTable = []budgetHookWiringCase{
-	{"openai_plugin_transport.go", budgetHookAllowMarker, 1},
-	{"gateway_forward.go", budgetHookSendMarker, 4},
-	{"gateway_forward_as_chat_completions.go", budgetHookSendMarker, 1},
-	{"gateway_forward_as_responses.go", budgetHookSendMarker, 1},
-	{"gateway_anthropic_passthrough.go", budgetHookSendMarker, 1},
-	{"gateway_bedrock.go", budgetHookSendMarker, 1},
-	{"gateway_systemone.go", budgetHookSendMarker, 1},
-	{"gateway_service.go", budgetHookSendMarker, 1},
-	{"gemini_chat_completions_compat_service.go", budgetHookSendMarker, 1},
-	{"gemini_messages_compat_service.go", budgetHookSendMarker, 3},
-	{"antigravity_gateway_gemini.go", budgetHookSendMarker, 1},
-	{"antigravity_gateway_retry.go", budgetHookSendMarker, 3},
-	{"antigravity_gateway_upstream.go", budgetHookSendMarker, 1},
-	{"openai_ws_forwarder_ingress.go", budgetHookAllowMarker, 1},
-	{"openai_ws_forwarder_support.go", budgetHookAllowMarker, 1},
-	{"openai_ws_forwarder_v2.go", budgetHookAllowMarker, 1},
-	{"openai_ws_turn_budget_frame_conn.go", budgetHookAllowMarker, 1},
+	{"openai_plugin_transport.go", budgetHookAllowMarker},
+	{"gateway_forward.go", budgetHookSendMarker},
+	{"gateway_forward_as_chat_completions.go", budgetHookSendMarker},
+	{"gateway_forward_as_responses.go", budgetHookSendMarker},
+	{"gateway_anthropic_passthrough.go", budgetHookSendMarker},
+	{"gateway_bedrock.go", budgetHookSendMarker},
+	{"gateway_systemone.go", budgetHookSendMarker},
+	{"gateway_service.go", budgetHookSendMarker},
+	{"gemini_chat_completions_compat_service.go", budgetHookSendMarker},
+	{"gemini_messages_compat_service.go", budgetHookSendMarker},
+	{"gemini_models_endpoints.go", budgetHookSendMarker},
+	{"antigravity_gateway_gemini.go", budgetHookSendMarker},
+	{"antigravity_gateway_retry.go", budgetHookSendMarker},
+	{"antigravity_gateway_upstream.go", budgetHookSendMarker},
+	{"openai_ws_forwarder_ingress.go", budgetHookAllowMarker},
+	{"openai_ws_forwarder_support.go", budgetHookAllowMarker},
+	{"openai_ws_forwarder_v2.go", budgetHookAllowMarker},
+	{"openai_ws_turn_budget_frame_conn.go", budgetHookAllowMarker},
 }
 
 // budgetHookExcludedFiles 是明确不接线的探测/额度/目录/账号测试类文件；
@@ -60,7 +90,12 @@ var budgetHookWiringTable = []budgetHookWiringCase{
 //
 // TS-02 S3b：媒体、codex 元数据与 count_tokens 同样登记为不消耗预算。
 // openai_images.go / grok_media.go 属于 PRD-06 图片/视频副作用路径；
-// openai_codex_models_handler.go 只下发模型元数据，不执行推理。
+// openai_codex_models_service.go 只下发模型元数据，不执行推理。
+//
+// 2026-10-21 新增三项上游 0.2.17 / 本 fork 的非推理发送：
+//   - antigravity_credits_overages.go：查询 Antigravity credits 用量，不是推理发送；
+//   - gemini_cached_content.go：显式缓存的增删改（管理类调用），不产生模型推理；
+//   - video_task_worker.go：PRD-06 异步视频任务执行侧，计费走独立的任务链路。
 //
 // 只列本包（internal/service）内的文件：claude_usage_service.go 在
 // internal/repository/ 下，不属于本包扫描范围，故不在此列。
@@ -84,6 +119,19 @@ var budgetHookExcludedFiles = []string{
 	"grok_audio.go",
 	"gateway_count_tokens.go",
 	"openai_gateway_count_tokens.go",
+	"antigravity_credits_overages.go",
+	"gemini_cached_content.go",
+	"video_task_worker.go",
+}
+
+// budgetUngatedSendFunctionExemptions 登记同一文件内「按契约不消耗发送预算」的函数：
+// 这些函数所在的文件整体仍受预算约束，只有被点名的函数允许直发上游。
+//
+// openai_plugin_transport.go 的 doOpenAIAccountTestUpstream 是账号测试路径
+// （AccountTestService），与 account_test_service*.go 同一类：账号测试不是
+// 单逻辑请求的真实推理发送，不占用其 16 次发送预算。
+var budgetUngatedSendFunctionExemptions = map[string][]string{
+	"openai_plugin_transport.go": {"doOpenAIAccountTestUpstream"},
 }
 
 // 隐式依赖（TS-02 S3 已确认，刻意不接线）：count_tokens 路由
@@ -93,7 +141,7 @@ var budgetHookExcludedFiles = []string{
 // 因此 count_tokens 不占用单逻辑请求的 16 次发送预算。
 // 旁证：routes/prompt_audit_route_coverage_test.go:55 明确 count_tokens 是
 // "tokenization only; it does not execute a model request"。
-// 若将来给 count_tokens 路由挂预算，必须同时更新本注释与白名单口径。
+// 若将来给 count_tokens 路由挂预算，必须同时更新本注释与排除清单口径。
 func readBudgetHookSource(t *testing.T, name string) string {
 	t.Helper()
 	source, err := os.ReadFile(name)
@@ -101,16 +149,168 @@ func readBudgetHookSource(t *testing.T, name string) string {
 	return string(source)
 }
 
-// TestRequestAttemptBudgetHookWiringIsComplete 每个白名单文件必须恰好出现预期次数的
-// 发送钩子：漏接线（少）或重复接线（多）都会失败。
+// budgetExcludedFileSet 返回「明确不消耗发送预算」的文件集合（含账号测试 glob）。
+func budgetExcludedFileSet(t *testing.T) map[string]struct{} {
+	t.Helper()
+	excluded := make(map[string]struct{}, len(budgetHookExcludedFiles)+4)
+	for _, f := range budgetHookExcludedFiles {
+		excluded[f] = struct{}{}
+	}
+	accountTestFiles, err := filepath.Glob("account_test_service*.go")
+	require.NoError(t, err)
+	for _, f := range accountTestFiles {
+		excluded[f] = struct{}{}
+	}
+	return excluded
+}
+
+// budgetFuncName 从函数声明行取出函数名（方法名同样适用）。
+func budgetFuncName(decl string) string {
+	rest := decl
+	if strings.HasPrefix(rest, "func (") {
+		end := strings.Index(rest, ") ")
+		if end < 0 {
+			return decl
+		}
+		rest = rest[end+2:]
+	}
+	rest = strings.TrimPrefix(rest, "func ")
+	if idx := strings.Index(rest, "("); idx >= 0 {
+		rest = rest[:idx]
+	}
+	return strings.TrimSpace(rest)
+}
+
+// ungatedUpstreamSendSites 返回一个文件内「有直发上游调用、但所在函数没有预算闸门」
+// 的函数名。函数按顶层声明切分（列 0 的 "func " 起始，列 0 的 "}" 结束）。
+func ungatedUpstreamSendSites(source string) []string {
+	lines := strings.Split(source, "\n")
+	var out []string
+	var block []string
+	var name string
+	flush := func() {
+		if len(block) == 0 {
+			return
+		}
+		hasDirect := false
+		for _, l := range block {
+			for _, m := range budgetDirectSendMarkers {
+				if strings.Contains(l, m) {
+					hasDirect = true
+					break
+				}
+			}
+			if hasDirect {
+				break
+			}
+		}
+		hasGate := false
+		if hasDirect {
+			for _, l := range block {
+				for _, m := range budgetGateMarkers {
+					if strings.Contains(l, m) {
+						hasGate = true
+						break
+					}
+				}
+				if hasGate {
+					break
+				}
+			}
+		}
+		if hasDirect && !hasGate {
+			out = append(out, name)
+		}
+		block = nil
+		name = ""
+	}
+	for _, l := range lines {
+		if strings.HasPrefix(l, "func ") {
+			flush()
+			block = []string{l}
+			name = budgetFuncName(l)
+			continue
+		}
+		if len(block) == 0 {
+			continue
+		}
+		if l == "}" {
+			flush()
+			continue
+		}
+		block = append(block, l)
+	}
+	flush()
+	return out
+}
+
+// budgetUngatedSendViolations 返回文件内未受预算约束的直发发送点（已扣除显式豁免）。
+func budgetUngatedSendViolations(file string, source string) []string {
+	exempt := budgetUngatedSendFunctionExemptions[file]
+	out := make([]string, 0)
+	for _, fn := range ungatedUpstreamSendSites(source) {
+		if slices.Contains(exempt, fn) {
+			continue
+		}
+		out = append(out, fn)
+	}
+	return out
+}
+
+// TestRequestAttemptBudgetHookWiringIsComplete 登记表里的每个文件必须真的用到预算闸门
+// （漏接线检测），且文件内不得出现未经闸门的直发上游调用。
+//
+// 只断言「用到闸门」而不是「用到几次」：接线次数是实现细节（上游把某个发送点
+// 搬到新文件就会改变次数），护栏要守住的是「这条发送受预算约束」这个行为。
 func TestRequestAttemptBudgetHookWiringIsComplete(t *testing.T) {
 	for _, tc := range budgetHookWiringTable {
 		t.Run(tc.file, func(t *testing.T) {
 			source := readBudgetHookSource(t, tc.file)
-			require.Equalf(t, tc.count, strings.Count(source, tc.marker),
-				"%s 的 %s 出现次数必须恰好为 %d", tc.file, tc.marker, tc.count)
+			require.Containsf(t, source, tc.marker,
+				"%s 必须接入发送预算闸门 %s（漏接线）", tc.file, tc.marker)
+
+			sites := budgetUngatedSendViolations(tc.file, source)
+			require.Emptyf(t, sites,
+				"%s 内部存在绕过发送预算的直发上游调用：%v", tc.file, sites)
 		})
 	}
+}
+
+// TestRequestAttemptBudgetEveryUpstreamSendIsGated 反向扫描整个 service 包：
+// 每个直发上游调用都必须受预算闸门约束，否则就是「新增一个绕过预算的发送点」。
+//
+// 与 TestRequestAttemptBudgetHookHasNoUnregisteredCallSites 的分工：
+//   - 本用例抓「漏接线」（真实发送点没走闸门）；
+//   - 那个用例抓「误接线」（闸门接到了未登记的文件）。
+//
+// 显式豁免只有两处：budgetHookExcludedFiles（整文件为非推理发送）与
+// budgetUngatedSendFunctionExemptions（同文件内的个别非推理函数）。
+func TestRequestAttemptBudgetEveryUpstreamSendIsGated(t *testing.T) {
+	excluded := budgetExcludedFileSet(t)
+
+	entries, err := os.ReadDir(".")
+	require.NoError(t, err)
+
+	violations := make([]string, 0)
+	for _, entry := range entries {
+		name := entry.Name()
+		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
+			continue
+		}
+		if name == budgetHookDefinitionFile {
+			continue
+		}
+		source := readBudgetHookSource(t, name)
+		if _, ok := excluded[name]; ok {
+			continue
+		}
+		for _, fn := range budgetUngatedSendViolations(name, source) {
+			violations = append(violations, fmt.Sprintf("%s:%s", name, fn))
+		}
+	}
+	require.Emptyf(t, violations,
+		"以下上游发送点绕过了请求发送预算：%v（必须改用 sendUpstreamWithBudget/allowUpstreamSend，"+
+			"或在排除清单里显式登记为非推理发送）", violations)
 }
 
 // TestRequestAttemptBudgetHookIsNotWiredIntoExcludedFiles 排除清单里的文件不得出现
@@ -135,12 +335,7 @@ func TestRequestAttemptBudgetHookIsNotWiredIntoExcludedFiles(t *testing.T) {
 }
 
 // TestRequestAttemptBudgetHookHasNoUnregisteredCallSites 反向扫描整个 service 包：
-// 任何出现发送钩子的非测试文件都必须在白名单表里，防止把预算误接到未登记的文件。
-//
-// 局限（TS-02 S3 已确认）：本用例只能发现「误接线」，**发现不了真实发送点被整段
-// 漏接线**——某个发送点若从未调用这两个钩子，源码里就没有对应 marker，扫描自然
-// 也不会报。防漏接线依赖上面的正向计数表（budgetHookWiringTable）与人工核对，
-// 不得声称本用例能防漏接线。
+// 任何出现发送钩子的非测试文件都必须在登记表里，防止把预算误接到未登记的文件。
 func TestRequestAttemptBudgetHookHasNoUnregisteredCallSites(t *testing.T) {
 	registered := make(map[string]struct{}, len(budgetHookWiringTable))
 	for _, tc := range budgetHookWiringTable {

@@ -111,7 +111,7 @@ type VideoTaskRepository interface {
 // （videoTaskNoFromKey），截断后 worker 与客户端拿到的就不是同一把锁，
 // 两边都会抢到占位 → 同一任务被扣两次。
 //
-// 任务行的 UpstreamTaskID 存的是**未截断**的原值（249 迁移里该列为 TEXT，
+// 任务行的 UpstreamTaskID 存的是**未截断**的原值（257 迁移里该列为 TEXT，
 // 刻意不设短定长上限），因此以它为准；仅当它为空（历史/异常行）时才回落到 TaskNo。
 func (t *VideoTask) BillingKey() string {
 	if t == nil {

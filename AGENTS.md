@@ -73,12 +73,13 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 | 服务 | `backend/internal/service/` | 业务逻辑；`wire.go` 是依赖装配 |
 | 仓储 | `backend/internal/repository/` | 数据访问；`wire.go` 装配 |
 | 模型 | `backend/ent/schema/` | Ent schema，改后必须 `go generate ./ent` |
-| 迁移 | `backend/migrations/` | 顺序编号 SQL，**当前最新 250**，新增从 **251** 起 |
+| 迁移 | `backend/migrations/` | 顺序编号 SQL，**当前最新 258**，新增从 **259** 起（0.2.17 同步时本 fork 的 243–250 因与上游 243–245 撞号，一次性重编号到 251–258，映射表见 `project-docs/上游同步说明.md`） |
 | 前端 | `frontend/src/` | Vue 3 + Pinia + vue-i18n + Tailwind |
 
 ## 特殊边界
 
 - **迁移编号**：新增必须接在上游最新编号之后，**不改写已存在的迁移**。
+  一次性例外（2026-10-21 上游 0.2.17 同步）：本 fork 的 243–250 因与上游 243–245 撞号，重命名为 251–258，**只改文件名与注释里的编号引用，DDL 逐字未改**；重编号前这些迁移未在任何环境执行过。246–250 刻意留空给上游继续发号。
 - **i18n**：前端 `build` 会先跑 `check:i18n`（locale key 完整性），新增文案必须同步 `zh` 与 `en`。
 - **ent / wire 生成物不手改**：改 schema 或 ProviderSet 后重新生成。
 - **API Key 鉴权缓存**：分组快照若新增字段（如 `domestic_provider`），必须同步缓存结构并使旧缓存失效。

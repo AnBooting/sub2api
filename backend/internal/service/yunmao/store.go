@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// OrderRecord 是本站侧的最小订单映射（对应迁移 248 的 yunmao_orders）。
+// OrderRecord 是本站侧的最小订单映射（对应迁移 256 的 yunmao_orders）。
 //
 // 它**不是**第二套订单/支付账本：只保留找回订单、展示卡密、恢复查询与追踪异常
 // 所需的最小字段（PRD-03 §2.2 / BE-02）。

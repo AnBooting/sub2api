@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TS-03 / PRD-03：248 只新增白标充值中心的两张表（订单映射 + 商品快照），
+// TS-03 / PRD-03：256 只新增白标充值中心的两张表（订单映射 + 商品快照），
 // 不改写任何历史列与数据。
 func TestYunmaoOrdersMigration(t *testing.T) {
-	content, err := FS.ReadFile("248_yunmao_orders.sql")
+	content, err := FS.ReadFile("256_yunmao_orders.sql")
 	require.NoError(t, err)
 
 	sql := strings.Join(strings.Fields(string(content)), " ")
@@ -49,7 +49,7 @@ func TestYunmaoOrdersMigration(t *testing.T) {
 
 // 卡密列必须是密文存储语义：迁移里要有明确的 COMMENT 说明，防止后来者当明文用。
 func TestYunmaoOrdersCardColumnIsDocumentedAsEncrypted(t *testing.T) {
-	content, err := FS.ReadFile("248_yunmao_orders.sql")
+	content, err := FS.ReadFile("256_yunmao_orders.sql")
 	require.NoError(t, err)
 	sql := strings.Join(strings.Fields(string(content)), " ")
 	require.Contains(t, sql, "COMMENT ON COLUMN yunmao_orders.card_secret IS")

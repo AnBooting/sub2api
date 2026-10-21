@@ -224,7 +224,7 @@ handler (e.g. GatewayHandler.Messages)
 | `backend/internal/handler/admin/pricing_controls_handler.go` | 50 | `GetPricingControls` / `UpdatePricingControls` / `RefreshPricing` |
 | `backend/internal/handler/pricing_currency.go`、`handler/admin/pricing_currency.go`、`repository/pricing_currency.go` | 各 8 | 币种归一化：只认 `CNY`，其余一律 `USD` |
 | `backend/internal/repository/pricing_snapshot.go` | 8 | `nullablePricingSnapshot` |
-| `backend/migrations/243_native_currency_pricing.sql` | 4 | 见 §5.1.5 |
+| `backend/migrations/251_native_currency_pricing.sql` | 4 | 见 §5.1.5 |
 | `frontend/src/components/admin/PricingSettingsPanel.vue` | 90 | 开关面板 |
 | `frontend/src/utils/billingCredits.ts` | 12 | `formatBillingAmount` 在额度模式下渲染「N 额度」而非 `$N` |
 
@@ -300,7 +300,7 @@ type NativeCNYCard struct { NativeRates; Tiers []NativeTier; Schedule *NativeSch
 
 #### 5.1.5 落库：`pricing_snapshot` 与 `currency` 列
 
-迁移 `backend/migrations/243_native_currency_pricing.sql`：
+迁移 `backend/migrations/251_native_currency_pricing.sql`：
 
 ```sql
 ALTER TABLE channel_model_pricing ADD COLUMN IF NOT EXISTS currency varchar(3) NOT NULL DEFAULT 'USD';
@@ -323,7 +323,7 @@ ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS pricing_snapshot jsonb;
 数据流（**币种只决定「用哪套原始单价」，不改变扣费单位**——扣费永远是 credits 数字）：
 
 ```
-channel_model_pricing.currency  (迁移 243)
+channel_model_pricing.currency  (迁移 251)
   └─ repository: storedPricingCurrency()  (repository/pricing_currency.go:3)   # 只保留 CNY，其余写 USD
   └─ service.ChannelModelPricing.Currency  (service/channel.go:91)
         └─ ModelPricingResolver.applyTokenOverrides  (model_pricing_resolver.go:244-248)
