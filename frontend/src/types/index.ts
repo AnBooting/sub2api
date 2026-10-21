@@ -2610,3 +2610,15 @@ export type {
   PlatformQuotaWindow,
   PlatformQuotasResponse,
 } from '@/api/admin/users'
+
+// ── 管理端取价与价格状态（admin 视图专用）────────────────────────────────
+
+/**
+ * 价卡定价来源类型（单一事实源在 API 客户端层，这里只做转出，
+ * 便于 `@/types` 侧统一引用）。
+ * - manual：运营者手工填的价
+ * - catalog：官方目录价（LiteLLM 目录）
+ * - fallback：**该模型自身的官方内置价**（上游 fallbackPrices，如 gemini-4-argon）
+ * - 其它值：官方价卡的来源标识（例：native_cny 价卡来源）
+ */
+export type { ModelPricingSource } from '@/api/admin/channels'

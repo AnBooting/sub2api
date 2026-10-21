@@ -261,10 +261,19 @@
             </div>
           </template>
 
-          <template #cell-rate_multiplier="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300"
-              >{{ value }}x</span
-            >
+          <template #cell-rate_multiplier="{ value, row }">
+            <div class="space-y-1">
+              <span class="text-sm text-gray-700 dark:text-gray-300"
+                >{{ value }}x</span
+              >
+              <GroupPricingStatusBadge :rules="row.model_pricing" />
+              <GroupPeakWindowStatus
+                :enabled="!!row.peak_rate_enabled"
+                :start="row.peak_start"
+                :end="row.peak_end"
+                :multiplier="row.peak_rate_multiplier"
+              />
+            </div>
           </template>
 
           <template #cell-is_exclusive="{ value }">
@@ -788,6 +797,12 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.hint") }}
+              </p>
+              <p
+                v-if="createForm.platform === 'openai' || createForm.platform === 'composite'"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t("admin.groups.modelAllowlist.gpt55RetirementHint") }}
               </p>
             </div>
             <Toggle v-model="createModelAllowlistState.enabled" />
@@ -1605,6 +1620,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t("admin.groups.modelPricing.priceSourceHint") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -2553,6 +2569,12 @@
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.hint") }}
               </p>
+              <p
+                v-if="editForm.platform === 'openai' || editForm.platform === 'composite'"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t("admin.groups.modelAllowlist.gpt55RetirementHint") }}
+              </p>
             </div>
             <Toggle v-model="editModelAllowlistState.enabled" />
           </div>
@@ -3071,6 +3093,13 @@
               />
               <span>{{ t("admin.groups.peakRate.enable") }}</span>
             </label>
+            <GroupPeakWindowStatus
+              show-when-disabled
+              :enabled="editForm.peak_rate_enabled"
+              :start="editForm.peak_start"
+              :end="editForm.peak_end"
+              :multiplier="editForm.peak_rate_multiplier"
+            />
           </div>
           <div
             v-if="editForm.peak_rate_enabled"
@@ -3379,6 +3408,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t("admin.groups.modelPricing.priceSourceHint") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -4553,6 +4583,8 @@ import Icon from "@/components/icons/Icon.vue";
 import GroupI18nField from "@/components/admin/group/GroupI18nField.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import GroupPricingStatusBadge from "@/components/admin/group/GroupPricingStatusBadge.vue";
+import GroupPeakWindowStatus from "@/components/admin/group/GroupPeakWindowStatus.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
