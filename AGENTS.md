@@ -86,6 +86,20 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 - **定价口径**：以项目 ADR 与 PRD 的业务规则为准；界面说明、后端计费、测试三者必须一致。
 - **`.gitignore` 陷阱**：`docs/*` 与 `AGENTS.md` 被忽略；项目文档放 `project-docs/`。
 
+## CI（GitHub Actions，2026-10-21 起真正生效）
+
+本 fork 之前在 GitHub 上**从未跑过 CI**（仓库里 0 个 check），自 0.2.17 同步起工作流正常触发，共四个作业：
+- `test` = `make test-unit` + `make test-integration`；`frontend` = 前端 typecheck + 测试 + 构建
+- `golangci-lint`（v2.14.0；本机同版本在 `F:\tools\golangci-lint\golangci-lint-2.14.0-windows-amd64\golangci-lint.exe`，在 `backend/` 目录下跑）
+- `frontend-security` = `pnpm audit` + `.github/audit-exceptions.yml` 例外校验
+- `backend-security` = `govulncheck`
+
+**已知会红（既有缺陷，非某次改动引入）**：`backend-security` 报 `GO-2026-6809`（Go 标准库 crypto/x509，go1.27.2 受影响，1.27.3 修复）。仓库锁定 Go 1.27.2（`backend/go.mod` 的 go 指令 + 本机 `F:\tools\go1.27.2`），修它要同时升级 go 指令与本机工具链，属独立决策，基线 `origin/develop` 同样红。
+
+**transitive 依赖的安全升级**：走 `frontend/package.json` 的 `pnpm.overrides`（仓库既有做法：`dompurify@<3.4.14`、`form-data@<4.0.6`、`postcss@<8.5.18`），改完同步 `frontend/pnpm-lock.yaml`，并用 `corepack pnpm@9 install --lockfile-only --frozen-lockfile` 验证锁文件与 package.json 一致。
+
+**测试文件的 build tag**：仓库里大部分测试**没有** build tag（unit 与 integration 都会编译）。用了 unit-tagged 文件里的辅助函数（`newTestBillingService`、`fakeSchedulerCache` 等）的测试文件必须标 `//go:build unit`，否则 integration 构建整包编译失败，CI 的 `test` 与 `golangci-lint` 一起红。
+
 ## 验证标准
 
 - 后端：`go build` 退出码 0 + `go test -tags=unit ./...` 通过
