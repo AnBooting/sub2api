@@ -1629,7 +1629,6 @@ func (s *GeminiMessagesCompatService) ForwardNative(ctx context.Context, c *gin.
 	// 客户端在收到结束分片前断开时只计已送达的图片；上游中断的部分结果同样只计已观测到的图片。
 	if (clientDisconnect && !streamFinished) || streamErr != nil {
 		imageCount = observedGeminiImageOutputs(c)
-		imageCount = observedGeminiImageOutputs(c)
 	}
 
 	return &ForwardResult{

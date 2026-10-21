@@ -118,7 +118,6 @@ func claudeThinkingPreferenceFromResponsesRequest(request *apicompat.ResponsesRe
 	return ClaudeThinkingPreferenceFromBody(claudeBody)
 }
 
-
 // GeminiThinkingPreferenceFromBody 从 Gemini 原生请求体推导 thinking 偏好。
 //
 // Gemini 原生出站路径（antigravity_gateway_gemini.go:91 的 ForwardGemini）只按档位挑

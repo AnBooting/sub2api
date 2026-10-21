@@ -40,8 +40,10 @@ func TestPricingControlSyncIntervalHTTP(t *testing.T) {
 	require.Equal(t, http.StatusOK, status.Code)
 	var before map[string]any
 	require.NoError(t, json.Unmarshal(status.Body.Bytes(), &before))
-	require.EqualValues(t, 0, before["data"].(map[string]any)["update_interval_hours"], "no override stored yet")
-	require.EqualValues(t, 24, before["data"].(map[string]any)["effective_interval_hours"], "config default is in effect")
+	data, ok := before["data"].(map[string]any)
+	require.True(t, ok, "pricing settings response must carry a data object")
+	require.EqualValues(t, 0, data["update_interval_hours"], "no override stored yet")
+	require.EqualValues(t, 24, data["effective_interval_hours"], "config default is in effect")
 
 	// A valid override is persisted and becomes the effective period.
 	require.Equal(t, http.StatusOK, put(`{"remote_enabled":true,"native_cny_enabled":true,"update_interval_hours":6}`).Code)

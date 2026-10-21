@@ -164,12 +164,14 @@ func TestProfitControl_AccountRateSemantics(t *testing.T) {
 }
 
 // 用量记录定价时刻：优先请求级 PricingAt，未装配回退记录时刻。
-func TestOpenAIUsagePricingAt(t *testing.T) {
+// 计价链路实际走 requestPricingAt：显式 PricingAt 优先，其次请求上下文里冻结的
+// 计价时刻（锁价快照），最后才回退记录时刻。
+func TestUsageRecordPricingAt(t *testing.T) {
 	fixed := time.Now().Add(-2 * time.Hour)
-	require.Equal(t, fixed, openAIUsagePricingAt(&OpenAIRecordUsageInput{PricingAt: fixed}))
-	fallback := openAIUsagePricingAt(&OpenAIRecordUsageInput{})
+	require.Equal(t, fixed, requestPricingAt(context.Background(), fixed))
+	fallback := requestPricingAt(context.Background(), time.Time{})
 	require.WithinDuration(t, timezone.Now(), fallback, 5*time.Second)
-	require.WithinDuration(t, timezone.Now(), openAIUsagePricingAt(nil), 5*time.Second)
+	require.WithinDuration(t, timezone.Now(), requestPricingAt(nil, time.Time{}), 5*time.Second)
 }
 
 func TestOpenAIProfitControlStickyBindingOccursOnlyAfterTerminalAdmission(t *testing.T) {

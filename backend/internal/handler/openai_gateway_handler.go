@@ -3817,7 +3817,6 @@ func (h *OpenAIGatewayHandler) ResponsesWebSocket(c *gin.Context) {
 				)
 				if accountReleaseFunc != nil {
 					accountReleaseFunc()
-					accountReleaseFunc = nil
 				}
 				currentAccountRelease = nil
 				failedAccountIDs[account.ID] = struct{}{}
