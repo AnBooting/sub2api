@@ -3,7 +3,6 @@
 package service
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -22,9 +21,11 @@ import (
 // gemini_messages_compat_service.go 搬到 gemini_models_endpoints.go，计数立刻假红；
 // 而真正的缺口（新增一个直接 httpUpstream.Do 的发送点）反而数不出来。
 // 现在的口径是按行为立护栏：
-//  1. 反向扫描全包：每个直发上游调用的所在函数要么带预算闸门
-//     （sendUpstreamWithBudget / allowUpstreamSend），要么所在文件/函数在
-//     排除清单里显式登记为「非推理发送」；
+//  1. 反向扫描全包（AST + 控制流判定，判定引擎见
+//     gateway_request_budget_wiring_scan_test.go）：一次直发上游调用只有在被一条
+//     「失败即中止」的 allowUpstreamSend 闸门检查**支配**时才算受预算约束；
+//     同函数内「一处经闸门 + 一处直发」的混用、闸门之外的直发，都会报出
+//     file:function:line。注释不参与判定（只看真实调用）；
 //  2. 正向登记：budgetHookWiringTable 里的文件必须真的用到闸门（漏接线检测），
 //     且不得出现未经闸门的直发调用。
 //
@@ -35,18 +36,6 @@ const (
 	// budgetHookDefinitionFile 定义这两个钩子的文件，自身当然包含标识符，不参与反向扫描。
 	budgetHookDefinitionFile = "gateway_request_budget_upstream.go"
 )
-
-// budgetDirectSendMarkers 是绕过预算闸门的直发上游调用形态。
-var budgetDirectSendMarkers = []string{
-	"httpUpstream.Do(",
-	"httpUpstream.DoWithTLS(",
-}
-
-// budgetGateMarkers 是受请求发送预算约束的闸门。
-var budgetGateMarkers = []string{
-	budgetHookSendMarker,
-	budgetHookAllowMarker,
-}
 
 type budgetHookWiringCase struct {
 	file   string
@@ -164,95 +153,16 @@ func budgetExcludedFileSet(t *testing.T) map[string]struct{} {
 	return excluded
 }
 
-// budgetFuncName 从函数声明行取出函数名（方法名同样适用）。
-func budgetFuncName(decl string) string {
-	rest := decl
-	if strings.HasPrefix(rest, "func (") {
-		end := strings.Index(rest, ") ")
-		if end < 0 {
-			return decl
-		}
-		rest = rest[end+2:]
-	}
-	rest = strings.TrimPrefix(rest, "func ")
-	if idx := strings.Index(rest, "("); idx >= 0 {
-		rest = rest[:idx]
-	}
-	return strings.TrimSpace(rest)
-}
-
-// ungatedUpstreamSendSites 返回一个文件内「有直发上游调用、但所在函数没有预算闸门」
-// 的函数名。函数按顶层声明切分（列 0 的 "func " 起始，列 0 的 "}" 结束）。
-func ungatedUpstreamSendSites(source string) []string {
-	lines := strings.Split(source, "\n")
-	var out []string
-	var block []string
-	var name string
-	flush := func() {
-		if len(block) == 0 {
-			return
-		}
-		hasDirect := false
-		for _, l := range block {
-			for _, m := range budgetDirectSendMarkers {
-				if strings.Contains(l, m) {
-					hasDirect = true
-					break
-				}
-			}
-			if hasDirect {
-				break
-			}
-		}
-		hasGate := false
-		if hasDirect {
-			for _, l := range block {
-				for _, m := range budgetGateMarkers {
-					if strings.Contains(l, m) {
-						hasGate = true
-						break
-					}
-				}
-				if hasGate {
-					break
-				}
-			}
-		}
-		if hasDirect && !hasGate {
-			out = append(out, name)
-		}
-		block = nil
-		name = ""
-	}
-	for _, l := range lines {
-		if strings.HasPrefix(l, "func ") {
-			flush()
-			block = []string{l}
-			name = budgetFuncName(l)
-			continue
-		}
-		if len(block) == 0 {
-			continue
-		}
-		if l == "}" {
-			flush()
-			continue
-		}
-		block = append(block, l)
-	}
-	flush()
-	return out
-}
-
-// budgetUngatedSendViolations 返回文件内未受预算约束的直发发送点（已扣除显式豁免）。
-func budgetUngatedSendViolations(file string, source string) []string {
+// budgetRemainingSendViolations 返回文件内未受预算约束的直发发送点
+// （已扣除显式登记的函数级豁免），每条带函数名与行号。
+func budgetRemainingSendViolations(file string, source string) []budgetSendViolation {
 	exempt := budgetUngatedSendFunctionExemptions[file]
-	out := make([]string, 0)
-	for _, fn := range ungatedUpstreamSendSites(source) {
-		if slices.Contains(exempt, fn) {
+	out := make([]budgetSendViolation, 0)
+	for _, v := range budgetUngatedSendViolations(file, source) {
+		if slices.Contains(exempt, v.Func) {
 			continue
 		}
-		out = append(out, fn)
+		out = append(out, v)
 	}
 	return out
 }
@@ -269,7 +179,7 @@ func TestRequestAttemptBudgetHookWiringIsComplete(t *testing.T) {
 			require.Containsf(t, source, tc.marker,
 				"%s 必须接入发送预算闸门 %s（漏接线）", tc.file, tc.marker)
 
-			sites := budgetUngatedSendViolations(tc.file, source)
+			sites := budgetRemainingSendViolations(tc.file, source)
 			require.Emptyf(t, sites,
 				"%s 内部存在绕过发送预算的直发上游调用：%v", tc.file, sites)
 		})
@@ -304,8 +214,8 @@ func TestRequestAttemptBudgetEveryUpstreamSendIsGated(t *testing.T) {
 		if _, ok := excluded[name]; ok {
 			continue
 		}
-		for _, fn := range budgetUngatedSendViolations(name, source) {
-			violations = append(violations, fmt.Sprintf("%s:%s", name, fn))
+		for _, v := range budgetRemainingSendViolations(name, source) {
+			violations = append(violations, v.String())
 		}
 	}
 	require.Emptyf(t, violations,
@@ -331,6 +241,28 @@ func TestRequestAttemptBudgetHookIsNotWiredIntoExcludedFiles(t *testing.T) {
 		source := readBudgetHookSource(t, file)
 		require.NotContainsf(t, source, budgetHookSendMarker,
 			"%s 属于排除清单（探测/额度/目录/账号测试），不得接入发送预算", file)
+		// 文档口径是「排除文件不得出现任何 hook」：allowUpstreamSend 同样是 hook，
+		// 出现即意味着该文件被纳入了发送预算。
+		require.NotContainsf(t, source, budgetHookAllowMarker,
+			"%s 属于排除清单（探测/额度/目录/账号测试），不得接入发送预算", file)
+	}
+}
+
+// TestRequestAttemptBudgetExemptedFunctionsHaveNoHook 函数级豁免登记的是「这一处
+// 确实不受预算约束的直发函数」：豁免函数里不得出现任何发送 hook
+// （sendUpstreamWithBudget / allowUpstreamSend），否则它就不是纯直发函数，
+// 豁免登记会掩盖真实的漏接线。
+func TestRequestAttemptBudgetExemptedFunctionsHaveNoHook(t *testing.T) {
+	require.NotEmpty(t, budgetUngatedSendFunctionExemptions, "函数级豁免清单不应为空")
+	for file, funcs := range budgetUngatedSendFunctionExemptions {
+		source := readBudgetHookSource(t, file)
+		for _, fn := range funcs {
+			body := budgetFuncBodySource(t, file, source, fn)
+			require.NotContainsf(t, body, budgetHookSendMarker,
+				"%s 的豁免函数 %s 不得接入发送预算闸门", file, fn)
+			require.NotContainsf(t, body, budgetHookAllowMarker,
+				"%s 的豁免函数 %s 不得接入发送预算闸门", file, fn)
+		}
 	}
 }
 
