@@ -635,7 +635,8 @@ export default {
     badgePeak: 'Peak',
     badgeValley: 'Valley',
     badgeNone: 'Not enabled',
-    tooltip: 'Determined automatically from the official window ({timezone}); administrators cannot override it.'
+    tooltip: 'Determined automatically from the official window ({timezone}); administrators cannot override it.',
+    nextSwitch: 'Next switch at {time}'
   },
 
 }

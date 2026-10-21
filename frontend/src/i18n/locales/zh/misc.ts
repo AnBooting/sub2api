@@ -659,7 +659,8 @@ export default {
     badgePeak: '峰',
     badgeValley: '谷',
     badgeNone: '未启用',
-    tooltip: '按官方时段自动判定（{timezone}），管理员改不了判定'
+    tooltip: '按官方时段自动判定（{timezone}），管理员改不了判定',
+    nextSwitch: '下一档切换时间：{time}'
   },
 
 }

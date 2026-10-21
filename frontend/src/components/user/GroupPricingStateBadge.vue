@@ -13,12 +13,22 @@
       {{ labelText }}
       <span v-if="multiplierText" class="ml-0.5 font-mono">{{ multiplierText }}</span>
     </span>
+    <!-- 下一档切换时间：后端给的 RFC3339；字段缺失 / null / 非法 → 不显示 -->
+    <span
+      v-if="nextSwitchText"
+      class="text-[10px] text-gray-500 dark:text-gray-400"
+      :title="nextSwitchLabel"
+      data-testid="group-pricing-state-next-switch"
+    >
+      {{ nextSwitchText }}
+    </span>
   </span>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { formatDateTime } from '@/utils/format'
 import { readDeepSeekPricingState, type DeepSeekPricingState } from './deepseekPricingState'
 
 /** 判定时区兜底：官方峰谷时段按 Asia/Shanghai 判定。 */
@@ -63,7 +73,43 @@ const badgeClass = computed(() => {
   }
 })
 
-const tooltip = computed(() =>
-  t('groupPricingState.tooltip', { timezone: state.value?.timezone || DEFAULT_TIMEZONE }),
+/**
+ * 下一档切换时间。
+ *
+ * 只格式化后端给的时间（RFC3339），**不自己推算**；state=none（不适用）不显示。
+ * 时区用后端下发的 timezone；时区非法时退回浏览器本地时区（不抛错）。
+ */
+const nextSwitchText = computed(() => {
+  const current = state.value
+  if (!current || current.state === 'none') return ''
+  const raw = current.nextSwitchAt
+  if (!raw) return ''
+  const options: Intl.DateTimeFormatOptions = {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }
+  if (current.timezone) {
+    try {
+      // 先验一次时区是否合法，非法就退回本地时区而不是抛 RangeError。
+      new Intl.DateTimeFormat('en-US', { timeZone: current.timezone })
+      options.timeZone = current.timezone
+    } catch {
+      /* 无效时区：保持浏览器本地时区 */
+    }
+  }
+  return formatDateTime(raw, options)
+})
+
+const nextSwitchLabel = computed(() =>
+  nextSwitchText.value ? t('groupPricingState.nextSwitch', { time: nextSwitchText.value }) : '',
 )
+
+const tooltip = computed(() => {
+  const base = t('groupPricingState.tooltip', { timezone: state.value?.timezone || DEFAULT_TIMEZONE })
+  return nextSwitchLabel.value ? `${base}\n${nextSwitchLabel.value}` : base
+})
 </script>
