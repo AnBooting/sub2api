@@ -4,13 +4,10 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"sync"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/gin-gonic/gin"
 )
-
-var corsWarningOnce sync.Once
 
 // CORS 跨域中间件
 func CORS(cfg config.CORSConfig) gin.HandlerFunc {
@@ -28,17 +25,17 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 	}
 	allowCredentials := cfg.AllowCredentials
 
-	corsWarningOnce.Do(func() {
-		if len(allowedOrigins) == 0 {
-			log.Println("Warning: CORS allowed_origins not configured; cross-origin requests will be rejected.")
-		}
-		if wildcardWithSpecific {
-			log.Println("Warning: CORS allowed_origins includes '*'; wildcard will take precedence over explicit origins.")
-		}
-		if allowAll && allowCredentials {
-			log.Println("Warning: CORS allowed_origins set to '*', disabling allow_credentials.")
-		}
-	})
+	// 诊断按本次配置判定：中间件每个引擎/测试都会重新构造，
+	// 用包级 sync.Once 会让后续配置的告警被静默（含安全相关告警）。
+	if len(allowedOrigins) == 0 {
+		log.Println("Warning: CORS allowed_origins not configured; cross-origin requests will be rejected.")
+	}
+	if wildcardWithSpecific {
+		log.Println("Warning: CORS allowed_origins includes '*'; wildcard will take precedence over explicit origins.")
+	}
+	if allowAll && allowCredentials {
+		log.Println("Warning: CORS allowed_origins set to '*', disabling allow_credentials.")
+	}
 	if allowAll && allowCredentials {
 		allowCredentials = false
 	}
@@ -48,7 +45,8 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 		if origin == "" || origin == "*" {
 			continue
 		}
-		allowedSet[origin] = struct{}{}
+		// RFC 6454：浏览器发送小写 scheme/host，配置侧同样归一后比较。
+		allowedSet[strings.ToLower(origin)] = struct{}{}
 	}
 	allowHeaders := []string{
 		"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization",
@@ -68,7 +66,7 @@ func CORS(cfg config.CORSConfig) gin.HandlerFunc {
 		origin := strings.TrimSpace(c.GetHeader("Origin"))
 		originAllowed := allowAll
 		if origin != "" && !allowAll {
-			_, originAllowed = allowedSet[origin]
+			_, originAllowed = allowedSet[strings.ToLower(origin)]
 		}
 
 		if originAllowed {

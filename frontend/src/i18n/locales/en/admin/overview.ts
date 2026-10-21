@@ -447,7 +447,7 @@ export default {
         paymentType: 'Payment Method',
         orderStatus: 'Order Status',
         transferAmount: 'Transfer Amount',
-        balanceAfter: 'Balance After',
+        balanceAfter: 'Balance After (Credit)',
         availableQuotaAfter: 'Available After',
         frozenQuotaAfter: 'Frozen After',
         historyQuotaAfter: 'Historical Rebate After',
@@ -577,7 +577,7 @@ export default {
         passwordPlaceholder: 'Enter password (leave empty to keep unchanged)',
         roleLabel: 'Role',
         selectRole: 'Select role',
-        balanceLabel: 'Balance',
+        balanceLabel: 'Balance (Credit)',
         concurrencyLabel: 'Concurrency',
         statusLabel: 'Status',
         selectStatus: 'Select status',
@@ -596,8 +596,8 @@ export default {
         role: 'Role',
         groups: 'Groups',
         subscriptions: 'Subscriptions',
-        balance: 'Balance',
-        balancePlatformQuota: 'Balance (Platform Quota)',
+        balance: 'Balance (Credit)',
+        balancePlatformQuota: 'Balance (Platform Quota, Credit)',
         usage: 'Usage',
         usageAnthropic: 'Usage (Claude)',
         usageOpenAI: 'Usage (OpenAI)',
@@ -651,9 +651,9 @@ export default {
       concurrencyNonNegative: 'Concurrency cannot be negative; 0 = unlimited',
       amountRequired: 'Please enter a valid amount',
       insufficientBalance: 'Insufficient balance',
-      adjustBalance: 'Adjust Balance',
+      adjustBalance: 'Adjust Balance (Credit)',
       adjustConcurrency: 'Adjust Concurrency',
-      adjustmentAmount: 'Adjustment Amount',
+      adjustmentAmount: 'Adjustment Amount (Credit)',
       adjustmentAmountHint: 'Positive to add, negative to subtract',
       currentConcurrency: 'Current Concurrency',
       saving: 'Saving...',
@@ -699,17 +699,17 @@ export default {
       noOtherGroups: 'No other exclusive groups available',
       deposit: 'Deposit',
       withdraw: 'Withdraw',
-      depositAmount: 'Deposit Amount',
-      withdrawAmount: 'Withdraw Amount',
+      depositAmount: 'Deposit Amount (Credit)',
+      withdrawAmount: 'Withdraw Amount (Credit)',
       withdrawAll: 'All',
-      currentBalance: 'Current Balance',
+      currentBalance: 'Current Balance (Credit)',
       depositNotesPlaceholder:
         'e.g., New user registration bonus, promotional credit, compensation, etc.',
       withdrawNotesPlaceholder:
         'e.g., Service issue refund, incorrect charge reversal, account closure refund, etc.',
       notesOptional: 'Notes are optional but helpful for record keeping',
       amountHint: 'Please enter a positive amount',
-      newBalance: 'New Balance',
+      newBalance: 'New Balance (Credit)',
       depositing: 'Depositing...',
       withdrawing: 'Withdrawing...',
       confirmDeposit: 'Confirm Deposit',
@@ -739,7 +739,7 @@ export default {
       typeSubscription: 'Subscription',
       failedToLoadBalanceHistory: 'Failed to load balance history',
       createdAt: 'Created',
-      totalRecharged: 'Total Recharged',
+      totalRecharged: 'Total Recharged (Credit)',
       roles: {
         admin: 'Admin',
         user: 'User'
@@ -810,12 +810,12 @@ export default {
       platformQuota: {
         menuItem: 'Platform Quotas',
         title: 'Platform Quotas',
-        subtitle: 'Configure daily / weekly / monthly USD usage limits for each upstream platform for user {email}',
+        subtitle: 'Configure daily / weekly / monthly usage limits for each upstream platform for user {email}',
         columns: {
           platform: 'Platform',
-          daily: 'Daily (USD)',
-          weekly: 'Weekly (USD)',
-          monthly: 'Monthly (USD, 30-day rolling)',
+          daily: 'Daily (Credit)',
+          weekly: 'Weekly (Credit)',
+          monthly: 'Monthly (Credit, 30-day rolling)',
           usage: 'Current Usage',
         },
         placeholder: 'unlimited',
@@ -975,6 +975,12 @@ export default {
         yes: 'Yes',
         no: 'No'
       },
+      i18nField: {
+        default: 'Default',
+        add: 'Add {language} version',
+        edit: 'Edit {language} version',
+        placeholder: '{language} version; leave empty to show the default text'
+      },
       enterGroupName: 'Enter group name',
       optionalDescription: 'Optional description',
       platformHint: 'Select the platform this group is associated with',
@@ -1110,7 +1116,7 @@ export default {
         withInput: '(with video input)'
       },
       explicitPricing: {
-        title: 'Grok Search & Voice Pricing',
+        title: 'Search and voice / realtime pricing',
         description: 'Optional per-group prices for web_search (per 1k calls) and Voice realtime / TTS / STT (USD). Leave empty if unused.',
         searchPricePer1k: 'Search price per 1k calls (USD)',
         pricePlaceholder: 'optional'
@@ -1120,11 +1126,44 @@ export default {
         description: 'Overrides channel and built-in prices for matching models. Long-context tiers come from official presets — do not enter custom intervals. Use per-request tiers such as realtime, tts, and stt for audio.',
         longContext: 'Enable long-context tier pricing',
         longContextHint: 'When checked, channel intervals or official preset tiers apply. Otherwise the first tier is used unless the account explicitly enables long-context billing.',
-        add: 'Add model price'
+        add: 'Add model price',
+        priceSourceHint:
+          "Models without a price are billed at the official built-in price (price card) — the built-in price is that model's own official price, not a missing-price pass-through. Only models that have no built-in price at all are rejected before billing (pricing_unavailable)."
+      },
+      pricingStatus: {
+        complete: 'Pricing complete',
+        incomplete: '{count} model(s) missing price fields',
+        builtinOnly: 'No price set · billed at official built-in price',
+        noRules: 'No per-model pricing rules',
+        tip: {
+          complete:
+            'Every per-model pricing rule of this group is complete; billing uses the prices you set.',
+          incomplete:
+            'Some rules are incomplete: a model with missing price fields is rejected before the upstream call (pricing_unavailable) unless it has an official built-in price, in which case that built-in price is billed.',
+          builtinOnly:
+            'These rules only register models without prices: a model with an official built-in price is billed at that built-in price (the model\'s own official price, not a missing-price pass-through); a model without one is rejected.',
+          noRules:
+            'This group has no per-model pricing rules: billing uses channel pricing or the official built-in price card.'
+        },
+        tipModels: 'Models with missing price fields: {models}'
+      },
+      peakWindow: {
+        peak: 'Peak {multiplier}x',
+        valley: 'Off-peak 1x',
+        invalid: 'Invalid peak window',
+        disabled: 'Peak multiplier off',
+        peakWord: 'peak',
+        valleyWord: 'off-peak',
+        today: 'today',
+        tomorrow: 'tomorrow',
+        window: 'Window {start}–{end}',
+        multiplier: 'Peak multiplier {multiplier}x',
+        nextSwitch: 'Next switch {day} {time} ({next})',
+        hint: 'The group peak multiplier is evaluated in the server timezone (Asia/Shanghai) and only applies to token billing of this group; it is separate from the DeepSeek official peak/off-peak schedule.'
       },
       voicePricing: {
-        title: 'Grok Voice Pricing',
-        description: 'Optional per-group prices for Voice realtime / TTS / STT (USD). Leave empty to leave unpriced.',
+        title: 'Voice / Realtime Pricing',
+        description: 'Optional per-group prices for Voice realtime / TTS / STT (USD). Available on every platform; leave empty to leave unpriced.',
         audioRealtimePerMin: 'Realtime price per minute (USD)',
         audioTtsPerMillionChars: 'TTS price per million chars (USD)',
         audioSttPerHour: 'STT price per hour (USD)',
@@ -1144,6 +1183,15 @@ export default {
         peakMultiplier: 'Peak multiplier',
         multiplierHint: 'Applies to token billing multiplier; image tokens in token billing are also affected. 0 means peak token requests are billed at 0x.'
       },
+      peakState: {
+        title: 'Current peak/valley state',
+        peak: 'Peak window',
+        valley: 'Valley window',
+        none: 'Peak/valley not enabled',
+        autoJudged:
+          'Peak and valley windows are determined automatically from the official schedule (Asia/Shanghai). Administrators cannot change the determination, only the multiplier of the group itself.',
+        multiplier: 'Effective multiplier {multiplier}'
+      },
       profitControl: {
         enable: 'Enable profit control',
         enabledHint: 'Scheduling only admits accounts whose account multiplier ≤ the request\'s effective downstream multiplier × (1 − min margin − safety buffer). Account multipliers may be maintained manually or synchronized from probes; existing ordering, stickiness and breakers keep working among qualified accounts. Image/video scheduling is not covered yet.',
@@ -1159,6 +1207,8 @@ export default {
       modelAllowlist: {
         title: 'Model Allowlist',
         hint: 'When enabled, models outside the allowlist are rejected with 404 model_not_found, and model listing endpoints only show allowlisted models. Entries support exact model IDs and * wildcards anywhere (e.g., gpt-*-codex). Note: Claude Code probes with haiku-family models for titles/summaries and /messages/count_tokens is also allowlist-controlled, so make sure the small models you need are selected too.',
+        gpt55RetirementHint:
+          "GPT-5.5: ChatGPT sign-in accounts (OAuth / SetupToken / shadow accounts) retired this model on 2026-10-14 at 19:00 UTC; API-key upstreams still support it. A group served only by subscription accounts returns 404 model_not_found for GPT-5.5.",
         loading: 'Loading candidate models...',
         empty: 'No candidate models; add custom entries below',
         selectedSummary: 'Selected {selected} / {total}',

@@ -47,7 +47,46 @@ type LiveCallIdentity struct {
 	UserAgent       string
 	IPAddress       string
 	InboundEndpoint string
+	// RealtimePricePerMin 是开播时冻结的分组实时语音单价（元/分钟）。
+	// Live 按时长计费，价格必须在会话创建时锁定：结算发生在会话关闭时，
+	// 期间管理员可能改价，用结算价会与开播时的报价不一致。
+	// nil 表示该分组未配置 Live 单价，结算时必须拒绝而不是按零价放行。
+	RealtimePricePerMin *float64
+	// BillingPolicy 是开播时的计费策略快照（密钥额度/窗口限额/平台）。
+	// 结算可能由 observer 从 Redis 回读的记录触发，或需要对失败结算重试，
+	// 都必须使用与开播一致的策略，不能回源读取可能已被修改的实时配置。
+	BillingPolicy *LiveBillingPolicy
 }
+
+// LiveBillingPolicy 冻结一次 Live 会话的计费策略快照。
+type LiveBillingPolicy struct {
+	APIKeyQuota   float64 `json:"api_key_quota,omitempty"`
+	RateLimit5h   float64 `json:"rate_limit_5h,omitempty"`
+	RateLimit1d   float64 `json:"rate_limit_1d,omitempty"`
+	RateLimit7d   float64 `json:"rate_limit_7d,omitempty"`
+	GroupPlatform string  `json:"group_platform,omitempty"`
+}
+
+// LiveSettlement 持久化一次 Live 会话的结算事实：金额在第一次尝试前冻结，
+// 重试只复用冻结金额，不随再次调用时间增长；status=settled 后不再重复扣费。
+type LiveSettlement struct {
+	Status      string    `json:"status"`
+	TotalCost   float64   `json:"total_cost"`
+	ActualCost  float64   `json:"actual_cost"`
+	BillingMode string    `json:"billing_mode,omitempty"`
+	DurationMs  int       `json:"duration_ms"`
+	Attempts    int       `json:"attempts"`
+	FrozenAt    time.Time `json:"frozen_at"`
+	// UsageLogWritten 标记用量日志已落库，避免结算成功后重复补写（崩溃窗口补偿）。
+	UsageLogWritten bool `json:"usage_log_written,omitempty"`
+}
+
+const (
+	// LiveSettlementPending 表示金额已冻结但财务结算尚未成功，可安全重试。
+	LiveSettlementPending = "pending"
+	// LiveSettlementSettled 表示该会话已完成结算（含零费用/简易模式跳过）。
+	LiveSettlementSettled = "settled"
+)
 
 type LiveCallRecord struct {
 	CallID          string
@@ -66,8 +105,15 @@ type LiveCallRecord struct {
 	UserAgent       string
 	IPAddress       string
 	InboundEndpoint string
+	// RealtimePricePerMin 是开播时冻结的实时语音单价（元/分钟）；
+	// 结算以它为准，nil 表示未配置，结算时必须拒绝。
+	RealtimePricePerMin *float64
 	// AttestationCiphertext 仅用于让同一会话的 Sideband 复用创建时的证明。
 	AttestationCiphertext string
+	// BillingPolicy 是开播时冻结的计费策略快照，随记录持久化。
+	BillingPolicy *LiveBillingPolicy
+	// Settlement 记录结算状态；nil 表示尚未开始结算。
+	Settlement *LiveSettlement
 }
 
 type LiveCallCreated struct {

@@ -7,13 +7,14 @@ import (
 
 // opsRepoMock is a test-only OpsRepository implementation with optional function hooks.
 type opsRepoMock struct {
-	InsertErrorLogFn              func(ctx context.Context, input *OpsInsertErrorLogInput) (int64, error)
-	BatchInsertErrorLogsFn        func(ctx context.Context, inputs []*OpsInsertErrorLogInput) (int64, error)
-	GetErrorLogByIDFn             func(ctx context.Context, id int64) (*OpsErrorLogDetail, error)
-	BatchInsertSystemLogsFn       func(ctx context.Context, inputs []*OpsInsertSystemLogInput) (int64, error)
-	ListSystemLogsFn              func(ctx context.Context, filter *OpsSystemLogFilter) (*OpsSystemLogList, error)
-	DeleteSystemLogsFn            func(ctx context.Context, filter *OpsSystemLogCleanupFilter) (int64, error)
-	InsertSystemLogCleanupAuditFn func(ctx context.Context, input *OpsSystemLogCleanupAudit) error
+	InsertErrorLogFn                  func(ctx context.Context, input *OpsInsertErrorLogInput) (int64, error)
+	BatchInsertErrorLogsFn            func(ctx context.Context, inputs []*OpsInsertErrorLogInput) (int64, error)
+	GetErrorLogByIDFn                 func(ctx context.Context, id int64) (*OpsErrorLogDetail, error)
+	BatchInsertSystemLogsFn           func(ctx context.Context, inputs []*OpsInsertSystemLogInput) (int64, error)
+	ListSystemLogsFn                  func(ctx context.Context, filter *OpsSystemLogFilter) (*OpsSystemLogList, error)
+	DeleteSystemLogsFn                func(ctx context.Context, filter *OpsSystemLogCleanupFilter) (int64, error)
+	InsertSystemLogCleanupAuditFn     func(ctx context.Context, input *OpsSystemLogCleanupAudit) error
+	AggregateMissingPriceRejectionsFn func(ctx context.Context, filter *MissingPriceRejectionFilter) ([]*MissingPriceRejection, error)
 }
 
 func (m *opsRepoMock) InsertErrorLog(ctx context.Context, input *OpsInsertErrorLogInput) (int64, error) {
@@ -28,6 +29,13 @@ func (m *opsRepoMock) BatchInsertErrorLogs(ctx context.Context, inputs []*OpsIns
 		return m.BatchInsertErrorLogsFn(ctx, inputs)
 	}
 	return int64(len(inputs)), nil
+}
+
+func (m *opsRepoMock) AggregateMissingPriceRejections(ctx context.Context, filter *MissingPriceRejectionFilter) ([]*MissingPriceRejection, error) {
+	if m.AggregateMissingPriceRejectionsFn != nil {
+		return m.AggregateMissingPriceRejectionsFn(ctx, filter)
+	}
+	return []*MissingPriceRejection{}, nil
 }
 
 func (m *opsRepoMock) ListErrorLogs(ctx context.Context, filter *OpsErrorLogFilter) (*OpsErrorLogList, error) {

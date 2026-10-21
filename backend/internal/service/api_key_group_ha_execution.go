@@ -421,7 +421,6 @@ func (s *APIKeyService) ListAPIKeyHAGroupCandidates(ctx context.Context, userID,
 	return out, nil
 }
 
-
 // haGroupAccessSatisfied 报告用户当前是否满足「让该 HA 组实际服务」的访问前置条件。
 //
 // 为什么开启期必须复用执行期的判定（PRD-04 FE-02「无可用候选时不显示误导性的已启用
@@ -447,4 +446,3 @@ func haGroupAccessSatisfied(user *User, group *Group) bool {
 	}
 	return user.CanBindGroup(group.ID, group.IsExclusive)
 }
-

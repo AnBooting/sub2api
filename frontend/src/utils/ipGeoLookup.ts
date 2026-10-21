@@ -1,3 +1,13 @@
+/**
+ * IP geolocation lookup.
+ *
+ * Disabled by default: the frontend must not send user IPs to a third party.
+ * To enable, set VITE_IP_GEO_PROXY_URL to a same-deployment backend proxy
+ * endpoint that accepts ?ip=... (comma-separated for batch requests) and
+ * returns the geojs-compatible shape below. Without this variable no network
+ * request is made.
+ */
+
 import { reactive } from 'vue'
 
 export type IpGeoStatus = 'idle' | 'loading' | 'success' | 'error' | 'private'
@@ -24,8 +34,11 @@ const IDLE_ENTRY: IpGeoEntry = { status: 'idle' }
 const CACHE_STORAGE_KEY = 'sub2api:ip-geo-cache:v1'
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000
 const BATCH_CHUNK_SIZE = 50
-const GEO_SINGLE_URL = 'https://get.geojs.io/v1/ip/geo'
-const GEO_BATCH_URL = 'https://get.geojs.io/v1/ip/geo.json'
+const GEO_PROXY_ENV_KEY = 'VITE_IP_GEO_PROXY_URL'
+
+const configuredGeoProxyBase = (
+  (import.meta.env as Record<string, string | undefined>)[GEO_PROXY_ENV_KEY] ?? ''
+).trim().replace(/\/+$/, '')
 
 interface StoredEntry {
   label: string
@@ -47,6 +60,11 @@ function getFreshEntry(ip: string): IpGeoEntry | undefined {
     return undefined
   }
   return entry
+}
+
+function buildProxyQuery(proxyBase: string, ips: string[]): string {
+  const query = 'ip=' + ips.map(encodeURIComponent).join(',')
+  return proxyBase.includes('?') ? proxyBase + '&' + query : proxyBase + '?' + query
 }
 
 export function isPrivateIp(ip: string): boolean {
@@ -161,8 +179,12 @@ export async function fetchOne(ip: string, force = false): Promise<void> {
     return
   }
   cache.set(ip, { status: 'loading' })
+  if (!configuredGeoProxyBase) {
+    cache.set(ip, { status: 'error' })
+    return
+  }
   try {
-    const response = await fetch(`${GEO_SINGLE_URL}/${encodeURIComponent(ip)}.json`)
+    const response = await fetch(buildProxyQuery(configuredGeoProxyBase, [ip]))
     if (!response.ok) {
       cache.set(ip, { status: 'error' })
       return
@@ -189,13 +211,18 @@ export async function fetchBatch(ips: string[]): Promise<boolean> {
   }
   if (targets.length === 0) return true
 
+  if (!configuredGeoProxyBase) {
+    targets.forEach((ip) => cache.set(ip, { status: 'error' }))
+    return false
+  }
+
   targets.forEach((ip) => cache.set(ip, { status: 'loading' }))
 
   let allChunksOk = true
   for (let i = 0; i < targets.length; i += BATCH_CHUNK_SIZE) {
     const chunk = targets.slice(i, i + BATCH_CHUNK_SIZE)
     try {
-      const response = await fetch(`${GEO_BATCH_URL}?ip=${chunk.map(encodeURIComponent).join(',')}`)
+      const response = await fetch(buildProxyQuery(configuredGeoProxyBase, chunk))
       if (!response.ok) {
         chunk.forEach((ip) => cache.set(ip, { status: 'error' }))
         allChunksOk = false

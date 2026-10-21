@@ -1,3 +1,5 @@
+//go:build unit
+
 package service
 
 import (
@@ -90,7 +92,7 @@ func TestPricingResolverUsesFrozenRequestContext(t *testing.T) {
 	cost, err := bs.CalculateCostUnified(CostInput{Ctx: ctx, Model: "deepseek-v4-pro", Resolver: r,
 		Tokens: UsageTokens{OutputTokens: 100}, RateMultiplier: 1})
 	require.NoError(t, err)
-	require.InDelta(t, deepseekProOffPeakOutputPrice*100*deepseekPeakMultiplierAt(at), cost.OutputCost, 1e-12)
+	require.InDelta(t, deepseekProOffPeakOutputPrice*100*deepseekPeakMultiplierWithCalendar(at, defaultDeepseekCalendar), cost.OutputCost, 1e-12)
 }
 
 func TestDeepseekHolidayCalendarAcrossCurrencies(t *testing.T) {
@@ -102,7 +104,7 @@ func TestDeepseekHolidayCalendarAcrossCurrencies(t *testing.T) {
 		time.Date(2026, 10, 10, 2, 0, 0, 0, time.UTC), // Saturday make-up workday
 		time.Date(2026, 9, 20, 2, 0, 0, 0, time.UTC),  // Sunday make-up workday
 	} {
-		require.Equal(t, 1.0, deepseekPeakMultiplierAt(at))
+		require.Equal(t, 1.0, deepseekPeakMultiplierWithCalendar(at, defaultDeepseekCalendar))
 		p, err := bs.pricingService.nativePricingAt("deepseek-flash", at)
 		require.NoError(t, err)
 		require.Equal(t, 1e-6, p.InputPricePerToken)
@@ -135,10 +137,10 @@ func TestDeepseekCalendarUsesBeijingDateAndPeakBoundaries(t *testing.T) {
 		Schedule: &NativeSchedule{Timezone: "UTC", Windows: []NativeWindow{{Weekdays: []int{0}, HourRanges: []string{"17:00-24:00"}, NativeRates: NativeRates{Input: &peak}}}}}
 	require.Equal(t, base, *card.ratesAt(0, time.Date(2026, 10, 11, 17, 0, 0, 0, time.UTC)).Input)
 	for _, hour := range []int{9, 14} {
-		require.Equal(t, 2.0, deepseekPeakMultiplierAt(time.Date(2026, 8, 24, hour, 0, 0, 0, time.FixedZone("test", 8*3600))))
+		require.Equal(t, 2.0, deepseekPeakMultiplierWithCalendar(time.Date(2026, 8, 24, hour, 0, 0, 0, time.FixedZone("test", 8*3600)), defaultDeepseekCalendar))
 	}
 	for _, hour := range []int{8, 12, 18} {
-		require.Equal(t, 1.0, deepseekPeakMultiplierAt(time.Date(2026, 8, 24, hour, 0, 0, 0, time.FixedZone("test", 8*3600))))
+		require.Equal(t, 1.0, deepseekPeakMultiplierWithCalendar(time.Date(2026, 8, 24, hour, 0, 0, 0, time.FixedZone("test", 8*3600)), defaultDeepseekCalendar))
 	}
 	_, err = newDeepseekCalendar([]string{"2026-02-30"})
 	require.Error(t, err)

@@ -124,6 +124,12 @@ func RegisterUserRoutes(
 			announcements.POST("/:id/read", h.Announcement.MarkRead)
 		}
 
+		// 视频任务（用户只读：只返回当前登录用户自己的任务）
+		videos := authenticated.Group("/videos")
+		{
+			videos.GET("/tasks", h.VideoTask.ListTasks)
+		}
+
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{

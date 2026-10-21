@@ -94,11 +94,20 @@ export function readRepoState(root = REPO_ROOT) {
 export function readManifest(cacheRoot) {
   const path = join(cacheRoot, 'repo-intelligence.manifest.json');
   if (!existsSync(path)) return null;
-  return JSON.parse(readFileSync(path, 'utf8'));
+  try {
+    return JSON.parse(readFileSync(path, 'utf8'));
+  } catch (error) {
+    const wrapped = new Error('Index manifest is unreadable or corrupt: ' + path);
+    wrapped.code = 'MANIFEST_CORRUPT';
+    wrapped.next = ['Run node tools/repo-intelligence.mjs index --force.'];
+    wrapped.cause = error;
+    throw wrapped;
+  }
 }
 
 export function manifestStatus(manifest, state) {
   if (!manifest) return { status: 'missing', ready: false, reason: 'No index manifest exists.' };
+  if (!manifest.sourceRoot) return { status: 'invalid-manifest', ready: false, reason: 'Index manifest has no sourceRoot.' };
   if (manifest.database && !existsSync(manifest.database)) return { status: 'database-missing', ready: false, reason: 'Index database referenced by manifest does not exist.' };
   if (resolve(manifest.sourceRoot) !== resolve(state.sourceRoot)) return { status: 'source-mismatch', ready: false, reason: 'Index belongs to another source root.' };
   if (manifest.head !== state.head) return { status: 'stale-commit', ready: false, reason: 'Index commit differs from current HEAD.' };
@@ -269,7 +278,8 @@ function queryCommand(context, options, rest) {
   const binary = roamCommand(process.env);
   const env = roamEnv(context.cacheRoot, process.env);
   const result = spawnSync(binary, rest, { cwd: REPO_ROOT, env, encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
-  return { command: 'query', query: rest, freshness: context.freshness, exitCode: result.status, stdout: result.stdout || '', stderr: result.stderr || '' };
+  if (result.error) throw result.error;
+  return { command: 'query', query: rest, freshness: context.freshness, exitCode: result.status ?? 1, stdout: result.stdout || '', stderr: result.stderr || '' };
 }
 
 function mcpCommand(context, options, rest) {
@@ -278,7 +288,8 @@ function mcpCommand(context, options, rest) {
   const env = roamEnv(context.cacheRoot, process.env);
   const args = ['mcp', '--no-auto-index', ...rest];
   const result = spawnSync(binary, args, { cwd: REPO_ROOT, env, stdio: 'inherit', windowsHide: true });
-  return { command: 'mcp', exitCode: result.status };
+  if (result.error) throw result.error;
+  return { command: 'mcp', exitCode: result.status ?? 1 };
 }
 
 function statusCommand(context) {

@@ -117,7 +117,7 @@ func startArtexGuardRecordingServer(t *testing.T, ctx context.Context, svc *Open
 			serverErr <- err
 			return
 		}
-		defer conn.CloseNow()
+		defer func() { _ = conn.CloseNow() }()
 		kind, first, err := ReadOpenAIWSClientMessage(ctx, conn, 3*time.Second, coderws.StatusPolicyViolation, "missing first model frame")
 		if err != nil {
 			serverErr <- err
@@ -176,7 +176,7 @@ func TestArtexWSPassthroughObservesOnlyActualRemoteAck(t *testing.T) {
 				server, serverErr := startArtexGuardRecordingServer(t, ctx, svc, passthroughLifecycleAccount(), nil)
 				defer server.Close()
 				conn := dialPassthroughLifecycleClient(t, server)
-				defer conn.CloseNow()
+				defer func() { _ = conn.CloseNow() }()
 				requirePassthroughUpstreamWrite(t, upstream, 3*time.Second)
 				upstream.Send(`{"type":"response.completed","response":{"id":"resp_ack_seed","model":"gpt-5.1","usage":{"input_tokens":1,"output_tokens":1}}}`)
 				_, err := readPassthroughLifecycleFrame(t, conn, 3*time.Second)
@@ -272,7 +272,7 @@ func TestArtexWSActualModesRejectBeforeFirstAndLaterWrite(t *testing.T) {
 					defer server.Close()
 					conn, _, err := coderws.Dial(ctx, "ws"+strings.TrimPrefix(server.URL, "http"), nil)
 					require.NoError(t, err)
-					defer conn.CloseNow()
+					defer func() { _ = conn.CloseNow() }()
 					send := func(body []byte) {
 						writeCtx, stop := context.WithTimeout(ctx, 3*time.Second)
 						defer stop()

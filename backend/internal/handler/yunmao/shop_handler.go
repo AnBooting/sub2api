@@ -71,6 +71,10 @@ func (h *ShopHandler) SyncProducts(c *gin.Context) {
 //
 // POST /api/v1/shop/orders
 func (h *ShopHandler) CreateOrder(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, yunmaosvc.NewError(yunmaosvc.CodeNotConfigured, "白标充值服务未配置", nil))
+		return
+	}
 	subject, ok := requireAuth(c)
 	if !ok {
 		return
@@ -105,6 +109,10 @@ func (h *ShopHandler) CreateOrder(c *gin.Context) {
 //
 // GET /api/v1/shop/orders
 func (h *ShopHandler) ListOrders(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, yunmaosvc.NewError(yunmaosvc.CodeNotConfigured, "白标充值服务未配置", nil))
+		return
+	}
 	subject, ok := requireAuth(c)
 	if !ok {
 		return
@@ -131,6 +139,10 @@ func (h *ShopHandler) ListOrders(c *gin.Context) {
 //
 // GET /api/v1/shop/orders/:orderNo
 func (h *ShopHandler) GetOrder(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, yunmaosvc.NewError(yunmaosvc.CodeNotConfigured, "白标充值服务未配置", nil))
+		return
+	}
 	subject, ok := requireAuth(c)
 	if !ok {
 		return
@@ -147,6 +159,10 @@ func (h *ShopHandler) GetOrder(c *gin.Context) {
 //
 // POST /api/v1/shop/orders/:orderNo/query
 func (h *ShopHandler) QueryOrder(c *gin.Context) {
+	if h.service == nil {
+		writeError(c, yunmaosvc.NewError(yunmaosvc.CodeNotConfigured, "白标充值服务未配置", nil))
+		return
+	}
 	subject, ok := requireAuth(c)
 	if !ok {
 		return
@@ -194,9 +210,12 @@ func (h *ShopHandler) Notify(c *gin.Context) {
 
 	decision := h.service.ApplyCallback(c.Request.Context(), c.Request.Header, body)
 	if !decision.Accepted {
-		// 401 + 明确错误码；不改状态、不回显上游内容。
-		c.JSON(http.StatusUnauthorized, response.Response{
-			Code:    http.StatusUnauthorized,
+		// 按错误码区分类别：只有签名/载荷校验失败才是 401；未知订单是 404、
+		// 上游暂不可用是 503。统一返回 401 会让上游把可恢复错误当成鉴权失败，
+		// 无意义地反复重试，也掩盖了真实原因。不改状态、不回显上游内容。
+		status := callbackStatusForCode(decision.Code)
+		c.JSON(status, response.Response{
+			Code:    status,
 			Message: "回调未通过校验",
 			Reason:  string(decision.Code),
 		})
@@ -208,6 +227,22 @@ func (h *ShopHandler) Notify(c *gin.Context) {
 // ---------------------------------------------------------------------------
 // 内部
 // ---------------------------------------------------------------------------
+
+// callbackStatusForCode 把回调判定码映射为 HTTP 状态码。
+func callbackStatusForCode(code yunmaosvc.ErrorCode) int {
+	switch code {
+	// 签名缺失/算法未确定/签名不匹配都属于鉴权失败，必须保持 401（PRD-03 AC-B1 红线）。
+	case yunmaosvc.CodeCallbackSignatureUnavailable, yunmaosvc.CodeCallbackSignatureInvalid, yunmaosvc.CodeCallbackPayloadInvalid:
+		return http.StatusUnauthorized
+	case yunmaosvc.CodeOrderNotFound:
+		return http.StatusNotFound
+	case yunmaosvc.CodeNotConfigured:
+		return http.StatusServiceUnavailable
+	default:
+		// 其余（上游不可用/响应非法/结算失败）按暂时性故障处理，便于上游重试。
+		return http.StatusServiceUnavailable
+	}
+}
 
 func requireAuth(c *gin.Context) (middleware2.AuthSubject, bool) {
 	subject, ok := middleware2.GetAuthSubjectFromContext(c)

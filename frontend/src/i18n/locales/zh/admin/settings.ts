@@ -2,6 +2,15 @@ export default {
     settings: {
 	  pricing: {
 	    calendarYears: '日历覆盖年份',
+      deepseekPeriod: {
+        title: 'DeepSeek 官方峰谷',
+        current: '当前档位',
+        peak: '高峰时段',
+        valley: '谷价时段',
+        multiplier: '高峰倍率 {multiplier}x',
+        nextSwitch: '下一档切换：{time}（{timezone}）',
+        yearMissing: '当年假日日历缺失：该年不启用官方高峰加价，按谷价计费。'
+      },
       calendar: {
         "title": "DeepSeek 法定假日日历",
         "rules": "时区固定 Asia/Shanghai。已维护的法定假日优先按谷价；周末（包含调休补班周末）仍按谷价。非假日工作日峰价窗口为 [09:00,12:00) 与 [14:00,18:00)，其余时间谷价。这里不推算当前价格或时段。",
@@ -26,10 +35,10 @@ export default {
           "duplicate": "日期重复：{value}"
         }
       },
-	    creditUnit: '额度', rechargeHint: '额度模式已启用：¥1 或 $1 基础充值均到账 1 额度，赠送和手续费另行计算。',
+	    creditUnit: 'Credit', rechargeHint: 'Credit 模式已启用：¥1 或 $1 基础充值均到账 1 Credit，赠送和手续费另行计算。',
 	    currency: '价格币种', manualCNYHint: '人民币 Token 价卡需填写输入、输出、缓存读取和缓存写入价格，免费项填写 0；不会继承美元价格。',
-	    title: '模型价格与额度计费', description: '选择国模价卡，并控制所有远程价格拉取。开关保存后即时生效。',
-	    nativeCNY: '使用国模人民币价格源', nativeCNYHint: '国模使用原始 CNY 价卡，Claude/GPT 等继续使用 USD 价卡。¥1 和 $1 都扣 1 额度，不做汇率换算；充值到账比例固定为 1。缺少人民币价格的国模需配置手动价格。',
+	    title: '模型价格与 Credit 计费', description: '选择国模价卡，并控制所有远程价格拉取。开关保存后即时生效。',
+	    nativeCNY: '使用国模人民币价格源', nativeCNYHint: '国模使用原始 CNY 价卡，Claude/GPT 等继续使用 USD 价卡。¥1 和 $1 都扣 1 Credit，不做汇率换算；充值到账比例固定为 1。缺少人民币价格的国模需配置手动价格。',
 	    remote: '允许远程价格拉取', remoteHint: '关闭后停止启动检查、定时同步、远程哈希检查和手动刷新；保留本地缓存与手动价格。',
     syncInterval: '定价同步周期（小时）', syncIntervalHint: '可填 {min}–{max} 小时。保存后立即重排定时器，下一个周期边界即按新周期执行，无需重启。留空表示沿用配置文件默认值。', syncIntervalEffective: '当前生效周期：{hours} 小时', syncIntervalSave: '保存周期', syncIntervalInvalid: '请输入 1 到 720 之间的整数小时。',
 	    offline: '远程拉取已关闭，当前使用本地价格。', noCNY: '暂无人民币价卡缓存。开启拉取后同步，或配置明确币种的手动价卡。',
@@ -438,7 +447,7 @@ export default {
       defaults: {
         title: '用户默认设置',
         description: '新用户的默认值',
-        defaultBalance: '默认余额',
+        defaultBalance: '默认余额（Credit）',
         defaultBalanceHint: '新用户的初始余额',
         affiliateRebateRate: '邀请返利比例',
         affiliateRebateRateHint: '充值后返给邀请人的比例（0-100%，例如填写 10 表示返利 10%）',
@@ -459,9 +468,9 @@ export default {
       },
       platformQuota: {
         platform:    '平台',
-        daily:       '日限额 (USD)',
-        weekly:      '周限额 (USD)',
-        monthly:     '月限额 (USD, 30天滚动)',
+        daily:       '日限额（Credit）',
+        weekly:      '周限额（Credit）',
+        monthly:     '月限额（Credit，30天滚动）',
         placeholder: '不限',
       },
       claudeCode: {
@@ -985,7 +994,7 @@ export default {
         title: '余额不足提醒',
         description: '当用户余额低于阈值时发送邮件提醒',
         enabled: '启用余额不足提醒',
-        threshold: '默认提醒阈值',
+        threshold: '默认提醒阈值（Credit）',
         thresholdHint: '用户未自定义时使用此值',
         thresholdPlaceholder: '输入金额',
         rechargeUrl: '充值页面 URL',

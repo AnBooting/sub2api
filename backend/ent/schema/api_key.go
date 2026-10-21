@@ -133,7 +133,7 @@ func (APIKey) Edges() []ent.Edge {
 		edge.To("usage_logs", UsageLog.Type),
 		// OnDelete must live on the parent's edge.To: ent ignores the annotation on
 		// the child's edge.From, which silently produced a NO ACTION foreign key in
-		// migrate/schema.go while migration 244 declares ON DELETE CASCADE.
+		// migrate/schema.go while migration 252 declares ON DELETE CASCADE.
 		edge.To("group_links", APIKeyGroupLink.Type).
 			Annotations(entsql.OnDelete(entsql.Cascade)),
 	}

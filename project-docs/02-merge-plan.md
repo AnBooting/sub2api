@@ -153,7 +153,7 @@
 1. 先跑 `node _reference/domestic-provider-kit/tools/preflight.mjs F:\sub2` 生成冲突报告（只读）。
 2. 读 `MERGE-INDEX.md`（162 KB，4,130 行）逐段定位国模片段。
 3. **决策命名冲突**（第 1 节）→ 更新 ADR。
-4. 新增 7 个 core 文件 + 3 个迁移（重编号 243/244/245）。
+4. 新增 7 个 core 文件 + 3 个迁移（重编号 **259+**；0.2.17 同步后本 fork 的迁移已占 251–258，上游占 243/244/245，246–250 留空）。
 5. 合并后端共享文件（ent → repository → service → handler → wire → routes），
    每层合并后立即 `go build` 验证，不要一次改完再编译。
 6. `go generate ./ent` + wire 生成。

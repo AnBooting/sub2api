@@ -5,8 +5,11 @@ package middleware
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"syscall"
 	"testing"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
@@ -41,6 +44,14 @@ func TestRecovery_PanicLogContainsInfo(t *testing.T) {
 	logOutput := buf.String()
 	require.Contains(t, logOutput, "custom panic message for test", "日志应包含 panic 信息")
 	require.Contains(t, logOutput, "recovery_test.go", "日志应包含堆栈跟踪文件名")
+}
+
+func TestIsBrokenPipeUsesSentinelErrors(t *testing.T) {
+	// 包装后的 EPIPE/ECONNRESET 仍应被识别（字符串匹配在包装下会失效）。
+	require.True(t, isBrokenPipe(fmt.Errorf("write: %w", syscall.EPIPE)))
+	require.True(t, isBrokenPipe(fmt.Errorf("read: %w", syscall.ECONNRESET)))
+	require.False(t, isBrokenPipe(errors.New("broken pipe")))
+	require.False(t, isBrokenPipe(nil))
 }
 
 func TestRecovery(t *testing.T) {

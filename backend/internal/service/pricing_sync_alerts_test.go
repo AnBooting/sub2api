@@ -79,7 +79,9 @@ func TestPricingSyncAlertRetriesFailedEmailAndHonorsSettings(t *testing.T) {
 	sender.fail = false
 	s.recordPricingSyncResult("USD", errors.New("sync failed"))
 	require.Len(t, sender.calls, 2)
-	s.settingsRepo.(*pricingReviewSettings).values[SettingKeyOpsEmailNotificationConfig] = `{"alert":{"enabled":false}}`
+	settings, ok := s.settingsRepo.(*pricingReviewSettings)
+	require.True(t, ok, "settings repo must be the pricing review stub")
+	settings.values[SettingKeyOpsEmailNotificationConfig] = `{"alert":{"enabled":false}}`
 	s.recordPricingSyncResult("CNY", errors.New("sync failed"))
 	require.Len(t, sender.calls, 2)
 }

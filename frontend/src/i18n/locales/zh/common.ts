@@ -165,6 +165,7 @@ export default {
   // Navigation
   nav: {
     dashboard: '仪表盘',
+    help: '帮助',
     announcements: '公告',
     apiKeys: 'API 密钥',
     batchImage: '批量生图',
@@ -181,6 +182,7 @@ export default {
     channels: '渠道管理',
     availableChannels: '可用渠道',
     modelPlaza: '模型广场',
+    priceCard: '价卡',
     subscriptions: '订阅管理',
     accounts: '账号管理',
     plugins: '插件管理',

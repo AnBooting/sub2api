@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -140,4 +141,26 @@ func TestDingTalkClient_GetDeptInfo_ErrCode60003(t *testing.T) {
 	apiErr, ok := err.(*DingTalkAPIError)
 	require.True(t, ok)
 	require.Equal(t, "60003", apiErr.Code)
+}
+
+// TestDingTalkClient_ReadAllErrorPropagates verifies truncated upstream bodies are returned as errors.
+func TestDingTalkClient_ReadAllErrorPropagates(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Length", "16")
+		_, _ = w.Write([]byte(`{"accessToken":"partial"`))
+		if f, ok := w.(http.Flusher); ok {
+			f.Flush()
+		}
+	}))
+	defer server.Close()
+
+	cli := &DingTalkClient{
+		cfg:        dingTalkClientConfig{TokenURL: server.URL + "/gettoken"},
+		httpClient: server.Client(),
+	}
+
+	_, err := cli.GetAppToken(context.Background())
+	require.Error(t, err)
+	require.ErrorIs(t, err, io.ErrUnexpectedEOF, "truncated upstream body must not be accepted as success")
+	require.Contains(t, err.Error(), "read dingtalk app token response")
 }

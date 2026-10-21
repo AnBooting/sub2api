@@ -6,11 +6,6 @@ import (
 	"net/http"
 )
 
-// authorizeOpenAIResponsesGroup reloads execution policy without refreezing prices.
-func (h *OpenAIGatewayHandler) authorizeOpenAIResponsesGroup(c *gin.Context, original *service.APIKey, id int64, normalIDs []int64, model string, streamStarted bool, crossFamily ...bool) (*service.APIKey, *service.UserSubscription, bool) {
-	return authorizeChatExecutionGroup(c, h.apiKeyService, h.subscriptionService, original, id, normalIDs, model, func(status int, code, msg string) { h.handleStreamingAwareError(c, status, code, msg, streamStarted) }, len(crossFamily) > 0 && crossFamily[0])
-}
-
 // authorizeOpenAIResponsesGroupCandidate is the HA-aware form: isHA selects the HA
 // authorization gate and ids is the matching frozen allow-set. Every other policy
 // check is shared with the normal path, so a fallback cannot bypass them.
@@ -49,7 +44,7 @@ func authorizeChatExecutionGroupCandidate(c *gin.Context, keys *service.APIKeySe
 	if err != nil {
 		return fail(err)
 	}
-	if key.Group.Platform != service.PlatformOpenAI && !(chat && key.Group.Platform == service.PlatformAnthropic) {
+	if key.Group.Platform != service.PlatformOpenAI && (!chat || key.Group.Platform != service.PlatformAnthropic) {
 		writeError(http.StatusServiceUnavailable, "no_available_group", "This forwarding family is not supported by the requested endpoint")
 		return nil, nil, false
 	}

@@ -1,5 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { isPrivateIp, getEntry, formatGeoLabel, fetchOne, fetchBatch } from '../ipGeoLookup'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { isPrivateIp, getEntry, formatGeoLabel } from '../ipGeoLookup'
+
+async function loadIpGeo(proxyUrl?: string) {
+  vi.resetModules()
+  vi.unstubAllEnvs()
+  if (proxyUrl !== undefined) {
+    vi.stubEnv('VITE_IP_GEO_PROXY_URL', proxyUrl)
+  }
+  return import('../ipGeoLookup')
+}
 
 describe('isPrivateIp', () => {
   it('identifies private/reserved IPv4 ranges', () => {
@@ -57,14 +66,29 @@ describe('fetchOne', () => {
     global.fetch = vi.fn()
   })
 
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('marks a private IP without making a network request', async () => {
-    await fetchOne('192.168.50.1')
-    expect(getEntry('192.168.50.1')).toEqual({ status: 'private' })
+    const mod = await loadIpGeo('https://geo.internal.example')
+    await mod.fetchOne('192.168.50.1')
+    expect(mod.getEntry('192.168.50.1')).toEqual({ status: 'private' })
     expect(global.fetch).not.toHaveBeenCalled()
   })
 
-  it('fetches and stores a successful geolocation result', async () => {
-    (global.fetch as any).mockResolvedValue({
+  it('is disabled by default and never contacts a third-party service', async () => {
+    const mod = await loadIpGeo()
+
+    await mod.fetchOne('121.35.47.43')
+
+    expect(mod.getEntry('121.35.47.43').status).toBe('error')
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('fetches through the configured backend proxy and stores a successful result', async () => {
+    const mod = await loadIpGeo('https://geo.internal.example/')
+    ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: async () => ({
         ip: '121.35.47.43',
@@ -79,47 +103,50 @@ describe('fetchOne', () => {
       }),
     })
 
-    await fetchOne('121.35.47.43')
+    await mod.fetchOne('121.35.47.43')
 
-    expect(global.fetch).toHaveBeenCalledWith('https://get.geojs.io/v1/ip/geo/121.35.47.43.json')
-    const entry = getEntry('121.35.47.43')
+    expect(global.fetch).toHaveBeenCalledWith('https://geo.internal.example?ip=121.35.47.43')
+    const entry = mod.getEntry('121.35.47.43')
     expect(entry.status).toBe('success')
     expect(entry.label).toBe('CN · Guangdong · Shenzhen')
     expect(entry.detail?.organization).toBe('AS4134 Chinanet')
   })
 
   it('marks the entry as error when the response has no country_code', async () => {
-    (global.fetch as any).mockResolvedValue({
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: async () => ({ ip: '192.0.2.55', organization: 'AS64512 Unknown' }),
     })
 
-    await fetchOne('192.0.2.55')
+    await mod.fetchOne('192.0.2.55')
 
-    expect(getEntry('192.0.2.55').status).toBe('error')
+    expect(mod.getEntry('192.0.2.55').status).toBe('error')
   })
 
   it('marks the entry as error when the request rejects', async () => {
-    (global.fetch as any).mockRejectedValue(new Error('network down'))
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockRejectedValue(new Error('network down'))
 
-    await fetchOne('198.51.100.7')
+    await mod.fetchOne('198.51.100.7')
 
-    expect(getEntry('198.51.100.7').status).toBe('error')
+    expect(mod.getEntry('198.51.100.7').status).toBe('error')
   })
 
   it('does not re-fetch a cached successful IP unless forced', async () => {
-    (global.fetch as any).mockResolvedValue({
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: async () => ({ ip: '8.8.8.8', country_code: 'US', region: 'California', city: 'Mountain View' }),
     })
 
-    await fetchOne('8.8.8.8')
+    await mod.fetchOne('8.8.8.8')
     expect(global.fetch).toHaveBeenCalledTimes(1)
 
-    await fetchOne('8.8.8.8')
+    await mod.fetchOne('8.8.8.8')
     expect(global.fetch).toHaveBeenCalledTimes(1)
 
-    await fetchOne('8.8.8.8', true)
+    await mod.fetchOne('8.8.8.8', true)
     expect(global.fetch).toHaveBeenCalledTimes(2)
   })
 })
@@ -130,24 +157,39 @@ describe('fetchBatch', () => {
     global.fetch = vi.fn()
   })
 
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
   it('deduplicates IPs and skips private addresses without a network call', async () => {
-    (global.fetch as any).mockResolvedValue({
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: async () => [{ ip: '203.0.113.10', country_code: 'US', region: 'Texas', city: 'Dallas' }],
     })
 
-    await fetchBatch(['203.0.113.10', '203.0.113.10', '10.0.0.5'])
+    await mod.fetchBatch(['203.0.113.10', '203.0.113.10', '10.0.0.5'])
 
     expect(global.fetch).toHaveBeenCalledTimes(1)
-    const calledUrl = (global.fetch as any).mock.calls[0][0] as string
-    expect(calledUrl).toContain('ip=203.0.113.10')
-    expect(calledUrl).not.toContain('203.0.113.10,203.0.113.10')
-    expect(getEntry('10.0.0.5').status).toBe('private')
-    expect(getEntry('203.0.113.10').status).toBe('success')
+    expect(global.fetch).toHaveBeenCalledWith('https://geo.internal.example?ip=203.0.113.10')
+    expect(mod.getEntry('10.0.0.5').status).toBe('private')
+    expect(mod.getEntry('203.0.113.10').status).toBe('success')
+  })
+
+  it('is disabled by default and never contacts a third-party service', async () => {
+    const mod = await loadIpGeo()
+
+    const ok = await mod.fetchBatch(['203.0.113.10', '203.0.113.11'])
+
+    expect(ok).toBe(false)
+    expect(global.fetch).not.toHaveBeenCalled()
+    expect(mod.getEntry('203.0.113.10').status).toBe('error')
+    expect(mod.getEntry('203.0.113.11').status).toBe('error')
   })
 
   it('splits more than 50 IPs into multiple chunk requests', async () => {
-    const ips = Array.from({ length: 61 }, (_, i) => `203.0.${Math.floor(i / 250)}.${(i % 250) + 1}`)
+    const mod = await loadIpGeo('https://geo.internal.example')
+    const ips = Array.from({ length: 61 }, (_, i) => ['203.0', Math.floor(i / 250), (i % 250) + 1].join('.'))
     ;(global.fetch as any).mockImplementation(async (url: string) => ({
       ok: true,
       json: async () => {
@@ -156,7 +198,7 @@ describe('fetchBatch', () => {
       },
     }))
 
-    await fetchBatch(ips)
+    await mod.fetchBatch(ips)
 
     expect(global.fetch).toHaveBeenCalledTimes(2)
     const firstChunkIps = new URL((global.fetch as any).mock.calls[0][0]).searchParams.get('ip')!.split(',')
@@ -166,42 +208,44 @@ describe('fetchBatch', () => {
   })
 
   it('marks individual IPs as error when they are missing from the batch response', async () => {
-    (global.fetch as any).mockResolvedValue({
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockResolvedValue({
       ok: true,
       json: async () => [{ ip: '203.0.113.20', country_code: 'US' }],
     })
 
-    const ok = await fetchBatch(['203.0.113.20', '203.0.113.21'])
+    const ok = await mod.fetchBatch(['203.0.113.20', '203.0.113.21'])
 
-    expect(getEntry('203.0.113.20').status).toBe('success')
-    expect(getEntry('203.0.113.21').status).toBe('error')
-    // 响应本身是 200，只是个别 IP 缺失/无法定位，属于业务级失败而非网络级失败
+    expect(mod.getEntry('203.0.113.20').status).toBe('success')
+    expect(mod.getEntry('203.0.113.21').status).toBe('error')
     expect(ok).toBe(true)
   })
 
   it('returns false when a chunk request fails at the network level', async () => {
-    (global.fetch as any).mockRejectedValue(new Error('network down'))
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockRejectedValue(new Error('network down'))
 
-    const ok = await fetchBatch(['203.0.113.50', '203.0.113.51'])
+    const ok = await mod.fetchBatch(['203.0.113.50', '203.0.113.51'])
 
     expect(ok).toBe(false)
-    expect(getEntry('203.0.113.50').status).toBe('error')
-    expect(getEntry('203.0.113.51').status).toBe('error')
+    expect(mod.getEntry('203.0.113.50').status).toBe('error')
+    expect(mod.getEntry('203.0.113.51').status).toBe('error')
   })
 
   it('skips IPs that already have a cached success entry', async () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    const mod = await loadIpGeo('https://geo.internal.example')
+    ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => [{ ip: '203.0.113.40', country_code: 'CN' }],
     })
-    await fetchBatch(['203.0.113.40'])
+    await mod.fetchBatch(['203.0.113.40'])
     expect(global.fetch).toHaveBeenCalledTimes(1)
 
     ;(global.fetch as any).mockResolvedValueOnce({
       ok: true,
       json: async () => [{ ip: '203.0.113.41', country_code: 'CN' }],
     })
-    await fetchBatch(['203.0.113.40', '203.0.113.41'])
+    await mod.fetchBatch(['203.0.113.40', '203.0.113.41'])
     expect(global.fetch).toHaveBeenCalledTimes(2)
     const secondCallUrl = (global.fetch as any).mock.calls[1][0] as string
     expect(secondCallUrl).toContain('203.0.113.41')
@@ -213,6 +257,11 @@ describe('ipGeoLookup localStorage persistence', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.resetModules()
+    vi.unstubAllEnvs()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
   })
 
   it('hydrates the in-memory cache from a non-expired localStorage entry on module load', async () => {
@@ -223,7 +272,7 @@ describe('ipGeoLookup localStorage persistence', () => {
       })
     )
 
-    const mod = await import('../ipGeoLookup')
+    const mod = await loadIpGeo()
 
     expect(mod.getEntry('121.35.47.43')).toEqual(
       expect.objectContaining({ status: 'success', label: 'CN · Guangdong · Shenzhen' })
@@ -239,7 +288,7 @@ describe('ipGeoLookup localStorage persistence', () => {
       })
     )
 
-    const mod = await import('../ipGeoLookup')
+    const mod = await loadIpGeo()
 
     expect(mod.getEntry('8.8.8.8')).toEqual({ status: 'idle' })
   })
@@ -249,7 +298,7 @@ describe('ipGeoLookup localStorage persistence', () => {
       ok: true,
       json: async () => ({ ip: '1.2.4.8', country_code: 'CN' }),
     })
-    const mod = await import('../ipGeoLookup')
+    const mod = await loadIpGeo('https://geo.internal.example')
 
     await mod.fetchOne('1.2.4.8')
 
@@ -267,7 +316,7 @@ describe('ipGeoLookup localStorage persistence', () => {
       })
     )
 
-    const mod = await import('../ipGeoLookup')
+    const mod = await loadIpGeo()
     expect(mod.getEntry('8.8.4.4')).toEqual(expect.objectContaining({ status: 'success' }))
 
     vi.setSystemTime(new Date(now.getTime() + 25 * 60 * 60 * 1000))
@@ -282,7 +331,7 @@ describe('ipGeoLookup localStorage persistence', () => {
       ok: true,
       json: async () => ({ ip: '8.8.8.8', country_code: 'US' }),
     })
-    const mod = await import('../ipGeoLookup')
+    const mod = await loadIpGeo('https://geo.internal.example')
 
     await mod.fetchOne('8.8.8.8')
     expect(global.fetch).toHaveBeenCalledTimes(1)

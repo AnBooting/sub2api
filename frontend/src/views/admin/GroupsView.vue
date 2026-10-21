@@ -261,10 +261,20 @@
             </div>
           </template>
 
-          <template #cell-rate_multiplier="{ value }">
-            <span class="text-sm text-gray-700 dark:text-gray-300"
-              >{{ value }}x</span
-            >
+          <template #cell-rate_multiplier="{ value, row }">
+            <div class="space-y-1">
+              <span class="text-sm text-gray-700 dark:text-gray-300"
+                >{{ value }}x</span
+              >
+              <GroupPricingStatusBadge :rules="row.model_pricing" />
+              <GroupPeakWindowStatus
+                :enabled="!!row.peak_rate_enabled"
+                :start="row.peak_start"
+                :end="row.peak_end"
+                :multiplier="row.peak_rate_multiplier"
+              />
+              <DeepSeekPricingStateBadge :state="row.deepseek_pricing_state" />
+            </div>
           </template>
 
           <template #cell-is_exclusive="{ value }">
@@ -488,26 +498,26 @@
         class="space-y-5"
       >
         <div>
-          <label class="input-label">{{ t("admin.groups.form.name") }}</label>
-          <input
+          <GroupI18nField
             v-model="createForm.name"
-            type="text"
+            v-model:i18n="createForm.i18n"
+            :label="t('admin.groups.form.name')"
+            field="name"
             required
-            class="input"
             :placeholder="t('admin.groups.enterGroupName')"
             data-tour="group-form-name"
           />
         </div>
         <div>
-          <label class="input-label">{{
-            t("admin.groups.form.description")
-          }}</label>
-          <textarea
+          <GroupI18nField
             v-model="createForm.description"
+            v-model:i18n="createForm.i18n"
+            :label="t('admin.groups.form.description')"
+            field="description"
+            multiline
             rows="3"
-            class="input"
             :placeholder="t('admin.groups.optionalDescription')"
-          ></textarea>
+          />
         </div>
         <div>
           <label class="input-label">{{
@@ -788,6 +798,12 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.hint") }}
+              </p>
+              <p
+                v-if="createForm.platform === 'openai' || createForm.platform === 'composite'"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t("admin.groups.modelAllowlist.gpt55RetirementHint") }}
               </p>
             </div>
             <Toggle v-model="createModelAllowlistState.enabled" />
@@ -1605,6 +1621,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t("admin.groups.modelPricing.priceSourceHint") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(createForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -1619,30 +1636,15 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
-          v-if="createForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
+        <!-- 搜索与语音/实时显式定价（分组级字段，所有平台可见） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t("admin.groups.explicitPricing.title") }}
+            {{ t("admin.groups.voicePricing.title") }}
           </h4>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t("admin.groups.explicitPricing.description") }}
+            {{ t("admin.groups.voicePricing.description") }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
-              <input
-                v-model.number="createForm.search_price_per_1k"
-                type="number"
-                step="0.000001"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
-                data-testid="create-search-price"
-              />
-            </div>
             <div>
               <label class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
               <input
@@ -1677,6 +1679,30 @@
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
                 data-testid="create-audio-stt-price"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 搜索与语音/实时显式定价（分组级字段，所有平台可见） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t("admin.groups.explicitPricing.title") }}
+          </h4>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {{ t("admin.groups.explicitPricing.description") }}
+          </p>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
+              <input
+                v-model.number="createForm.search_price_per_1k"
+                type="number"
+                step="0.000001"
+                min="0"
+                class="input"
+                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
+                data-testid="create-search-price"
               />
             </div>
           </div>
@@ -2251,24 +2277,24 @@
         class="space-y-5"
       >
         <div>
-          <label class="input-label">{{ t("admin.groups.form.name") }}</label>
-          <input
+          <GroupI18nField
             v-model="editForm.name"
-            type="text"
+            v-model:i18n="editForm.i18n"
+            :label="t('admin.groups.form.name')"
+            field="name"
             required
-            class="input"
             data-tour="edit-group-form-name"
           />
         </div>
         <div>
-          <label class="input-label">{{
-            t("admin.groups.form.description")
-          }}</label>
-          <textarea
+          <GroupI18nField
             v-model="editForm.description"
+            v-model:i18n="editForm.i18n"
+            :label="t('admin.groups.form.description')"
+            field="description"
+            multiline
             rows="3"
-            class="input"
-          ></textarea>
+          />
         </div>
         <div>
           <label class="input-label">{{
@@ -2387,6 +2413,22 @@
             class="input"
             data-tour="group-form-multiplier"
           />
+        </div>
+        <!-- 峰谷状态：官方时段自动判定，只读展示，管理员不能手动改判定 -->
+        <div
+          v-if="editingGroup?.deepseek_pricing_state"
+          class="rounded-lg border border-gray-200 p-3 dark:border-dark-700"
+          data-testid="edit-peak-state"
+        >
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-gray-700 dark:text-gray-300">{{
+              t("admin.groups.peakState.title")
+            }}</span>
+            <DeepSeekPricingStateBadge :state="editingGroup.deepseek_pricing_state" />
+          </div>
+          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {{ t("admin.groups.peakState.autoJudged") }}
+          </p>
         </div>
         <SchedulingStrategySelect v-model="editForm.scheduling_strategy" allow-inherit :disabled="submitting" :effective-strategy="savedEffectiveStrategy" />
         <div>
@@ -2552,6 +2594,12 @@
               </label>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {{ t("admin.groups.modelAllowlist.hint") }}
+              </p>
+              <p
+                v-if="editForm.platform === 'openai' || editForm.platform === 'composite'"
+                class="mt-1 text-xs text-amber-600 dark:text-amber-400"
+              >
+                {{ t("admin.groups.modelAllowlist.gpt55RetirementHint") }}
               </p>
             </div>
             <Toggle v-model="editModelAllowlistState.enabled" />
@@ -3071,6 +3119,13 @@
               />
               <span>{{ t("admin.groups.peakRate.enable") }}</span>
             </label>
+            <GroupPeakWindowStatus
+              show-when-disabled
+              :enabled="editForm.peak_rate_enabled"
+              :start="editForm.peak_start"
+              :end="editForm.peak_end"
+              :multiplier="editForm.peak_rate_multiplier"
+            />
           </div>
           <div
             v-if="editForm.peak_rate_enabled"
@@ -3379,6 +3434,7 @@
             <div class="min-w-0 flex-1">
               <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ t("admin.groups.modelPricing.title") }}</h4>
               <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ t("admin.groups.modelPricing.description") }}</p>
+              <p class="mt-1 text-xs text-amber-600 dark:text-amber-400">{{ t("admin.groups.modelPricing.priceSourceHint") }}</p>
             </div>
             <button type="button" class="btn btn-secondary shrink-0 whitespace-nowrap" @click="addGroupPricing(editForm.model_pricing)">
               <Icon name="plus" size="sm" class="mr-1" />{{ t("admin.groups.modelPricing.add") }}
@@ -3393,30 +3449,15 @@
           </div>
         </div>
 
-        <!-- Grok Voice 显式定价（仅 grok 平台） -->
-        <div
-          v-if="editForm.platform === 'grok'"
-          class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4"
-        >
+        <!-- 搜索与语音/实时显式定价（分组级字段，所有平台可见） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
           <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t("admin.groups.explicitPricing.title") }}
+            {{ t("admin.groups.voicePricing.title") }}
           </h4>
           <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
-            {{ t("admin.groups.explicitPricing.description") }}
+            {{ t("admin.groups.voicePricing.description") }}
           </p>
           <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
-            <div>
-              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
-              <input
-                v-model.number="editForm.search_price_per_1k"
-                type="number"
-                step="0.000001"
-                min="0"
-                class="input"
-                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
-                data-testid="edit-search-price"
-              />
-            </div>
             <div>
               <label class="input-label">{{ t("admin.groups.voicePricing.audioRealtimePerMin") }}</label>
               <input
@@ -3451,6 +3492,30 @@
                 class="input"
                 :placeholder="t('admin.groups.voicePricing.pricePlaceholder')"
                 data-testid="edit-audio-stt-price"
+              />
+            </div>
+          </div>
+        </div>
+
+        <!-- 搜索与语音/实时显式定价（分组级字段，所有平台可见） -->
+        <div class="border-t border-gray-200 dark:border-dark-400 pt-4 mt-4">
+          <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            {{ t("admin.groups.explicitPricing.title") }}
+          </h4>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mb-3">
+            {{ t("admin.groups.explicitPricing.description") }}
+          </p>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <label class="input-label">{{ t("admin.groups.explicitPricing.searchPricePer1k") }}</label>
+              <input
+                v-model.number="editForm.search_price_per_1k"
+                type="number"
+                step="0.000001"
+                min="0"
+                class="input"
+                :placeholder="t('admin.groups.explicitPricing.pricePlaceholder')"
+                data-testid="edit-search-price"
               />
             </div>
           </div>
@@ -4520,6 +4585,7 @@ import { useAppStore } from "@/stores/app";
 import { useAuthStore } from "@/stores/auth";
 import { useOnboardingStore } from "@/stores/onboarding";
 import { adminAPI } from "@/api/admin";
+import type { AdminGroupWithPricingState } from "@/api/admin/groups";
 import type {
   AdminGroup,
   CodexModelsManifestConfig,
@@ -4528,6 +4594,7 @@ import type {
   CompositeRouteDecision,
   CompositeRouteEndpoint,
   CompositeRouteMatchType,
+  GroupI18n,
   GroupPlatform,
   SubscriptionType,
 } from "@/types";
@@ -4549,11 +4616,15 @@ import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelec
 import PlatformIcon from "@/components/common/PlatformIcon.vue";
 import { platformLabel } from "@/utils/platformColors";
 import Icon from "@/components/icons/Icon.vue";
+import GroupI18nField from "@/components/admin/group/GroupI18nField.vue";
 import GroupRateMultipliersModal from "@/components/admin/group/GroupRateMultipliersModal.vue";
 import GroupRPMOverridesModal from "@/components/admin/group/GroupRPMOverridesModal.vue";
+import GroupPricingStatusBadge from "@/components/admin/group/GroupPricingStatusBadge.vue";
+import GroupPeakWindowStatus from "@/components/admin/group/GroupPeakWindowStatus.vue";
 import GroupCapacityBadge from "@/components/common/GroupCapacityBadge.vue";
 import ReasoningEffortPolicyFields from "@/components/admin/group/ReasoningEffortPolicyFields.vue";
 import CodexManifestAccountsField from "@/components/admin/group/CodexManifestAccountsField.vue";
+import DeepSeekPricingStateBadge from "@/components/admin/group/DeepSeekPricingStateBadge.vue";
 import PricingEntryCard from "@/components/admin/channel/PricingEntryCard.vue";
 import type { PricingFormEntry } from "@/components/admin/channel/types";
 import {
@@ -5038,7 +5109,7 @@ const copyAccountsGroupOptionsForEdit = computed(() => {
   }));
 });
 
-const groups = ref<AdminGroup[]>([]);
+const groups = ref<AdminGroupWithPricingState[]>([]);
 const loading = ref(false);
 type GroupUsageSummary = {
   today_cost: number;
@@ -5095,7 +5166,7 @@ let liveCapabilityRequest: Promise<{
 const showSortModal = ref(false);
 const submitting = ref(false);
 const sortSubmitting = ref(false);
-const editingGroup = ref<AdminGroup | null>(null);
+const editingGroup = ref<AdminGroupWithPricingState | null>(null);
 const deletingGroup = ref<AdminGroup | null>(null);
 const duplicatingGroupIds = reactive(new Set<number>());
 const showRateMultipliersModal = ref(false);
@@ -5200,6 +5271,7 @@ const submitEditAllowlistCustomEntry = () => {
 const createForm = reactive({
   name: "",
   description: "",
+  i18n: {} as GroupI18n,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
@@ -5570,6 +5642,7 @@ const savedEffectiveStrategy = ref<import("@/types").SchedulingStrategy>();
 const editForm = reactive({
   name: "",
   description: "",
+  i18n: {} as GroupI18n,
   platform: "anthropic" as GroupPlatform,
   rate_multiplier: 1.0,
   scheduling_strategy: "inherit" as import("@/types").GroupSchedulingStrategy,
@@ -6038,6 +6111,7 @@ const closeCreateModal = () => {
   clearAllAccountSearchState();
   createForm.name = "";
   createForm.description = "";
+  createForm.i18n = {};
   createForm.platform = "anthropic";
   createForm.rate_multiplier = 1.0;
   createForm.scheduling_strategy = "inherit";
@@ -6306,6 +6380,7 @@ const handleCreateGroup = async () => {
       ? {
           name: createForm.name,
           description: createForm.description,
+          i18n: createForm.i18n,
           platform: createForm.platform,
         }
       : requestData;
@@ -6328,10 +6403,16 @@ const handleCreateGroup = async () => {
   }
 };
 
-const handleEdit = async (group: AdminGroup) => {
+const handleEdit = async (group: AdminGroupWithPricingState) => {
   editingGroup.value = group;
   editForm.name = group.name;
   editForm.description = group.description || "";
+  editForm.i18n = Object.fromEntries(
+    Object.entries(group.i18n ?? {}).map(([locale, text]) => [
+      locale,
+      { ...text },
+    ]),
+  );
   editForm.platform = group.platform;
   editForm.rate_multiplier = group.rate_multiplier;
   editForm.scheduling_strategy = group.scheduling_strategy ?? "inherit";
@@ -6664,6 +6745,7 @@ const handleUpdateGroup = async () => {
       ? {
           name: editForm.name,
           description: editForm.description,
+          i18n: editForm.i18n,
         }
       : payload;
     await adminAPI.groups.update(editingGroup.value.id, requestData);

@@ -140,6 +140,14 @@ var (
 		CacheReadInputTokenCost: 0.2e-6,
 		LiteLLMProvider:         "anthropic", Mode: "chat", SupportsPromptCaching: true,
 	}
+	claudeHaiku55FallbackPricing = &LiteLLMModelPricing{
+		InputCostPerToken: 1e-7, OutputCostPerToken: 5e-7,
+		CacheCreationInputTokenCost: 1.25e-7, CacheCreationInputTokenCostAbove1hr: 2e-7,
+		CacheReadInputTokenCost:        1e-8,
+		LongContextInputTokenThreshold: 100000,
+		LongContextInputCostMultiplier: 5, LongContextOutputCostMultiplier: 5,
+		LiteLLMProvider: "anthropic", Mode: "chat", SupportsPromptCaching: true,
+	}
 	openAIGPT56SolFallbackPricing = &LiteLLMModelPricing{
 		InputCostPerToken:                   5e-06,
 		InputCostPerTokenPriority:           1e-05,
@@ -225,6 +233,9 @@ type LiteLLMModelPricing struct {
 	OutputCostPerImageToken             float64            `json:"output_cost_per_image_token"` // 图片输出 token 价格
 	InputCostPerImageToken              float64            `json:"input_cost_per_image_token"`  // 图片输入 token 价格（如 gpt-image-2 图片编辑）
 	CacheReadInputImageTokenCost        float64            `json:"cache_read_input_image_token_cost"`
+	// CacheStorageCostPerTokenPerHour 显式上下文缓存存储单价（每 token 每小时，USD），一般由定价覆盖文件提供，
+	// 配置后优先于内置价（见 BillingService.CacheStoragePricePerTokenHour）。
+	CacheStorageCostPerTokenPerHour float64 `json:"cache_storage_cost_per_token_per_hour"`
 
 	// TokenPricingAbsent 表示源数据中 input/output token 价格均缺失（仅有图片价）。
 	// 此类条目只可用于图片计费，token 计费必须回退到 fallback 或 fail-closed，
@@ -261,6 +272,7 @@ type LiteLLMRawEntry struct {
 	OutputCostPerImageToken             *float64            `json:"output_cost_per_image_token"`
 	InputCostPerImageToken              *float64            `json:"input_cost_per_image_token"`
 	CacheReadInputImageTokenCost        *float64            `json:"cache_read_input_image_token_cost"`
+	CacheStorageCostPerTokenPerHour     *float64            `json:"cache_storage_cost_per_token_per_hour"`
 }
 
 // PricingService 动态价格服务
@@ -298,9 +310,64 @@ type PricingService struct {
 	stopCh chan struct{}
 	wg     sync.WaitGroup
 
+	// stopOnce 让 Stop 幂等：服务端关停钩子与调用方（例如单元测试的收尾）
+	// 都有可能停止同一个服务，第二次 close(stopCh) 会 panic。
+	stopOnce sync.Once
+
+	// refreshes 跟踪后台刷新任务（RefreshNativeCNY 派生的 goroutine）。
+	// 服务的持有方必须能「等它做完」：后台任务的生命周期必须绑定到服务上，
+	// 不能越过调用方（HTTP 请求、测试用例）的边界继续跑。
+	refreshes refreshGroup
+
 	// rescheduleCh 让管理员改动同步周期后立即重排定时器（PRD-01/K-6 热更新），
 	// 而不必等到下一个旧周期。缓冲 1 + 非阻塞发送：多次连续改动只合并成一次重排。
 	rescheduleCh chan struct{}
+}
+
+// refreshGroup 跟踪服务自身拥有的后台任务数量，并提供「等到没有后台任务在跑」
+// 的等待点。用条件变量而不是裸 sync.WaitGroup：sync.WaitGroup 在 Add 与 Wait
+// 竞争时会 panic（"WaitGroup misuse"），而后台刷新可以在别的 goroutine 里被
+// 触发，等待方与触发方并发是常态。
+type refreshGroup struct {
+	mu     sync.Mutex
+	cond   *sync.Cond
+	once   sync.Once
+	active int
+}
+
+// init 惰性创建条件变量，使零值的 refreshGroup 也能直接使用（服务可能被以
+// 结构体字面量构造，而不是走 NewPricingService）。
+func (g *refreshGroup) init() {
+	g.once.Do(func() { g.cond = sync.NewCond(&g.mu) })
+}
+
+// start 登记一个后台任务。
+func (g *refreshGroup) start() {
+	g.init()
+	g.mu.Lock()
+	g.active++
+	g.mu.Unlock()
+}
+
+// done 注销一个后台任务；最后一个任务结束时唤醒所有等待方。
+func (g *refreshGroup) done() {
+	g.init()
+	g.mu.Lock()
+	g.active--
+	if g.active <= 0 {
+		g.cond.Broadcast()
+	}
+	g.mu.Unlock()
+}
+
+// wait 阻塞直到没有后台任务在跑。
+func (g *refreshGroup) wait() {
+	g.init()
+	g.mu.Lock()
+	for g.active > 0 {
+		g.cond.Wait()
+	}
+	g.mu.Unlock()
 }
 
 // NewPricingService 创建价格服务
@@ -343,16 +410,42 @@ func (s *PricingService) Initialize() error {
 }
 
 // Stop 停止价格服务
+//
+// 幂等：关停钩子与调用方（例如测试收尾）都可能停止同一个服务，重复调用不会
+// panic。停止后服务不再接受新的后台刷新任务，并等待已派生的后台任务结束，
+// 使后台工作不会越过调用方的生命周期继续运行。
 func (s *PricingService) Stop() {
-	s.controlsMu.Lock()
-	s.stopping = true
-	for _, cancel := range s.remoteCancels {
-		cancel()
-	}
-	s.controlsMu.Unlock()
-	close(s.stopCh)
+	first := false
+	s.stopOnce.Do(func() {
+		first = true
+		s.controlsMu.Lock()
+		s.stopping = true
+		for _, cancel := range s.remoteCancels {
+			cancel()
+		}
+		s.controlsMu.Unlock()
+		if s.stopCh != nil {
+			close(s.stopCh)
+		}
+	})
+	// The scheduler goroutine and the background refresh tasks are both owned by
+	// the service: both must be finished before the caller may consider the
+	// service stopped.
 	s.wg.Wait()
-	logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
+	s.refreshes.wait()
+	if first {
+		logger.LegacyPrintf("service.pricing", "%s", "[Pricing] Service stopped")
+	}
+}
+
+// WaitForBackgroundRefresh 阻塞直到当前已触发的后台刷新任务全部结束。
+//
+// 后台刷新（RefreshNativeCNY）在自己的 goroutine 里跑，没有调用方可以 recover
+// 它的 panic，也没有任何东西把它绑定到触发者（HTTP 请求、测试用例）的生命周期上。
+// 这个等待点让服务的持有方能显式地「等它做完」：既用于优雅关停，也用于让单元测试
+// 在用例结束前把后台工作收干净。
+func (s *PricingService) WaitForBackgroundRefresh() {
+	s.refreshes.wait()
 }
 
 // schedulerInterval resolves the ticker period. PRD-01/K-6 makes the sync period
@@ -401,6 +494,10 @@ func (s *PricingService) startUpdateScheduler() {
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
+		// A panic in this goroutine has no caller to recover it and would take the
+		// whole process down, so a broken pricing source must not be able to kill
+		// the API server. The failure is reported as a pricing sync error instead.
+		defer s.recoverBackgroundRefresh(pricingSourceScheduledSync)
 		// The ticker is rebuilt whenever the effective sync period changes, so an
 		// administrator edit takes effect on the next boundary instead of after the
 		// previously scheduled period elapses.
@@ -745,7 +842,7 @@ func writePricingCacheFile(path string, data []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(f.Name())
+	defer func() { _ = os.Remove(f.Name()) }()
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
 		return err
@@ -854,6 +951,9 @@ func (s *PricingService) parsePricingData(body []byte) (map[string]*LiteLLMModel
 		}
 		if entry.CacheReadInputImageTokenCost != nil {
 			pricing.CacheReadInputImageTokenCost = *entry.CacheReadInputImageTokenCost
+		}
+		if entry.CacheStorageCostPerTokenPerHour != nil {
+			pricing.CacheStorageCostPerTokenPerHour = *entry.CacheStorageCostPerTokenPerHour
 		}
 
 		hasExplicitLongContext := entry.LongContextInputTokenThreshold != nil ||
@@ -1422,10 +1522,10 @@ func (s *PricingService) buildModelLookupCandidates(modelLower string) []string 
 	normalized := normalizeModelNameForPricing(modelLower)
 
 	// A tier-specific entry should take precedence when the pricing catalog gains
-	// one later. Antigravity's Gemini Flash thinking tiers share the base rate,
+	// one later. Antigravity's Gemini thinking tiers share the base rate,
 	// so the normalized base remains the fallback after the exact aliases.
 	candidates := rawCandidates
-	if normalizeGeminiThinkingTierAlias(lastSegment(modelLower)) != lastSegment(modelLower) {
+	if isAntigravityThinkingTierAlias(lastSegment(modelLower)) {
 		candidates = append(candidates, normalized)
 	} else {
 		// Prefer canonical model names for all other aliases (including models/xxx).
@@ -1481,15 +1581,37 @@ func normalizeModelNameForPricing(model string) string {
 		}
 		return canonical
 	}
-	return normalizeGeminiThinkingTierAlias(model)
+	return normalizeAntigravityClaudeTierAlias(normalizeGeminiThinkingTierAlias(model))
 }
 
-// normalizeGeminiThinkingTierAlias maps Antigravity's Gemini Flash
-// thinking-tier model IDs to the public base model. The tier controls reasoning
-// behavior, not the published token rate, so this keeps -high/-low/-medium and
-// -tiered requests on the corresponding base model's price card.
+// normalizeAntigravityClaudeTierAlias maps Antigravity's Claude 5.5 thinking-tier
+// model IDs (claude-opus-5-5-high, claude-sonnet-5-5-low, ...) to the public base
+// model. Like the Gemini tiers, the suffix selects reasoning depth rather than a
+// separate token rate; without this the IDs fall into substring family matching
+// and are billed as claude-opus-5 / claude-sonnet-4-5.
+func normalizeAntigravityClaudeTierAlias(model string) string {
+	for _, baseModel := range []string{"claude-opus-5-5", "claude-sonnet-5-5"} {
+		for _, tier := range []string{"-high", "-low", "-medium"} {
+			if model == baseModel+tier {
+				return baseModel
+			}
+		}
+	}
+	return model
+}
+
+// isAntigravityThinkingTierAlias reports whether model is an Antigravity
+// Gemini or Claude thinking-tier alias of a priced base model.
+func isAntigravityThinkingTierAlias(model string) bool {
+	return normalizeGeminiThinkingTierAlias(model) != model || normalizeAntigravityClaudeTierAlias(model) != model
+}
+
+// normalizeGeminiThinkingTierAlias maps Antigravity's Gemini thinking-tier
+// model IDs to the public base model. The tier controls reasoning behavior, not
+// the published token rate, so this keeps -high/-low/-medium and -tiered
+// requests on the corresponding base model's price card.
 func normalizeGeminiThinkingTierAlias(model string) string {
-	for _, baseModel := range []string{"gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash"} {
+	for _, baseModel := range []string{"gemini-3.6-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-4-argon"} {
 		for _, tier := range []string{"-high", "-low", "-medium", "-tiered"} {
 			if model == baseModel+tier {
 				return baseModel
@@ -1527,6 +1649,7 @@ func (s *PricingService) extractBaseName(model string) string {
 
 // matchByModelFamily 基于模型系列匹配
 func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
+	model = normalizeAntigravityClaudeTierAlias(model)
 	if claude.IsOpus55(model) {
 		if pricing, ok := s.pricingData["claude-opus-5-5"]; ok {
 			return pricing
@@ -1538,6 +1661,12 @@ func (s *PricingService) matchByModelFamily(model string) *LiteLLMModelPricing {
 			return pricing
 		}
 		return claudeSonnet55FallbackPricing
+	}
+	if claude.IsHaiku55(model) {
+		if pricing, ok := s.pricingData["claude-haiku-5-5"]; ok {
+			return pricing
+		}
+		return claudeHaiku55FallbackPricing
 	}
 	// modelFamily 定义一个模型系列的匹配和定价查找规则。
 	type modelFamily struct {

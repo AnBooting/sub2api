@@ -131,7 +131,23 @@ func RegisterAdminRoutes(
 
 		// 操作审计日志
 		registerAuditLogRoutes(admin, h, stepUpAuth)
+
+		// 白标充值中心：商品同步状态（只读）
+		registerShopSyncStatusRoutes(admin, h)
 	}
+}
+
+// registerShopSyncStatusRoutes 注册白标充值中心的商品同步状态只读端点。
+//
+// GET /admin/shop/sync-status
+//
+// 鉴权/限流/审计沿用 admin 分组上已有的中间件链（adminAuth + panelRateLimiter + auditLog +
+// AdminComplianceGuard），与其它管理端接口一致。
+//
+// 依赖由 wire 显式注入（Handlers.ShopAdmin），不使用进程级全局引用；
+// 服务未装配时接口仍然返回 200 + 「未配置」状态，而不是 500。
+func registerShopSyncStatusRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	admin.GET("/shop/sync-status", h.ShopAdmin.GetSyncStatus)
 }
 
 func registerPromptAuditRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
@@ -246,6 +262,8 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 
 		// Request errors (client-visible failures)
 		ops.GET("/request-errors", h.Admin.Ops.ListRequestErrors)
+		// 缺价拒绝清单（按模型 + 分组聚合；只读观察，不改变「缺价不得放行」）
+		ops.GET("/missing-price-rejections", h.Admin.Ops.ListMissingPriceRejections)
 		ops.GET("/request-errors/:id", h.Admin.Ops.GetRequestError)
 		ops.GET("/request-errors/:id/upstream-errors", h.Admin.Ops.ListRequestErrorUpstreamErrors)
 		ops.PUT("/request-errors/:id/resolve", h.Admin.Ops.ResolveRequestError)

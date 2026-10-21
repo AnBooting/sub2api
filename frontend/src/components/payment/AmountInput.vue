@@ -71,7 +71,7 @@
 </template>
 
 <script setup lang="ts">
-import { formatBillingAmount } from '@/utils/billingCredits'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { ref, computed, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { RechargeBonusTier } from '@/types/payment'
@@ -144,7 +144,7 @@ function secondLine(amt: number): string {
   if (props.bonusMode === 'discount') {
     return t('payment.rechargeBonus.payShort', { amount: formatPaymentAmount(quote.payBase, props.currency) })
   }
-  return t('payment.rechargeBonus.creditedShort', { amount: formatBillingAmount(quote.credited) })
+  return t('payment.rechargeBonus.creditedShort', { amount: formatCustomerCredit(quote.credited) })
 }
 
 const placeholderText = computed(() => {
