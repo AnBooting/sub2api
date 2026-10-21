@@ -76,14 +76,14 @@
 
 ## 7. 当前 PR 状态（2026-10-21 用 `gh pr list --repo AnBooting/sub2api` 实测）
 
-> **读文档前先看这张表**：下面标 **OPEN** 的都**尚未合入 develop**，文档里不要把它们写成"已上线"。
+> **读文档前先看这张表**：本轮的功能 PR 与工具链 PR 已全部合入 develop；下面标 **CLOSED（未合入）** 的**尚未上线**，文档里不要把它们写成"已上线"。
 
 | PR | 标题 | 状态 | 说明 |
 |---|---|---|---|
-| #9 | chore(sync): merge upstream v0.2.17 (133 commits) into develop | **OPEN** | 上游 0.2.17 同步（分支 `chore/sync-upstream-0.2.17`）。审计、验证清单与 D1–D7 决策状态、以及本轮追加的修正与新能力见 [上游同步说明.md](上游同步说明.md) §3.8 |
-| #8 | feat(product): 补齐 PRD 功能的用户/管理端可见性、单位口径与站内帮助页 | **OPEN** | 品牌额度标签、站内帮助页、以及本目录下的**两份手册**都在这个 PR 里；已包含上游 0.2.17 同步 |
-| #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **OPEN（未合入）** | ⚠️ **前端视觉重设计尚未上线**。当前仓库里的界面仍是 Fluent 视觉层（PR #6 的设计体系已 `CLOSED` 未合入，由 PR #7 取代）。**任何文档都不得把它描述为已上线**；本目录两份手册描述的界面以**当前 develop + PR #8** 为准 |
-| #5 | audit: 全量审查修复（安全/健壮性/前端 API 类型）与审计文档 | **OPEN** | 已包含上游 0.2.17 同步（迁移文件与 #9 逐字一致）。合并顺序建议：本同步 PR（#9）→ #5 → #8 |
+| #10 | build: move the Go toolchain to 1.27.3 | **MERGED** | go 指令、三个 workflow 的版本断言与两个 Dockerfile 一起升到 1.27.3，解除 `backend-security` 的标准库公告 GO-2026-6809 |
+| #9 | chore(sync): merge upstream v0.2.17 (133 commits) into develop | **MERGED** | 上游 0.2.17 同步。审计、验证清单与 D1–D7 决策状态、以及本轮追加的修正与新能力见 [上游同步说明.md](上游同步说明.md) §3.8 |
+| #8 | feat(product): 补齐 PRD 功能的用户/管理端可见性、单位口径与站内帮助页 | **MERGED** | 品牌额度标签、站内帮助页，以及本目录下的**两份手册**都在这个 PR 里；已包含上游 0.2.17 同步 |
+| #5 | audit: 全量审查修复（安全/健壮性/前端 API 类型）与审计文档 | **MERGED** | 已包含上游 0.2.17 同步（迁移文件与 #9 逐字一致）。合并顺序：#9 → #5 → #8（已按此执行） |
+| #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮三条 PR 已改动同样的界面文件；分支 `feat/frontend-fluent-redesign-clean` **完整保留**，重做的前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
-| — | build: Go 工具链升级到 1.27.3（go 指令 + 3 个 workflow 断言 + 2 个 Dockerfile） | **未推送** | 本机 GitHub 令牌缺 `workflow` scope，推不动 workflow 文件，故隔离在分支 `chore/go-toolchain-1.27.3`；本地已验证（编译 + 全量 unit + lint 全绿）。需要令牌加 `workflow` scope 后才能推 |
 | #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
