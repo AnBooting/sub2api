@@ -819,12 +819,14 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
 	billingModel := ""
 	var cost *CostBreakdown
+	var lockedQuote *LockedRequestPricing
 	if requestPricing != nil {
 		lockedCost, quote, scope, lockedErr := s.calculateLockedSharedGatewayUsageCost(ctx, requestPricing, result, account)
 		if lockedErr != nil {
 			return lockedErr
 		}
 		cost = lockedCost
+		lockedQuote = quote
 		billingModel = scope.BillingModel
 		// Token 使用冻结高峰倍率；按图使用最终报价的冻结分组独立倍率或基础倍率。
 		multiplier = quote.EffectiveMultiplier()
@@ -867,11 +869,15 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 			}
 		}
 	}
-	// 显式缓存存储费（上游 0.2.17 新增）：按 token·小时计价，只在 live 路径收取——
-	// 锁价路径的冻结 bundle 里没有缓存存储费口径，既不收取也不从账号统计成本里扣减。
+	// 显式缓存存储费（上游 0.2.17 新增）：按 token·小时计价。live 路径按实时价卡的
+	// 存储单价算；锁价路径按请求建立时冻结的价卡算（quote 在计价时已把同一笔存储费
+	// 叠加进总价，这里取的是同一笔冻结存储费，不回源查实时目录）。两条路径口径一致：
+	// 总价含存储费，账号统计成本也含这笔存储费。
 	cacheStorageCost := 0.0
 	if requestPricing == nil {
 		cacheStorageCost = s.cacheStorageCost(result, billingModel)
+	} else if lockedQuote != nil {
+		cacheStorageCost = lockedQuote.CacheStorageCost()
 	}
 
 	// 确定 RequestedModel（渠道映射前的原始模型）

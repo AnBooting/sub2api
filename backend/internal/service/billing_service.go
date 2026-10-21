@@ -1652,6 +1652,14 @@ type CostInput struct {
 	LongContextBillingEnabled *bool
 	// DisableModelLongContextPricing 豁免模型价卡的长上下文附加费，不改变自定义区间价格。
 	DisableModelLongContextPricing bool
+	// CacheStorageTokenHours 显式上下文缓存的存储量（缓存 token 数 × 存储小时数）。
+	// 锁价路径按请求建立时冻结的存储单价计价（见 LockedRequestPricing）；
+	// live 路径的存储费在网关层单独叠加，两者口径一致。
+	CacheStorageTokenHours float64
+	// CacheStorageOnly 标记「纯存储量请求」：这次请求只发生显式缓存存储，没有
+	// token/图片/按次用量，不是一次模型请求。与 live 路径的 isCacheStorageOnlyResult
+	// 同口径：这类请求只收显式缓存存储费，不收本次模型请求的费用。
+	CacheStorageOnly bool
 }
 
 // CalculateCostUnified 统一计费入口，支持三种计费模式。
