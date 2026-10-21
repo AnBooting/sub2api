@@ -29,7 +29,7 @@ go test -tags=unit ./...
 go test -tags=integration ./...      # 需 PostgreSQL + Redis
 go generate ./ent                    # 改 ent schema 后必须执行
 ```
-Go 环境：`GOROOT=F:\tools\go1.27.2\go`，`GOPATH=F:\tools\gopath`，`GOTOOLCHAIN=local`。
+Go 环境：`GOROOT=F:\tools\go1.27.3\go`，`GOPATH=F:\tools\gopath`，`GOTOOLCHAIN=local`（1.27.2 带标准库公告 GO-2026-6809，2026-10-21 升到 1.27.3；backend/go.mod 的 go 指令、三个 workflow 的版本断言、两个 Dockerfile 同步改）。
 首次拉依赖需 `GOPROXY=https://goproxy.cn,direct`。
 
 ### 前端（**必须 pnpm 9**）
@@ -94,7 +94,7 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 - `frontend-security` = `pnpm audit` + `.github/audit-exceptions.yml` 例外校验
 - `backend-security` = `govulncheck`
 
-**已知会红（既有缺陷，非某次改动引入）**：`backend-security` 报 `GO-2026-6809`（Go 标准库 crypto/x509，go1.27.2 受影响，1.27.3 修复）。仓库锁定 Go 1.27.2（`backend/go.mod` 的 go 指令 + 本机 `F:\tools\go1.27.2`），修它要同时升级 go 指令与本机工具链，属独立决策，基线 `origin/develop` 同样红。
+**Go 工具链版本**：`backend/go.mod` 的 go 指令、三个 workflow 里的版本断言、两个 Dockerfile 必须与本机 Go 保持一致（当前 1.27.3，本机 `F:\tools\go1.27.3`）。`backend-security` 跑 `govulncheck`，**Go 标准库公告会直接让它红**（例如 1.27.2 的 GO-2026-6809，1.27.3 修复）——这类红灯不是业务代码问题，升级工具链与 go 指令即可解除，但 workflow 里的 `grep -q` 断言和 Dockerfile 要一起改。
 
 **transitive 依赖的安全升级**：走 `frontend/package.json` 的 `pnpm.overrides`（仓库既有做法：`dompurify@<3.4.14`、`form-data@<4.0.6`、`postcss@<8.5.18`），改完同步 `frontend/pnpm-lock.yaml`，并用 `corepack pnpm@9 install --lockfile-only --frozen-lockfile` 验证锁文件与 package.json 一致。
 
