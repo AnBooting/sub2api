@@ -1113,7 +1113,7 @@ export default {
         withInput: '（含输入视频）'
       },
       explicitPricing: {
-        title: 'Grok 搜索与 Voice 定价',
+        title: '搜索与语音/实时定价',
         description: '分组级 web_search（每千次）与 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
         searchPricePer1k: '搜索每千次价格（USD）',
         pricePlaceholder: '可选'
@@ -1157,7 +1157,7 @@ export default {
         hint: '分组高峰倍率按服务器本地时区（Asia/Shanghai）判定，只作用于该分组的 token 计费；与 DeepSeek 官方峰谷是两套机制。'
       },
       voicePricing: {
-        title: 'Grok Voice 定价',
+        title: '语音 / 实时定价',
         description: '分组级 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
         audioRealtimePerMin: 'Realtime 每分钟价格（USD）',
         audioTtsPerMillionChars: 'TTS 每百万字符价格（USD）',

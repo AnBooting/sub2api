@@ -10,7 +10,26 @@ export interface PricingControls {
   // the stored value; 0 is rejected because a real period is at least one hour.
   update_interval_hours?: number
 }
+/**
+ * DeepSeek 官方峰谷的当前档位（后端 deepseek_current_period）。
+ * 字段整体缺失 = 后端还没提供，界面不显示；前端不自己复制官方时段规则去推算。
+ * - state：peak / valley（后端判定）
+ * - label：服务端给的权威文案，前端优先显示它
+ * - timezone / window / multiplier：官方时段信息
+ * - next_switch_at：下一档切换时间（RFC3339）
+ */
+export interface DeepSeekCurrentPeriod {
+  state?: string
+  label?: string
+  timezone?: string
+  window?: string
+  multiplier?: number
+  next_switch_at?: string
+}
+
 export interface PricingStatus extends PricingControls {
+  // 官方峰谷当前档位（可选：旧后端没有这个字段）
+  deepseek_current_period?: DeepSeekCurrentPeriod
 	deepseek_calendar_years?: number[]
 	deepseek_calendar_error?: string
 	usd_error?: string

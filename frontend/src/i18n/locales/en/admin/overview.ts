@@ -1116,7 +1116,7 @@ export default {
         withInput: '(with video input)'
       },
       explicitPricing: {
-        title: 'Grok Search & Voice Pricing',
+        title: 'Search and voice / realtime pricing',
         description: 'Optional per-group prices for web_search (per 1k calls) and Voice realtime / TTS / STT (USD). Leave empty if unused.',
         searchPricePer1k: 'Search price per 1k calls (USD)',
         pricePlaceholder: 'optional'
@@ -1162,7 +1162,7 @@ export default {
         hint: 'The group peak multiplier is evaluated in the server timezone (Asia/Shanghai) and only applies to token billing of this group; it is separate from the DeepSeek official peak/off-peak schedule.'
       },
       voicePricing: {
-        title: 'Grok Voice Pricing',
+        title: 'Voice / realtime pricing',
         description: 'Optional per-group prices for Voice realtime / TTS / STT (USD). Leave empty to leave unpriced.',
         audioRealtimePerMin: 'Realtime price per minute (USD)',
         audioTtsPerMillionChars: 'TTS price per million chars (USD)',

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import en from '@/i18n/locales/en'
@@ -76,5 +78,59 @@ describe('管理端价格口径文案', () => {
     const enHint = en.admin.groups.peakWindow.hint
     expect(enHint).toContain('Asia/Shanghai')
     expect(enHint).toContain('token')
+  })
+})
+
+describe('管理端分组级显式定价标题口径', () => {
+  // 这些字段是**分组级**的（search_price_per_1k 与 Voice realtime/TTS/STT 单价），
+  // 我们 fork 支持多平台；标题里带平台限定词会让我们已支持的能力在界面上消失。
+  const platformWords = [
+    'Grok', 'grok', 'OpenAI', 'openai', 'Claude', 'claude', 'Anthropic', 'anthropic',
+    'Gemini', 'gemini', 'Codex', 'codex', 'DeepSeek', 'deepseek', 'Kimi', 'kimi',
+    'Zhipu', 'zhipu', 'MiniMax', 'minimax'
+  ]
+
+  it('显式定价标题保持中性，不带平台限定词', () => {
+    const zhTitle = zh.admin.groups.explicitPricing.title
+    const enTitle = en.admin.groups.explicitPricing.title
+    for (const word of platformWords) {
+      expect(zhTitle).not.toContain(word)
+      expect(enTitle).not.toContain(word)
+    }
+    expect(zhTitle).toContain('搜索')
+    expect(enTitle.toLowerCase()).toContain('search')
+  })
+
+  it('语音/实时定价标题与说明也不带平台限定词', () => {
+    for (const word of platformWords) {
+      expect(zh.admin.groups.voicePricing.title).not.toContain(word)
+      expect(en.admin.groups.voicePricing.title).not.toContain(word)
+      expect(zh.admin.groups.explicitPricing.description).not.toContain(word)
+      expect(en.admin.groups.explicitPricing.description).not.toContain(word)
+    }
+  })
+
+  it('分组显式定价区块没有按平台隐藏（上游 0.2.17 收窄成 grok 专属，我们保留所有平台可见）', () => {
+    const source = readFileSync(resolve('src/views/admin/GroupsView.vue'), 'utf8')
+    expect(source).toContain('admin.groups.explicitPricing.title')
+    expect(source).not.toMatch(/v-if="(?:create|edit)Form\.platform\s*===\s*'grok'"/)
+  })
+})
+
+describe('管理端 DeepSeek 官方峰谷档位文案', () => {
+  it('中英文都写明当前档位、下一档切换与年度日历缺失提示', () => {
+    for (const locale of [
+      zh.admin.settings.pricing.deepseekPeriod,
+      en.admin.settings.pricing.deepseekPeriod
+    ]) {
+      expect(locale.title.length).toBeGreaterThan(0)
+      expect(locale.current.length).toBeGreaterThan(0)
+      expect(locale.peak.length).toBeGreaterThan(0)
+      expect(locale.valley.length).toBeGreaterThan(0)
+      expect(locale.multiplier).toContain('{multiplier}')
+      expect(locale.nextSwitch).toContain('{time}')
+      expect(locale.nextSwitch).toContain('{timezone}')
+      expect(locale.yearMissing.length).toBeGreaterThan(0)
+    }
   })
 })
