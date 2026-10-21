@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
@@ -208,27 +209,67 @@ func TestCalculateCostUnified_NonDeepseekDefaultCardNotScaledByPeak(t *testing.T
 	}
 }
 
+// 零值 PricingAt 回退当前时刻（生产契约：请求级 PricingAt → resolved.pricingAt →
+// timezone.Now()，见 billing_service.go 的计费时点契约）。
+//
+// 这条用例**不能**再拿「零值的结果」和「另一个 now 的结果」比：两次调用之间可能
+// 恰好跨过 DeepSeek 峰谷边界（北京时间 09:00-12:00 与 14:00-18:00），那样断言就
+// 挂在墙上时钟上，同一份代码一天里有一部分时间是红的。
+//
+// 改法：
+//  1. 用**固定时刻**分别算出峰、谷两个基准金额——与运行时刻无关的常量；
+//  2. 零值路径解析到的时刻必然落在「当前时刻」所在的那一侧，所以它的金额必须是
+//     上面两个基准金额之一（常量集合，任何时刻都成立）；
+//  3. 若调用期间墙上时钟没有跨过峰谷边界（用 before/after 两次取时判定），零值
+//     路径必须与「显式传入当前时刻」**完全一致**——这是「零值 = 现在」的精确锁定。
+//
+// 诚实的边界：峰谷倍率是**按小时**变化的，所以当「现在」处在低谷时，「回退到当前
+// 时刻」与「回退到零值（公元 1 年）」算出的金额相同，这条用例在低谷时段区分不了
+// 这两种实现。要把「零值 = 当前时刻」完全确定性地锁住，看
+// billing_channel_time_pricing_test.go：那里用「覆盖全天的渠道分时窗口」把这条
+// 契约变成任何时刻都成立。
 func TestCalculateCostUnified_DeepseekPricingAtZeroFallsBackToNow(t *testing.T) {
 	bs := newTestBillingService()
 	resolver := NewModelPricingResolver(nil, bs)
 
 	tokens := UsageTokens{InputTokens: 1000, OutputTokens: 500}
-	base := CostInput{
-		Ctx: context.Background(), Model: "deepseek-v4-flash", Tokens: tokens,
-		RateMultiplier: 1.0, Resolver: resolver,
+	// V4.1-Flash 官方低谷价（2026-09-10 起）：1000*1.5e-7 + 500*6e-7
+	offPeakTotal := 1000*1.5e-7 + 500*6e-7
+
+	totalAt := func(pricingAt time.Time) float64 {
+		cost, err := bs.CalculateCostUnified(CostInput{
+			Ctx: context.Background(), Model: "deepseek-v4-flash", Tokens: tokens,
+			RateMultiplier: 1.0, Resolver: resolver, PricingAt: pricingAt,
+		})
+		require.NoError(t, err)
+		return cost.TotalCost
 	}
 
-	// PricingAt 零值 → 回退 timezone.Now()，与显式传入当前时刻结果一致。
-	costZero, err := bs.CalculateCostUnified(base)
-	require.NoError(t, err)
+	// 固定时刻的峰/谷基准（2026-08-24 周一）：02:00 UTC 在峰，12:00 UTC 在谷。
+	peakTotal := totalAt(time.Date(2026, 8, 24, 2, 0, 0, 0, time.UTC))
+	offPeak := totalAt(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	require.InDelta(t, offPeakTotal*2, peakTotal, 1e-10, "固定峰时刻应套用 ×2 峰谷倍率")
+	require.InDelta(t, offPeakTotal, offPeak, 1e-10, "固定谷时刻不应套用峰谷倍率")
 
-	costNow, err := bs.CalculateCostUnified(CostInput{
-		Ctx: base.Ctx, Model: base.Model, Tokens: base.Tokens,
-		RateMultiplier: base.RateMultiplier, Resolver: base.Resolver,
-		PricingAt: timezone.Now(),
-	})
-	require.NoError(t, err)
-	require.Equal(t, costZero.TotalCost, costNow.TotalCost)
+	before := timezone.Now()
+	zeroTotal := totalAt(time.Time{}) // 零值 → 契约要求回退当前时刻
+	after := timezone.Now()
+
+	// 零值路径解析到的时刻落在 before 与 after 之间，峰谷侧与「现在」一致：金额必然
+	// 是上面两个固定基准之一（常量集合，与运行时刻无关）。
+	require.True(t,
+		math.Abs(zeroTotal-peakTotal) <= 1e-10 || math.Abs(zeroTotal-offPeak) <= 1e-10,
+		"零值 PricingAt 必须回退到当前时刻，金额应是固定峰/谷基准之一：actual=%v peak=%v offPeak=%v",
+		zeroTotal, peakTotal, offPeak)
+
+	// 墙上时钟没有跨过峰谷边界时（before 与 after 的金额相同），零值路径必须与
+	// 「显式传入当前时刻」完全一致——这条断言就是「零值 = 现在」的精确锁定。
+	beforeTotal := totalAt(before)
+	afterTotal := totalAt(after)
+	if math.Abs(beforeTotal-afterTotal) <= 1e-10 {
+		require.InDelta(t, beforeTotal, zeroTotal, 1e-10,
+			"零值 PricingAt 必须与显式传入当前时刻得到同一金额")
+	}
 }
 
 // ---------------------------------------------------------------------------
