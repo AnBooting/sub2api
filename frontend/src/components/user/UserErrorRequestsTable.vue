@@ -49,12 +49,18 @@
         </template>
 
         <template #cell-message="{ row }">
-          <span
-            v-if="row.message"
-            class="block max-w-[280px] truncate text-sm text-gray-600 dark:text-gray-400"
-            :title="row.message"
-          >{{ row.message }}</span>
-          <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          <div class="max-w-[280px]">
+            <!-- 缺价（模型没配价）不是普通错误：给一个明确徽标，别只丢一串后端原文 -->
+            <div v-if="isMissingPriceError(row)" class="mb-1">
+              <MissingPriceBadge />
+            </div>
+            <span
+              v-if="row.message"
+              class="block truncate text-sm text-gray-600 dark:text-gray-400"
+              :title="row.message"
+            >{{ row.message }}</span>
+            <span v-else class="text-sm text-gray-400 dark:text-gray-500">-</span>
+          </div>
         </template>
 
         <template #cell-group="{ row }">
@@ -127,6 +133,8 @@ import DataTable from '@/components/common/DataTable.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import UserErrorDetailModal from '@/components/user/UserErrorDetailModal.vue'
+import MissingPriceBadge from '@/components/user/MissingPriceBadge.vue'
+import { isMissingPriceError } from '@/components/user/missingPrice'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
 import { formatDateTime } from '@/utils/format'

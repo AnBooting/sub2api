@@ -1,0 +1,57 @@
+{
+  "review_date": "2026-10-21",
+  "timezone": "Asia/Singapore",
+  "pull_requests": [
+    {
+      "number": 5,
+      "title": "audit: 全量审查修复（安全/健壮性/前端 API 类型）与审计文档",
+      "url": "https://github.com/AnBooting/sub2api/pull/5",
+      "state": "MERGED",
+      "baseRefOid": "d5c2b5edbcb0335cb80e4cfd7371098cf8982d8c",
+      "headRefOid": "db822967b645fb46029abb909945ece4b90e4b6d",
+      "mergedAt": "2026-10-21T12:22:28Z",
+      "closedAt": "2026-10-21T12:22:29Z"
+    },
+    {
+      "number": 7,
+      "title": "feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固）",
+      "url": "https://github.com/AnBooting/sub2api/pull/7",
+      "state": "CLOSED",
+      "baseRefOid": "d5c2b5edbcb0335cb80e4cfd7371098cf8982d8c",
+      "headRefOid": "d52241fdbf7da8b42d6a6e180e5d5c55865a19a0",
+      "mergedAt": null,
+      "closedAt": "2026-10-21T12:23:25Z"
+    },
+    {
+      "number": 8,
+      "title": "feat(product): 补齐 PRD 功能的用户/管理端可见性、单位口径与站内帮助页",
+      "url": "https://github.com/AnBooting/sub2api/pull/8",
+      "state": "MERGED",
+      "baseRefOid": "d5c2b5edbcb0335cb80e4cfd7371098cf8982d8c",
+      "headRefOid": "300eace889c14376fe7a8f0e7b02e9cfd3e32e4e",
+      "mergedAt": "2026-10-21T12:22:40Z",
+      "closedAt": "2026-10-21T12:22:40Z"
+    },
+    {
+      "number": 9,
+      "title": "chore(sync): merge upstream v0.2.17 (133 commits) into develop",
+      "url": "https://github.com/AnBooting/sub2api/pull/9",
+      "state": "MERGED",
+      "baseRefOid": "d5c2b5edbcb0335cb80e4cfd7371098cf8982d8c",
+      "headRefOid": "b6c842d7e11123465207db544855e46634909ba0",
+      "mergedAt": "2026-10-21T12:22:07Z",
+      "closedAt": "2026-10-21T12:22:07Z"
+    },
+    {
+      "number": 10,
+      "title": "build: move the Go toolchain to 1.27.3",
+      "url": "https://github.com/AnBooting/sub2api/pull/10",
+      "state": "MERGED",
+      "baseRefOid": "973b91cb0350bf88ade5731064a7587aa8ee067b",
+      "headRefOid": "1361d5441acf3ec34361e0e27cff44848bb0a0de",
+      "mergedAt": "2026-10-21T12:37:05Z"
+    }
+  ],
+  "repository": "AnBooting/sub2api",
+  "current_develop": "b354fc31606e604d1fa0777cd90b4537a7b3fc06"
+}

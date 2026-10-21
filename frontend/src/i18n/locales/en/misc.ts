@@ -630,4 +630,13 @@ export default {
     },
   },
 
+  // DeepSeek peak/valley pricing badge (user facing, read only; the state and label come from the backend)
+  groupPricingState: {
+    badgePeak: 'Peak',
+    badgeValley: 'Valley',
+    badgeNone: 'Not enabled',
+    tooltip: 'Determined automatically from the official window ({timezone}); administrators cannot override it.',
+    nextSwitch: 'Next switch at {time}'
+  },
+
 }

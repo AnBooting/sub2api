@@ -32,6 +32,7 @@ func main() {
 	beforeRaw := flag.String("before", "", "required RFC3339 cutoff; only older rows are considered")
 	execute := flag.Bool("execute", false, "delete matched rows (default is dry-run)")
 	batchSize := flag.Int("batch-size", 5000, "scan/delete batch size (1-5000)")
+	retentionDays := flag.Int("retention-days", 30, "keep rows newer than now()-retention-days; 0 disables the retention floor")
 	flag.Parse()
 
 	if *beforeRaw == "" {
@@ -45,6 +46,19 @@ func main() {
 		log.Fatal("--batch-size must be between 1 and 5000")
 	}
 
+	// Q7: 删除谓词同时受 created_at <= now() 与保留窗口约束。--before 只是「上界」，
+	// 未来时间戳会被 now() 截断；保留窗口再把上界收紧到 now()-retention，避免误删
+	// 仍在审计保留期内的拒绝日志。
+	now := time.Now().UTC()
+	cutoff, err := resolveCutoff(before, now, *retentionDays)
+	if err != nil {
+		log.Fatalf("invalid cutoff: %v", err)
+	}
+	if !cutoff.Equal(before.UTC()) {
+		log.Printf("cutoff adjusted: --before=%s now=%s retention_days=%d effective_cutoff=%s",
+			before.UTC().Format(time.RFC3339), now.Format(time.RFC3339), *retentionDays, cutoff.Format(time.RFC3339))
+	}
+
 	cfg, err := config.LoadForBootstrap()
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -56,18 +70,16 @@ func main() {
 	defer func() { _ = client.Close() }()
 
 	ctx := context.Background()
-	counts, scanned, matched, deleted, err := cleanup(ctx, db, before, *batchSize, *execute)
+	counts, scanned, matched, deleted, err := cleanup(ctx, db, cutoff, now, *batchSize, *execute)
 	if err != nil {
 		log.Fatalf("cleanup failed: %v", err)
 	}
 
-	digest := sha256.Sum256([]byte(classifierVersion))
 	mode := "dry-run"
 	if *execute {
 		mode = "execute"
 	}
-	fmt.Printf("mode=%s before=%s classifier=%s scanned=%d matched=%d deleted=%d\n",
-		mode, before.UTC().Format(time.RFC3339), hex.EncodeToString(digest[:]), scanned, matched, deleted)
+	fmt.Println(summarize(mode, cutoff, scanned, matched, deleted, counts))
 	reasons := make([]string, 0, len(counts))
 	for reason := range counts {
 		reasons = append(reasons, reason)
@@ -81,22 +93,55 @@ func main() {
 	}
 }
 
-func cleanup(ctx context.Context, db *sql.DB, before time.Time, batchSize int, execute bool) (map[string]int64, int64, int64, int64, error) {
+// resolveCutoff 把用户传入的 --before 收敛成实际删除上界：
+//  1. 上界永远不得超过 now()，未来时间戳不会被当作历史数据；
+//  2. 上界不得超过 now()-retentionDays（retentionDays>0 时），保护仍在保留窗口内的日志；
+//  3. retentionDays==0 表示关闭保留窗口，仅保留 now() 截断。
+func resolveCutoff(before, now time.Time, retentionDays int) (time.Time, error) {
+	if retentionDays < 0 {
+		return time.Time{}, fmt.Errorf("retention-days must be non-negative, got %d", retentionDays)
+	}
+	now = now.UTC()
+	cutoff := before.UTC()
+	if cutoff.After(now) {
+		cutoff = now
+	}
+	if retentionDays > 0 {
+		floor := now.AddDate(0, 0, -retentionDays)
+		if cutoff.After(floor) {
+			cutoff = floor
+		}
+	}
+	return cutoff, nil
+}
+
+// summarize 输出一行可核对的计数。dry-run 用 would_delete 表达「将要删除」，
+// execute 模式下 would_delete 与 deleted 必须相等。
+func summarize(mode string, cutoff time.Time, scanned, matched, deleted int64, counts map[string]int64) string {
+	digest := sha256.Sum256([]byte(classifierVersion))
+	return fmt.Sprintf("mode=%s cutoff=%s classifier=%s scanned=%d matched=%d would_delete=%d deleted=%d reasons=%d",
+		mode, cutoff.UTC().Format(time.RFC3339), hex.EncodeToString(digest[:]), scanned, matched, matched, deleted, len(counts))
+}
+
+func cleanup(ctx context.Context, db *sql.DB, cutoff, now time.Time, batchSize int, execute bool) (map[string]int64, int64, int64, int64, error) {
 	counts := make(map[string]int64)
 	var cursor, scanned, matched, deleted int64
 	for {
+		// 双条件保护：created_at <= now() 防止未来时间戳被当成历史数据，
+		// created_at < cutoff 承载 --before 上界与保留窗口。
 		rows, err := db.QueryContext(ctx, `
 			SELECT id, COALESCE(status_code, 0), COALESCE(error_message, ''), COALESCE(error_body, '')
 			FROM ops_error_logs
 			WHERE id > $1
 			  AND created_at < $2
+			  AND created_at <= $4
 			  AND error_phase = 'auth'
 			  AND account_id IS NULL
 			  AND upstream_status_code IS NULL
 			  AND COALESCE(upstream_error_message, '') = ''
 			  AND COALESCE(upstream_error_detail, '') = ''
 			ORDER BY id ASC
-			LIMIT $3`, cursor, before, batchSize)
+			LIMIT $3`, cursor, cutoff, batchSize, now)
 		if err != nil {
 			return nil, scanned, matched, deleted, err
 		}
@@ -130,8 +175,10 @@ func cleanup(ctx context.Context, db *sql.DB, before time.Time, batchSize int, e
 			}
 		}
 		if execute && len(ids) > 0 {
+			// 删除语句重复同一组时间条件，确保「选中」与「删除」使用完全一致的谓词。
 			result, err := db.ExecContext(ctx,
-				`DELETE FROM ops_error_logs WHERE id = ANY($1) AND created_at < $2`, pq.Array(ids), before)
+				`DELETE FROM ops_error_logs WHERE id = ANY($1) AND created_at < $2 AND created_at <= $3`,
+				pq.Array(ids), cutoff, now)
 			if err != nil {
 				return nil, scanned, matched, deleted, err
 			}

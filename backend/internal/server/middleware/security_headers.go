@@ -166,8 +166,11 @@ func isAPIRoutePath(c *gin.Context) bool {
 // enhanceCSPPolicy 确保 CSP 策略包含 nonce 支持和运行时组件必需域名。
 // 这样旧配置文件没有及时补域名时，验证码和支付组件仍能正常加载。
 func enhanceCSPPolicy(policy string) string {
-	// Add nonce placeholder to script-src if not present
-	if !strings.Contains(policy, NonceTemplate) && !strings.Contains(policy, "'nonce-") {
+	// Add nonce placeholder to script-src if not present.
+	// 只检查 script-src 自身：其他指令（如 default-src）出现 'nonce- 不代表
+	// script-src 已有 nonce，否则每请求 nonce 永不注入，内联脚本会被浏览器拦截。
+	if !directiveHasValue(policy, "script-src", NonceTemplate) &&
+		!directiveHasValuePrefix(policy, "script-src", "'nonce-") {
 		policy = addToDirective(policy, "script-src", NonceTemplate)
 	}
 
@@ -178,6 +181,23 @@ func enhanceCSPPolicy(policy string) string {
 	}
 
 	return policy
+}
+
+// directiveHasValuePrefix 判断某指令是否已包含以 prefix 开头的值（如 'nonce-）。
+func directiveHasValuePrefix(policy, directive, prefix string) bool {
+	for _, rawDirective := range strings.Split(policy, ";") {
+		fields := strings.Fields(strings.TrimSpace(rawDirective))
+		if len(fields) == 0 || fields[0] != directive {
+			continue
+		}
+		for _, field := range fields[1:] {
+			if strings.HasPrefix(field, prefix) {
+				return true
+			}
+		}
+		return false
+	}
+	return false
 }
 
 func directiveHasValue(policy, directive, value string) bool {

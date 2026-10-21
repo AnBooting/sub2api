@@ -116,7 +116,7 @@ func TestSeedanceLegacyOnlyGroupSettlesNonZeroThroughCostEntry(t *testing.T) {
 	cost, err := svc.calculateOpenAIRecordUsageCost(
 		context.Background(), result, apiKey, []string{"doubao-seedance"},
 		1.0, 1.0, 1.0, 1.0, UsageTokens{InputTokens: 10, OutputTokens: 20},
-		"", boolPtr(false), time.Time{},
+		"", boolPtr(false), false, time.Time{},
 	)
 	require.NoError(t, err, "a group the create gate accepts must be priceable")
 	require.NotNil(t, cost)
@@ -143,7 +143,7 @@ func TestSeedanceUnpricedGroupFailsClosedThroughCostEntry(t *testing.T) {
 	_, err := svc.calculateOpenAIRecordUsageCost(
 		context.Background(), result, apiKey, []string{"doubao-seedance"},
 		1.0, 1.0, 1.0, 1.0, UsageTokens{InputTokens: 10, OutputTokens: 20},
-		"", boolPtr(false), time.Time{},
+		"", boolPtr(false), false, time.Time{},
 	)
 	require.Error(t, err, "an unpriced Seedance result must fail closed rather than settle at zero")
 	require.ErrorIs(t, err, ErrModelPricingUnavailable)

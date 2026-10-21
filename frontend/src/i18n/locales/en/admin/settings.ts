@@ -2,6 +2,16 @@ export default {
     settings: {
 	  pricing: {
 	    calendarYears: 'Calendar coverage years',
+      deepseekPeriod: {
+        title: 'DeepSeek official peak / off-peak',
+        current: 'Current period',
+        peak: 'Peak hours',
+        valley: 'Off-peak hours',
+        multiplier: 'Peak multiplier {multiplier}x',
+        nextSwitch: 'Next switch: {time} ({timezone})',
+        yearMissing:
+          'The holiday calendar for the current year is missing: the official peak surcharge is disabled for that year and off-peak prices apply.'
+      },
       calendar: {
         "title": "DeepSeek statutory holiday calendar",
         "rules": "Timezone: Asia/Shanghai. Maintained statutory holidays take off-peak precedence. Weekends, including makeup-work weekends, remain off-peak. Non-holiday weekdays use peak windows [09:00,12:00) and [14:00,18:00); all other times are off-peak. This editor does not calculate the current price or period.",

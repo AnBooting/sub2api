@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/stretchr/testify/require"
@@ -117,6 +119,7 @@ func TestAdminComplianceStatusIsPerAdminUser(t *testing.T) {
 	current, err := json.Marshal(AdminComplianceAcknowledgement{
 		Version:     AdminComplianceVersion,
 		AdminUserID: 1,
+		AcceptedAt:  time.Now().UTC(),
 	})
 	require.NoError(t, err)
 	svc := NewSettingService(&adminComplianceRepoStub{
@@ -130,4 +133,62 @@ func TestAdminComplianceStatusIsPerAdminUser(t *testing.T) {
 	statusForUserTwo, err := svc.GetAdminComplianceStatus(context.Background(), 2)
 	require.NoError(t, err)
 	require.True(t, statusForUserTwo.Required)
+}
+
+func TestAdminComplianceStatusCorruptAckReturnsError(t *testing.T) {
+	svc := NewSettingService(&adminComplianceRepoStub{
+		values: map[string]string{adminComplianceAcknowledgementKey(1): `{"version":`},
+	}, &config.Config{})
+
+	_, err := svc.GetAdminComplianceStatus(context.Background(), 1)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "unmarshal admin compliance acknowledgement")
+}
+
+func TestAcceptAdminComplianceRejectsNonPositiveAdminUser(t *testing.T) {
+	repo := &adminComplianceRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	_, err := svc.AcceptAdminCompliance(context.Background(), AdminComplianceAcceptInput{
+		AdminUserID: 0,
+		Language:    "zh",
+		Phrase:      AdminComplianceAckPhraseZH,
+	})
+	require.Error(t, err)
+	require.Empty(t, repo.values)
+}
+
+func TestAcceptAdminComplianceTruncatesAttributionFields(t *testing.T) {
+	repo := &adminComplianceRepoStub{}
+	svc := NewSettingService(repo, &config.Config{})
+
+	longUA := strings.Repeat("u", 4096)
+	longIP := strings.Repeat("1", 1024)
+	status, err := svc.AcceptAdminCompliance(context.Background(), AdminComplianceAcceptInput{
+		AdminUserID: 7,
+		Language:    "en",
+		Phrase:      AdminComplianceAckPhraseEN,
+		IPAddress:   longIP,
+		UserAgent:   longUA,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, status.Acknowledgement)
+	require.Equal(t, adminComplianceMaxIPAddressLength, len(status.Acknowledgement.IPAddress))
+	require.Equal(t, adminComplianceMaxUserAgentLength, len(status.Acknowledgement.UserAgent))
+}
+
+func TestAdminComplianceStatusZeroAcceptedAtIsRequired(t *testing.T) {
+	corrupt, err := json.Marshal(AdminComplianceAcknowledgement{
+		Version:     AdminComplianceVersion,
+		AdminUserID: 1,
+	})
+	require.NoError(t, err)
+	svc := NewSettingService(&adminComplianceRepoStub{
+		values: map[string]string{adminComplianceAcknowledgementKey(1): string(corrupt)},
+	}, &config.Config{})
+
+	status, err := svc.GetAdminComplianceStatus(context.Background(), 1)
+	require.NoError(t, err)
+	require.True(t, status.Required)
+	require.Nil(t, status.Acknowledgement)
 }

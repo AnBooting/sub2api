@@ -246,6 +246,8 @@ func registerOpsRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 
 		// Request errors (client-visible failures)
 		ops.GET("/request-errors", h.Admin.Ops.ListRequestErrors)
+		// 缺价拒绝清单（按模型 + 分组聚合；只读观察，不改变「缺价不得放行」）
+		ops.GET("/missing-price-rejections", h.Admin.Ops.ListMissingPriceRejections)
 		ops.GET("/request-errors/:id", h.Admin.Ops.GetRequestError)
 		ops.GET("/request-errors/:id/upstream-errors", h.Admin.Ops.ListRequestErrorUpstreamErrors)
 		ops.PUT("/request-errors/:id/resolve", h.Admin.Ops.ResolveRequestError)

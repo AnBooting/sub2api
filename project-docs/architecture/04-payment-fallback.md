@@ -528,7 +528,7 @@ API Key 绑定单个分组（`ent/schema/api_key.go:44-46` `group_id` nullable�
 | 2 | 在分组解析层接入全局默认 | `service/gateway_scheduling.go` `resolveGatewayGroup`（:922-949）与 `groupID == nil` 分支（:63-66） | 当前 nil 直接 platform = PlatformAnthropic，不查分组 |
 | 3 | 若"无可用账号"也要兜底 | `handler/gateway_handler.go` :683-707 与 :1070-1072 | 需新增一条与现有 prompt-too-long 分支同构的 retry 路径（`retryWithFallback` 机制已存在，可复用） |
 | 4 | 前端配置项 + i18n | `frontend/src/views/admin/GroupsView.vue` 或设置页 + `frontend/src/i18n/locales/{zh,en}/` | 前端 build 会先跑 check:i18n，**zh 与 en 必须同步**，否则构建失败 |
-| 5 | 迁移 | `backend/migrations/243+` | 仅当需要新增列/表；若只加 setting 键则**不需要迁移**（settings 是 KV 表） |
+| 5 | 迁移 | `backend/migrations/259+` | 仅当需要新增列/表；若只加 setting 键则**不需要迁移**（settings 是 KV 表） |
 
 **注意**：现有 `validateFallbackGroupOnInvalidRequest` 限制「兜底分组必须是 anthropic 平台」且「不能是订阅类型」。若 AWSB 不是 anthropic 平台（例如 openai 平台分组），**场景 (b) 的现成路径无法使用**，必须改校验与重试逻辑——这点**强烈依赖 U1/U2 的澄清**。
 

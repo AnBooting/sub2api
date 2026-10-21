@@ -12,6 +12,29 @@ Format: `NNN_description.sql`
 
 Example: `017_add_gemini_tier_id.sql`
 
+## 编号分配现状（0.2.17 上游同步后）
+
+- 上游 `Wei-Shaw/sub2api` v0.2.17 的最高编号是 **245**（`245_gemini_cached_contents_mutation_lease.sql`）。
+- 本 fork（`develop`）的迁移已整体后移到 **251–258**；上游自身 `242_group_i18n.sql` 与 `242_drop_platform_check_constraints.sql` 同号属上游既有情况，未改动。
+- **246–250 是刻意留空的空档**：上游后续从 246 继续发号时不会与本 fork 再次撞号。**禁止把本 fork 的迁移放进 246–250**（`TestSchedulingStrategyMigrationNumbering` 守这条不变量）。
+- 本 fork **下一个新迁移从 259 起**。
+
+### 0.2.17 同步的重编号映射（旧号 → 新号）
+
+| 旧号 | 新号 | 新文件名 |
+|---|---|---|
+| 243 | 251 | `251_native_currency_pricing.sql` |
+| 244 | 252 | `252_api_key_group_links.sql` |
+| 245 | 253 | `253_group_scheduling_strategy.sql` |
+| 246 | 254 | `254_group_high_availability.sql` |
+| 247 | 255 | `255_group_video_price_plans.sql` |
+| 248 | 256 | `256_yunmao_orders.sql` |
+| 249 | 257 | `257_video_tasks.sql` |
+| 250 | 258 | `258_relax_group_link_authorization_check.sql` |
+
+SQL 逻辑未改写，只改编号与文件内注释里的编号引用；这 8 个迁移从未在任何环境执行过，重命名不产生重复执行或 checksum 失配风险。
+完整理由、影响面与遗留引用点见 `project-docs/上游同步说明.md`。
+
 ### `_notx.sql` 命名与执行语义（并发索引专用）
 
 当迁移包含 `CREATE INDEX CONCURRENTLY` 或 `DROP INDEX CONCURRENTLY` 时，必须使用 `_notx.sql` 后缀，例如：
@@ -90,6 +113,7 @@ Why?
 - ❌ Modify an already-applied migration file
 - ❌ Delete migration files
 - ❌ Change migration file names
+  - 例外：0.2.17 上游同步为消除与上游 243/244/245 的编号撞号，把本 fork 的 243–250 **一次性**重编号到 251–258（见上文映射表）。该重编号只针对「从未在任何环境执行过」的迁移，且相对执行顺序不变。
 - ❌ Reorder migration numbers
 
 ### 🔧 If You Accidentally Modified an Applied Migration

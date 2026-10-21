@@ -97,7 +97,7 @@ func TestArtexRegisteredAliasesMockUpstreamCounters(t *testing.T) {
 						require.Equal(t, int64(len(body)), c.Request.ContentLength)
 						response, err := http.Post(upstream.URL, "application/json", bytes.NewReader(raw))
 						require.NoError(t, err)
-						defer response.Body.Close()
+						defer func() { _ = response.Body.Close() }()
 						usageFixture.Add(1)
 						c.Status(response.StatusCode)
 					}
@@ -169,7 +169,7 @@ func TestArtexRegisteredSafeUnknownSuffixPreservesOffBehavior(t *testing.T) {
 				terminal := func(c *gin.Context) {
 					response, err := http.Post(upstream.URL, "application/json", c.Request.Body)
 					require.NoError(t, err)
-					defer response.Body.Close()
+					defer func() { _ = response.Body.Close() }()
 					c.Status(response.StatusCode)
 				}
 				auth := servermiddleware.APIKeyAuthMiddleware(func(c *gin.Context) {

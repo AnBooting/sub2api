@@ -9,7 +9,7 @@
 | 分支 / 工作树 | 提交 | 说明 | 状态 |
 |---|---|---|---|
 | feat/FE-budget-settings (F:/sub2--wt--fe-budget) | 53cbfb4aa | 管理页补 gateway_max_attempts_per_request / gateway_request_budget_seconds + zh/en i18n | 已提交 |
-| feat/S8-scheduling-strategy (F:/sub2--wt--s8) | 96976cc42 + fa072c1ff | C-4 三策略配置骨架 + 迁移 245 + 缓存版本 25→26 | **已独立复审 Approve** |
+| feat/S8-scheduling-strategy (F:/sub2--wt--s8) | 96976cc42 + fa072c1ff | C-4 三策略配置骨架 + 迁移 245（0.2.17 同步后重编号为 **253**）+ 缓存版本 25→26 | **已独立复审 Approve** |
 | feat/C1-shared-lock (F:/sub2--wt--c1-shared) | c977cd8f9 → 7aaaa8292 → 1efafa82c | Anthropic Messages 共享入口锁价；F1-F5 全修 | **已独立复审 Approve**（1efafa82c） |
 | feat/C1-shared-lock-cc-gemini (F:/sub2--wt--c1-cc-gemini) | 87906721a + bca4734de + 40c65bbb8 | ChatCompletions(两分支)/Gemini/Responses 锁价 + F6/F7 thinking 同源修复 + 去死代码 | 已提交（**独立复审仍未完成**，见下） |
 

@@ -179,7 +179,7 @@ func (s *AuthService) RegisterWithVerification(ctx context.Context, email, passw
 		// 验证邀请码
 		redeemCode, err := s.redeemRepo.GetByCode(ctx, invitationCode)
 		if err != nil {
-			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: %s, error: %v", invitationCode, err)
+			logger.LegacyPrintf("service.auth", "[Auth] Invalid invitation code: code_sha256=%s, error: %v", hashTokenForLog(invitationCode), err)
 			return "", nil, ErrInvitationCodeInvalid
 		}
 		// 检查类型和状态
@@ -1034,6 +1034,10 @@ func (s *AuthService) backfillEmailIdentityOnSuccessfulLogin(ctx context.Context
 		return
 	}
 	identity, created := s.ensureEmailAuthIdentity(ctx, user, "auth_service_login_backfill")
+	if identity == nil {
+		logger.LegacyPrintf("service.auth", "[Auth] Email identity backfill failed for user_id=%d", user.ID)
+		return
+	}
 	if s.shouldApplyEmailFirstBindDefaults(ctx, user.ID, identity, created) {
 		if err := s.ApplyProviderDefaultSettingsOnFirstBind(ctx, user.ID, "email"); err != nil {
 			logger.LegacyPrintf("service.auth", "[Auth] Failed to apply email first bind defaults: user_id=%d err=%v", user.ID, err)
@@ -1298,8 +1302,8 @@ func (s *AuthService) createUserAndClaimInvitation(ctx context.Context, user *Us
 		if err := s.redeemRepo.Use(execCtx, invitation.ID, user.ID); err != nil {
 			// 并发下唯一的合法失败路径：另一个注册已占用该码
 			logger.LegacyPrintf("service.auth",
-				"[Auth] Rejected registration: invitation code %s already claimed (user_id=%d err=%v)",
-				invitation.Code, user.ID, err)
+				"[Auth] Rejected registration: invitation code code_sha256=%s already claimed (user_id=%d err=%v)",
+				hashTokenForLog(invitation.Code), user.ID, err)
 			return ErrInvitationCodeInvalid
 		}
 		return nil
@@ -1788,12 +1792,20 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 	}
 
 	tokenHash := hashToken(refreshToken)
+	ttl := time.Duration(s.cfg.JWT.RefreshTokenExpireDays) * 24 * time.Hour
 
 	// 获取Token数据
 	data, err := s.refreshTokenCache.GetRefreshToken(ctx, tokenHash)
 	if err != nil {
 		if errors.Is(err, ErrRefreshTokenNotFound) {
-			// Token不存在，可能是已被使用（Token轮转）或已过期
+			// Token不存在：可能是已被轮转消费（复用攻击）或已过期。先查 tombstone：
+			// 命中复用即撤销整个家族并返回 REFRESH_TOKEN_REUSED；未命中保持原有受损
+			// 路径行为（REFRESH_TOKEN_INVALID）。
+			if familyID, consumedErr := s.refreshTokenCache.GetConsumedRefreshTokenFamilyID(ctx, tokenHash); consumedErr == nil && familyID != "" {
+				logger.LegacyPrintf("service.auth", "[Auth] Refresh token reused, revoking family")
+				_ = s.refreshTokenCache.DeleteTokenFamily(ctx, familyID)
+				return nil, ErrRefreshTokenReused
+			}
 			logger.LegacyPrintf("service.auth", "[Auth] Refresh token not found, possible reuse attack")
 			return nil, ErrRefreshTokenInvalid
 		}
@@ -1849,6 +1861,10 @@ func (s *AuthService) RefreshTokenPair(ctx context.Context, refreshToken string)
 		logger.LegacyPrintf("service.auth", "[Auth] Failed to delete old refresh token: %v", err)
 		// 继续处理，不影响主流程
 	}
+
+	// 旧Token轮转后写入 tombstone，复用检测只依赖该记录；写入失败保持原有
+	// 受损路径行为（旧Token下次请求得不到复用判定，仍按普通无效处理）。
+	_ = s.refreshTokenCache.MarkRefreshTokenConsumed(ctx, tokenHash, data.FamilyID, ttl)
 
 	// 生成新的Token对，保持同一个家族ID
 	pair, err := s.GenerateTokenPair(ctx, user, data.FamilyID)
@@ -1911,6 +1927,15 @@ func (s *AuthService) RevokeAllUserTokens(ctx context.Context, userID int64) err
 }
 
 // hashToken 计算Token的SHA256哈希
+func hashTokenForLog(secret string) string {
+	if secret == "" {
+		return "<empty>"
+	}
+	sum := sha256.Sum256([]byte(secret))
+	// 日志只保留短 SHA-256 前缀，不暴露可兑换明文。
+	return hex.EncodeToString(sum[:8])
+}
+
 func hashToken(token string) string {
 	hash := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(hash[:])

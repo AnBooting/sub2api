@@ -634,6 +634,48 @@ func TestAuthServiceBindEmailIdentity_RevokesExistingAccessAndRefreshTokens(t *t
 	require.True(t, errors.Is(err, service.ErrTokenRevoked) || errors.Is(err, service.ErrRefreshTokenInvalid))
 }
 
+func TestAuthServiceRefreshTokenReuse_RevokesFamilyWhenConsumedTombstoneExists(t *testing.T) {
+	ctx := context.Background()
+	cache := newEmailBindRefreshTokenCacheStub()
+	userRepo := newEmailBindUserRepoStub(&service.User{
+		ID:           41,
+		Email:        "refresh-reuse@example.com",
+		PasswordHash: "test-password-hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+		TokenVersion: 4,
+	})
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			Secret:                   "test-refresh-reuse-secret",
+			ExpireHour:               1,
+			AccessTokenExpireMinutes: 60,
+			RefreshTokenExpireDays:   7,
+		},
+	}
+	svc := service.NewAuthService(nil, userRepo, nil, cache, cfg, nil, nil, nil, nil, nil, nil, nil, nil)
+
+	oldTokenPair, err := svc.GenerateTokenPair(ctx, &service.User{
+		ID:           41,
+		Email:        "refresh-reuse@example.com",
+		PasswordHash: "test-password-hash",
+		Role:         service.RoleUser,
+		Status:       service.StatusActive,
+		TokenVersion: 4,
+	}, "")
+	require.NoError(t, err)
+
+	rotated, err := svc.RefreshTokenPair(ctx, oldTokenPair.RefreshToken)
+	require.NoError(t, err)
+	require.NotNil(t, rotated)
+	require.Equal(t, 1, cache.consumedCount, "rotation must record the consumed old token")
+
+	// 复用旧 Token 必须撤销整个家族并返回 REFRESH_TOKEN_REUSED。
+	_, err = svc.RefreshTokenPair(ctx, oldTokenPair.RefreshToken)
+	require.ErrorIs(t, err, service.ErrRefreshTokenReused)
+	require.Contains(t, cache.familiesRevoked, cache.lastConsumedFamily, "family must be revoked when an old token is reused")
+}
+
 func TestAuthServiceEmailIdentityBinding_RejectsEmailOutsideRegistrationSuffixWhitelist(t *testing.T) {
 	ctx := context.Background()
 	cache := &emailBindCacheStub{
@@ -873,10 +915,14 @@ func (s *emailBindCacheStub) IncrNotifyCodeUserRate(context.Context, int64, time
 }
 
 type emailBindRefreshTokenCacheStub struct {
-	mu       sync.Mutex
-	tokens   map[string]*service.RefreshTokenData
-	userSets map[int64]map[string]struct{}
-	families map[string]map[string]struct{}
+	mu                 sync.Mutex
+	tokens             map[string]*service.RefreshTokenData
+	userSets           map[int64]map[string]struct{}
+	families           map[string]map[string]struct{}
+	consumed           map[string]string
+	consumedCount      int
+	lastConsumedFamily string
+	familiesRevoked    []string
 }
 
 func newEmailBindRefreshTokenCacheStub() *emailBindRefreshTokenCacheStub {
@@ -884,6 +930,7 @@ func newEmailBindRefreshTokenCacheStub() *emailBindRefreshTokenCacheStub {
 		tokens:   make(map[string]*service.RefreshTokenData),
 		userSets: make(map[int64]map[string]struct{}),
 		families: make(map[string]map[string]struct{}),
+		consumed: make(map[string]string),
 	}
 }
 
@@ -891,6 +938,9 @@ func (s *emailBindRefreshTokenCacheStub) StoreRefreshToken(_ context.Context, to
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	cloned := *data
+	if s.tokens == nil {
+		s.tokens = make(map[string]*service.RefreshTokenData)
+	}
 	s.tokens[tokenHash] = &cloned
 	return nil
 }
@@ -942,6 +992,7 @@ func (s *emailBindRefreshTokenCacheStub) DeleteTokenFamily(_ context.Context, fa
 		}
 	}
 	delete(s.families, familyID)
+	s.familiesRevoked = append(s.familiesRevoked, familyID)
 	return nil
 }
 
@@ -994,8 +1045,27 @@ func (s *emailBindRefreshTokenCacheStub) IsTokenInFamily(_ context.Context, fami
 	return ok, nil
 }
 
+func (s *emailBindRefreshTokenCacheStub) MarkRefreshTokenConsumed(_ context.Context, tokenHash string, familyID string, _ time.Duration) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.consumed[tokenHash] = familyID
+	s.consumedCount++
+	s.lastConsumedFamily = familyID
+	return nil
+}
+
+func (s *emailBindRefreshTokenCacheStub) GetConsumedRefreshTokenFamilyID(_ context.Context, tokenHash string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if familyID, ok := s.consumed[tokenHash]; ok {
+		return familyID, nil
+	}
+	return "", service.ErrConsumedRefreshTokenNotFound
+}
+
 type emailBindUserRepoStub struct {
 	mu           sync.Mutex
+	user         *service.User
 	usersByID    map[int64]*service.User
 	usersByEmail map[string]*service.User
 }
@@ -1003,6 +1073,7 @@ type emailBindUserRepoStub struct {
 func newEmailBindUserRepoStub(user *service.User) *emailBindUserRepoStub {
 	cloned := cloneEmailBindUser(user)
 	return &emailBindUserRepoStub{
+		user: cloned,
 		usersByID: map[int64]*service.User{
 			cloned.ID: cloned,
 		},
@@ -1026,6 +1097,21 @@ func (s *emailBindUserRepoStub) GetByID(_ context.Context, id int64) (*service.U
 		return nil, service.ErrUserNotFound
 	}
 	return cloneEmailBindUser(user), nil
+}
+
+func (s *emailBindUserRepoStub) SetUser(user *service.User) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cloned := cloneEmailBindUser(user)
+	s.user = cloned
+	if s.usersByID == nil {
+		s.usersByID = map[int64]*service.User{}
+	}
+	s.usersByID[cloned.ID] = cloned
+	if s.usersByEmail == nil {
+		s.usersByEmail = map[string]*service.User{}
+	}
+	s.usersByEmail[cloned.Email] = cloned
 }
 
 func (s *emailBindUserRepoStub) GetByEmail(_ context.Context, email string) (*service.User, error) {

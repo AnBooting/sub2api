@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	coderws "github.com/coder/websocket"
 	"github.com/google/uuid"
@@ -30,10 +31,27 @@ const (
 	liveObserverPollInterval      = 250 * time.Millisecond
 	liveObserverStoreRetryLimit   = 5
 	liveUpstreamBodyLimit         = 2 << 20
+	// liveSettlementRetryAttempts 是 observer 对 pending 结算的自动重试次数。
+	liveSettlementRetryAttempts = 4
 )
 
 // liveObserverStoreRetryInterval 是 var 以便测试缩短 store 报错的重试等待。
 var liveObserverStoreRetryInterval = time.Second
+
+// liveSettlementRetryInterval 是 var 以便测试缩短等待；逐步退避到分钟级，
+// 覆盖数据库/网络短时故障，又不至于在小时级故障里刷屏。
+var liveSettlementRetryInterval = func(attempt int) time.Duration {
+	switch attempt {
+	case 0:
+		return 5 * time.Second
+	case 1:
+		return 30 * time.Second
+	case 2:
+		return 2 * time.Minute
+	default:
+		return 5 * time.Minute
+	}
+}
 
 var (
 	chatGPTLiveCallsURL        = "https://chatgpt.com/backend-api/codex/realtime/calls?intent=quicksilver&architecture=avas"
@@ -213,21 +231,25 @@ func (s *OpenAIGatewayService) CreateLiveCall(
 			model = "gpt-live"
 		}
 		record := &LiveCallRecord{
-			CallID:                created.CallID,
-			CallHash:              hashLiveCallID(created.CallID),
-			AccountID:             account.ID,
-			APIKeyID:              identity.APIKeyID,
-			UserID:                identity.UserID,
-			GroupID:               liveGroupID(identity.GroupID),
-			SubscriptionID:        liveGroupID(identity.SubscriptionID),
-			LeaseID:               leaseID,
-			Model:                 model,
-			CreatedAt:             now,
-			ExpiresAt:             now.Add(s.liveMaxSessionDuration()),
-			Controller:            LiveControllerPending,
-			UserAgent:             identity.UserAgent,
-			IPAddress:             identity.IPAddress,
-			InboundEndpoint:       identity.InboundEndpoint,
+			CallID:          created.CallID,
+			CallHash:        hashLiveCallID(created.CallID),
+			AccountID:       account.ID,
+			APIKeyID:        identity.APIKeyID,
+			UserID:          identity.UserID,
+			GroupID:         liveGroupID(identity.GroupID),
+			SubscriptionID:  liveGroupID(identity.SubscriptionID),
+			LeaseID:         leaseID,
+			Model:           model,
+			CreatedAt:       now,
+			ExpiresAt:       now.Add(s.liveMaxSessionDuration()),
+			Controller:      LiveControllerPending,
+			UserAgent:       identity.UserAgent,
+			IPAddress:       identity.IPAddress,
+			InboundEndpoint: identity.InboundEndpoint,
+			// 开播即冻结单价与计费策略：结算在会话关闭时发生，期间改价或改限额
+			// 不得影响本次会话，observer 回读与失败重试也只能使用这份快照。
+			RealtimePricePerMin:   identity.RealtimePricePerMin,
+			BillingPolicy:         identity.BillingPolicy,
 			AttestationCiphertext: attestationCiphertext,
 		}
 		mappingTTL := s.liveMaxSessionDuration() + 5*time.Minute
@@ -651,10 +673,17 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 		storeErrStreak = 0
 		record = latest
 		if record.Controller != LiveControllerObserver {
+			// 控制权已交还（会话被 finalize）。若结算仍处于 pending（财务仓储
+			// 临时故障），由 observer 在关闭 TTL 内自动重试，避免只依赖人工补账。
+			s.retryPendingLiveSettlement(record)
 			return
 		}
 		if !time.Now().Before(record.ExpiresAt) {
 			s.finalizeLiveCall(record)
+			// 本 observer 负责收尾：结算若因账本故障停在 pending，必须在这里接上自动
+			// 重试。少了这一步，observer 退出后没有任何人会再重试这笔结算，记录只能
+			// 等 TTL 过期被清掉（钱就收不回来了）。
+			s.retryPendingLiveSettlement(record)
 			return
 		}
 		upstream, dialErr := s.dialLiveSideband(context.Background(), record)
@@ -671,6 +700,8 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 		}
 		if liveSessionEnded(runErr) {
 			s.finalizeLiveCall(record)
+			// 同上：observer 自己结束会话时，pending 结算的责任必须交出去重试。
+			s.retryPendingLiveSettlement(record)
 			return
 		}
 		if !s.waitForLiveObserverRetry(record) {
@@ -760,6 +791,63 @@ func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *LiveCallRecord) 
 	return getErr == nil && controller == LiveControllerObserver
 }
 
+// retryPendingLiveSettlement 自动重试待结算的 Live 会话。
+// 只处理 Settlement.Status == pending 的记录：金额在首次尝试前已冻结，重试复用同一
+// 份金额，账本按 request_id 幂等。返回时记录要么已结算，要么已被 TTL 清理。
+func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord) {
+	if record == nil {
+		return
+	}
+	store, err := s.liveStore()
+	if err != nil {
+		return
+	}
+	// 状态一律以存储中的最新记录为准：调用方手上的副本可能还没带上刚冻结的
+	// pending 检查点（检查点保存失败、或结算刚在本次调用里冻结），按副本判断会
+	// 直接返回，重试永远启动不了 —— 这正是"结算停在 pending 却没人再收"的成因。
+	readCtx, readCancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	latest, getErr := store.GetLiveCall(readCtx, record.CallHash)
+	readCancel()
+	if getErr != nil || latest == nil {
+		return
+	}
+	if latest.Settlement == nil || latest.Settlement.Status != LiveSettlementPending {
+		return
+	}
+	// 规则 A：本进程内已经冻结过就沿用那一份（调用方副本带着首次冻结）。
+	var frozen *LiveSettlement
+	if record.Settlement != nil && record.Settlement.Status == LiveSettlementPending {
+		frozen = record.Settlement
+	}
+	for attempt := 0; attempt < liveSettlementRetryAttempts; attempt++ {
+		time.Sleep(liveSettlementRetryInterval(attempt))
+		latest, getErr := store.GetLiveCall(context.Background(), record.CallHash)
+		if getErr != nil {
+			return
+		}
+		if latest.Settlement == nil && frozen != nil {
+			// 存储里没有冻结检查点（写失败过）：沿用本进程内首次冻结的时长/金额。
+			latest.Settlement = frozen
+		}
+		if latest.Settlement == nil || latest.Settlement.Status != LiveSettlementPending {
+			return
+		}
+		s.finalizeLiveCall(latest)
+		if latest.Settlement != nil {
+			frozen = latest.Settlement
+		}
+		// finalizeLiveCall 内部会重新读取记录，这里必须回读才能看到最新状态，
+		// 否则会话已结算后仍会多睡一整轮退避。
+		settled, getErr := store.GetLiveCall(context.Background(), record.CallHash)
+		if getErr != nil {
+			return
+		}
+		if settled.Settlement == nil || settled.Settlement.Status != LiveSettlementPending {
+			return
+		}
+	}
+}
+
 // finalizeLiveCallAfterExpiry 是 store 持续报错、observer 无法继续观察时的兜底：
 // 等到会话最长时限 ExpiresAt 再 finalize，保证 usage log 与租约释放最迟在会话到期
 // 时完成。MarkLiveCallClosed 的 first 语义保证与其他恢复路径不会重复落库。
@@ -771,6 +859,8 @@ func (s *OpenAIGatewayService) finalizeLiveCallAfterExpiry(record *LiveCallRecor
 		time.Sleep(wait)
 	}
 	s.finalizeLiveCall(record)
+	// 兜底 finalize 同样可能留下 pending（账本临时故障）：把重试责任交出去。
+	s.retryPendingLiveSettlement(record)
 }
 
 func (s *OpenAIGatewayService) refreshLiveLease(record *LiveCallRecord) bool {
@@ -802,37 +892,268 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 	if err != nil {
 		return
 	}
+	// 结算可能由 observer 从 Redis 回读记录后触发，也可能是对上次失败的结算重试；
+	// 始终以存储中的最新记录为准，避免用过期副本覆盖已冻结的金额。
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	first, err := store.MarkLiveCallClosed(ctx, record.CallHash, liveClosedRecordTTL)
-	cancel()
-	if err != nil || !first {
+	current := record
+	if stored, getErr := store.GetLiveCall(ctx, record.CallHash); getErr == nil && stored != nil {
+		current = stored
+	}
+	// 规则 A（同一进程内的重试链）：存储里还没有冻结检查点时（检查点写失败过），沿用
+	// 本进程已经算出的那次冻结，不按重试时刻重算 —— 否则用户要为"Redis 故障的那几分钟"
+	// 继续付费。存储里有冻结记录时一律以存储为准。
+	//
+	// 边界：规则 A 只覆盖**同一进程内**的重试链；进程重启后没有可沿用的冻结，只能从
+	// 存储重新冻结，此时走规则 B 的时长封顶（不会让故障时长无限增长，但不是首次冻结的
+	// 那一刻）。要在重启后也保住首次冻结，需要 store 层单独存一份不依赖主记录写入成功的
+	// 检查点——本轮不做。
+	if current.Settlement == nil && record.Settlement != nil && record.Settlement.Status == LiveSettlementPending {
+		current.Settlement = record.Settlement
+	}
+	if current.Settlement != nil && current.Settlement.Status == LiveSettlementSettled {
+		// 已结算的会话不重复扣费；但结算成功与写用量日志之间的崩溃窗口可能留下
+		// 缺日志，这里补一次（usage_logs 对 request_id 幂等，重复写入被忽略）。
+		cancel()
+		if s.usageLogRepo != nil && !current.Settlement.UsageLogWritten {
+			// 只有确认金额行已落库才置 UsageLogWritten：否则这次结算会被当成"日志已写"，
+			// 金额却查不到（账实不符），之后也不会再补写。
+			if s.writeLiveUsageLog(liveUsageLog(current, current.Settlement, current.Settlement.ActualCost)) {
+				current.Settlement.UsageLogWritten = true
+				s.persistLiveSettlement(current)
+			}
+		}
 		return
 	}
-	s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
+	first, markErr := store.MarkLiveCallClosed(ctx, current.CallHash, liveClosedRecordTTL)
+	cancel()
+	if markErr != nil {
+		return
+	}
+	// 关闭标记只表示"会话已关闭"，不表示"结算已完成"：结算完成的事实由持久化的
+	// Settlement 状态承担（上面"已结算"分支已经处理）。因此这里不再因为"关闭标记
+	// 已被别人写过"就跳过结算——否则"关闭标记已落库、但 pending 检查点写失败"的情形下，
+	// 这笔金额永远收不上来。
+	//
+	// 边界（本轮不做更强的方案）：store 层没有原子的"结算认领"，并发两个 finalize
+	// 都可能进入结算。账本按 request_id 幂等，不会重复扣费；但两侧各自冻结的时长
+	// 可能不同，以先落账那次为准。若要更严格，需要在 gateway_cache 的 Lua 里做原子
+	// 认领（超出本轮写域，且风险更高）。
+	if first {
+		s.releaseLiveLease(current.AccountID, current.UserID, current.APIKeyID, current.LeaseID)
+	}
 	if s.usageLogRepo == nil {
 		return
 	}
+
+	// 金额只在第一次尝试前冻结并持久化：重试复用同一份金额，不随再次调用时间增长。
+	if current.Settlement == nil {
+		current.Settlement = s.freezeLiveSettlement(current)
+		// 把这次冻结回写给调用方：同一进程内的重试链必须沿用同一份时长/金额，
+		// 不能在下一轮重试时按那一刻重新冻结。
+		if record != current {
+			record.Settlement = current.Settlement
+		}
+		s.persistLiveSettlement(current)
+	}
+	settleState := current.Settlement
+	if settleState.Status == LiveSettlementSettled {
+		// 缺价/零费用：不伪造扣费，按未计费落库后结束（金额行同样要确认落库）。
+		if s.writeLiveUsageLog(liveUsageLog(current, settleState, 0)) {
+			settleState.UsageLogWritten = true
+		}
+		s.persistLiveSettlement(current)
+		return
+	}
+
+	apiKey, policy := liveBillingAPIKey(current)
+	skip, simpleModeKeyRateLimitOnly := s.liveSettlementPolicy(apiKey)
+	if skip {
+		// 简易模式且未开启密钥窗口限额：与请求路径一致，只记用量不做财务结算。
+		if s.writeLiveUsageLog(liveUsageLog(current, settleState, 0)) {
+			settleState.UsageLogWritten = true
+		}
+		settleState.Status = LiveSettlementSettled
+		s.persistLiveSettlement(current)
+		return
+	}
+
+	cost := &CostBreakdown{TotalCost: settleState.TotalCost, ActualCost: settleState.ActualCost, BillingMode: settleState.BillingMode}
+	usageLog := liveUsageLog(current, settleState, settleState.ActualCost)
+	if err := s.settleLiveCallUsage(current, usageLog, cost, apiKey, policy, simpleModeKeyRateLimitOnly); err != nil {
+		// 保留 pending 状态与冻结金额，后续 finalize 可安全重试（账本按 request_id 幂等）。
+		settleState.Attempts++
+		s.persistLiveSettlement(current)
+		logger.FromContext(context.Background()).Warn(
+			"Live 会话扣费失败：保留待结算状态，等待重试",
+			zap.Int64("user_id", current.UserID),
+			zap.Int64("api_key_id", current.APIKeyID),
+			zap.String("call_hash", current.CallHash),
+			zap.Int("attempts", settleState.Attempts),
+			zap.Error(err),
+		)
+		// 失败审计行用**独立**的 request_id：usage_logs 的唯一键是
+		// (request_id, api_key_id) 且 ON CONFLICT DO NOTHING，若审计行占住正式费用行的
+		// request_id，补扣成功后的正式金额行会被这条零费用行挡住 —— 余额扣了钱，
+		// 用户账单与汇总统计却永远是 0。审计与财务用量行必须是两行。
+		auditLog := *usageLog
+		auditLog.RequestID = livePendingAuditRequestID(current)
+		auditLog.ActualCost = 0
+		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &auditLog, "service.openai_live")
+		return
+	}
+	// 只有确认金额行已落库才置 UsageLogWritten：置早了这次结算就不会再补写，
+	// 出现"已扣费但用量行金额为 0 / 缺失"的账实不符。
+	if s.writeLiveUsageLog(usageLog) {
+		settleState.UsageLogWritten = true
+	}
+	settleState.Status = LiveSettlementSettled
+	s.persistLiveSettlement(current)
+}
+
+// liveSettlementDurationCapMs 是单次会话可计费的最大时长（毫秒）。
+//
+// 口径：锚在**会话自己的历史事实**上——ExpiresAt 是会话开始时记下的到期时间
+// （= CreatedAt + 当时的会话上限），不会因为后来把配置调小而被追溯性地削掉已发生的
+// 用量时长。因此上限取 ExpiresAt - CreatedAt；只有历史遗留记录缺 ExpiresAt 时才回落到
+// 配置的最大会话时长（再没有就是配置默认值）。
+//
+// 用途：冻结检查点写失败后只能重新冻结时（跨进程），时长必须被这个上限封住——故障再久，
+// 用户也只为整个会话上限付费。
+func (s *OpenAIGatewayService) liveSettlementDurationCapMs(record *LiveCallRecord) int {
+	if record == nil {
+		return int(s.liveMaxSessionDuration().Milliseconds())
+	}
+	if d := int(record.ExpiresAt.Sub(record.CreatedAt).Milliseconds()); d > 0 {
+		return d
+	}
+	return int(s.liveMaxSessionDuration().Milliseconds())
+}
+
+// freezeLiveSettlement 冻结本次会话的时长与金额（含缺价/零费用情形）。
+func (s *OpenAIGatewayService) freezeLiveSettlement(record *LiveCallRecord) *LiveSettlement {
 	duration := int(time.Since(record.CreatedAt).Milliseconds())
 	if duration < 0 {
 		duration = 0
 	}
-	inboundEndpoint := record.InboundEndpoint
-	upstreamEndpoint := "/backend-api/codex/realtime/calls"
-	userAgent := record.UserAgent
-	ipAddress := record.IPAddress
+	// 规则 B（跨进程/只能从存储重新冻结）：时长必须封顶到会话自身的上限
+	// （ExpiresAt - CreatedAt，历史事实）。用户不该为"会话结束之后的故障时长"付费——
+	// 故障再久，计费时长也有界。
+	if max := s.liveSettlementDurationCapMs(record); duration > max {
+		duration = max
+	}
+	state := &LiveSettlement{Status: LiveSettlementSettled, DurationMs: duration, FrozenAt: time.Now()}
+	cost, err := s.liveSessionCost(record, duration)
+	if err != nil || cost == nil {
+		logger.FromContext(context.Background()).Warn(
+			"Live 会话结算缺少可用价格：按未计费落库",
+			zap.Int64("user_id", record.UserID),
+			zap.Int64("group_id", record.GroupID),
+			zap.Int("duration_ms", duration),
+			zap.Error(err),
+		)
+		return state
+	}
+	state.TotalCost = cost.TotalCost
+	state.ActualCost = cost.ActualCost
+	state.BillingMode = cost.BillingMode
+	if cost.ActualCost > 0 {
+		state.Status = LiveSettlementPending
+	}
+	return state
+}
+
+// persistLiveSettlement 把结算事实写回会话记录；失败只告警，不阻断财务结算。
+func (s *OpenAIGatewayService) persistLiveSettlement(record *LiveCallRecord) {
+	store, err := s.liveStore()
+	if err != nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	defer cancel()
+	// 结算状态只在关闭标记写入之后持久化。记录副本里的 controller 可能还是关闭前
+	// 的旧值（MarkLiveCallClosed 只改存储里的标记），直接回写会把已关闭的会话“复活”：
+	// 下一次 finalize 又会拿到 first=true，会话也可能被重新 claim 成控制端。
+	record.Controller = LiveControllerClosed
+	record.ControllerOwner = ""
+	if err := store.SaveLiveCall(ctx, record, liveClosedRecordTTL); err != nil {
+		logger.FromContext(context.Background()).Warn(
+			"Live 结算状态持久化失败",
+			zap.String("call_hash", record.CallHash),
+			zap.Error(err),
+		)
+	}
+}
+
+// liveBillingAPIKey 用开播时冻结的策略构造最小 APIKey；会话创建时未冻结策略的
+// 旧记录按零值处理（不做密钥限额计量），但余额/订阅结算不受影响。
+func liveBillingAPIKey(record *LiveCallRecord) (*APIKey, *LiveBillingPolicy) {
+	policy := record.BillingPolicy
+	if policy == nil {
+		policy = &LiveBillingPolicy{}
+	}
+	apiKey := &APIKey{
+		ID:          record.APIKeyID,
+		Quota:       policy.APIKeyQuota,
+		RateLimit5h: policy.RateLimit5h,
+		RateLimit1d: policy.RateLimit1d,
+		RateLimit7d: policy.RateLimit7d,
+	}
+	if record.GroupID > 0 {
+		groupID := record.GroupID
+		apiKey.GroupID = &groupID
+	}
+	return apiKey, policy
+}
+
+// liveSettlementPolicy 与请求路径的简易模式语义保持一致：
+// 简易模式且未开启密钥窗口限额时，不扣余额/订阅，只记录用量。
+func (s *OpenAIGatewayService) liveSettlementPolicy(apiKey *APIKey) (skip bool, simpleModeKeyRateLimitOnly bool) {
+	if s == nil || s.cfg == nil || s.cfg.RunMode != config.RunModeSimple {
+		return false, false
+	}
+	if simpleModeKeyRateLimitBillingEnabled(s.cfg, apiKey) {
+		return false, true
+	}
+	return true, false
+}
+
+// writeLiveUsageLog 写入 Live 会话的用量行，返回是否已确认落库。
+//
+// 与通用 writeUsageLogBestEffort 的差别：这里需要"金额是否真的持久化"的结论——
+// 只有确认落库，调用方才能把 UsageLogWritten 置真（置早了就再也不会补写，出现
+// "余额已扣、用量行金额为 0 或缺失"的账实不符）。
+//
+// 写入方式沿用共享助手（best-effort 入队 + 失败后同步兜底，保留"已扣费就必须有
+// usage_log"的既有契约），只多返回一个"是否已确认落库"的结论。
+func (s *OpenAIGatewayService) writeLiveUsageLog(usageLog *UsageLog) bool {
+	if s == nil || s.usageLogRepo == nil || usageLog == nil {
+		return false
+	}
+	return writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+}
+
+// livePendingAuditRequestID 是"结算未完成"审计行的 request_id：与正式费用行
+// (record.CallHash) 分开，避免占住正式行的唯一键——正式行的金额必须在补扣成功后
+// 以自己的 request_id 落库（usage_logs 唯一键 + ON CONFLICT DO NOTHING）。
+//
+// 后缀固定为 ":pending"：管理员用量列表会展示 request_id，这里要的是人能读懂的
+// 形态（"这条会话的结算还没完成"），不放重试次数之类的内部诊断；同一会话多次失败
+// 也只留一条审计行（唯一键去重）。
+func livePendingAuditRequestID(record *LiveCallRecord) string {
+	return record.CallHash + ":pending"
+}
+
+func liveUsageLog(record *LiveCallRecord, state *LiveSettlement, actualCost float64) *UsageLog {
 	billingType := int8(BillingTypeBalance)
 	if record.SubscriptionID > 0 {
 		billingType = BillingTypeSubscription
 	}
-	// TODO(billing): Live 会话目前不计费：TotalCost/ActualCost 恒为 0，完全绕过
-	// recordUsageCore/applyUsageBilling，余额模式下极低余额也能反复开启最长
-	// liveMaxSessionDuration 的会话。若确认按时长计费，应在此接入计费管道；
-	// 若确认有意免费，删除本注释即可（零值行为由
-	// TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage 锁定）。
-	//
-	// 这是该会话唯一一次落库机会（MarkLiveCallClosed 已标记 first），失败即永久
-	// 丢失，因此走带日志与同步兜底的 writeUsageLogBestEffort（issue #3656）。
-	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &UsageLog{
+	duration := state.DurationMs
+	userAgent := record.UserAgent
+	ipAddress := record.IPAddress
+	inboundEndpoint := record.InboundEndpoint
+	upstreamEndpoint := "/backend-api/codex/realtime/calls"
+	log := &UsageLog{
 		UserID:           record.UserID,
 		APIKeyID:         record.APIKeyID,
 		AccountID:        record.AccountID,
@@ -844,11 +1165,59 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 		RateMultiplier:   1,
 		BillingType:      billingType,
 		RequestType:      RequestTypeLive,
+		TotalCost:        state.TotalCost,
+		ActualCost:       actualCost,
 		DurationMs:       &duration,
 		UserAgent:        &userAgent,
 		IPAddress:        &ipAddress,
 		InboundEndpoint:  &inboundEndpoint,
 		UpstreamEndpoint: &upstreamEndpoint,
 		CreatedAt:        record.CreatedAt,
-	}, "service.openai_live")
+	}
+	if state.BillingMode != "" {
+		billingMode := state.BillingMode
+		log.BillingMode = &billingMode
+	}
+	return log
+}
+
+// settleLiveCallUsage 把冻结费用写入统一计费账本。request_id 使用 CallHash，
+// 与 usage_logs 唯一键一致，重复结算由账本去重，不会重复扣费。
+func (s *OpenAIGatewayService) settleLiveCallUsage(record *LiveCallRecord, usageLog *UsageLog, cost *CostBreakdown, apiKey *APIKey, policy *LiveBillingPolicy, simpleModeKeyRateLimitOnly bool) error {
+	if s == nil || record == nil || usageLog == nil || cost == nil || cost.ActualCost <= 0 {
+		return nil
+	}
+	if s.usageBillingRepo == nil {
+		return nil
+	}
+	isSubscription := record.SubscriptionID > 0 && !simpleModeKeyRateLimitOnly
+	var subscription *UserSubscription
+	if isSubscription {
+		subscription = &UserSubscription{ID: record.SubscriptionID}
+	}
+	platform := ""
+	if policy != nil {
+		platform = policy.GroupPlatform
+	}
+	_, err := applyUsageBilling(context.Background(), record.CallHash, usageLog, &postUsageBillingParams{
+		Cost:                       cost,
+		User:                       &User{ID: record.UserID},
+		APIKey:                     apiKey,
+		Account:                    &Account{ID: record.AccountID},
+		Subscription:               subscription,
+		IsSubscriptionBill:         isSubscription,
+		APIKeyService:              s.apiKeyService,
+		SimpleModeKeyRateLimitOnly: simpleModeKeyRateLimitOnly,
+		Platform:                   platform,
+	}, s.billingDeps(), s.usageBillingRepo)
+	return err
+}
+
+// liveSessionCost 用开播时冻结的单价结算本次 Live 会话。
+// 返回错误表示该分组未配置单价：调用方必须告警且不得伪造零成本账单。
+func (s *OpenAIGatewayService) liveSessionCost(record *LiveCallRecord, durationMs int) (*CostBreakdown, error) {
+	if s.billingService == nil {
+		return nil, ErrLivePricingUnavailable
+	}
+	return s.billingService.CalculateLiveSessionCost(durationMs, record.RealtimePricePerMin, 1)
 }

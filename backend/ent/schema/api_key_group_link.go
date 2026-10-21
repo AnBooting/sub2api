@@ -30,7 +30,7 @@ func (APIKeyGroupLink) Edges() []ent.Edge {
 	return []ent.Edge{
 		// The cascade action belongs on the parent edge.To (see api_key.go / group.go):
 		// ent ignores entsql.OnDelete on edge.From, which is how this FK silently
-		// became NO ACTION in migrate/schema.go while migration 244 says CASCADE.
+		// became NO ACTION in migrate/schema.go while migration 252 says CASCADE.
 		edge.From("api_key", APIKey.Type).Ref("group_links").Field("api_key_id").Unique().Required(),
 		edge.From("group", Group.Type).Ref("api_key_links").Field("group_id").Unique().Required(),
 	}

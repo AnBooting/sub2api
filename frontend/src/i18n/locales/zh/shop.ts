@@ -75,6 +75,7 @@ export default {
       idempotencyKeyRequired: '请求缺少标识，请刷新页面后重试',
       idempotencyConflict: '该请求标识已被使用，请刷新页面后重试',
       deliveryPending: '支付已完成，但卡密暂未获取成功',
+      notPaid: '订单尚未支付，请先完成支付',
       deliveryUnavailable: '卡密暂不可用，请联系站长',
       generic: '操作失败，请稍后重试',
     },

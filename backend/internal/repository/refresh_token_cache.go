@@ -14,6 +14,7 @@ const (
 	refreshTokenKeyPrefix   = "refresh_token:"
 	userRefreshTokensPrefix = "user_refresh_tokens:"
 	tokenFamilyPrefix       = "token_family:"
+	consumedRefreshPrefix   = "consumed:"
 )
 
 // refreshTokenKey generates the Redis key for a refresh token.
@@ -29,6 +30,11 @@ func userRefreshTokensKey(userID int64) string {
 // tokenFamilyKey generates the Redis key for token family set.
 func tokenFamilyKey(familyID string) string {
 	return tokenFamilyPrefix + familyID
+}
+
+// consumedRefreshTokenKey generates the Redis tombstone key for a rotated token.
+func consumedRefreshTokenKey(tokenHash string) string {
+	return consumedRefreshPrefix + tokenHash
 }
 
 type refreshTokenCache struct {
@@ -155,4 +161,21 @@ func (c *refreshTokenCache) GetFamilyTokenHashes(ctx context.Context, familyID s
 func (c *refreshTokenCache) IsTokenInFamily(ctx context.Context, familyID string, tokenHash string) (bool, error) {
 	key := tokenFamilyKey(familyID)
 	return c.rdb.SIsMember(ctx, key, tokenHash).Result()
+}
+
+func (c *refreshTokenCache) MarkRefreshTokenConsumed(ctx context.Context, tokenHash string, familyID string, ttl time.Duration) error {
+	key := consumedRefreshTokenKey(tokenHash)
+	return c.rdb.Set(ctx, key, familyID, ttl).Err()
+}
+
+func (c *refreshTokenCache) GetConsumedRefreshTokenFamilyID(ctx context.Context, tokenHash string) (string, error) {
+	key := consumedRefreshTokenKey(tokenHash)
+	familyID, err := c.rdb.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return "", service.ErrConsumedRefreshTokenNotFound
+		}
+		return "", err
+	}
+	return familyID, nil
 }

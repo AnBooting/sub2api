@@ -59,11 +59,11 @@ func TestReReview_SeedanceFrozenQuoteSurvivesPlanRemoval(t *testing.T) {
 	require.NoError(t, err)
 	result := &OpenAIForwardResult{Model: "doubao-seedance", BillingModel: "doubao-seedance"}
 	quote.ApplyToVideoResult(result)
-	cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"doubao-seedance"}, 1, 1, 1, 1, UsageTokens{}, "", boolPtr(false), time.Time{})
+	cost, err := svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"doubao-seedance"}, 1, 1, 1, 1, UsageTokens{}, "", boolPtr(false), false, time.Time{})
 	require.NoError(t, err)
 	require.InDelta(t, 0.5, cost.ActualCost, 1e-12)
 	group.VideoPricePlans = nil
-	cost, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"doubao-seedance"}, 1, 1, 1, 1, UsageTokens{}, "", boolPtr(false), time.Time{})
+	cost, err = svc.calculateOpenAIRecordUsageCost(context.Background(), result, key, []string{"doubao-seedance"}, 1, 1, 1, 1, UsageTokens{}, "", boolPtr(false), false, time.Time{})
 	t.Logf("after deleting live plan: cost=%+v err=%v", cost, err)
 	require.NoError(t, err, "accepted frozen quote must remain billable after live plan removal")
 	require.InDelta(t, 0.5, cost.ActualCost, 1e-12)

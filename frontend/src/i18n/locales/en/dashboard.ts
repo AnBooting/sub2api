@@ -679,7 +679,7 @@ export default {
     searchPlaceholder: 'Search channels or models...',
     empty: 'No available channels',
     noModels: 'No models configured',
-    noPricing: 'Pricing not configured',
+    noPricing: 'Pricing not configured (not served)',
     exclusive: 'Exclusive',
     public: 'Public',
     exclusiveTooltip: 'Exclusive groups granted to you by an admin',
@@ -1120,6 +1120,16 @@ export default {
     endDate: 'End Date',
     apply: 'Apply',
     selectDateRange: 'Select date range'
+  },
+
+  // Missing price notice: the backend never lets an unpriced model through.
+  missingPrice: {
+    title: 'Models without a configured price are not served',
+    description:
+      'A model without a configured price is rejected before the request reaches the upstream (503 pricing_unavailable) — it is never served at zero price or at a fallback price. Models tagged "no pricing" in Available Channels are exactly that case.',
+    badge: 'No price',
+    badgeTooltip: 'This model has no configured price, so it is not served (missing price is never let through)',
+    viewPriceCard: 'Open the price list'
   },
 
   // Admin

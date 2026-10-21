@@ -257,7 +257,7 @@
                       :class="row.iconColor"
                       viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-                      v-html="row.iconSvg"
+                      v-html="sanitizeSvg(row.iconSvg)"
                     ></svg>
                   </div>
                   <span class="text-sm text-gray-700 dark:text-dark-200">{{ row.label }}</span>
@@ -427,6 +427,7 @@ import Icon from '@/components/icons/Icon.vue'
 import { buildGatewayUrl } from '@/api/client'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
+import { sanitizeSvg } from '@/utils/sanitize'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()

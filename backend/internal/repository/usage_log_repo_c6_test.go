@@ -50,7 +50,9 @@ func TestUsageLogC6NullableInsertScanRoundTrip(t *testing.T) {
 			require.Len(t, prepared.args, len(usageLogInsertArgTypes))
 			offset := len(prepared.args) - 4
 			require.Equal(t, []string{"bigint", "bigint", "text", "integer"}, usageLogInsertArgTypes[offset:])
-			require.Equal(t, tc.log.RequestedGroupID != nil, prepared.args[offset].(sql.NullInt64).Valid)
+			requestedGroupID, ok := prepared.args[offset].(sql.NullInt64)
+			require.True(t, ok, "requested group id argument must be sql.NullInt64")
+			require.Equal(t, tc.log.RequestedGroupID != nil, requestedGroupID.Valid)
 			db, mock := newSQLMock(t)
 			values := []driver.Value{int64(42)}
 			for _, arg := range prepared.args {
@@ -61,7 +63,7 @@ func TestUsageLogC6NullableInsertScanRoundTrip(t *testing.T) {
 			mock.ExpectQuery("SELECT c6_fixture").WillReturnRows(sqlmock.NewRows(strings.Split(usageLogSelectColumns, ", ")).AddRow(values...))
 			rows, err := db.QueryContext(context.Background(), "SELECT c6_fixture")
 			require.NoError(t, err)
-			defer rows.Close()
+			defer func() { _ = rows.Close() }()
 			require.True(t, rows.Next())
 			got, err := scanUsageLog(rows)
 			require.NoError(t, err)

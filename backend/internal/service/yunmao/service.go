@@ -318,8 +318,12 @@ func (s *Service) CreateOrder(ctx context.Context, userID int64, req CreateOrder
 	}
 
 	// 上游下单即已支付（少见但合法）时立刻结算，避免卡在 pending。
+	// 结算失败（加密槽位未配置/加密失败）时不能把 record 覆盖成 nil：
+	// 订单已落库，应返回已持久化状态而不是误报 ErrOrderNotFound。
 	if record.DisplayStatus != DisplayPending {
-		record, _ = s.settleFromUpstream(ctx, record, upstreamOrder)
+		if settled, settleErr := s.settleFromUpstream(ctx, record, upstreamOrder); settleErr == nil && settled != nil {
+			record = settled
+		}
 	}
 	view, err := s.toView(ctx, record, userID)
 	if err != nil {
@@ -496,6 +500,15 @@ func (s *Service) settleFromUpstream(ctx context.Context, record *OrderRecord, u
 
 		cards := upstreamOrder.Cards
 		if len(cards) == 0 {
+			// adapter 可为 nil（NewService 允许），此时无法补取卡密，
+			// 必须显式返回交付异常而不是空指针 panic。
+			if s.adapter == nil {
+				status := DisplayDeliveryPending
+				code := string(CodeDeliveryPending)
+				patch.DisplayStatus = &status
+				patch.LastErrorCode = &code
+				return s.applyPatch(ctx, record, patch)
+			}
 			fetched, fetchErr := s.adapter.FetchCards(ctx, record.UpstreamOrderNo)
 			if fetchErr != nil {
 				// 已支付但卡密取不到：交付异常，明确错误码 + 保留可追踪订单号（PRD-03 §2.5）。

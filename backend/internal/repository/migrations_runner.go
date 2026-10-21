@@ -2,12 +2,11 @@ package repository
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
 	"sort"
 	"strings"
 	"time"
@@ -193,8 +192,7 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 
 		// 计算文件内容的 SHA256 校验和，用于检测文件是否被修改。
 		// 这是一种防篡改机制：如果有人修改了已应用的迁移文件，系统会拒绝启动。
-		sum := sha256.Sum256([]byte(content))
-		checksum := hex.EncodeToString(sum[:])
+		checksum := migrationContentChecksum(content)
 
 		// 检查该迁移是否已经应用
 		var existing string
@@ -264,6 +262,22 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 		// 执行迁移 SQL
 		if _, err := tx.ExecContext(ctx, content); err != nil {
 			_ = tx.Rollback()
+			// 旧库重放：迁移已改名（0.2.17 同步把 243–250 重命名为 251–258），
+			// schema_migrations 里记的是旧文件名，执行器按新文件名判断为「未应用」
+			// 而重放，撞上已存在的同名约束/表。对**已登记**的改名迁移，在满足
+			// 「错误码属于该迁移的重复对象码」且「当前文件内容与登记的旧校验和一致」
+			// 时按「已生效」处理：记录告警并继续启动，不再写 schema_migrations
+			//（运维随后按改名对账流程补记新文件名，避免每次启动重试）。
+			// 未登记的迁移、错误码不符、内容被改过 —— 一律照旧失败。
+			if rule, ok := tolerateRenamedMigrationReplay(name, checksum, err); ok {
+				slog.Warn("renamed migration replay tolerated on legacy database",
+					"migration", name,
+					"previous_filename", rule.oldName,
+					"sqlstate", postgresErrorCode(err),
+					"error", err.Error(),
+				)
+				continue
+			}
 			return fmt.Errorf("apply migration %s: %w", name, err)
 		}
 
@@ -461,8 +475,7 @@ func latestMigrationBaseline(fsys fs.FS) (string, string, string, error) {
 		return "", "", "", err
 	}
 	content := strings.TrimSpace(string(contentBytes))
-	sum := sha256.Sum256([]byte(content))
-	hash := hex.EncodeToString(sum[:])
+	hash := migrationContentChecksum(content)
 	version := strings.TrimSuffix(name, ".sql")
 	return version, version, hash, nil
 }

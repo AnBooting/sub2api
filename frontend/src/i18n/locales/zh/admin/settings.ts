@@ -2,6 +2,15 @@ export default {
     settings: {
 	  pricing: {
 	    calendarYears: '日历覆盖年份',
+      deepseekPeriod: {
+        title: 'DeepSeek 官方峰谷',
+        current: '当前档位',
+        peak: '高峰时段',
+        valley: '谷价时段',
+        multiplier: '高峰倍率 {multiplier}x',
+        nextSwitch: '下一档切换：{time}（{timezone}）',
+        yearMissing: '当年假日日历缺失：该年不启用官方高峰加价，按谷价计费。'
+      },
       calendar: {
         "title": "DeepSeek 法定假日日历",
         "rules": "时区固定 Asia/Shanghai。已维护的法定假日优先按谷价；周末（包含调休补班周末）仍按谷价。非假日工作日峰价窗口为 [09:00,12:00) 与 [14:00,18:00)，其余时间谷价。这里不推算当前价格或时段。",
