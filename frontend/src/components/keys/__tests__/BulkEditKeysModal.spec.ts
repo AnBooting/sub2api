@@ -9,7 +9,9 @@ const { bulkUpdate, showSuccess, showError } = vi.hoisted(() => ({
 vi.mock('@/api', () => ({ keysAPI: { bulkUpdate } }))
 vi.mock('@/stores/app', () => ({ useAppStore: () => ({ showSuccess, showError }) }))
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => `${key} ${JSON.stringify(params ?? {})}` })
+  useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => `${key} ${JSON.stringify(params ?? {})}` }),
+  // 组件链上有 @/utils/format → @/i18n，后者在模块加载时就会调用 createI18n。
+  createI18n: () => ({ global: { locale: { value: 'en' }, setLocaleMessage: () => {} } })
 }))
 
 const mountModal = () => mount(BulkEditKeysModal, {

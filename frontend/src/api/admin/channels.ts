@@ -172,10 +172,21 @@ export async function remove(id: number): Promise<void> {
   await apiClient.delete(`/admin/channels/${id}`)
 }
 
+/**
+ * 价卡快照的定价来源（后端 ModelDefaultPricing.pricing_source）。
+ * - manual：运营者手工填的价
+ * - catalog：官方目录价（LiteLLM 目录）
+ * - fallback：**该模型自身的官方内置价**（上游 fallbackPrices，如 gemini-4-argon）
+ * - 其它值：官方价卡的来源标识（例：native_cny 价卡来源）
+ */
+export type ModelPricingSource = 'manual' | 'catalog' | 'fallback' | (string & {})
+
 export interface ModelDefaultPricing {
   currency?: 'USD' | 'CNY'
   found: boolean
   snapshot_ready?: boolean
+  // 定价来源：用来区分「官方内置价（可计费）」与「没有任何价格来源（拒绝）」
+  pricing_source?: ModelPricingSource
   input_price?: number    // per-token price
   output_price?: number
   cache_write_price?: number | null
@@ -186,9 +197,13 @@ export interface ModelDefaultPricing {
   reasoning_effort_multipliers?: Record<string, number> | null
 }
 
-export async function getModelDefaultPricing(model: string): Promise<ModelDefaultPricing> {
+export async function getModelDefaultPricing(
+  model: string,
+  options?: { signal?: AbortSignal }
+): Promise<ModelDefaultPricing> {
   const { data } = await apiClient.get<ModelDefaultPricing>('/admin/channels/model-pricing', {
-    params: { model }
+    params: { model },
+    signal: options?.signal
   })
   return data
 }

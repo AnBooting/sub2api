@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/domain"
@@ -19,6 +20,7 @@ type Group struct {
 	ID             int64
 	Name           string
 	Description    string
+	I18n           GroupI18n // 名称与描述的界面语言译文；缺失的语言沿用 Name/Description
 	Platform       string
 	RateMultiplier float64
 	// 高峰时段倍率：peak_rate_enabled 为 true 且当前时刻处于 [PeakStart, PeakEnd) 时，
@@ -323,6 +325,40 @@ func parseMinutes(hhmm string) (int, bool) {
 	return h*60 + m, true
 }
 
+// peakWindow 是自定义峰谷窗口在某个时刻的判定结果。
+type peakWindow struct {
+	// Configured 表示分组配置了合法窗口（与计费口径同一门槛）。
+	Configured bool
+	// StartMinutes / EndMinutes 是窗口的当日分钟数（左闭右开）。
+	StartMinutes int
+	EndMinutes   int
+	// Active 表示 now 落在窗口内。
+	Active bool
+}
+
+// customPeakWindowAt 判定分组自定义峰谷窗口在 now 时刻的状态。
+//
+// PeakMultiplierAt（计费热路径）与 DeepSeekPricingStateAt（只读展示）共用它：
+// 窗口判定只有这一处口径，避免出现「展示说在峰段、计费按谷价」这种分叉。
+func (g *Group) customPeakWindowAt(now time.Time) peakWindow {
+	if g == nil || !g.IsSubscriptionType() || !g.PeakRateEnabled || g.PeakStart == "" || g.PeakEnd == "" {
+		return peakWindow{}
+	}
+	start, ok1 := parseMinutes(g.PeakStart)
+	end, ok2 := parseMinutes(g.PeakEnd)
+	if !ok1 || !ok2 || start >= end {
+		return peakWindow{}
+	}
+	t := now.In(timezone.Location())
+	cur := t.Hour()*60 + t.Minute()
+	return peakWindow{
+		Configured:   true,
+		StartMinutes: start,
+		EndMinutes:   end,
+		Active:       cur >= start && cur < end,
+	}
+}
+
 // PeakMultiplierAt 返回指定时刻 now 的高峰因子。
 //   - 未启用 / 未配置 / 配置非法（start>=end 或格式错误） / 非高峰时段 → 返回 1.0（安全降级）
 //   - 区间为左闭右开 [PeakStart, PeakEnd)，仅支持当日区间，不支持跨天（如 22:00-次日02:00）
@@ -330,20 +366,135 @@ func parseMinutes(hhmm string) (int, bool) {
 //
 // 该方法是纯函数，不读取任何外部状态，便于单测。
 func (g *Group) PeakMultiplierAt(now time.Time) float64 {
-	if g == nil || !g.IsSubscriptionType() || !g.PeakRateEnabled || g.PeakStart == "" || g.PeakEnd == "" {
+	if !g.customPeakWindowAt(now).Active {
 		return 1.0
 	}
-	start, ok1 := parseMinutes(g.PeakStart)
-	end, ok2 := parseMinutes(g.PeakEnd)
-	if !ok1 || !ok2 || start >= end {
-		return 1.0
+	return g.PeakRateMultiplier
+}
+
+// ---------------------------------------------------------------------------
+// DeepSeek 峰谷状态（只读暴露）
+// ---------------------------------------------------------------------------
+
+// DeepSeek 峰谷状态的取值。
+const (
+	// DeepSeekPricingStatePeak 当前处于峰价窗口。
+	DeepSeekPricingStatePeak = "peak"
+	// DeepSeekPricingStateValley 当前处于谷价。
+	DeepSeekPricingStateValley = "valley"
+	// DeepSeekPricingStateNone 该分组不适用峰谷计价。
+	DeepSeekPricingStateNone = "none"
+)
+
+// DeepSeekPricingTimezone 是官方峰谷判定的时区（与 deepseek_calendar.go 一致）。
+const DeepSeekPricingTimezone = "Asia/Shanghai"
+
+// deepseekOfficialPeakWindow 是官方峰价窗口说明（工作日，北京时间）。
+const deepseekOfficialPeakWindow = "09:00-12:00 / 14:00-18:00"
+
+// deepseekOfficialPeakWindowLabel 是官方峰价窗口的可读说明。
+const deepseekOfficialPeakWindowLabel = "峰价时段 " + deepseekOfficialPeakWindow
+
+// DeepSeekPricingState 描述分组当前的峰谷计价状态。
+//
+// 只读暴露：不参与计费，也不写任何状态；计费仍由 PeakMultiplierAt 与
+// billing_service 的 DeepSeek 价卡口径决定。
+type DeepSeekPricingState struct {
+	// State 取值：peak / valley / none。
+	State string
+	// Label 是人类可读说明（峰/谷 + 生效窗口）。
+	Label string
+	// Timezone 固定为 Asia/Shanghai。
+	Timezone string
+	// Multiplier 是当前生效的峰谷倍率；不适用时为 1。
+	Multiplier float64
+	// NextSwitchAt 是下一次峰/谷状态切换的时刻（RFC3339 语义）。
+	// 它与 State 来自同一次判定（同一份日历、同一套窗口规则），
+	// 因此「到点切换」与「计费档位」必然自洽。
+	// state=none（不适用）时为 nil。
+	NextSwitchAt *time.Time
+}
+
+// DeepSeekPricingStateAt 返回分组当前的峰谷状态。
+//
+// 判定完全复用既有实现，不另写一套口径：
+//   - 分组自定义了峰谷窗口（peak_rate_enabled）：用 PeakMultiplierAt 的同一判定，
+//     Label 反映**自定义**窗口；
+//   - 否则，若是 DeepSeek 平台分组（模型走 DeepSeek 官方价卡）：
+//     用 deepseekPeakMultiplierWithCalendar（工作日 09:00-12:00 / 14:00-18:00，
+//     法定假日日历优先）；
+//   - 其余分组不适用：state=none、multiplier=1。
+func (g *Group) DeepSeekPricingStateAt(now time.Time) *DeepSeekPricingState {
+	state := &DeepSeekPricingState{
+		State:      DeepSeekPricingStateNone,
+		Label:      "本分组不适用 DeepSeek 官方峰谷",
+		Timezone:   DeepSeekPricingTimezone,
+		Multiplier: 1,
 	}
-	t := now.In(timezone.Location())
-	cur := t.Hour()*60 + t.Minute()
-	if cur >= start && cur < end {
-		return g.PeakRateMultiplier
+	if g == nil {
+		return state
 	}
-	return 1.0
+
+	if window := g.customPeakWindowAt(now); window.Configured {
+		if window.Active {
+			state.State = DeepSeekPricingStatePeak
+			state.Multiplier = g.PeakRateMultiplier
+			state.Label = fmt.Sprintf("峰价时段 %s-%s（自定义）", g.PeakStart, g.PeakEnd)
+		} else {
+			state.State = DeepSeekPricingStateValley
+			state.Label = fmt.Sprintf("谷价（自定义峰价时段 %s-%s 之外）", g.PeakStart, g.PeakEnd)
+		}
+		if next, ok := g.customPeakWindowNextSwitchAt(now); ok {
+			state.NextSwitchAt = &next
+		}
+		return state
+	}
+
+	if !g.appliesDeepseekOfficialPeak() {
+		return state
+	}
+	calendar := deepseekPricingCalendar()
+	state.State, state.Label, state.Multiplier = deepseekOfficialStateAt(now, calendar)
+	if next, ok := deepseekOfficialNextSwitchAt(now, calendar); ok {
+		state.NextSwitchAt = &next
+	}
+	return state
+}
+
+// appliesDeepseekOfficialPeak 判断该分组的模型是否走 DeepSeek 官方价卡。
+//
+// 官方峰谷价只作用在 DeepSeek 官方模型的默认价卡上（见 billing_service 的
+// applyModelSpecificPricingPolicyEx），因此只有 DeepSeek 平台分组才适用；
+// 其它平台分组不暴露峰谷状态（state=none）。
+func (g *Group) appliesDeepseekOfficialPeak() bool {
+	return g != nil && g.Platform == PlatformDeepseek
+}
+
+// deepseekPricingCalendarProvider 返回当前生效的 DeepSeek 假日日历。
+//
+// 为什么用进程级 provider：分组 DTO 的映射发生在 handler 层（dto/mappers.go），
+// 那条路径拿不到 PricingService 实例；而计费路径用的是同一个 PricingService 的日历，
+// 两边必须看到同一份日历，否则「当前峰/谷」会和实际计费对不上。
+// 未注册时回落到内置日历（defaultDeepseekCalendar）。
+var deepseekPricingCalendarProvider atomic.Pointer[func() *deepseekHolidayCalendar]
+
+// setDeepseekPricingCalendarProvider 注册当前生效的 DeepSeek 假日日历来源（装配期调用一次）。
+func setDeepseekPricingCalendarProvider(provider func() *deepseekHolidayCalendar) {
+	if provider == nil {
+		deepseekPricingCalendarProvider.Store(nil)
+		return
+	}
+	deepseekPricingCalendarProvider.Store(&provider)
+}
+
+// deepseekPricingCalendar 返回当前生效的 DeepSeek 假日日历（未注册时用内置日历）。
+func deepseekPricingCalendar() *deepseekHolidayCalendar {
+	if provider := deepseekPricingCalendarProvider.Load(); provider != nil {
+		if calendar := (*provider)(); calendar != nil {
+			return calendar
+		}
+	}
+	return defaultDeepseekCalendar
 }
 
 // ValidatePeakRateConfig 是高峰倍率配置的唯一校验来源，供 handler 与 service 层共用。

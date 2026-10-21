@@ -1,6 +1,8 @@
 package service
 
-import "time"
+import (
+	"time"
+)
 
 // UserErrorRequest 是面向终端用户的"错误请求"精简脱敏视图（白名单）。
 // 严禁包含 account / api_key_prefix / upstream_endpoint / user_email 等
@@ -17,15 +19,18 @@ type UserErrorRequest struct {
 	InboundEndpoint string    `json:"inbound_endpoint"`
 	StatusCode      int       `json:"status_code"`
 	Category        string    `json:"category"`
-	Platform        string    `json:"platform"`
-	Message         string    `json:"message"`
-	KeyName         string    `json:"key_name"`
-	KeyDeleted      bool      `json:"key_deleted"`
-	ClientIP        string    `json:"client_ip,omitempty"`
-	GroupName       string    `json:"group_name,omitempty"`
-	RequestType     *int16    `json:"request_type,omitempty"`
-	Stream          bool      `json:"stream"`
-	UserAgent       string    `json:"user_agent,omitempty"`
+	// Code 是稳定的机器可读错误码（前端按 code 判定，不解析文案）。
+	// 取值见 UserErrorCode；缺价被拒时为 pricing_unavailable。
+	Code        string `json:"code"`
+	Platform    string `json:"platform"`
+	Message     string `json:"message"`
+	KeyName     string `json:"key_name"`
+	KeyDeleted  bool   `json:"key_deleted"`
+	ClientIP    string `json:"client_ip,omitempty"`
+	GroupName   string `json:"group_name,omitempty"`
+	RequestType *int16 `json:"request_type,omitempty"`
+	Stream      bool   `json:"stream"`
+	UserAgent   string `json:"user_agent,omitempty"`
 }
 
 // UserErrorRequestList 是用户错误请求分页结果。
@@ -89,6 +94,56 @@ func CategoryToFilter(category string) (phases []string, errorTypes []string) {
 	}
 }
 
+// UserErrorRequestCodeMissingPrice 是缺价（模型没有可用价格）被拒时的稳定错误码。
+//
+// 网关在转发上游前就拒绝缺价模型（HTTP 503），错误体里的 type 就是 pricing_unavailable；
+// 用户侧错误请求列表据此给「缺价」一个明确徽标，而不是让用户去猜后端原文。
+const UserErrorRequestCodeMissingPrice = "pricing_unavailable"
+
+// UserErrorCode 把一条错误请求归一成稳定的机器可读错误码。
+//
+// 前端按 code 判定（不再解析后端文案），因此取值是稳定契约：
+//   - pricing_unavailable：缺价，模型没有可用价格（网关在转发上游前拒绝，HTTP 503）
+//   - auth_failed：鉴权失败
+//   - rate_limit：触发限流
+//   - quota_exhausted：额度/订阅不足
+//   - invalid_request：请求参数非法
+//   - content_policy：内容策略拦截
+//   - upstream_error：上游账号或网络错误
+//   - service_unavailable：无可用渠道等路由侧不可用
+//   - internal_error：内部错误
+//   - other：其它
+func UserErrorCode(e *OpsErrorLog) string {
+	if e == nil {
+		return "other"
+	}
+	if IsMissingPriceRejection(e.StatusCode, e.Message) {
+		return UserErrorRequestCodeMissingPrice
+	}
+	switch e.Phase {
+	case "auth":
+		return "auth_failed"
+	case "routing":
+		return "service_unavailable"
+	case "account_auth", "upstream", "network":
+		return "upstream_error"
+	case "internal":
+		return "internal_error"
+	case "request":
+		switch e.Type {
+		case "rate_limit_error":
+			return "rate_limit"
+		case "billing_error", "subscription_error":
+			return "quota_exhausted"
+		case "invalid_request_error":
+			return "invalid_request"
+		case "cyber_policy":
+			return "content_policy"
+		}
+	}
+	return "other"
+}
+
 // ToUserErrorRequest 把内部 OpsErrorLog 裁剪为用户安全视图。
 func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 	if e == nil {
@@ -109,6 +164,7 @@ func ToUserErrorRequest(e *OpsErrorLog) *UserErrorRequest {
 		InboundEndpoint: e.InboundEndpoint,
 		StatusCode:      e.StatusCode,
 		Category:        MapUserErrorCategory(e.Phase, e.Type),
+		Code:            UserErrorCode(e),
 		Platform:        e.Platform,
 		Message:         e.Message,
 		KeyName:         e.APIKeyName,

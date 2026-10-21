@@ -251,7 +251,7 @@ func TestPricingSafetyNativePeakPolicyWithoutWindowsAndWithTiers(t *testing.T) {
 				if tokens > 100 {
 					want = three
 				}
-				want *= deepseekPeakMultiplierAt(at)
+				want *= deepseekPeakMultiplierWithCalendar(at, defaultDeepseekCalendar)
 				require.Equal(t, want/1e6, pricing.InputPricePerToken, "absolute=%t hour=%d tokens=%d", absolute, hour, tokens)
 			}
 		}

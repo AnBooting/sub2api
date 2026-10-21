@@ -42,8 +42,8 @@ export async function list(
   options?: {
     signal?: AbortSignal
   }
-): Promise<PaginatedResponse<AdminGroup>> {
-  const { data } = await apiClient.get<PaginatedResponse<AdminGroup>>('/admin/groups', {
+): Promise<PaginatedResponse<AdminGroupWithPricingState>> {
+  const { data } = await apiClient.get<PaginatedResponse<AdminGroupWithPricingState>>('/admin/groups', {
     params: {
       page,
       page_size: pageSize,
@@ -59,8 +59,8 @@ export async function list(
  * @param platform - Optional platform filter
  * @returns List of all active groups
  */
-export async function getAll(platform?: GroupPlatform): Promise<AdminGroup[]> {
-  const { data } = await apiClient.get<AdminGroup[]>('/admin/groups/all', {
+export async function getAll(platform?: GroupPlatform): Promise<AdminGroupWithPricingState[]> {
+  const { data } = await apiClient.get<AdminGroupWithPricingState[]>('/admin/groups/all', {
     params: platform ? { platform } : undefined
   })
   return data
@@ -333,6 +333,35 @@ export async function previewCompositeRoute(
   )
   return data
 }
+
+/**
+ * DeepSeek 官方计价状态（后端分组 DTO 字段 `deepseek_pricing_state`）。
+ *
+ * 峰谷按官方时段自动判定（Asia/Shanghai），管理员不能手动改判定，
+ * 只能改分组自己的倍率。字段缺失（老数据 / 接口未下发）时必须容错：
+ * 调用方按 `null` 处理，不渲染徽标而不是报错。
+ */
+export interface DeepSeekPricingState {
+  /** "peak" | "valley" | "none" */
+  state: string
+  /** 人类可读说明，如「峰价时段 09:00-12:00 / 14:00-18:00」 */
+  label?: string
+  /** 固定 "Asia/Shanghai" */
+  timezone?: string
+  /** 当前生效的峰谷倍率；未启用时为 1 */
+  multiplier?: number
+}
+
+/** 分组 DTO 上的可选峰谷状态；缺失时为 undefined。 */
+export type GroupWithPricingState = {
+  deepseek_pricing_state?: DeepSeekPricingState | null
+}
+
+/**
+ * 管理端分组 DTO：基础分组字段 + 可选峰谷状态。
+ * 峰谷状态是后端新加的可选字段，老数据 / 未下发时为 undefined，调用方必须容错。
+ */
+export type AdminGroupWithPricingState = AdminGroup & GroupWithPricingState
 
 /**
  * Rate multiplier entry for a user in a group

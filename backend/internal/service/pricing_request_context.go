@@ -85,6 +85,10 @@ type LockedRequestPricing struct {
 	resolved     *ResolvedPricing
 	availability error
 	multiplier   float64
+	// cacheStorageCost 是本 quote 在最近一次计价里按冻结口径叠加的显式缓存存储费
+	//（官方价，倍率前）。只由 applyFrozenCacheStorageCost 写入，锁价消费侧用它把
+	// 同一笔存储费记入账号统计成本（与 live 路径同口径）。
+	cacheStorageCost float64
 }
 
 func (p *LockedRequestPricing) Availability() error {
@@ -196,7 +200,79 @@ func (p *LockedRequestPricing) calculate(input CostInput, overrideRate bool, rat
 	if cost != nil {
 		cost.PricingSnapshot = cloneRequestModelPricing(cost.PricingSnapshot)
 	}
+	// 纯存储量请求不算一次模型请求（live 路径 isCacheStorageOnlyResult 同口径）：
+	// 只保留显式缓存存储费，不收这一次模型请求的费用（token/按次/图片）。
+	if input.CacheStorageOnly && cost != nil {
+		cost = &CostBreakdown{}
+	}
+	// 显式缓存存储费（上游 0.2.17 维度）：按 token·小时计价，单价取请求建立时冻结的
+	// 价卡，不回源查实时目录。缺价一律 fail-closed（见 applyFrozenCacheStorageCost）。
+	if err := p.applyFrozenCacheStorageCost(cost, input); err != nil {
+		return nil, err
+	}
 	return cost, nil
+}
+
+// frozenCacheStoragePrice 返回冻结口径的显式缓存存储单价（每 token 每小时，USD）。
+//
+// 口径与 live 路径一致：先看冻结价卡，再回退到冻结的实际上游模型与请求模型；
+// 三者都没有配置时返回 0，由调用方 fail-closed（不得按 0 计费）。
+// 冻结目录在请求建立时克隆，天然带上 CacheStorageCostPerTokenPerHour，
+// 且目录版本哈希覆盖该字段（见 requestCatalogVersion），因此这里的单价与
+// 锁价 bundle 里的其它价格一样是冻结的。
+func (p *LockedRequestPricing) frozenCacheStoragePrice(accountID int64) float64 {
+	if p == nil || p.request == nil {
+		return 0
+	}
+	models := []string{p.scope.BillingModel}
+	if p.candidate != nil && accountID != 0 {
+		models = append(models, p.candidate.accountUpstreamModels[accountID])
+	}
+	models = append(models, p.request.requestedModel)
+	for _, model := range models {
+		if strings.TrimSpace(model) == "" {
+			continue
+		}
+		if price := p.request.billing.CacheStoragePricePerTokenHour(model); price > 0 {
+			return price
+		}
+	}
+	return 0
+}
+
+// CacheStorageCost 返回本 quote 按冻结口径叠加的显式缓存存储费（官方价，倍率前）。
+//
+// 只在计价真正按冻结价叠加过存储费时才有值；锁价消费侧用它把存储费记入账号统计
+// 成本，与 live 路径的 addCacheStorageToAccountStatsCost 口径一致。价格只来自请求
+// 建立时冻结的价卡，不回源查实时目录。
+func (p *LockedRequestPricing) CacheStorageCost() float64 {
+	if p == nil {
+		return 0
+	}
+	return p.cacheStorageCost
+}
+
+// applyFrozenCacheStorageCost 按冻结口径叠加显式缓存存储费。
+//
+// 与 live 路径同口径：TotalCost（官方价）加存储费，ActualCost（客户应付）再加
+// 冻结倍率乘过的存储费。价格只取请求建立时冻结的价卡，不回源查实时目录。
+//
+// 缺价（请求带了显式缓存存储量，但冻结价卡里没有该模型的存储单价）一律
+// fail-closed：显式缓存是上游已计费的维度，按 0 记账等于白送存储，必须报错，
+// 不能静默少收。
+func (p *LockedRequestPricing) applyFrozenCacheStorageCost(cost *CostBreakdown, input CostInput) error {
+	if cost == nil || input.CacheStorageTokenHours <= 0 {
+		return nil
+	}
+	price := p.frozenCacheStoragePrice(input.SelectedAccountID)
+	if price <= 0 {
+		return fmt.Errorf("%w: explicit cache storage has no frozen price (model=%q)", ErrModelPricingUnavailable, p.scope.BillingModel)
+	}
+	storage := input.CacheStorageTokenHours * price
+	cost.TotalCost += storage
+	cost.ActualCost += storage * input.RateMultiplier
+	p.cacheStorageCost = storage
+	return nil
 }
 
 func (r *RequestBillingContext) PricingFor(scope PriceScope) (*LockedRequestPricing, error) {

@@ -2,7 +2,9 @@ package handler
 
 import (
 	"sort"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -62,6 +64,12 @@ type userAvailableGroup struct {
 	PeakEnd            string  `json:"peak_end"`
 	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
 	IsExclusive        bool    `json:"is_exclusive"`
+	// DeepSeekPricingState 是当前 DeepSeek 官方峰谷状态（只读展示）。
+	// 前端按同一份契约渲染徽标：读不到就不显示，不自己算峰谷。
+	DeepSeekPricingState *dto.DeepSeekPricingStateDTO `json:"deepseek_pricing_state,omitempty"`
+
+	// 不对外输出；List 按请求语言把 Name 换成译文后丢弃。
+	i18n service.GroupI18n
 }
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
@@ -155,6 +163,7 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		return
 	}
 
+	acceptLanguage := c.GetHeader("Accept-Language")
 	out := make([]userAvailableChannel, 0, len(channels))
 	for _, ch := range channels {
 		if ch.Status != service.StatusActive {
@@ -164,6 +173,7 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 		if len(visibleGroups) == 0 {
 			continue
 		}
+		localizeUserAvailableGroups(visibleGroups, acceptLanguage)
 		sections := buildPlatformSections(ch, visibleGroups)
 		if len(sections) == 0 {
 			continue
@@ -176,6 +186,13 @@ func (h *AvailableChannelHandler) List(c *gin.Context) {
 	}
 
 	response.Success(c, out)
+}
+
+// localizeUserAvailableGroups 把分组名称就地换成请求首选语言的版本。
+func localizeUserAvailableGroups(groups []userAvailableGroup, acceptLanguage string) {
+	for i := range groups {
+		groups[i].Name = groups[i].i18n.LocalizeName(acceptLanguage, groups[i].Name)
+	}
 }
 
 // buildPlatformSections 把一个渠道按 visibleGroups 的平台集合拆成有序的 section 列表：
@@ -255,6 +272,7 @@ func filterUserVisibleGroups(
 		visible = append(visible, userAvailableGroup{
 			ID:                 g.ID,
 			Name:               g.Name,
+			i18n:               g.I18n,
 			Platform:           g.Platform,
 			SubscriptionType:   g.SubscriptionType,
 			RateMultiplier:     g.RateMultiplier,
@@ -263,6 +281,9 @@ func filterUserVisibleGroups(
 			PeakEnd:            g.PeakEnd,
 			PeakRateMultiplier: g.PeakRateMultiplier,
 			IsExclusive:        g.IsExclusive,
+			DeepSeekPricingState: dto.DeepSeekPricingStateDTOFromService(
+				g.DeepSeekPricingStateAt(time.Now()),
+			),
 		})
 	}
 	return visible

@@ -60,16 +60,6 @@ func GroupHasSeedanceVideoPrice(group *Group) bool {
 	return GroupHasVideoPricePlan(group, VideoPriceFamilySeedance)
 }
 
-// apiKeyHasConfiguredVideoPlan reports whether the group behind the API key
-// declares a usable video metering plan for the model. Callers use it to prefer
-// the plan path over the legacy per-second tariff without ever guessing a price.
-func apiKeyHasConfiguredVideoPlan(apiKey *APIKey, model string) bool {
-	if apiKey == nil || apiKey.Group == nil {
-		return false
-	}
-	return GroupHasVideoPricePlan(apiKey.Group, model)
-}
-
 // videoPlanFromAPIKey returns the group's video metering plan for the model, or
 // nil when the group declares none (fail closed at the caller).
 func videoPlanFromAPIKey(apiKey *APIKey, model string) *domain.VideoPricePlan {

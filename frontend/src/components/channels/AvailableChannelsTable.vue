@@ -111,6 +111,8 @@
                     <Icon name="clock" size="xs" class="h-3 w-3" />
                     {{ peakRateLabel(g) }}
                   </span>
+                  <!-- DeepSeek 峰谷当前状态：后端下发，字段缺失时自动隐藏 -->
+                  <GroupPricingStateBadge :group="g" />
                 </div>
               </div>
               <div
@@ -145,6 +147,8 @@
                     <Icon name="clock" size="xs" class="h-3 w-3" />
                     {{ peakRateLabel(g) }}
                   </span>
+                  <!-- DeepSeek 峰谷当前状态：后端下发，字段缺失时自动隐藏 -->
+                  <GroupPricingStateBadge :group="g" />
                 </div>
               </div>
               <span v-if="section.groups.length === 0" class="text-xs text-gray-400">-</span>
@@ -324,6 +328,7 @@ import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import GroupBadge from '@/components/common/GroupBadge.vue'
+import GroupPricingStateBadge from '@/components/user/GroupPricingStateBadge.vue'
 import SupportedModelChip from './SupportedModelChip.vue'
 import type { UserAvailableChannel, UserAvailableGroup, UserChannelPlatformSection } from '@/api/channels'
 import type { GroupPlatform, SubscriptionType } from '@/types'

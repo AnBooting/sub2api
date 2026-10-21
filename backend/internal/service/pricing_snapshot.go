@@ -87,13 +87,7 @@ func costPricingSnapshot(cost *CostBreakdown) json.RawMessage {
 		}
 		items := make([]pricingSnapshotItemJSON, 0, len(cost.PricingItems))
 		for _, item := range cost.PricingItems {
-			items = append(items, pricingSnapshotItemJSON{
-				Kind:            item.Kind,
-				BaseCreditPrice: item.BaseCreditPrice,
-				Usage:           item.Usage,
-				NormalizedUsage: item.NormalizedUsage,
-				Subtotal:        item.Subtotal,
-			})
+			items = append(items, pricingSnapshotItemJSON(item))
 		}
 		values["items"] = items
 		if cost.Media != nil {
@@ -187,4 +181,3 @@ func videoSecondsSource(result *OpenAIForwardResult) string {
 	}
 	return "request"
 }
-

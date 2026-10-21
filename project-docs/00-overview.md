@@ -65,4 +65,27 @@
 | [11-collaboration-norms.md](11-collaboration-norms.md) | 协作规范与质量门 |
 | [12-worktree-strategy.md](12-worktree-strategy.md) | 并行开发与 worktree 策略 |
 | [14-prd-techspec-template.md](14-prd-techspec-template.md) | PRD 与技术规格模板 |
+| [用户使用手册.md](用户使用手册.md) | 站点用户手册（计费口径、充值兑换、峰谷、视频任务页） |
+| [管理员使用手册.md](管理员使用手册.md) | 管理员手册（价格体系、缺价红线、调度、对账排障） |
+| [上游同步说明.md](上游同步说明.md) | 上游 0.2.17（133 提交）同步的审计、验证清单与决策项 D1–D7 |
+
+> **两份手册随 PR #8 一起进入 develop**，在 PR #8 合入之前，上面指向它们的两条链接在 develop 上暂时不可达（文件本身在 PR #8 的分支上）。
 | [architecture/README.md](architecture/README.md) | 架构侦察索引（含架构图） |
+
+---
+
+## 7. 当前 PR 状态（2026-10-21 用 `gh pr list --repo AnBooting/sub2api` 实测）
+
+> **读文档前先看这张表**：下面标 **OPEN** 的都**尚未合入 develop**，文档里不要把它们写成"已上线"。
+
+| PR | 标题 | 状态 | 说明 |
+|---|---|---|---|
+| #11 | chore(sync): merge upstream v0.2.17 (133 commits) into develop | **OPEN** | 上游 0.2.17 同步 + 本轮修掉的四个缺陷 + 新增能力 + 三轮评审材料与审计台账入库。审计、验证清单与 D1–D7 决策状态见 [上游同步说明.md](上游同步说明.md) §3.8 |
+| #12 | audit: 全量审查修复（安全/健壮性/前端 API 类型）与审计文档 | **OPEN** | 已包含上游 0.2.17 同步（迁移文件与 #11 逐字一致） |
+| #13 | feat(product): 补齐 PRD 功能的用户/管理端可见性、单位口径与站内帮助页 | **OPEN** | 品牌额度标签、站内帮助页、以及本目录下的**两份手册**都在这个 PR 里；已包含上游 0.2.17 同步 |
+| #14 | build: move the Go toolchain to 1.27.3 | **OPEN** | go 指令 + 三个 workflow 的版本断言 + 两个 Dockerfile 一起升到 1.27.3，解除 `backend-security` 的标准库公告 GO-2026-6809；**最后合** |
+| #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮 PR 改动了同样的界面文件；分支 `feat/frontend-fluent-redesign-clean` **完整保留**，重做前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
+| #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
+| #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
+
+**合并顺序**：#11 → #12 → #13 → #14（四条之间的迁移文件必须逐字一致，243–250 不得复活；#14 最后合，让前三条的 CI 用同一个 Go 版本跑）。

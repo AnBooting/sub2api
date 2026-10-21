@@ -1,0 +1,2 @@
+{"run_id":"full-20261019","repo":"AnBooting/sub2api","target":"F:/sub2","source_ref":"d5c2b5edbcb0335cb80e4cfd7371098cf8982d8c","branch":"audit/full-20261019","profile":"standard","scope_paths":["backend","frontend","deploy","tools","project-docs"],"execution_policy":"source-review-and-local-tests-only","run_status":"in_progress"}
+

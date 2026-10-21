@@ -76,28 +76,24 @@ func (r *VideoTaskRecorder) RecordCreate(ctx context.Context, params VideoTaskCr
 			snapshot = encoded
 		}
 	}
-	createdAt := params.CreatedAt
-	if createdAt.IsZero() {
-		createdAt = time.Now()
-	}
 	var accountID *int64
 	if params.AccountID > 0 {
 		value := params.AccountID
 		accountID = &value
 	}
 	_, err := r.tasks.RecordCreatedTask(ctx, &VideoTask{
-		TaskNo:           videoTaskNoFromKey(taskKey),
-		UserID:           params.UserID,
-		APIKeyID:         params.APIKeyID,
-		GroupID:          params.GroupID,
-		Platform:         params.Platform,
-		Model:            params.Model,
-		BillingModel:     params.BillingModel,
-		BillingMode:      params.BillingMode,
-		UpstreamTaskID:   firstNonEmptyString(params.UpstreamTaskID, taskKey),
-		AccountID:        accountID,
-		BillingSnapshot:  snapshot,
-		Status:           VideoTaskStatusProcessing,
+		TaskNo:          videoTaskNoFromKey(taskKey),
+		UserID:          params.UserID,
+		APIKeyID:        params.APIKeyID,
+		GroupID:         params.GroupID,
+		Platform:        params.Platform,
+		Model:           params.Model,
+		BillingModel:    params.BillingModel,
+		BillingMode:     params.BillingMode,
+		UpstreamTaskID:  firstNonEmptyString(params.UpstreamTaskID, taskKey),
+		AccountID:       accountID,
+		BillingSnapshot: snapshot,
+		Status:          VideoTaskStatusProcessing,
 	})
 	if err != nil {
 		logger.L().Warn("video_task.record_create_failed",

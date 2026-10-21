@@ -246,7 +246,8 @@ export default {
          autoPricing: 'Auto Pricing',
          autoPricingLoading: 'Filling prices...',
          autoPricingSuccess: 'Filled current prices for {count} model(s). Review and save',
-         autoPricingMissing: 'Complete pricing is unavailable for these models; set prices manually: {models}',
+         autoPricingMissing:
+           "These models have no complete manual price; set prices manually: {models}. A model with an official built-in price is still billed at that built-in price; a model without one is rejected before billing (pricing_unavailable).",
          autoPricingNoModels: 'No models to price. Map or sync models first; existing manual prices are preserved',
          autoPricingError: 'Failed to fill model prices'
        }

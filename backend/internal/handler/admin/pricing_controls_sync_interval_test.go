@@ -20,7 +20,9 @@ func TestPricingControlSyncIntervalHTTP(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
 	cfg.Pricing.UpdateIntervalHours = 24
-	pricing := service.NewPricingService(cfg, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(cfg, net)
+	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/pricing/settings", h.UpdatePricingControls)
@@ -40,19 +42,26 @@ func TestPricingControlSyncIntervalHTTP(t *testing.T) {
 	require.Equal(t, http.StatusOK, status.Code)
 	var before map[string]any
 	require.NoError(t, json.Unmarshal(status.Body.Bytes(), &before))
-	require.EqualValues(t, 0, before["data"].(map[string]any)["update_interval_hours"], "no override stored yet")
-	require.EqualValues(t, 24, before["data"].(map[string]any)["effective_interval_hours"], "config default is in effect")
+	data, ok := before["data"].(map[string]any)
+	require.True(t, ok, "pricing settings response must carry a data object")
+	require.EqualValues(t, 0, data["update_interval_hours"], "no override stored yet")
+	require.EqualValues(t, 24, data["effective_interval_hours"], "config default is in effect")
 
 	// A valid override is persisted and becomes the effective period.
 	require.Equal(t, http.StatusOK, put(`{"remote_enabled":true,"native_cny_enabled":true,"update_interval_hours":6}`).Code)
 	require.Equal(t, 6, pricing.GetControls().UpdateIntervalHours)
 	require.Equal(t, 6, pricing.PricingSyncIntervalHours())
+	// Turning both switches on schedules a background native CNY refresh. Join it
+	// here: the refresh runs in its own goroutine and must not outlive the test.
+	pricing.WaitForBackgroundRefresh()
+	require.Equal(t, 1, net.attemptCount(), "enabling both switches schedules exactly one background refresh")
 
 	// Omitting the field preserves the stored override: a switch-only update must
 	// not silently drop the administrator's period.
 	require.Equal(t, http.StatusOK, put(`{"remote_enabled":false,"native_cny_enabled":true}`).Code)
 	require.Equal(t, 6, pricing.GetControls().UpdateIntervalHours, "omission preserves the override")
 	require.Equal(t, 6, pricing.PricingSyncIntervalHours())
+	require.Equal(t, 1, net.attemptCount(), "disabling the remote pull schedules no further refresh")
 }
 
 // Out-of-range periods are rejected with 400 and leave the stored value untouched.
@@ -60,7 +69,9 @@ func TestPricingControlSyncIntervalBounds(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
 	cfg.Pricing.UpdateIntervalHours = 12
-	pricing := service.NewPricingService(cfg, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(cfg, net)
+	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/pricing/settings", h.UpdatePricingControls)
@@ -82,6 +93,7 @@ func TestPricingControlSyncIntervalBounds(t *testing.T) {
 	}
 	require.Equal(t, 0, pricing.GetControls().UpdateIntervalHours, "a rejected write stores nothing")
 	require.Equal(t, 12, pricing.PricingSyncIntervalHours(), "config default still applies")
+	require.Zero(t, net.attemptCount(), "a rejected write must not schedule a refresh")
 }
 
 // The resolver falls back to the config file when no override is stored, and the
@@ -95,11 +107,14 @@ func TestPricingSyncIntervalResolver(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.Pricing.UpdateIntervalHours = 48
-	pricing := service.NewPricingService(cfg, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(cfg, net)
+	t.Cleanup(pricing.Stop)
 	require.Equal(t, 48, pricing.PricingSyncIntervalHours(), "config default when no override")
 
 	require.NoError(t, pricing.UpdateControls(context.Background(), service.PricingControls{
 		RemoteEnabled: true, NativeCNYEnabled: true, UpdateIntervalHours: 3,
 	}))
 	require.Equal(t, 3, pricing.PricingSyncIntervalHours(), "override wins over config")
+	require.Zero(t, net.attemptCount(), "writing controls directly must not reach the network")
 }

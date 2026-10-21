@@ -73,17 +73,32 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 | 服务 | `backend/internal/service/` | 业务逻辑；`wire.go` 是依赖装配 |
 | 仓储 | `backend/internal/repository/` | 数据访问；`wire.go` 装配 |
 | 模型 | `backend/ent/schema/` | Ent schema，改后必须 `go generate ./ent` |
-| 迁移 | `backend/migrations/` | 顺序编号 SQL，**当前最新 250**，新增从 **251** 起 |
+| 迁移 | `backend/migrations/` | 顺序编号 SQL，**当前最新 258**，新增从 **259** 起（0.2.17 同步时本 fork 的 243–250 因与上游 243–245 撞号，一次性重编号到 251–258，映射表见 `project-docs/上游同步说明.md`） |
 | 前端 | `frontend/src/` | Vue 3 + Pinia + vue-i18n + Tailwind |
 
 ## 特殊边界
 
 - **迁移编号**：新增必须接在上游最新编号之后，**不改写已存在的迁移**。
+  一次性例外（2026-10-21 上游 0.2.17 同步）：本 fork 的 243–250 因与上游 243–245 撞号，重命名为 251–258，**只改文件名与注释里的编号引用，DDL 逐字未改**；重编号前这些迁移未在任何环境执行过。246–250 刻意留空给上游继续发号。
 - **i18n**：前端 `build` 会先跑 `check:i18n`（locale key 完整性），新增文案必须同步 `zh` 与 `en`。
 - **ent / wire 生成物不手改**：改 schema 或 ProviderSet 后重新生成。
 - **API Key 鉴权缓存**：分组快照若新增字段（如 `domestic_provider`），必须同步缓存结构并使旧缓存失效。
 - **定价口径**：以项目 ADR 与 PRD 的业务规则为准；界面说明、后端计费、测试三者必须一致。
 - **`.gitignore` 陷阱**：`docs/*` 与 `AGENTS.md` 被忽略；项目文档放 `project-docs/`。
+
+## CI（GitHub Actions，2026-10-21 起真正生效）
+
+本 fork 之前在 GitHub 上**从未跑过 CI**（仓库里 0 个 check），自 0.2.17 同步起工作流正常触发，共四个作业：
+- `test` = `make test-unit` + `make test-integration`；`frontend` = 前端 typecheck + 测试 + 构建
+- `golangci-lint`（v2.14.0；本机同版本在 `F:\tools\golangci-lint\golangci-lint-2.14.0-windows-amd64\golangci-lint.exe`，在 `backend/` 目录下跑）
+- `frontend-security` = `pnpm audit` + `.github/audit-exceptions.yml` 例外校验
+- `backend-security` = `govulncheck`
+
+**已知会红（既有缺陷，非某次改动引入）**：`backend-security` 报 `GO-2026-6809`（Go 标准库 crypto/x509，go1.27.2 受影响，1.27.3 修复）。仓库锁定 Go 1.27.2（`backend/go.mod` 的 go 指令 + 本机 `F:\tools\go1.27.2`），修它要同时升级 go 指令与本机工具链，属独立决策，基线 `origin/develop` 同样红。
+
+**transitive 依赖的安全升级**：走 `frontend/package.json` 的 `pnpm.overrides`（仓库既有做法：`dompurify@<3.4.14`、`form-data@<4.0.6`、`postcss@<8.5.18`），改完同步 `frontend/pnpm-lock.yaml`，并用 `corepack pnpm@9 install --lockfile-only --frozen-lockfile` 验证锁文件与 package.json 一致。
+
+**测试文件的 build tag**：仓库里大部分测试**没有** build tag（unit 与 integration 都会编译）。用了 unit-tagged 文件里的辅助函数（`newTestBillingService`、`fakeSchedulerCache` 等）的测试文件必须标 `//go:build unit`，否则 integration 构建整包编译失败，CI 的 `test` 与 `golangci-lint` 一起红。
 
 ## 验证标准
 
@@ -106,6 +121,7 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 ### 已知 flaky（不要误判为自己引入）
 
 - `TestInflightEstimate_AccountMappingNoDBAndBoundedMemory`（`billing_inflight_reservation_test.go`，8MB 堆上限）在**全量套件满载**时偶发失败；隔离运行稳定通过，且与 `origin/develop` 逐字相同。**非本 diff 引入，不要改它。**
+- `panic: pricing network must be disabled`：上游 `UpdatePricingControls` 里的 `go func(){ syncNativeCNY(true) }()` 既没有绑定 ctx 也没有等待，goroutine 在测试进程里真正跑起来就 panic（整个测试二进制挂掉）。本 fork 的修复是 PR #8 的 `4e3fea21b`（定价控制生命周期契约）；**PR #8 合并之前**，满载全量跑时可能偶发命中。属**上游既有缺陷**，不要在别的分支上另写一份修法。
 
 ## 可用能力
 

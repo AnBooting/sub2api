@@ -2,7 +2,9 @@ package handler
 
 import (
 	"log/slog"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -89,6 +91,9 @@ type modelPlazaGroup struct {
 	PeakEnd            string   `json:"peak_end"`
 	PeakRateMultiplier float64  `json:"peak_rate_multiplier"`
 	IsExclusive        bool     `json:"is_exclusive"`
+	// DeepSeekPricingState 是当前 DeepSeek 官方峰谷状态（只读展示）。
+	// 前端按同一份契约渲染徽标：读不到就不显示，不自己算峰谷。
+	DeepSeekPricingState *dto.DeepSeekPricingStateDTO `json:"deepseek_pricing_state,omitempty"`
 	// 生图独立倍率：为 true 时图片计费模型的实付倍率取 ImageRateMultiplier，
 	// 不取分组/用户专属倍率。
 	ImageRateIndependent bool    `json:"image_rate_independent"`
@@ -152,10 +157,10 @@ func (h *ModelPlazaHandler) Get(c *gin.Context) {
 
 	visible := filterPlazaVisibleGroups(groups, allowedGroups, restrictPublicGroups)
 
-	out := make([]modelPlazaGroup, 0, len(visible))
-	for i := range visible {
-		out = append(out, toModelPlazaGroupDTO(&visible[i], userRates))
-	}
+	// 广场可匿名访问，分组文案随请求语言变化，提示中间缓存按语言区分。
+	// 追加而非覆盖：CORS 中间件已为具体来源写入 Vary: Origin。
+	c.Writer.Header().Add("Vary", "Accept-Language")
+	out := toLocalizedModelPlazaGroups(visible, userRates, c.GetHeader("Accept-Language"))
 	response.Success(c, modelPlazaResponse{
 		Description: rt.Description,
 		Groups:      out,
@@ -186,6 +191,17 @@ func filterPlazaVisibleGroups(
 	return visible
 }
 
+// toLocalizedModelPlazaGroups 转换可见分组，并把名称与描述换成请求首选语言的版本。
+func toLocalizedModelPlazaGroups(visible []service.PlazaGroup, userRates map[int64]float64, acceptLanguage string) []modelPlazaGroup {
+	out := make([]modelPlazaGroup, 0, len(visible))
+	for i := range visible {
+		group := toModelPlazaGroupDTO(&visible[i], userRates)
+		group.Name, group.Description = visible[i].I18n.Localize(acceptLanguage, group.Name, group.Description)
+		out = append(out, group)
+	}
+	return out
+}
+
 // toModelPlazaGroupDTO 将 service 层广场分组映射为白名单 DTO,并合并用户专属倍率。
 func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) modelPlazaGroup {
 	models := make([]modelPlazaModel, 0, len(g.Models))
@@ -201,17 +217,20 @@ func toModelPlazaGroupDTO(g *service.PlazaGroup, userRates map[int64]float64) mo
 		})
 	}
 	dto := modelPlazaGroup{
-		ID:                        g.ID,
-		Name:                      g.Name,
-		Description:               g.Description,
-		Platform:                  g.Platform,
-		SubscriptionType:          g.SubscriptionType,
-		RateMultiplier:            g.RateMultiplier,
-		PeakRateEnabled:           g.PeakRateEnabled,
-		PeakStart:                 g.PeakStart,
-		PeakEnd:                   g.PeakEnd,
-		PeakRateMultiplier:        g.PeakRateMultiplier,
-		IsExclusive:               g.IsExclusive,
+		ID:                 g.ID,
+		Name:               g.Name,
+		Description:        g.Description,
+		Platform:           g.Platform,
+		SubscriptionType:   g.SubscriptionType,
+		RateMultiplier:     g.RateMultiplier,
+		PeakRateEnabled:    g.PeakRateEnabled,
+		PeakStart:          g.PeakStart,
+		PeakEnd:            g.PeakEnd,
+		PeakRateMultiplier: g.PeakRateMultiplier,
+		IsExclusive:        g.IsExclusive,
+		DeepSeekPricingState: dto.DeepSeekPricingStateDTOFromService(
+			g.DeepSeekPricingStateAt(time.Now()),
+		),
 		ImageRateIndependent:      g.ImageRateIndependent,
 		ImageRateMultiplier:       g.ImageRateMultiplier,
 		VideoRateIndependent:      g.VideoRateIndependent,

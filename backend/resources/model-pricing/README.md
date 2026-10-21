@@ -50,7 +50,7 @@ Last updated: 2025-08-10
 - 缓存文件为 `pricing.data_dir/model_pricing_cny.json`；没有缓存且拉取关闭时，国模需要手动价卡。来源、原币种和实际采用的单价写入新用量记录的 `pricing_snapshot`。
 - 账号成本统计仍用 USD，人民币售价不会被直接累加为美元账号成本；统计规则只接受 USD。
 
-部署前需执行数据库迁移 `243_native_currency_pricing.sql`（正常启动迁移流程自动执行）。配置键与默认源见 `deploy/config.example.yaml` 的 `pricing` 部分；已有数据库开关优先于配置文件。
+部署前需执行数据库迁移 `251_native_currency_pricing.sql`（正常启动迁移流程自动执行）。配置键与默认源见 `deploy/config.example.yaml` 的 `pricing` 部分；已有数据库开关优先于配置文件。
 # 2026-10-10 评审修复
 
 - 保存之外，网关请求前检查和计费入口也拒绝不完整的 CNY 手工 Token 卡（输入、输出、缓存读、缓存写四项）；显式 0 仍合法。

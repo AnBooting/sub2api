@@ -447,7 +447,7 @@ export default {
         paymentType: '支付方式',
         orderStatus: '订单状态',
         transferAmount: '提取金额',
-        balanceAfter: '提取后余额',
+        balanceAfter: '提取后余额（Credit）',
         availableQuotaAfter: '提取后可提',
         frozenQuotaAfter: '提取后冻结',
         historyQuotaAfter: '提取后历史返利',
@@ -574,8 +574,8 @@ export default {
         role: '角色',
         groups: '分组',
         subscriptions: '订阅分组',
-        balance: '余额',
-        balancePlatformQuota: '余额(平台配额)',
+        balance: '余额（Credit）',
+        balancePlatformQuota: '余额（平台配额，Credit）',
         usage: '用量',
         usageAnthropic: '用量 (Claude)',
         usageOpenAI: '用量 (OpenAI)',
@@ -642,7 +642,7 @@ export default {
         passwordPlaceholder: '请输入密码（留空则不修改）',
         roleLabel: '角色',
         selectRole: '选择角色',
-        balanceLabel: '余额',
+        balanceLabel: '余额（Credit）',
         concurrencyLabel: '并发数',
         statusLabel: '状态',
         selectStatus: '选择状态',
@@ -652,11 +652,11 @@ export default {
         rpmLimitPlaceholder: '0 表示不限制',
         rpmLimitHint: '该用户每分钟最大请求数，0 = 不限制；仅在所用分组未设置 rpm_limit 时作为兜底生效'
       },
-      adjustBalance: '调整余额',
+      adjustBalance: '调整余额（Credit）',
       adjustConcurrency: '调整并发数',
-      adjustmentAmount: '调整金额',
+      adjustmentAmount: '调整金额（Credit）',
       adjustmentAmountHint: '正数增加，负数减少',
-      currentBalance: '当前余额',
+      currentBalance: '当前余额（Credit）',
       currentConcurrency: '当前并发数',
       saving: '保存中...',
       noUsers: '暂无用户',
@@ -703,14 +703,14 @@ export default {
       noOtherGroups: '没有其他可用的专属分组',
       deposit: '充值',
       withdraw: '退款',
-      depositAmount: '充值金额',
-      withdrawAmount: '退款金额',
+      depositAmount: '充值金额（Credit）',
+      withdrawAmount: '退款金额（Credit）',
       withdrawAll: '全部',
       depositNotesPlaceholder: '例如：新用户注册奖励、活动充值、补偿充值等',
       withdrawNotesPlaceholder: '例如：服务问题退款、错误充值退回、账户注销退款等',
       notesOptional: '备注为可选项，有助于未来查账',
       amountHint: '请输入正数金额',
-      newBalance: '操作后余额',
+      newBalance: '操作后余额（Credit）',
       depositing: '充值中...',
       withdrawing: '退款中...',
       confirmDeposit: '确认充值',
@@ -740,7 +740,7 @@ export default {
       typeSubscription: '订阅',
       failedToLoadBalanceHistory: '加载余额记录失败',
       createdAt: '创建时间',
-      totalRecharged: '总充值',
+      totalRecharged: '总充值（Credit）',
       // Settings Dropdowns
       filterSettings: '筛选设置',
       columnSettings: '列设置',
@@ -810,9 +810,9 @@ export default {
         subtitle: '为用户 {email} 配置各上游平台的日 / 周 / 月用量上限',
         columns: {
           platform: '平台',
-          daily: '日 (USD)',
-          weekly: '周 (USD)',
-          monthly: '月 (USD, 30天滚动)',
+          daily: '日（Credit）',
+          weekly: '周（Credit）',
+          monthly: '月（Credit，30天滚动）',
           usage: '当前用量',
         },
         placeholder: '不限制',
@@ -1009,6 +1009,12 @@ export default {
         privacySetOnlyEnabled: '已启用 — Privacy 未设置的账号将被排除',
         disabled: '未启用'
       },
+      i18nField: {
+        default: '默认',
+        add: '新增 {language} 版',
+        edit: '编辑 {language} 版',
+        placeholder: '{language} 版，留空则显示默认内容'
+      },
       enterGroupName: '请输入分组名称',
       optionalDescription: '可选描述',
       platformHint: '选择此分组关联的平台',
@@ -1107,7 +1113,7 @@ export default {
         withInput: '（含输入视频）'
       },
       explicitPricing: {
-        title: 'Grok 搜索与 Voice 定价',
+        title: '搜索与语音/实时定价',
         description: '分组级 web_search（每千次）与 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
         searchPricePer1k: '搜索每千次价格（USD）',
         pricePlaceholder: '可选'
@@ -1117,11 +1123,42 @@ export default {
         description: '匹配模型后覆盖渠道和内置价格。长上下文阶梯沿用官方/预设价卡，无需再手填区间。音频可用按次层级配置 realtime、tts、stt。',
         longContext: '启用长上下文阶梯定价',
         longContextHint: '勾选后按渠道区间或官方预设阶梯计费；关闭后默认按第一档，账号显式开启时除外。',
-        add: '添加模型价格'
+        add: '添加模型价格',
+        priceSourceHint:
+          '没填价的模型按官方内置价（价卡）计费——官方内置价是该模型自身的官方价，不是缺价放行；只有连官方内置价都没有的模型才会在计费前被拒绝（pricing_unavailable）。'
+      },
+      pricingStatus: {
+        complete: '定价完整',
+        incomplete: '{count} 个模型缺价字段',
+        builtinOnly: '未填价 · 按官方内置价计费',
+        noRules: '未配置定价规则',
+        tip: {
+          complete: '该分组的逐模型定价规则都填全了，按填写的单价计费。',
+          incomplete:
+            '规则未填全：缺价字段的模型若没有官方内置价，请求会在计费前被拒绝（pricing_unavailable）；有官方内置价时按官方内置价计费。',
+          builtinOnly:
+            '这些规则只登记了模型、没有填价格：该模型有官方内置价时按官方内置价计费（官方内置价是该模型自身的官方价，不是缺价放行）；没有官方内置价时请求会被拒绝。',
+          noRules: '该分组没有逐模型定价规则：完全按渠道价格或官方内置价（价卡）计费。'
+        },
+        tipModels: '缺价字段的模型：{models}'
+      },
+      peakWindow: {
+        peak: '高峰中 {multiplier}x',
+        valley: '非高峰 1x',
+        invalid: '高峰时段配置无效',
+        disabled: '未启用高峰倍率',
+        peakWord: '高峰',
+        valleyWord: '非高峰',
+        today: '今天',
+        tomorrow: '明天',
+        window: '时段 {start}–{end}',
+        multiplier: '高峰倍率 {multiplier}x',
+        nextSwitch: '下次切换 {day} {time}（{next}）',
+        hint: '分组高峰倍率按服务器本地时区（Asia/Shanghai）判定，只作用于该分组的 token 计费；与 DeepSeek 官方峰谷是两套机制。'
       },
       voicePricing: {
-        title: 'Grok Voice 定价',
-        description: '分组级 Voice realtime / TTS / STT 单价（USD）。留空表示未配置。',
+        title: '语音 / Realtime 显式定价',
+        description: '分组级 Voice realtime / TTS / STT 单价（USD）。所有平台可用；留空表示未配置。',
         audioRealtimePerMin: 'Realtime 每分钟价格（USD）',
         audioTtsPerMillionChars: 'TTS 每百万字符价格（USD）',
         audioSttPerHour: 'STT 每小时价格（USD）',
@@ -1141,6 +1178,14 @@ export default {
         peakMultiplier: '高峰倍率',
         multiplierHint: '作用于 token 计费倍率；token 计费的图片 token 同样适用，0 表示高峰 token 请求按 0 倍计费'
       },
+      peakState: {
+        title: '当前峰谷状态',
+        peak: '峰价时段',
+        valley: '谷价时段',
+        none: '未启用峰谷',
+        autoJudged: '峰谷按官方时段自动判定（Asia/Shanghai），管理员不能手动改判定，只能改分组自己的倍率。',
+        multiplier: '当前生效倍率 {multiplier}'
+      },
       profitControl: {
         enable: '启用利润控制',
         enabledHint: '调度时仅允许"账号倍率 ≤ 请求实际下游倍率 ×（1 − 最低毛利率 − 安全缓冲）"的账号进入候选池；账号倍率可手工维护或由探测同步，既有排序、粘性与熔断在合格账号间照常工作。图片/视频调度暂不参与。',
@@ -1156,6 +1201,8 @@ export default {
       modelAllowlist: {
         title: '模型白名单',
         hint: '开启后，不在白名单中的模型会被拒绝（404 model_not_found），模型列表接口也只展示白名单内的模型。条目支持精确模型 ID 与任意位置的 * 通配（如 gpt-*-codex）。注意：Claude Code 会用 haiku 系小模型做标题/摘要等探测，/messages/count_tokens 同样受白名单控制，请一并勾选所需的小模型。',
+        gpt55RetirementHint:
+          'GPT-5.5：ChatGPT 订阅账号（OAuth / SetupToken / 影子账号）已于 2026-10-14 19:00 UTC 下线该模型，API Key 上游仍可用。只挂订阅账号的分组放行 GPT-5.5 会返回 404 model_not_found。',
         loading: '正在加载候选模型...',
         empty: '暂无候选模型，可在下方手工添加条目',
         selectedSummary: '已选 {selected} / {total}',

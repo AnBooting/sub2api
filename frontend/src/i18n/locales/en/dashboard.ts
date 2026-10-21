@@ -2,7 +2,7 @@ export default {
   dashboard: {
     title: 'Dashboard',
     welcomeMessage: "Welcome back! Here's an overview of your account.",
-    balance: 'Balance',
+    balance: 'Balance (Credit)',
     apiKeys: 'API Keys',
     todayRequests: 'Today Requests',
     todayCost: 'Today Cost',
@@ -23,7 +23,7 @@ export default {
     platformCount: '{count} platforms',
     platformOther: 'Other',
     platformQuota: {
-      title: 'Quota Usage',
+      title: 'Quota Usage (Credit)',
       daily: 'Daily',
       weekly: 'Weekly',
       monthly: 'Monthly (30-day rolling)',
@@ -78,6 +78,7 @@ export default {
       "empty": "No ordinary groups bound",
       "unavailable": "Group #{id} (currently unavailable)",
       "haAuthorized": "User-authorized HA fallback",
+      "dragHandle": "Drag to reorder",
       "singleHint": "The single-group picker above replaces the ordinary chain. HA consent is unchanged.",
       "edit": "Edit ordinary group order"
     },
@@ -90,7 +91,9 @@ export default {
       "enable": "Enable fallback",
       "enabled": "Enabled",
       "scopeMismatch": "This group's model scope does not match this key, so it cannot be enabled",
-      "accessRequired": "This is an exclusive group; you need an access grant before you can enable it as a fallback"
+      "accessRequired": "This is an exclusive group; you need an access grant before you can enable it as a fallback",
+      "createHint": "Pick fallback groups while creating a key; the consent is applied right after the key is created. A single failure does not affect the key itself.",
+      "enablePartialFailed": "{count} fallback group(s) could not be enabled. Please enable them again on the edit page."
     },
     title: 'API Keys',
     description: 'Manage your API keys and access tokens',
@@ -177,7 +180,7 @@ export default {
     usage: 'Usage',
     today: 'Today',
     total: 'Last 30d',
-    quota: 'Quota',
+    quota: 'Quota (Credit)',
     lastUsedAt: 'Last Used',
     lastUsedIP: 'Last Used IP',
     useKey: 'Use Key',
@@ -313,11 +316,11 @@ export default {
       geminiCliDesc: 'Import as Gemini CLI configuration',
     },
     // Quota and expiration
-    quotaLimit: 'Quota Limit',
-    quotaAmount: 'Quota Amount ',
-    quotaAmountPlaceholder: 'Enter quota limit in USD',
+    quotaLimit: 'Quota Limit (Credit)',
+    quotaAmount: 'Quota Amount (Credit) ',
+    quotaAmountPlaceholder: 'Enter quota limit (Credit)',
     quotaAmountHint: 'Set the maximum amount this key can spend. 0 = unlimited.',
-    quotaUsed: 'Quota Used',
+    quotaUsed: 'Quota Used (Credit)',
     reset: 'Reset',
     resetQuotaUsed: 'Reset used quota to 0',
     resetQuotaTitle: 'Confirm Reset Quota',
@@ -327,9 +330,9 @@ export default {
     rateLimitColumn: 'Rate Limit',
     rateLimitSection: 'Rate Limit',
     resetUsage: 'Reset',
-    rateLimit5h: '5-Hour Limit ',
-    rateLimit1d: 'Daily Limit ',
-    rateLimit7d: '7-Day Limit ',
+    rateLimit5h: '5-Hour Limit (Credit) ',
+    rateLimit1d: 'Daily Limit (Credit) ',
+    rateLimit7d: '7-Day Limit (Credit) ',
     rateLimitHint: 'Set the maximum spending for this key within each time window. 0 = unlimited.',
     rateLimitUsage: 'Rate Limit Usage',
     resetRateLimitUsage: 'Reset Rate Limit Usage',
@@ -473,6 +476,12 @@ export default {
     compactionOnly: 'Compaction Only',
     cyber: 'Cyber',
     live: 'Live',
+    liveTitle: 'Live session',
+    liveSessionDuration: 'Live session duration',
+    liveDurationSeconds: '{seconds}s',
+    liveDurationMinutes: '{minutes}m {seconds}s',
+    liveBilling: 'Billing basis',
+    liveNoCharge: 'This Live session was not charged (0 Credit)',
     unknown: 'Unknown',
     in: 'In',
     out: 'Out',
@@ -679,7 +688,7 @@ export default {
     searchPlaceholder: 'Search channels or models...',
     empty: 'No available channels',
     noModels: 'No models configured',
-    noPricing: 'Pricing not configured',
+    noPricing: 'Pricing not configured (not served)',
     exclusive: 'Exclusive',
     public: 'Public',
     exclusiveTooltip: 'Exclusive groups granted to you by an admin',
@@ -723,6 +732,7 @@ export default {
     loadFailed: 'Failed to load model plaza',
     noSearchResult: 'No matching models',
     anonymousHint: 'Sign in to see your exclusive groups and personal rates',
+    sourcePriceNote: 'The prices shown are source-currency prices (USD, no currency conversion): "Paid price" = channel price × your effective rate (group/exclusive rate), while "Official price" is the reference price without any rate. Neither is the Credit in your balance — the actual deduction is the Credit shown in your usage records.',
     filters: {
       platformLabel: 'Platform',
       groupLabel: 'Group',
@@ -828,7 +838,7 @@ export default {
   redeem: {
     title: 'Redeem Code',
     description: 'Enter your redeem code to add balance or increase concurrency',
-    currentBalance: 'Current Balance',
+    currentBalance: 'Current Balance (Credit)',
     concurrency: 'Concurrency',
     requests: 'requests',
     redeemCodeLabel: 'Redeem Code',
@@ -840,7 +850,7 @@ export default {
     redeemFailed: 'Redemption Failed',
     added: 'Added',
     concurrentRequests: 'concurrent requests',
-    newBalance: 'New Balance',
+    newBalance: 'New Balance (Credit)',
     newConcurrency: 'New Concurrency',
     aboutCodes: 'About Redeem Codes',
     codeRule1: 'Each code can only be used once',
@@ -866,14 +876,62 @@ export default {
     historyLoadFailed: 'Failed to load activity. Please try again.',
     userRefreshFailed: 'Redeemed successfully, but failed to refresh account information.',
     subscriptionRefreshFailed: 'Redeemed successfully, but failed to refresh subscription status.',
-    pleaseEnterCode: 'Please enter a redeem code'
+    pleaseEnterCode: 'Please enter a redeem code',
+    creditRateHint: '\u00a51 gets you 1 Credit (no currency conversion)',
+    manualCreditHint: 'Your balance only changes after you redeem the card code; a successful payment is not credited automatically.',
+    errors: {
+      REDEEM_CODE_USED: 'This redeem code has already been used',
+      REDEEM_CODE_NOT_FOUND: 'This redeem code does not exist',
+      REDEEM_CODE_EXPIRED: 'This redeem code has expired',
+      REDEEM_CODE_INVALID: 'Invalid redeem code'
+    }
+  },
+
+  // User-facing video task list (GET /api/v1/videos/tasks)
+  videoTasks: {
+    title: 'Video tasks',
+    subtitle: 'Track the status of the video generation tasks you submitted',
+    entry: 'Video tasks',
+    loading: 'Loading video tasks\u2026',
+    loadingMore: 'Loading more\u2026',
+    empty: 'No video tasks yet',
+    loadFailed: 'Failed to load video tasks. Please try again later.',
+    loadMoreFailed: 'Failed to load more video tasks. Please try again.',
+    loadMore: 'Load more',
+    lastError: 'Failure reason',
+    errors: {
+      account_not_bound: 'No usable upstream account for this task right now. Please retry later or contact support.',
+      account_load_failed: 'The task could not load its upstream account. Please retry later or contact support.',
+      dependency_unavailable: 'A task dependency is temporarily unavailable. Please retry later or contact support.',
+      upstream_failed: 'The video generation service is temporarily unavailable. Please retry later or contact support.',
+      settlement_failed: 'The video was generated but settlement has not completed yet. It will be retried automatically.',
+      internal_error: 'The task failed. Please retry later or contact support.'
+    },
+    billingMode: {
+      per_token: 'Usage based (token)',
+      per_request: 'Per request',
+      per_second: 'Per second'
+    },
+    columns: {
+      taskNo: 'Task number',
+      model: 'Model',
+      platform: 'Platform',
+      billingMode: 'Billing mode',
+      createdAt: 'Created at',
+      settledAt: 'Settled at'
+    },
+    status: {
+      processing: 'Processing',
+      completed: 'Completed',
+      failed: 'Failed'
+    }
   },
 
   // Profile
   profile: {
     title: 'Profile Settings',
     description: 'Manage your account information and settings',
-    accountBalance: 'Account Balance',
+    accountBalance: 'Account Balance (Credit)',
     concurrencyLimit: 'Concurrency Limit',
     rpmLimit: 'RPM Limit',
     rpmUnlimited: 'Unlimited',
@@ -1120,6 +1178,16 @@ export default {
     endDate: 'End Date',
     apply: 'Apply',
     selectDateRange: 'Select date range'
+  },
+
+  // Missing price notice: the backend never lets an unpriced model through.
+  missingPrice: {
+    title: 'Models without a configured price are not served',
+    description:
+      'A model without a configured price is rejected before the request reaches the upstream (503 pricing_unavailable) — it is never served at zero price or at a fallback price. Models tagged "no pricing" in Available Channels are exactly that case.',
+    badge: 'No price',
+    badgeTooltip: 'This model has no configured price, so it is not served (missing price is never let through)',
+    viewPriceCard: 'Open the price list'
   },
 
   // Admin
