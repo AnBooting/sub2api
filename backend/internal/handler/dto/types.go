@@ -100,6 +100,9 @@ type DeepSeekPricingStateDTO struct {
 	Label      string  `json:"label"`      // 人类可读，如 "峰价时段 09:00-12:00 / 14:00-18:00"
 	Timezone   string  `json:"timezone"`   // 固定 "Asia/Shanghai"
 	Multiplier float64 `json:"multiplier"` // 当前生效的峰谷倍率；未启用峰谷倍率时为 1
+	// NextSwitchAt 是下一次峰/谷状态切换的时刻（RFC3339）。
+	// 与 state 来自同一次判定，因此到点必然切档；不适用（state=none）时为 null。
+	NextSwitchAt *time.Time `json:"next_switch_at"`
 }
 type Group struct {
 	ID             int64   `json:"id"`

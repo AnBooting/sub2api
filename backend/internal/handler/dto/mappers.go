@@ -186,17 +186,32 @@ func GroupFromServiceAdmin(g *service.Group) *AdminGroup {
 //
 // 用户分组 DTO 与管理员分组 DTO 共用 groupFromServiceBase，
 // 因此两条映射都会带上这个字段（前端按同一份契约接线）。
-func deepSeekPricingStateDTOFromService(g *service.Group) *DeepSeekPricingStateDTO {
-	state := g.DeepSeekPricingStateAt(time.Now())
+// DeepSeekPricingStateDTOFromService 把服务层峰谷状态映射成 DTO。
+//
+// 用户分组 DTO、管理员分组 DTO 与「可用渠道 / 模型广场」的白名单 DTO 共用这份契约，
+// 前端按同一份字段名接线（读不到就不显示，也不在前端自己算峰谷）。
+func DeepSeekPricingStateDTOFromService(state *service.DeepSeekPricingState) *DeepSeekPricingStateDTO {
 	if state == nil {
 		return nil
 	}
 	return &DeepSeekPricingStateDTO{
-		State:      state.State,
-		Label:      state.Label,
-		Timezone:   state.Timezone,
-		Multiplier: state.Multiplier,
+		State:        state.State,
+		Label:        state.Label,
+		Timezone:     state.Timezone,
+		Multiplier:   state.Multiplier,
+		NextSwitchAt: state.NextSwitchAt,
 	}
+}
+
+// deepSeekPricingStateDTOFromService 把服务层的峰谷状态映射成 DTO。
+//
+// 用户分组 DTO 与管理员分组 DTO 共用 groupFromServiceBase，
+// 因此两条映射都会带上这个字段（前端按同一份契约接线）。
+func deepSeekPricingStateDTOFromService(g *service.Group) *DeepSeekPricingStateDTO {
+	if g == nil {
+		return nil
+	}
+	return DeepSeekPricingStateDTOFromService(g.DeepSeekPricingStateAt(time.Now()))
 }
 
 func groupFromServiceBase(g *service.Group) Group {

@@ -388,8 +388,11 @@ const (
 // DeepSeekPricingTimezone 是官方峰谷判定的时区（与 deepseek_calendar.go 一致）。
 const DeepSeekPricingTimezone = "Asia/Shanghai"
 
-// deepseekOfficialPeakWindowLabel 是官方峰价窗口说明（工作日，北京时间）。
-const deepseekOfficialPeakWindowLabel = "峰价时段 09:00-12:00 / 14:00-18:00"
+// deepseekOfficialPeakWindow 是官方峰价窗口说明（工作日，北京时间）。
+const deepseekOfficialPeakWindow = "09:00-12:00 / 14:00-18:00"
+
+// deepseekOfficialPeakWindowLabel 是官方峰价窗口的可读说明。
+const deepseekOfficialPeakWindowLabel = "峰价时段 " + deepseekOfficialPeakWindow
 
 // DeepSeekPricingState 描述分组当前的峰谷计价状态。
 //
@@ -404,6 +407,11 @@ type DeepSeekPricingState struct {
 	Timezone string
 	// Multiplier 是当前生效的峰谷倍率；不适用时为 1。
 	Multiplier float64
+	// NextSwitchAt 是下一次峰/谷状态切换的时刻（RFC3339 语义）。
+	// 它与 State 来自同一次判定（同一份日历、同一套窗口规则），
+	// 因此「到点切换」与「计费档位」必然自洽。
+	// state=none（不适用）时为 nil。
+	NextSwitchAt *time.Time
 }
 
 // DeepSeekPricingStateAt 返回分组当前的峰谷状态。
@@ -431,26 +439,24 @@ func (g *Group) DeepSeekPricingStateAt(now time.Time) *DeepSeekPricingState {
 			state.State = DeepSeekPricingStatePeak
 			state.Multiplier = g.PeakRateMultiplier
 			state.Label = fmt.Sprintf("峰价时段 %s-%s（自定义）", g.PeakStart, g.PeakEnd)
-			return state
+		} else {
+			state.State = DeepSeekPricingStateValley
+			state.Label = fmt.Sprintf("谷价（自定义峰价时段 %s-%s 之外）", g.PeakStart, g.PeakEnd)
 		}
-		state.State = DeepSeekPricingStateValley
-		state.Label = fmt.Sprintf("谷价（自定义峰价时段 %s-%s 之外）", g.PeakStart, g.PeakEnd)
+		if next, ok := g.customPeakWindowNextSwitchAt(now); ok {
+			state.NextSwitchAt = &next
+		}
 		return state
 	}
 
 	if !g.appliesDeepseekOfficialPeak() {
 		return state
 	}
-	multiplier := deepseekPeakMultiplierWithCalendar(now, deepseekPricingCalendar())
-	if multiplier > 1 {
-		state.State = DeepSeekPricingStatePeak
-		state.Multiplier = multiplier
-		state.Label = deepseekOfficialPeakWindowLabel
-		return state
+	calendar := deepseekPricingCalendar()
+	state.State, state.Label, state.Multiplier = deepseekOfficialStateAt(now, calendar)
+	if next, ok := deepseekOfficialNextSwitchAt(now, calendar); ok {
+		state.NextSwitchAt = &next
 	}
-	state.State = DeepSeekPricingStateValley
-	state.Multiplier = 1
-	state.Label = fmt.Sprintf("谷价（%s 之外）", deepseekOfficialPeakWindowLabel)
 	return state
 }
 

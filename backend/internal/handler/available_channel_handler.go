@@ -2,7 +2,9 @@ package handler
 
 import (
 	"sort"
+	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -62,6 +64,9 @@ type userAvailableGroup struct {
 	PeakEnd            string  `json:"peak_end"`
 	PeakRateMultiplier float64 `json:"peak_rate_multiplier"`
 	IsExclusive        bool    `json:"is_exclusive"`
+	// DeepSeekPricingState 是当前 DeepSeek 官方峰谷状态（只读展示）。
+	// 前端按同一份契约渲染徽标：读不到就不显示，不自己算峰谷。
+	DeepSeekPricingState *dto.DeepSeekPricingStateDTO `json:"deepseek_pricing_state,omitempty"`
 }
 
 // userSupportedModelPricing 用户可见的定价字段白名单。
@@ -263,6 +268,9 @@ func filterUserVisibleGroups(
 			PeakEnd:            g.PeakEnd,
 			PeakRateMultiplier: g.PeakRateMultiplier,
 			IsExclusive:        g.IsExclusive,
+			DeepSeekPricingState: dto.DeepSeekPricingStateDTOFromService(
+				g.DeepSeekPricingStateAt(time.Now()),
+			),
 		})
 	}
 	return visible

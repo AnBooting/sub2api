@@ -366,7 +366,8 @@ func TestAPIContracts(t *testing.T) {
 							"state": "none",
 							"label": "本分组不适用 DeepSeek 官方峰谷",
 							"timezone": "Asia/Shanghai",
-							"multiplier": 1
+							"multiplier": 1,
+							"next_switch_at": null
 						},
 						"is_exclusive": false,
 						"status": "active",
