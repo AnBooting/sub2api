@@ -272,21 +272,40 @@ func TestCalculateCostUnified_ChannelTimePricingDoesNotApplyOutsideMatchingTime(
 	resolved := channelTimeResolvedForTest(&ModelPricing{InputPricePerToken: 0.001}, nil)
 	billing := NewBillingService(&config.Config{}, nil)
 
-	for _, pricingAt := range []time.Time{
-		time.Time{},
-		time.Date(2026, 8, 17, 5, 0, 0, 0, time.UTC),
-	} {
-		cost, err := billing.CalculateCostUnified(CostInput{
-			Ctx:       context.Background(),
-			Model:     "model",
-			Tokens:    UsageTokens{InputTokens: 1000},
-			Resolver:  &ModelPricingResolver{},
-			Resolved:  resolved,
-			PricingAt: pricingAt,
-		})
-		require.NoError(t, err)
-		require.InDelta(t, 1.0, cost.TotalCost, 1e-12)
-	}
+	// 固定时刻：Asia/Shanghai 13:00，落在 09:00–12:00 之外，倍率必须是 1。
+	// 这里不能用零值 PricingAt：零值在生产路径里表示「按当前时刻计费」，
+	// 结果会随墙上时钟变化，那条语义由下面独立的一条用例覆盖。
+	cost, err := billing.CalculateCostUnified(CostInput{
+		Ctx:       context.Background(),
+		Model:     "model",
+		Tokens:    UsageTokens{InputTokens: 1000},
+		Resolver:  &ModelPricingResolver{},
+		Resolved:  resolved,
+		PricingAt: time.Date(2026, 8, 17, 5, 0, 0, 0, time.UTC),
+	})
+	require.NoError(t, err)
+	require.InDelta(t, 1.0, cost.TotalCost, 1e-12)
+}
+
+// 没有给出计费时点（PricingAt 为零值）时，生产路径按**当前时刻**判定分时倍率。
+// 期望值不能写死：当前时刻落在 09:00–12:00（Asia/Shanghai）时倍率是 2，其余时间是 1，
+// 写死会让这条用例每天有三小时必然失败。期望值用生产函数按当前时刻算，
+// 避免在测试里把判定逻辑抄一遍。
+func TestCalculateCostUnified_ChannelTimePricingUsesCurrentTimeWhenPricingAtIsMissing(t *testing.T) {
+	resolved := channelTimeResolvedForTest(&ModelPricing{InputPricePerToken: 0.001}, nil)
+	billing := NewBillingService(&config.Config{}, nil)
+
+	cost, err := billing.CalculateCostUnified(CostInput{
+		Ctx:       context.Background(),
+		Model:     "model",
+		Tokens:    UsageTokens{InputTokens: 1000},
+		Resolver:  &ModelPricingResolver{},
+		Resolved:  resolved,
+	})
+	require.NoError(t, err)
+
+	expected := 1.0 * resolved.channelPricing.TimePricing.MultiplierAt(time.Now())
+	require.InDelta(t, expected, cost.TotalCost, 1e-12)
 }
 
 func TestApplyCostBreakdownMultiplierScalesAllMonetaryFields(t *testing.T) {
