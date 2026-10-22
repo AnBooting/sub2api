@@ -121,6 +121,7 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 ### 已知 flaky（不要误判为自己引入）
 
 - `TestInflightEstimate_AccountMappingNoDBAndBoundedMemory`（`billing_inflight_reservation_test.go`，8MB 堆上限）在**全量套件满载**时偶发失败；隔离运行稳定通过，且与 `origin/develop` 逐字相同。**非本 diff 引入，不要改它。**
+- `TestCalculateCostUnified_ChannelTimePricingDoesNotApplyOutsideMatchingTime`（`billing_service_unified_test.go`）：零值 `PricingAt` 在生产路径里表示「按当前时刻计费」，旧写法把它和固定时刻放在同一个循环里断言「倍率必须是 1」，于是每天有 3 小时（Asia/Shanghai 09:00–12:00）必然失败。已拆成「固定时刻断言时段外倍率为 1」与「零值时刻断言按当前时刻的倍率」两条，后者期望值用生产函数算。
 - `panic: pricing network must be disabled`：上游 `UpdatePricingControls` 里的 `go func(){ syncNativeCNY(true) }()` 既没有绑定 ctx 也没有等待，goroutine 在测试进程里真正跑起来就 panic（整个测试二进制挂掉）。本 fork 的修复是 PR #8 的 `4e3fea21b`（定价控制生命周期契约）；**PR #8 合并之前**，满载全量跑时可能偶发命中。属**上游既有缺陷**，不要在别的分支上另写一份修法。
 
 ## 可用能力
