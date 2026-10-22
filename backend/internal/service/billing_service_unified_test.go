@@ -311,17 +311,16 @@ func TestCalculateCostUnified_ChannelTimePricingUsesCurrentTimeWhenPricingAtIsMi
 	billing := NewBillingService(&config.Config{}, nil)
 
 	cost, err := billing.CalculateCostUnified(CostInput{
-		Ctx:       context.Background(),
-		Model:     "model",
-		Tokens:    UsageTokens{InputTokens: 1000},
-		Resolver:  &ModelPricingResolver{},
-		Resolved:  resolved,
+		Ctx:      context.Background(),
+		Model:    "model",
+		Tokens:   UsageTokens{InputTokens: 1000},
+		Resolver: &ModelPricingResolver{},
+		Resolved: resolved,
 	})
 	require.NoError(t, err)
 
 	expected := 1.0 * resolved.channelPricing.TimePricing.MultiplierAt(time.Now())
 	require.InDelta(t, expected, cost.TotalCost, 1e-12)
-}
 }
 
 func TestApplyCostBreakdownMultiplierScalesAllMonetaryFields(t *testing.T) {
