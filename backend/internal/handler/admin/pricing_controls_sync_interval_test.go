@@ -21,7 +21,6 @@ func TestPricingControlSyncIntervalHTTP(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Pricing.UpdateIntervalHours = 24
 	pricing := service.NewPricingService(cfg, noPricingNetwork{})
-	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/pricing/settings", h.UpdatePricingControls)
@@ -64,7 +63,6 @@ func TestPricingControlSyncIntervalBounds(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Pricing.UpdateIntervalHours = 12
 	pricing := service.NewPricingService(cfg, noPricingNetwork{})
-	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/pricing/settings", h.UpdatePricingControls)
@@ -100,7 +98,6 @@ func TestPricingSyncIntervalResolver(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Pricing.UpdateIntervalHours = 48
 	pricing := service.NewPricingService(cfg, noPricingNetwork{})
-	t.Cleanup(pricing.Stop)
 	require.Equal(t, 48, pricing.PricingSyncIntervalHours(), "config default when no override")
 
 	require.NoError(t, pricing.UpdateControls(context.Background(), service.PricingControls{
