@@ -541,6 +541,7 @@ func setupSyncPricingModelsRouter(pricingSvc *service.PricingService) *gin.Engin
 
 func TestSyncPricingModels_MissingPlatform(t *testing.T) {
 	svc := service.NewPricingService(nil, nil)
+	t.Cleanup(svc.Stop)
 	router := setupSyncPricingModelsRouter(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models", nil)
@@ -552,6 +553,7 @@ func TestSyncPricingModels_MissingPlatform(t *testing.T) {
 
 func TestSyncPricingModels_UnsupportedPlatform(t *testing.T) {
 	svc := service.NewPricingService(nil, nil)
+	t.Cleanup(svc.Stop)
 	router := setupSyncPricingModelsRouter(svc)
 
 	req := httptest.NewRequest(http.MethodGet, "/channels/pricing/sync-models?platform=unknown", nil)
@@ -563,6 +565,7 @@ func TestSyncPricingModels_UnsupportedPlatform(t *testing.T) {
 
 func TestSyncPricingModels_ValidPlatform_EmptyService(t *testing.T) {
 	svc := service.NewPricingService(nil, nil)
+	t.Cleanup(svc.Stop)
 	router := setupSyncPricingModelsRouter(svc)
 
 	for _, platform := range []string{"anthropic", "openai", "gemini", "antigravity", "grok", "kimi", "zhipu", "deepseek", "minimax", "typesafe"} {
