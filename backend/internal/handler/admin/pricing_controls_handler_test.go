@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -13,13 +14,24 @@ import (
 	"testing"
 )
 
+// noPricingNetwork 禁止测试期间真的去拉定价。
+//
+// 它返回 error 而不是 panic：打开远程拉取后 handler 会通过 RefreshNativeCNY 起一个
+// **后台 goroutine**，goroutine 里的 panic 会直接干掉整个测试二进制
+// （是否触发取决于调度 → CI 偶发红，根因就是这里）。
+//
+// 改成返回 error 后守卫意图不变：
+//   - 前台路径真拉了 → handler 报错 → 现有断言（200 OK / 控件状态 / invalidations 次数）立刻红；
+//   - 后台 goroutine 拉了 → 定价同步记录一次失败（可见日志），测试不崩、也不跨用例干扰
+//     （测试用 t.Cleanup(pricing.Stop) 等它退出）。
 type noPricingNetwork struct{}
 
 func (noPricingNetwork) FetchPricingJSON(context.Context, string) ([]byte, error) {
-	panic("pricing network must be disabled")
+	return nil, errors.New("pricing network must be disabled")
 }
+
 func (noPricingNetwork) FetchHashText(context.Context, string) (string, error) {
-	panic("pricing network must be disabled")
+	return "", errors.New("pricing network must be disabled")
 }
 
 func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
@@ -27,6 +39,7 @@ func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Pricing.DataDir = t.TempDir()
 	pricing := service.NewPricingService(cfg, noPricingNetwork{})
+	t.Cleanup(pricing.Stop)
 	settings := &service.SettingService{}
 	invalidations := 0
 	settings.SetOnUpdateCallback(func() { invalidations++ })
@@ -50,6 +63,7 @@ func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/holidays", h.UpdateDeepseekHolidays)
@@ -73,6 +87,7 @@ func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
 	router.PUT("/pricing/settings", h.UpdatePricingControls)

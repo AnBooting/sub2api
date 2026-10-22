@@ -36,8 +36,21 @@ func (s *adminUsageRepoCapture) GetStatsWithFilters(ctx context.Context, filters
 	return &usagestats.UsageStats{}, nil
 }
 
+// resetUsageStatsCacheForTest 清空 /admin/usage/stats 的进程内查询缓存。
+//
+// usageStatsCache 是包级变量（30s TTL）：不清理的话，重复跑同一个包时后一个用例会
+// 命中前一个用例写入的缓存，仓储不再被调用，断言就变成「时好时坏」。
+func resetUsageStatsCacheForTest() {
+	usageStatsCache.mu.Lock()
+	usageStatsCache.items = make(map[string]snapshotCacheEntry)
+	usageStatsCache.mu.Unlock()
+}
+
 func newAdminUsageRequestTypeTestRouter(repo *adminUsageRepoCapture) *gin.Engine {
 	gin.SetMode(gin.TestMode)
+	// /admin/usage/stats 走进程内 30s TTL 查询缓存：不清掉的话重复跑（-count=N）时，
+	// 第二个用例会命中上一个用例的缓存、仓储根本不会被调用，断言随即失败。
+	resetUsageStatsCacheForTest()
 	usageSvc := service.NewUsageService(repo, nil, nil, nil)
 	handler := NewUsageHandler(usageSvc, nil, nil, nil)
 	router := gin.New()
