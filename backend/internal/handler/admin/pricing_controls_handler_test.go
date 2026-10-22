@@ -3,7 +3,6 @@ package admin
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/gin-gonic/gin"
@@ -11,34 +10,47 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 )
 
-// noPricingNetwork 禁止测试期间真的去拉定价。
-//
-// 它返回 error 而不是 panic：打开远程拉取后 handler 会通过 RefreshNativeCNY 起一个
-// **后台 goroutine**，goroutine 里的 panic 会直接干掉整个测试二进制
-// （是否触发取决于调度 → CI 偶发红，根因就是这里）。
-//
-// 改成返回 error 后守卫意图不变：
-//   - 前台路径真拉了 → handler 报错 → 现有断言（200 OK / 控件状态 / invalidations 次数）立刻红；
-//   - 后台 goroutine 拉了 → 定价同步记录一次失败（可见日志），测试不崩、也不跨用例干扰
-//     （测试用 t.Cleanup(pricing.Stop) 等它退出）。
-type noPricingNetwork struct{}
-
-func (noPricingNetwork) FetchPricingJSON(context.Context, string) ([]byte, error) {
-	return nil, errors.New("pricing network must be disabled")
+// noPricingNetwork 是单元测试的「禁止联网」哨兵：任何一次出站定价请求都会
+// 被记下来，让测试能断言服务确实没有联网。它同时 panic，是为了让同步路径上的
+// 越界请求立刻暴露；后台刷新路径上的 panic 由服务自己收敛成一次可见的同步失败
+// （见 service.PricingService），那里靠 attemptCount 断言。
+type noPricingNetwork struct {
+	mu       sync.Mutex
+	attempts int
 }
 
-func (noPricingNetwork) FetchHashText(context.Context, string) (string, error) {
-	return "", errors.New("pricing network must be disabled")
+func (n *noPricingNetwork) FetchPricingJSON(context.Context, string) ([]byte, error) {
+	n.mu.Lock()
+	n.attempts++
+	n.mu.Unlock()
+	panic("pricing network must be disabled")
+}
+func (n *noPricingNetwork) FetchHashText(context.Context, string) (string, error) {
+	n.mu.Lock()
+	n.attempts++
+	n.mu.Unlock()
+	panic("pricing network must be disabled")
+}
+
+// attemptCount 返回出站定价请求的次数。
+func (n *noPricingNetwork) attemptCount() int {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+	return n.attempts
 }
 
 func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := &config.Config{}
 	cfg.Pricing.DataDir = t.TempDir()
-	pricing := service.NewPricingService(cfg, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(cfg, net)
+	// The service owns background refresh tasks: stop it so no goroutine can
+	// outlive this test case.
 	t.Cleanup(pricing.Stop)
 	settings := &service.SettingService{}
 	invalidations := 0
@@ -58,11 +70,13 @@ func TestPricingControlHTTPDisableAndPublicCacheInvalidation(t *testing.T) {
 	blocked := httptest.NewRecorder()
 	router.ServeHTTP(blocked, httptest.NewRequest(http.MethodPost, "/pricing/refresh", nil))
 	require.Equal(t, http.StatusConflict, blocked.Code)
+	require.Zero(t, net.attemptCount(), "the disabled remote pull must not reach the network")
 }
 
 func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(&config.Config{}, net)
 	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
@@ -82,11 +96,13 @@ func TestDeepseekHolidayHTTPValidation(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code)
 	}
 	require.Contains(t, pricing.DeepseekHolidayDates(), "2026-10-01", "empty list restores built-in holidays")
+	require.Zero(t, net.attemptCount(), "updating the holiday calendar must not reach the network")
 }
 
 func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	pricing := service.NewPricingService(&config.Config{}, noPricingNetwork{})
+	net := &noPricingNetwork{}
+	pricing := service.NewPricingService(&config.Config{}, net)
 	t.Cleanup(pricing.Stop)
 	h := NewChannelHandler(nil, nil, pricing, nil)
 	router := gin.New()
@@ -127,4 +143,5 @@ func TestPricingControlHolidayHTTPValidationAndOmission(t *testing.T) {
 	result = httptest.NewRecorder()
 	router.ServeHTTP(result, httptest.NewRequest(http.MethodGet, "/pricing/settings", nil))
 	require.Contains(t, result.Body.String(), `"deepseek_holidays":{}`)
+	require.Zero(t, net.attemptCount(), "a switch-only update with the remote pull disabled must not reach the network")
 }
