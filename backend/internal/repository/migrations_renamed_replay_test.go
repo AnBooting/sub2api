@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	"errors"
 	"io/fs"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -17,7 +18,39 @@ import (
 
 // renamedMigrationReplayFixture 描述一次「旧库重放改名迁移」的最小装置：
 // schema_migrations 里没有新文件名（模拟旧库只记了旧文件名），迁移正文执行时报重复约束。
+// 对**已登记**的改名迁移，装置还会补上「查旧文件名取证 + 补记新文件名」两步，
+// 因为执行器现在必须先拿到旧历史证据才允许容错。
 func renamedMigrationReplayFixture(t *testing.T, name string, body []byte, execErr error) (*sql.DB, sqlmock.Sqlmock) {
+	t.Helper()
+	// 默认**不提供**旧历史证据：调用方要么显式给出旧 checksum（正例），
+	// 要么就是在验证「缺证据必须失败」的负例。
+	return renamedMigrationReplayFixtureWithLegacy(t, name, body, execErr, "")
+}
+
+// renamedMigrationReplayFixtureWithLegacy 允许显式指定数据库里旧记录的 checksum：
+// 空串 = 没有旧记录（模拟历史缺失），其余 = 旧记录存在且 checksum 为该值。
+// skipLegacyHistory 作为 legacyChecksum 的哨兵值：表示这条用例走的是
+// 「在 tolerateRenamedMigrationReplay 就已判定不容错」的路径，根本不会访问数据库，
+// 因此装置不能声明任何取证期望。
+const skipLegacyHistory = "\x00skip"
+
+// expectLegacyHistory 声明「查旧文件名 → 补记新文件名」两步期望。
+func expectLegacyHistory(mock sqlmock.Sqlmock, name string, rule renamedMigrationReplayRule, legacyChecksum string) {
+	legacyRows := sqlmock.NewRows([]string{"checksum"})
+	if legacyChecksum != "" {
+		legacyRows = legacyRows.AddRow(legacyChecksum)
+	}
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(rule.oldName).
+		WillReturnRows(legacyRows)
+	if legacyChecksum == rule.oldChecksum {
+		mock.ExpectExec("INSERT INTO schema_migrations").
+			WithArgs(name, sqlmock.AnyArg()).
+			WillReturnResult(sqlmock.NewResult(0, 1))
+	}
+}
+
+func renamedMigrationReplayFixtureWithLegacy(t *testing.T, name string, body []byte, execErr error, legacyChecksum string) (*sql.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	db, mock, err := sqlmock.New()
 	require.NoError(t, err)
@@ -30,6 +63,14 @@ func renamedMigrationReplayFixture(t *testing.T, name string, body []byte, execE
 	mock.ExpectBegin()
 	mock.ExpectExec("ALTER TABLE channel_model_pricing ADD COLUMN").WillReturnError(execErr)
 	mock.ExpectRollback()
+
+	// 容错判定：只有「有资格容错」的路径才会走到查旧历史这一步。
+	// 反例（未登记 / 错误码不符 / 内容被改过）在 tolerateRenamedMigrationReplay
+	// 就已经返回 false，不会访问数据库，因此这里不能声明任何期望。
+	if rule, ok := renamedMigrationReplayRules[name]; ok && legacyChecksum != skipLegacyHistory {
+		expectLegacyHistory(mock, name, rule, legacyChecksum)
+	}
+
 	mock.ExpectExec("SELECT pg_advisory_unlock").
 		WithArgs(migrationsAdvisoryLockID).
 		WillReturnResult(sqlmock.NewResult(0, 1))
@@ -81,8 +122,10 @@ func TestRenamedMigrationReplayRegistryMatchesEmbeddedFiles(t *testing.T) {
 func TestRenamedMigrationReplayToleratesRegisteredDuplicateConstraint(t *testing.T) {
 	const name = "251_native_currency_pricing.sql"
 	body := renamedMigrationBody(t, name)
-	db, mock := renamedMigrationReplayFixture(t, name, body,
-		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`))
+	rule, ok := renamedMigrationReplayRules[name]
+	require.True(t, ok, "251 必须在改名迁移登记表里")
+	db, mock := renamedMigrationReplayFixtureWithLegacy(t, name, body,
+		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`), rule.oldChecksum)
 
 	err := applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
 	require.NoError(t, err, "登记过的改名迁移在旧库上重放必须被容错")
@@ -106,8 +149,8 @@ func TestRenamedMigrationReplayRejectsUnregisteredMigration(t *testing.T) {
 func TestRenamedMigrationReplayRejectsUnexpectedErrorCode(t *testing.T) {
 	const name = "251_native_currency_pricing.sql"
 	body := renamedMigrationBody(t, name)
-	db, mock := renamedMigrationReplayFixture(t, name, body,
-		errors.New(`pq: relation "channel_model_pricing" already exists (SQLSTATE 42P07)`))
+	db, mock := renamedMigrationReplayFixtureWithLegacy(t, name, body,
+		errors.New(`pq: relation "channel_model_pricing" already exists (SQLSTATE 42P07)`), skipLegacyHistory)
 
 	err := applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
 	require.Error(t, err, "错误码不在允许集合里不得被容错")
@@ -119,13 +162,50 @@ func TestRenamedMigrationReplayRejectsUnexpectedErrorCode(t *testing.T) {
 func TestRenamedMigrationReplayRejectsModifiedMigrationContent(t *testing.T) {
 	const name = "251_native_currency_pricing.sql"
 	body := append(renamedMigrationBody(t, name), []byte("\n-- 有人在改名之后改了这个迁移\n")...)
-	db, mock := renamedMigrationReplayFixture(t, name, body,
-		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`))
+	db, mock := renamedMigrationReplayFixtureWithLegacy(t, name, body,
+		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`), skipLegacyHistory)
 
 	err := applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
 	require.Error(t, err, "内容被改过的迁移不得被容错")
 	require.Contains(t, err.Error(), "apply migration "+name)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 反例：库里没有旧文件名记录（旧历史缺失）必须照旧失败。
+// 重复对象错误不能证明旧迁移完整执行过——251 的第三条语句可能从未运行。
+func TestRenamedMigrationReplayRejectsMissingLegacyHistory(t *testing.T) {
+	const name = "251_native_currency_pricing.sql"
+	body := renamedMigrationBody(t, name)
+	rule, ok := renamedMigrationReplayRules[name]
+	require.True(t, ok)
+
+	db, mock := renamedMigrationReplayFixtureWithLegacy(t, name, body,
+		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`), "")
+
+	// 只声明「查旧文件名 → 空结果」，不声明补记期望。
+	mock2 := mock
+	_ = mock2
+
+	err := applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
+	require.Error(t, err, "旧历史缺失时不得容错")
+	require.Contains(t, err.Error(), "not proof that")
+	require.Contains(t, err.Error(), rule.oldName)
+}
+
+// 反例：数据库里旧记录的 checksum 与登记不一致（历史漂移）必须照旧失败。
+func TestRenamedMigrationReplayRejectsLegacyChecksumDrift(t *testing.T) {
+	const name = "251_native_currency_pricing.sql"
+	body := renamedMigrationBody(t, name)
+	rule, ok := renamedMigrationReplayRules[name]
+	require.True(t, ok)
+
+	db, _ := renamedMigrationReplayFixtureWithLegacy(t, name, body,
+		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`), strings.Repeat("a", 64))
+
+	err := applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
+	require.Error(t, err, "旧 checksum 不一致时不得容错")
+	require.Contains(t, err.Error(), "legacy history drift")
+	require.Contains(t, err.Error(), rule.oldName)
 }
 
 // 错误码解析：pq 强类型错误与只剩文本的错误都要能取出 SQLSTATE。

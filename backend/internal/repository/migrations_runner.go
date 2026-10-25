@@ -266,10 +266,25 @@ func applyMigrationsFS(ctx context.Context, db *sql.DB, fsys fs.FS) error {
 			// schema_migrations 里记的是旧文件名，执行器按新文件名判断为「未应用」
 			// 而重放，撞上已存在的同名约束/表。对**已登记**的改名迁移，在满足
 			// 「错误码属于该迁移的重复对象码」且「当前文件内容与登记的旧校验和一致」
-			// 时按「已生效」处理：记录告警并继续启动，不再写 schema_migrations
-			//（运维随后按改名对账流程补记新文件名，避免每次启动重试）。
-			// 未登记的迁移、错误码不符、内容被改过 —— 一律照旧失败。
+			// 时才有资格进入容错判定；真正放行前还必须向这台数据库取得证据：
+			// schema_migrations 里存在旧文件名记录，且它的 checksum 与登记的旧校验和一致。
+			//
+			// 重复对象错误本身**不能**证明旧迁移完整执行过：251 的第 2 条
+			// ADD CONSTRAINT 失败会回滚整个事务，第 3 条
+			// ALTER TABLE usage_logs ADD COLUMN IF NOT EXISTS pricing_snapshot
+			// 就不会执行。若此时直接放行，库里会永远缺这一列，而服务照常启动。
+			// 未登记的迁移、错误码不符、内容被改过、旧历史缺失或不一致 —— 一律照旧失败。
 			if rule, ok := tolerateRenamedMigrationReplay(name, checksum, err); ok {
+				if verifyErr := verifyRenamedMigrationLegacyHistory(ctx, lockConn, rule); verifyErr != nil {
+					return fmt.Errorf("apply migration %s: %w", name, verifyErr)
+				}
+				// 证据成立：补记新文件名，让后续启动不再重复执行这份迁移。
+				if _, recordErr := lockConn.ExecContext(ctx,
+					"INSERT INTO schema_migrations (filename, checksum) VALUES ($1, $2)",
+					name, checksum,
+				); recordErr != nil {
+					return fmt.Errorf("record tolerated migration %s: %w", name, recordErr)
+				}
 				slog.Warn("renamed migration replay tolerated on legacy database",
 					"migration", name,
 					"previous_filename", rule.oldName,
