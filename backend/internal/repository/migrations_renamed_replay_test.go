@@ -45,7 +45,9 @@ func expectLegacyHistory(mock sqlmock.Sqlmock, name string, rule renamedMigratio
 		WillReturnRows(legacyRows)
 	if legacyChecksum == rule.oldChecksum {
 		mock.ExpectExec("INSERT INTO schema_migrations").
-			WithArgs(name, sqlmock.AnyArg()).
+			// 补记的必须是**当前文件**的 checksum：写错会让下一次启动以
+			// checksum mismatch 直接失败，所以这里不能用 AnyArg 放过。
+			WithArgs(name, rule.currentChecksum).
 			WillReturnResult(sqlmock.NewResult(0, 1))
 	}
 }
@@ -179,12 +181,8 @@ func TestRenamedMigrationReplayRejectsMissingLegacyHistory(t *testing.T) {
 	rule, ok := renamedMigrationReplayRules[name]
 	require.True(t, ok)
 
-	db, mock := renamedMigrationReplayFixtureWithLegacy(t, name, body,
+	db, _ := renamedMigrationReplayFixtureWithLegacy(t, name, body,
 		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`), "")
-
-	// 只声明「查旧文件名 → 空结果」，不声明补记期望。
-	mock2 := mock
-	_ = mock2
 
 	err := applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
 	require.Error(t, err, "旧历史缺失时不得容错")
@@ -206,6 +204,73 @@ func TestRenamedMigrationReplayRejectsLegacyChecksumDrift(t *testing.T) {
 	require.Error(t, err, "旧 checksum 不一致时不得容错")
 	require.Contains(t, err.Error(), "legacy history drift")
 	require.Contains(t, err.Error(), rule.oldName)
+}
+
+// 反例：查旧历史的查询本身报错（不是 ErrNoRows）必须照旧失败。
+// 「查询失败」和「没有记录」是两种不同的失败，都不能被当作证据缺失而放行。
+func TestRenamedMigrationReplayRejectsLegacyHistoryQueryError(t *testing.T) {
+	const name = "251_native_currency_pricing.sql"
+	body := renamedMigrationBody(t, name)
+	rule, ok := renamedMigrationReplayRules[name]
+	require.True(t, ok)
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(name).
+		WillReturnRows(sqlmock.NewRows([]string{"checksum"}))
+	mock.ExpectBegin()
+	mock.ExpectExec("ALTER TABLE channel_model_pricing ADD COLUMN").WillReturnError(
+		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`))
+	mock.ExpectRollback()
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(rule.oldName).
+		WillReturnError(errors.New("connection reset by peer"))
+	mock.ExpectExec("SELECT pg_advisory_unlock").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
+	require.Error(t, err, "取证查询失败时不得容错")
+	require.Contains(t, err.Error(), "verify legacy history")
+}
+
+// 反例：取证通过但补记新文件名失败必须照旧失败。
+// 否则「容错了却没记」会让每次启动都重复走这条路径，日志持续告警。
+func TestRenamedMigrationReplayRejectsLegacyHistoryRecordFailure(t *testing.T) {
+	const name = "251_native_currency_pricing.sql"
+	body := renamedMigrationBody(t, name)
+	rule, ok := renamedMigrationReplayRules[name]
+	require.True(t, ok)
+
+	db, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+
+	prepareMigrationsBootstrapExpectations(mock)
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(name).
+		WillReturnRows(sqlmock.NewRows([]string{"checksum"}))
+	mock.ExpectBegin()
+	mock.ExpectExec("ALTER TABLE channel_model_pricing ADD COLUMN").WillReturnError(
+		errors.New(`pq: constraint "channel_model_pricing_currency_check" for relation "channel_model_pricing" already exists (SQLSTATE 42710)`))
+	mock.ExpectRollback()
+	mock.ExpectQuery("SELECT checksum FROM schema_migrations WHERE filename = \\$1").
+		WithArgs(rule.oldName).
+		WillReturnRows(sqlmock.NewRows([]string{"checksum"}).AddRow(rule.oldChecksum))
+	mock.ExpectExec("INSERT INTO schema_migrations").
+		WithArgs(name, rule.currentChecksum).
+		WillReturnError(errors.New("disk full"))
+	mock.ExpectExec("SELECT pg_advisory_unlock").
+		WithArgs(migrationsAdvisoryLockID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+
+	err = applyMigrationsFS(context.Background(), db, fstest.MapFS{name: &fstest.MapFile{Data: body}})
+	require.Error(t, err, "补记失败时不得静默继续")
+	require.Contains(t, err.Error(), "record tolerated migration")
 }
 
 // 错误码解析：pq 强类型错误与只剩文本的错误都要能取出 SQLSTATE。
