@@ -32,4 +32,6 @@ func TestArtexGuardModeLoading(t *testing.T) {
 	require.Equal(t, ArtexGuardEnforce, ResolveArtexGuardMode(&Config{}))
 	require.NoError(t, (ArtexGuardConfig{}).Validate())
 	require.Error(t, (ArtexGuardConfig{Mode: "invalid"}).Validate())
+	require.Equal(t, ArtexGuardEnforce, (ArtexGuardConfig{Mode: "OFF"}).EffectiveMode())
+	require.Equal(t, ArtexGuardEnforce, (ArtexGuardConfig{Mode: "audit"}).EffectiveMode())
 }

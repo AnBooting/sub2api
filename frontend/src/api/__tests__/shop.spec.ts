@@ -57,6 +57,7 @@ describe('shop api', () => {
     expect(shopErrorKey('shop_not_configured')).toBe('shop.errors.notConfigured')
     expect(shopErrorKey('product_sync_unavailable')).toBe('shop.errors.syncUnavailable')
     expect(shopErrorKey('order_delivery_pending')).toBe('shop.errors.deliveryPending')
+    expect(shopErrorKey('order_not_paid')).toBe('shop.errors.notPaid')
     expect(shopErrorKey(undefined)).toBe('shop.errors.generic')
     expect(shopErrorKey('some_unknown_reason')).toBe('shop.errors.generic')
   })

@@ -86,6 +86,7 @@ export default {
       idempotencyKeyRequired: 'The request is missing an identifier, please refresh and retry',
       idempotencyConflict: 'That request identifier was already used, please refresh and retry',
       deliveryPending: 'Payment completed, but the code could not be retrieved yet',
+      notPaid: 'The order has not been paid yet. Please complete payment first.',
       deliveryUnavailable: 'The code is temporarily unavailable, please contact the site owner',
       generic: 'The operation failed, please try again later',
     },

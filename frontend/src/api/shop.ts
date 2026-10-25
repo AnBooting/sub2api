@@ -209,6 +209,8 @@ export function shopErrorKey(reason: string | undefined): string {
       return 'shop.errors.idempotencyConflict'
     case 'order_delivery_pending':
       return 'shop.errors.deliveryPending'
+    case 'order_not_paid':
+      return 'shop.errors.notPaid'
     case 'shop_delivery_unavailable':
       return 'shop.errors.deliveryUnavailable'
     default:

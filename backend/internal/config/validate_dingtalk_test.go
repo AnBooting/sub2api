@@ -51,3 +51,13 @@ func TestValidateDingTalkConfig_HappyPath_None(t *testing.T) {
 		CorpRestrictionPolicy: "none",
 	}))
 }
+
+func TestValidateDingTalkConfig_RejectsUnknownPolicy(t *testing.T) {
+	err := ValidateDingTalkConfig(DingTalkConnectConfig{
+		Enabled:               true,
+		DingTalkAppKind:       "internal_app",
+		AppType:               "internal",
+		CorpRestrictionPolicy: "typo",
+	})
+	require.ErrorIs(t, err, ErrDingTalkInvalidCorpRestrictionPolicy)
+}

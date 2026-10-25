@@ -389,3 +389,14 @@ func TestResolveDingTalkDeptPath_MultiLevel(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "研发部/AI研发", path)
 }
+
+// TestBuildDingTalkUpstreamClaims_NilStaff verifies a nil staff pointer is treated as empty staff.
+func TestBuildDingTalkUpstreamClaims_NilStaff(t *testing.T) {
+	require.NotPanics(t, func() {
+		claims := buildDingTalkUpstreamClaims(nil, "UNION_NIL", "CORP_NIL")
+		require.Equal(t, "UNION_NIL", claims["subject"])
+		require.Equal(t, "", claims["email"])
+		require.Equal(t, "", claims["corp_user_id"])
+		require.Equal(t, int64(0), claims["primary_dept_id"])
+	})
+}

@@ -2,10 +2,8 @@ package middleware
 
 import (
 	"errors"
-	"net"
 	"net/http"
-	"os"
-	"strings"
+	"syscall"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -18,6 +16,10 @@ import (
 // when the client connection is already gone.
 func Recovery() gin.HandlerFunc {
 	return gin.CustomRecoveryWithWriter(gin.DefaultErrorWriter, func(c *gin.Context, recovered any) {
+		// 访问日志必须在最终状态写入之后记录：本函数返回时 500/已写状态才生效，
+		// 由 Logger 的 defer 提前读取会得到 200。这里接管 panic 请求的访问日志。
+		defer logPanickedRequestAccess(c)
+
 		recoveredErr, _ := recovered.(error)
 
 		if isBrokenPipe(recoveredErr) {
@@ -48,17 +50,7 @@ func isBrokenPipe(err error) bool {
 	if err == nil {
 		return false
 	}
-
-	var opErr *net.OpError
-	if !errors.As(err, &opErr) {
-		return false
-	}
-
-	var syscallErr *os.SyscallError
-	if !errors.As(opErr.Err, &syscallErr) {
-		return false
-	}
-
-	msg := strings.ToLower(syscallErr.Error())
-	return strings.Contains(msg, "broken pipe") || strings.Contains(msg, "connection reset by peer")
+	// 用哨兵匹配而非错误文本：跨平台稳定，且 errors.Is 会穿透包装。
+	// 覆盖客户端已断开的两类典型错误（Linux EPIPE / 各平台 ECONNRESET）。
+	return errors.Is(err, syscall.EPIPE) || errors.Is(err, syscall.ECONNRESET)
 }

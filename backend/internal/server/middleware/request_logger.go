@@ -28,8 +28,12 @@ func RequestLogger() gin.HandlerFunc {
 		c.Header(requestIDHeader, requestID)
 
 		ctx := context.WithValue(c.Request.Context(), ctxkey.RequestID, requestID)
-		clientRequestID, _ := ctx.Value(ctxkey.ClientRequestID).(string)
-		clientRequestID, _ = normalizeCorrelationID(clientRequestID)
+		rawClientRequestID, _ := ctx.Value(ctxkey.ClientRequestID).(string)
+		clientRequestID, validClientRequestID := normalizeCorrelationID(rawClientRequestID)
+		if !validClientRequestID {
+			// 超长/非法的上游值不能原样进日志：既不截断成看似合法，也不放大写入。
+			clientRequestID = ""
+		}
 
 		requestLogger := logger.With(
 			zap.String("component", "http"),

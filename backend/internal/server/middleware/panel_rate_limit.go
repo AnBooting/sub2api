@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/middleware"
@@ -17,6 +18,10 @@ import (
 
 // panelRateLimitWindow 面板限流固定窗口时长（所有档位均按每分钟计数）。
 const panelRateLimitWindow = time.Minute
+
+// panelRateLimitCollapsedIPWarned 保证"限流因 IP 不可路由而失效"的告警只打印一次，
+// 避免每请求刷屏。
+var panelRateLimitCollapsedIPWarned atomic.Bool
 
 // panelRateLimitAllower 抽象底层限流原语，便于单测注入。
 type panelRateLimitAllower interface {
@@ -118,6 +123,12 @@ func (p *PanelRateLimiter) PublicIP() gin.HandlerFunc {
 		}
 		clientIP := SecurityClientIP(c)
 		if !isPubliclyRoutableClientIP(clientIP) {
+			// 跳过本身是正确的（避免把整条反代链路合并进同一个桶），但若
+			// trusted_proxies 未配置，所有请求都会解析成内网地址，导致公开
+			// 接口限流静默失效。这里给一次可见告警，便于运维发现。
+			if panelRateLimitCollapsedIPWarned.CompareAndSwap(false, true) {
+				slog.Warn("panel public rate limit is inactive because the client IP is not publicly routable; configure trusted proxies to enable it", "client_ip", clientIP)
+			}
 			c.Next()
 			return
 		}

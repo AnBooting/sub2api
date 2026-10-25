@@ -460,6 +460,14 @@ func (s *userHandlerRefreshTokenCacheStub) IsTokenInFamily(context.Context, stri
 	return false, nil
 }
 
+func (s *userHandlerRefreshTokenCacheStub) MarkRefreshTokenConsumed(context.Context, string, string, time.Duration) error {
+	return nil
+}
+
+func (s *userHandlerRefreshTokenCacheStub) GetConsumedRefreshTokenFamilyID(context.Context, string) (string, error) {
+	return "", service.ErrConsumedRefreshTokenNotFound
+}
+
 func (s *userHandlerEmailCacheStub) GetVerificationCode(context.Context, string) (*service.VerificationCodeData, error) {
 	return s.data, nil
 }

@@ -232,6 +232,9 @@ func (s *SettingService) rebuildWebSearchManager(ctx context.Context) {
 	}
 	cfg, err := s.GetWebSearchEmulationConfig(ctx)
 	if err != nil {
+		// 启动期读配置失败会直接禁用 websearch 模拟，且只有下次保存设置才重建；
+		// 没有日志时表现为“功能静默失效”，排查不到原因。
+		slog.Warn("websearch: failed to load emulation config, disabling manager", "error", err)
 		SetWebSearchManager(nil)
 		return
 	}

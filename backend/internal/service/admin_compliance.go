@@ -14,13 +14,15 @@ import (
 )
 
 const (
-	AdminComplianceVersion        = "v2026.06.10"
-	AdminComplianceDocumentPathZH = "docs/legal/admin-compliance.zh.md"
-	AdminComplianceDocumentPathEN = "docs/legal/admin-compliance.en.md"
-	AdminComplianceDocumentURLZH  = "https://github.com/Wei-Shaw/sub2api/blob/main/docs/legal/admin-compliance.zh.md"
-	AdminComplianceDocumentURLEN  = "https://github.com/Wei-Shaw/sub2api/blob/main/docs/legal/admin-compliance.en.md"
-	AdminComplianceAckPhraseZH    = "我已阅读、理解并同意 Sub2API 部署与运营合规承诺"
-	AdminComplianceAckPhraseEN    = "I have read, understood, and agree to the Sub2API Deployment and Operation Compliance Commitment"
+	AdminComplianceVersion            = "v2026.06.10"
+	adminComplianceMaxIPAddressLength = 128
+	adminComplianceMaxUserAgentLength = 512
+	AdminComplianceDocumentPathZH     = "docs/legal/admin-compliance.zh.md"
+	AdminComplianceDocumentPathEN     = "docs/legal/admin-compliance.en.md"
+	AdminComplianceDocumentURLZH      = "https://github.com/Wei-Shaw/sub2api/blob/main/docs/legal/admin-compliance.zh.md"
+	AdminComplianceDocumentURLEN      = "https://github.com/Wei-Shaw/sub2api/blob/main/docs/legal/admin-compliance.en.md"
+	AdminComplianceAckPhraseZH        = "我已阅读、理解并同意 Sub2API 部署与运营合规承诺"
+	AdminComplianceAckPhraseEN        = "I have read, understood, and agree to the Sub2API Deployment and Operation Compliance Commitment"
 
 	settingKeyAdminComplianceAcknowledgement = "admin_compliance_acknowledgement"
 )
@@ -114,9 +116,9 @@ func (s *SettingService) GetAdminComplianceStatus(ctx context.Context, adminUser
 
 	var ack AdminComplianceAcknowledgement
 	if err := json.Unmarshal([]byte(raw), &ack); err != nil {
-		return status, nil
+		return nil, fmt.Errorf("unmarshal admin compliance acknowledgement: %w", err)
 	}
-	if ack.Version == AdminComplianceVersion {
+	if ack.Version == AdminComplianceVersion && !ack.AcceptedAt.IsZero() && ack.AdminUserID > 0 {
 		status.Required = false
 		status.Acknowledgement = &ack
 	}
@@ -135,18 +137,29 @@ func (s *SettingService) AcceptAdminCompliance(ctx context.Context, input AdminC
 	if s == nil || s.settingRepo == nil {
 		return nil, infraerrors.InternalServer("SETTING_SERVICE_UNAVAILABLE", "setting service is unavailable")
 	}
+	if input.AdminUserID <= 0 {
+		return nil, infraerrors.BadRequest("ADMIN_COMPLIANCE_INVALID_USER", "admin user id must be positive")
+	}
 	phrase := strings.TrimSpace(input.Phrase)
 	if phrase != expectedAdminCompliancePhrase(input.Language) {
 		return nil, ErrAdminComplianceInvalidPhrase
 	}
 
+	ipAddress := strings.TrimSpace(input.IPAddress)
+	userAgent := strings.TrimSpace(input.UserAgent)
+	if len(ipAddress) > adminComplianceMaxIPAddressLength {
+		ipAddress = ipAddress[:adminComplianceMaxIPAddressLength]
+	}
+	if len(userAgent) > adminComplianceMaxUserAgentLength {
+		userAgent = userAgent[:adminComplianceMaxUserAgentLength]
+	}
 	ack := AdminComplianceAcknowledgement{
 		Version:     AdminComplianceVersion,
 		DocumentZH:  AdminComplianceDocumentPathZH,
 		DocumentEN:  AdminComplianceDocumentPathEN,
 		AdminUserID: input.AdminUserID,
-		IPAddress:   strings.TrimSpace(input.IPAddress),
-		UserAgent:   strings.TrimSpace(input.UserAgent),
+		IPAddress:   ipAddress,
+		UserAgent:   userAgent,
 		AcceptedAt:  time.Now().UTC(),
 	}
 	payload, err := json.Marshal(ack)

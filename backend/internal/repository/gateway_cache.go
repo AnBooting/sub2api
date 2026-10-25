@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -422,6 +423,21 @@ func (c *gatewayCache) SaveLiveCall(ctx context.Context, record *service.LiveCal
 		"inbound_endpoint": record.InboundEndpoint,
 		"attestation":      record.AttestationCiphertext,
 	}
+	// 冻结单价与计费策略必须随记录持久化：observer 路径会从 Redis 回读记录再结算，
+	// 回读丢失单价会让已配置价格的会话按缺价落账；结算重试也需要同一份策略。
+	if record.RealtimePricePerMin != nil {
+		values["realtime_price_per_min"] = strconv.FormatFloat(*record.RealtimePricePerMin, 'f', -1, 64)
+	}
+	if record.BillingPolicy != nil {
+		if encoded, err := json.Marshal(record.BillingPolicy); err == nil {
+			values["billing_policy"] = string(encoded)
+		}
+	}
+	if record.Settlement != nil {
+		if encoded, err := json.Marshal(record.Settlement); err == nil {
+			values["settlement"] = string(encoded)
+		}
+	}
 	key := liveCallKey(record.CallHash)
 	pipe := c.rdb.TxPipeline()
 	pipe.HSet(ctx, key, values)
@@ -444,6 +460,25 @@ func (c *gatewayCache) GetLiveCall(ctx context.Context, callHash string) (*servi
 	}
 	createdAt := time.UnixMilli(parseInt("created_at"))
 	expiresAt := time.UnixMilli(parseInt("expires_at"))
+	price, priceErr := strconv.ParseFloat(values["realtime_price_per_min"], 64)
+	var realtimePrice *float64
+	if priceErr == nil && strings.TrimSpace(values["realtime_price_per_min"]) != "" {
+		realtimePrice = &price
+	}
+	var billingPolicy *service.LiveBillingPolicy
+	if encoded := values["billing_policy"]; encoded != "" {
+		var policy service.LiveBillingPolicy
+		if err := json.Unmarshal([]byte(encoded), &policy); err == nil {
+			billingPolicy = &policy
+		}
+	}
+	var settlement *service.LiveSettlement
+	if encoded := values["settlement"]; encoded != "" {
+		var state service.LiveSettlement
+		if err := json.Unmarshal([]byte(encoded), &state); err == nil {
+			settlement = &state
+		}
+	}
 	return &service.LiveCallRecord{
 		CallID:                values["call_id"],
 		CallHash:              callHash,
@@ -462,6 +497,9 @@ func (c *gatewayCache) GetLiveCall(ctx context.Context, callHash string) (*servi
 		IPAddress:             values["ip_address"],
 		InboundEndpoint:       values["inbound_endpoint"],
 		AttestationCiphertext: values["attestation"],
+		RealtimePricePerMin:   realtimePrice,
+		BillingPolicy:         billingPolicy,
+		Settlement:            settlement,
 	}, nil
 }
 
