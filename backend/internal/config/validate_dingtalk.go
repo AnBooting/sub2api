@@ -10,8 +10,9 @@ package config
 import "errors"
 
 var (
-	ErrDingTalkV1AppTypeMismatch = errors.New("dingtalk: internal_only requires app_type=internal")
-	ErrDingTalkV4InvalidAppKind  = errors.New("dingtalk: dingtalk_app_kind must be internal_app")
+	ErrDingTalkV1AppTypeMismatch            = errors.New("dingtalk: internal_only requires app_type=internal")
+	ErrDingTalkV4InvalidAppKind             = errors.New("dingtalk: dingtalk_app_kind must be internal_app")
+	ErrDingTalkInvalidCorpRestrictionPolicy = errors.New("dingtalk: corp_restriction_policy must be none or internal_only")
 )
 
 func ValidateDingTalkConfig(cfg DingTalkConnectConfig) error {
@@ -21,10 +22,15 @@ func ValidateDingTalkConfig(cfg DingTalkConnectConfig) error {
 	if cfg.DingTalkAppKind != "internal_app" {
 		return ErrDingTalkV4InvalidAppKind
 	}
-	if cfg.CorpRestrictionPolicy == "internal_only" {
+	switch cfg.CorpRestrictionPolicy {
+	case "", "none":
+		return nil
+	case "internal_only":
 		if cfg.AppType != "internal" {
 			return ErrDingTalkV1AppTypeMismatch
 		}
+	default:
+		return ErrDingTalkInvalidCorpRestrictionPolicy
 	}
 	return nil
 }

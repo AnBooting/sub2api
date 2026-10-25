@@ -2,7 +2,36 @@
   <AppLayout>
     <TablePageLayout>
       <template #filters>
-        <div class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+        <div class="flex flex-col gap-4">
+          <!-- 视图切换：渠道列表 / 价格总表 / 缺价清单 -->
+          <div
+            class="flex flex-wrap items-center gap-2"
+            role="tablist"
+            :aria-label="t('admin.pricing.views.label')"
+            data-testid="pricing-view-switch"
+          >
+            <button
+              v-for="view in viewOptions"
+              :key="view.value"
+              type="button"
+              role="tab"
+              :aria-selected="activeView === view.value"
+              :class="[
+                'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                activeView === view.value
+                  ? 'bg-primary-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-200 dark:hover:bg-dark-600'
+              ]"
+              @click="activeView = view.value"
+            >
+              {{ view.label }}
+            </button>
+          </div>
+
+          <div
+            v-if="activeView === 'channels'"
+            class="flex flex-col justify-between gap-4 lg:flex-row lg:items-start"
+          >
           <!-- Left: Search + Filters -->
           <div class="flex flex-1 flex-wrap items-center gap-3">
             <div class="relative w-full sm:w-64">
@@ -44,11 +73,13 @@
               {{ t('admin.channels.createChannel', 'Create Channel') }}
             </button>
           </div>
+          </div>
         </div>
       </template>
 
       <template #table>
         <DataTable
+          v-if="activeView === 'channels'"
           :columns="columns"
           :data="channels"
           :loading="loading"
@@ -124,11 +155,13 @@
             />
           </template>
         </DataTable>
+        <PricingOverviewPanel v-else-if="activeView === 'table'" />
+        <MissingPricePanel v-else @edit-pricing="handleEditPricing" />
       </template>
 
       <template #pagination>
         <Pagination
-          v-if="pagination.total > 0"
+          v-if="activeView === 'channels' && pagination.total > 0"
           :page="pagination.page"
           :total="pagination.total"
           :page-size="pagination.page_size"
@@ -649,8 +682,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, computed, inject, onMounted, onUnmounted } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { routerKey } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { extractApiErrorMessage } from '@/utils/apiError'
 import { supplementIdentityMappings } from '@/utils/channelModelMapping'
@@ -675,11 +709,54 @@ import Icon from '@/components/icons/Icon.vue'
 import PlatformIcon from '@/components/common/PlatformIcon.vue'
 import Toggle from '@/components/common/Toggle.vue'
 import PricingEntryCard from '@/components/admin/channel/PricingEntryCard.vue'
+import PricingOverviewPanel from '@/components/admin/pricing/PricingOverviewPanel.vue'
+import MissingPricePanel from '@/components/admin/pricing/MissingPricePanel.vue'
+import type { PricingEditTarget } from '@/components/admin/pricing/pricingAudit'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useKeyedDebouncedSearch } from '@/composables/useKeyedDebouncedSearch'
 
 const { t } = useI18n()
 const appStore = useAppStore()
+// 用 inject 取路由实例：没有安装路由时（例如单元测试）返回 undefined，不产生注入告警。
+const router = inject(routerKey, undefined)
+
+// ── 视图切换（渠道列表 / 价格总表 / 缺价清单）──
+type ChannelsView = 'channels' | 'table' | 'missing'
+
+const activeView = ref<ChannelsView>('channels')
+
+const viewOptions = computed<{ value: ChannelsView; label: string }[]>(() => [
+  { value: 'channels', label: t('admin.pricing.views.channels') },
+  { value: 'table', label: t('admin.pricing.views.table') },
+  { value: 'missing', label: t('admin.pricing.views.missing') }
+])
+
+/**
+ * 缺价清单的「去定价」跳转：
+ * - 渠道来源：打开该渠道的编辑弹窗，并切到对应平台的定价页签
+ * - 分组来源：跳到分组管理页（本轮没有分组深链，属于降级处理）
+ */
+async function handleEditPricing(target: PricingEditTarget) {
+  if (target.groupId != null) {
+    // 分组级定价在分组管理页编辑，本轮降级为整页跳转。
+    router?.push('/admin/groups')
+    return
+  }
+  if (target.channelId == null) return
+  const channel = channels.value.find(item => item.id === target.channelId)
+    || allChannelsForConflict.value.find(item => item.id === target.channelId)
+  if (!channel) {
+    appStore.showError(t('admin.pricing.missing.channelNotFound'))
+    return
+  }
+  await openEditDialog(channel)
+  // openEditDialog 之后才设置页签：弹窗的平台页签由 form.platforms 决定，
+  // 只有存在同名且启用的页签时才能切换，否则停在 basic。
+  if (target.platform) {
+    const section = form.platforms.find(item => item.platform === target.platform && item.enabled)
+    activeTab.value = section ? target.platform : 'basic'
+  }
+}
 
 // Web Search global enabled state (loaded once on mount)
 const webSearchGlobalEnabled = ref(false)

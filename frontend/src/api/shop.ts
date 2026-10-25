@@ -124,6 +124,65 @@ export function createIdempotencyKey(): string {
 }
 
 /**
+ * 校验服务端下发的支付跳转目标能否安全跳转。
+ *
+ * 主机白名单由服务端负责：不在允许主机内的跳转目标根本不会进入 DTO
+ * （后端 guardPaymentInstruction，fail closed），因此前端**不再自己实现一套
+ * 主机白名单**，只做兜底校验：
+ *  - 必须是可解析的绝对 URL；
+ *  - 协议必须是 http/https；
+ *  - 必须带主机名。
+ *
+ * 任一条不满足就返回 false，由调用方展示既有 redirectBlocked 文案并且不跳转，
+ * 也不向界面暴露任何白名单/域名细节。
+ */
+export function isSafeShopRedirectUrl(url: string | null | undefined): boolean {
+  const raw = (url ?? '').trim()
+  if (!raw) return false
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    return false
+  }
+  const scheme = parsed.protocol.toLowerCase()
+  if (scheme !== 'http:' && scheme !== 'https:') return false
+  return !!parsed.hostname
+}
+
+/** 本地快照键：用于刷新后回查最近一次订单。 */
+const SHOP_ORDER_SNAPSHOT_KEY = 'shop_last_order_no'
+
+/**
+ * 读取本地保存的最近订单号。
+ *
+ * 刷新页面后服务端不会主动推送订单号，只能靠 URL 参数或本地快照回查；
+ * 快照损坏或不可用（隐私模式）时返回 null，界面退回「从列表进入」。
+ */
+export function readShopOrderSnapshot(): string | null {
+  try {
+    const value = window.localStorage.getItem(SHOP_ORDER_SNAPSHOT_KEY)
+    return value && value.trim() ? value.trim() : null
+  } catch {
+    return null
+  }
+}
+
+/** 记录最近一次订单号（仅保存订单号，不保存卡密等敏感内容）。 */
+export function writeShopOrderSnapshot(orderNo: string | undefined | null): void {
+  const value = (orderNo ?? '').trim()
+  try {
+    if (value) {
+      window.localStorage.setItem(SHOP_ORDER_SNAPSHOT_KEY, value)
+    } else {
+      window.localStorage.removeItem(SHOP_ORDER_SNAPSHOT_KEY)
+    }
+  } catch {
+    // 本地存储不可用时忽略：URL 参数仍可回查订单。
+  }
+}
+
+/**
  * 把服务端稳定错误码映射为 i18n 文案键。
  *
  * 只映射本站错误码；未知错误返回通用文案键，避免把服务端内部信息透到界面。
@@ -150,6 +209,8 @@ export function shopErrorKey(reason: string | undefined): string {
       return 'shop.errors.idempotencyConflict'
     case 'order_delivery_pending':
       return 'shop.errors.deliveryPending'
+    case 'order_not_paid':
+      return 'shop.errors.notPaid'
     case 'shop_delivery_unavailable':
       return 'shop.errors.deliveryUnavailable'
     default:

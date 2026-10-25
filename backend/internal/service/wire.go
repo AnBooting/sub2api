@@ -44,6 +44,9 @@ func ProvidePricingService(cfg *config.Config, remoteClient PricingRemoteClient,
 	if err := svc.loadControls(context.Background()); err != nil {
 		return nil, err // Never fall back to enabled remote access on a settings read failure.
 	}
+	// 发布当前生效的 DeepSeek 假日日历：分组只读状态（deepseek_pricing_state）
+	// 与计费路径必须看到同一份日历，否则展示的峰/谷会和实际计费对不上。
+	setDeepseekPricingCalendarProvider(func() *deepseekHolidayCalendar { return svc.deepseekCalendar() })
 	if err := svc.Initialize(); err != nil {
 		// Pricing service initialization failure should not block startup, use fallback prices
 		println("[Service] Warning: Pricing service initialization failed:", err.Error())
@@ -109,12 +112,22 @@ func ProvideBatchImageModelPricingResolver(resolver *ModelPricingResolver) *Batc
 	return &BatchImageModelPricingResolver{Resolver: resolver}
 }
 
+// ProvideVideoTaskService 装配异步视频任务服务（PRD-06/TS-06）。
+//
+// 单独暴露成 provider：用户侧任务列表与 worker 共用同一个服务实例。
+func ProvideVideoTaskService(repo VideoTaskRepository) *VideoTaskService {
+	return NewVideoTaskService(repo)
+}
+
 // ProvideVideoTaskWorker 装配并启动 PRD-06/TS-06 的异步视频任务推进 worker。
 //
 // 同时把登记器注入进程级入口：创建路径（handler）用它把「本站任务 ↔ 用户 ↔
 // 实际分组 ↔ 承载账号」写入任务表，worker 才能在没有客户端轮询时主动推进终态。
+//
+// tasks 由 ProvideVideoTaskService 提供：worker 与用户侧列表共用同一实例，
+// 避免同一张表出现两套状态视图。
 func ProvideVideoTaskWorker(
-	repo VideoTaskRepository,
+	tasks *VideoTaskService,
 	gateway *OpenAIGatewayService,
 	apiKeyRepo APIKeyRepository,
 	groupRepo GroupRepository,
@@ -126,7 +139,6 @@ func ProvideVideoTaskWorker(
 	lockCache LeaderLockCache,
 	db *sql.DB,
 ) *VideoTaskWorker {
-	tasks := NewVideoTaskService(repo)
 	SetDefaultVideoTaskRecorder(NewVideoTaskRecorder(tasks))
 	worker := NewVideoTaskWorker(tasks, gateway, apiKeyRepo, groupRepo, userRepo, userSubRepo, accountRepo, apiKeySvc, settingRepo)
 	worker.SetLeaderLock(lockCache, db)
@@ -910,7 +922,7 @@ var ProviderSet = wire.NewSet(
 	NewAnnouncementService,
 	NewAdminService,
 	NewGatewayService,
-	NewOpenAIGatewayService,
+	ProvideOpenAIGatewayService,
 	ProvideImageStorageSettingService,
 	ProvideImageTaskService,
 	ProvideBatchImageModelPricingResolver,
@@ -948,6 +960,7 @@ var ProviderSet = wire.NewSet(
 	ProvideAccountUsageService,
 	ProvideAccountTestService,
 	ProvideUpstreamBillingProbeService,
+	ProvideVideoTaskService,
 	ProvideVideoTaskWorker,
 	ProvideOllamaCloudUsageService,
 	ProvideOpenCodeGoUsageService,

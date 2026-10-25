@@ -70,6 +70,10 @@ type Handlers struct {
 	AsyncImage       *AsyncImageHandler
 	BatchImage       *BatchImageHandler
 	Shop             *yunmaohandler.ShopHandler
+	// ShopAdmin 是白标充值中心的管理面只读 handler（商品同步状态）。
+	ShopAdmin *admin.ShopSyncStatusHandler
+	// VideoTask 是用户侧的视频任务只读 handler。
+	VideoTask *VideoTaskHandler
 }
 
 // BuildInfo contains build-time information

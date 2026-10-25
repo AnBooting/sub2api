@@ -170,3 +170,6 @@ issues/
 # token dumps; a bare `git add -A` would otherwise stage them into a commit.
 .credkeys.txt
 .orphans.txt
+
+# Local read-only analysis checkout; never commit or run it
+ARTEX/

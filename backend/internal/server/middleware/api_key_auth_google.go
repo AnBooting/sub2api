@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/googleapi"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -130,6 +132,10 @@ func APIKeyAuthWithSubscriptionGoogle(apiKeyService *service.APIKeyService, subs
 			abortWithGoogleError(c, 403, "API Key 所属专属分组不再允许当前用户使用")
 			return
 		}
+
+		// 与主中间件保持一致：注入用户 ID，供下游用户专属倍率解析使用。
+		ctx := context.WithValue(c.Request.Context(), ctxkey.UserID, apiKey.User.ID)
+		c.Request = c.Request.WithContext(ctx)
 
 		// 简易模式：跳过余额和订阅检查
 		if cfg.RunMode == config.RunModeSimple {

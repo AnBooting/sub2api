@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { VueDraggable } from 'vue-draggable-plus'
 import GroupChainEditor from '../GroupChainEditor.vue'
 import type { Group } from '@/types'
 vi.mock('vue-i18n', async () => ({ ...await vi.importActual<typeof import('vue-i18n')>('vue-i18n'), useI18n: () => ({ t: (key: string, params?: unknown) => key + JSON.stringify(params ?? {}) }) }))
@@ -35,6 +36,24 @@ describe('GroupChainEditor', () => {
     expect(wrapper.text()).toContain('keys.chain.unavailable')
     await wrapper.findAll('[data-action="remove"]')[1].trigger('click')
     expect(wrapper.emitted('update:modelValue')).toEqual([[[3]]])
+  })
+  it('offers a drag handle per row and keeps the accessible up/down fallback', async () => {
+    const wrapper = open([1, 2])
+
+    expect(wrapper.findAll('[data-action="drag"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-action="up"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-action="down"]')).toHaveLength(2)
+    expect(wrapper.findComponent(VueDraggable).exists()).toBe(true)
+    wrapper.unmount()
+  })
+  it('emits the new order after a drag', async () => {
+    const wrapper = open([1, 2])
+
+    ;(wrapper.vm as unknown as { localIds: number[] }).localIds = [2, 1]
+    await wrapper.findComponent(VueDraggable).vm.$emit('end')
+
+    expect(wrapper.emitted('update:modelValue')).toEqual([[[2, 1]]])
+    wrapper.unmount()
   })
   it('prevents mutations while saving', async () => {
     const wrapper = open([1, 2], true)

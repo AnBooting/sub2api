@@ -200,6 +200,34 @@ func TestLogger_AccessLogIncludesCoreFields(t *testing.T) {
 	}
 }
 
+func TestLogger_AccessLogEmittedOnPanic(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	sink := initMiddlewareTestLogger(t)
+
+	r := gin.New()
+	// 与生产链路一致：Recovery 在 Logger 外层，panic 会穿过 Logger。
+	r.Use(Recovery())
+	r.Use(Logger())
+	r.GET("/panic", func(c *gin.Context) {
+		panic("boom")
+	})
+
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/panic", nil)
+	r.ServeHTTP(w, req)
+
+	found := false
+	for _, event := range sink.list() {
+		if event != nil && event.Message == "http request completed" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("panic request must still emit an access log event")
+	}
+}
+
 func TestLogger_IngressRejectRemainsInStandardAccessLog(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	sink := initMiddlewareTestLogger(t)

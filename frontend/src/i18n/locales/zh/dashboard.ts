@@ -2,7 +2,7 @@ export default {
   dashboard: {
     title: '仪表盘',
     welcomeMessage: '欢迎回来！这是您账户的概览。',
-    balance: '余额',
+    balance: '余额（Credit）',
     apiKeys: 'API 密钥',
     todayRequests: '今日请求',
     todayCost: '今日消费',
@@ -23,7 +23,7 @@ export default {
     platformCount: '{count} 个平台',
     platformOther: '其他',
     platformQuota: {
-      title: '配额用量',
+      title: '配额用量（Credit）',
       daily: '日',
       weekly: '周',
       monthly: '月（近30天）',
@@ -78,6 +78,7 @@ export default {
       "empty": "未绑定普通分组",
       "unavailable": "分组 #{id}（当前不可用）",
       "haAuthorized": "用户已授权的高可用兜底",
+      "dragHandle": "拖拽调整顺序",
       "singleHint": "上方单组选项会将普通链替换为该组，兜底授权保持不变。",
       "edit": "编辑普通分组顺序"
     },
@@ -90,7 +91,9 @@ export default {
       "enable": "开启兜底",
       "enabled": "已开启",
       "scopeMismatch": "该分组的模型范围与本密钥不匹配，暂不可开启",
-      "accessRequired": "该分组为专属分组，需先获得访问授权才能开启兜底"
+      "accessRequired": "该分组为专属分组，需先获得访问授权才能开启兜底",
+      "createHint": "新建 Key 时可勾选兜底分组；Key 创建成功后会自动逐个开通授权，个别失败不影响 Key 本身创建。",
+      "enablePartialFailed": "有 {count} 个兜底分组未能开通，请稍后在编辑页重新开启。"
     },
     title: 'API 密钥',
     description: '管理您的 API 密钥和访问令牌',
@@ -177,7 +180,7 @@ export default {
     usage: '用量',
     today: '今日',
     total: '近30天',
-    quota: '额度',
+    quota: '额度（Credit）',
     lastUsedAt: '上次使用时间',
     lastUsedIP: '最近使用 IP',
     useKey: '使用密钥',
@@ -318,11 +321,11 @@ export default {
       geminiCliDesc: '导入为 Gemini CLI 配置'
     },
     // 配额和有效期
-    quotaLimit: '额度限制',
-    quotaAmount: '额度金额 ',
-    quotaAmountPlaceholder: '输入额度限制',
+    quotaLimit: '额度限制（Credit）',
+    quotaAmount: '额度金额（Credit） ',
+    quotaAmountPlaceholder: '输入额度限制（Credit）',
     quotaAmountHint: '设置此密钥可消费的最大金额。0 = 无限制。',
-    quotaUsed: '已用额度',
+    quotaUsed: '已用额度（Credit）',
     reset: '重置',
     resetQuotaUsed: '将已用额度重置为 0',
     resetQuotaTitle: '确认重置额度',
@@ -332,9 +335,9 @@ export default {
     rateLimitColumn: '速率限制',
     rateLimitSection: '速率限制',
     resetUsage: '重置',
-    rateLimit5h: '5小时限额 ',
-    rateLimit1d: '日限额 ',
-    rateLimit7d: '7天限额 ',
+    rateLimit5h: '5小时限额（Credit） ',
+    rateLimit1d: '日限额（Credit） ',
+    rateLimit7d: '7天限额（Credit） ',
     rateLimitHint: '设置此密钥在指定时间窗口内的最大消费额。0 = 无限制。',
     rateLimitUsage: '速率限制用量',
     resetRateLimitUsage: '重置速率限制用量',
@@ -478,6 +481,12 @@ export default {
     compactionOnly: '仅原生压缩',
     cyber: '安全策略',
     live: 'Live',
+    liveTitle: 'Live 会话',
+    liveSessionDuration: 'Live 会话时长',
+    liveDurationSeconds: '{seconds} 秒',
+    liveDurationMinutes: '{minutes} 分 {seconds} 秒',
+    liveBilling: '计费口径',
+    liveNoCharge: '本次 Live 会话未产生扣费（0 Credit）',
     unknown: '未知',
     in: '输入',
     out: '输出',
@@ -728,6 +737,7 @@ export default {
     loadFailed: '加载模型广场失败',
     noSearchResult: '没有匹配的模型',
     anonymousHint: '登录后可查看你的专属分组与专属倍率',
+    sourcePriceNote: '价格表展示的是源币种价目（美元，不换汇）：「实付价」= 渠道单价 × 生效倍率（分组/专属倍率），「官方价」为不乘倍率的参考价；两者都不是账户余额里的 Credit，实际扣减请以「使用记录」中的 Credit 为准。',
     filters: {
       platformLabel: '平台',
       groupLabel: '分组',
@@ -832,7 +842,7 @@ export default {
   redeem: {
     title: '兑换码',
     description: '输入兑换码以充值余额或增加并发数',
-    currentBalance: '当前余额',
+    currentBalance: '当前余额（Credit）',
     concurrency: '并发数',
     requests: '请求',
     redeemCodeLabel: '兑换码',
@@ -844,7 +854,7 @@ export default {
     redeemFailed: '兑换失败',
     added: '已添加',
     concurrentRequests: '并发请求',
-    newBalance: '新余额',
+    newBalance: '新余额（Credit）',
     newConcurrency: '新并发数',
     aboutCodes: '关于兑换码',
     codeRule1: '每个兑换码只能使用一次',
@@ -870,14 +880,54 @@ export default {
     historyLoadFailed: '加载兑换记录失败，请重试。',
     userRefreshFailed: '兑换成功，但账户信息刷新失败。',
     subscriptionRefreshFailed: '兑换成功，但订阅状态刷新失败。',
-    pleaseEnterCode: '请输入兑换码'
+    pleaseEnterCode: '请输入兑换码',
+    creditRateHint: '¥1 可得 1 Credit（不换汇）',
+    manualCreditHint: '卡密兑换后余额才会增加；支付成功不会自动到账。',
+    errors: {
+      REDEEM_CODE_USED: '该兑换码已被使用',
+      REDEEM_CODE_NOT_FOUND: '兑换码不存在',
+      REDEEM_CODE_EXPIRED: '兑换码已过期',
+      REDEEM_CODE_INVALID: '兑换码无效'
+    }
+  },
+
+  // 用户侧视频任务列表（GET /api/v1/videos/tasks）
+  videoTasks: {
+    title: '视频任务',
+    subtitle: '查看你提交的视频生成任务的处理状态',
+    entry: '视频任务',
+    loading: '正在加载视频任务…',
+    loadingMore: '正在加载更多…',
+    empty: '还没有视频任务',
+    loadFailed: '加载视频任务失败，请稍后重试',
+    loadMoreFailed: '加载更多视频任务失败，请重试',
+    loadMore: '加载更多',
+    lastError: '失败原因',
+    billingMode: {
+      per_token: '按量（Token）',
+      per_request: '按次',
+      per_second: '按秒'
+    },
+    columns: {
+      taskNo: '任务号',
+      model: '模型',
+      platform: '平台',
+      billingMode: '计费模式',
+      createdAt: '创建时间',
+      settledAt: '结算时间'
+    },
+    status: {
+      processing: '处理中',
+      completed: '已完成',
+      failed: '失败'
+    }
   },
 
   // Profile
   profile: {
     title: '个人设置',
     description: '管理您的账户信息和设置',
-    accountBalance: '账户余额',
+    accountBalance: '账户余额（Credit）',
     concurrencyLimit: '并发限制',
     rpmLimit: 'RPM 限制',
     rpmUnlimited: '不限制',

@@ -11,10 +11,12 @@ import (
 
 func AdminComplianceGuard(settingService *service.SettingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if settingService == nil || isAdminComplianceBypassPath(c.Request.URL.Path) {
+		if isAdminComplianceBypassPath(c.Request.URL.Path) {
 			c.Next()
 			return
 		}
+		// 合规门禁 fail-closed：settingService 为 nil 时不能放行。
+		// service 层对 nil 返回 Required=true（阻断），直接调用即可得到正确语义。
 
 		subject, ok := GetAuthSubjectFromContext(c)
 		if !ok {

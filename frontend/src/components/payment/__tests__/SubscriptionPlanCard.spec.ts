@@ -60,6 +60,15 @@ describe("SubscriptionPlanCard", () => {
     expect(text).not.toContain("Imagen");
   });
 
+  it("shows the daily/weekly/monthly quota limits in the customer Credit unit", () => {
+    const text = mountPlanCard("openai", { daily_limit_usd: 12, weekly_limit_usd: 30, monthly_limit_usd: 60 }).text();
+
+    expect(text).toContain("12.00 Credit");
+    expect(text).toContain("30.00 Credit");
+    expect(text).toContain("60.00 Credit");
+    expect(text).not.toContain("$12");
+  });
+
   it("shows model scopes for Antigravity plans", () => {
     const text = mountPlanCard("antigravity").text();
 

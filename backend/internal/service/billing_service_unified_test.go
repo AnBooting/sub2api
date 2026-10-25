@@ -268,44 +268,39 @@ func TestCalculateCostUnified_ChannelTimePricingDoesNotApplyToGroupPricing(t *te
 	require.InDelta(t, 1.0, cost.TotalCost, 1e-12)
 }
 
+// 「计费时刻落在渠道分时窗口之外 → 不套用分时倍率」。
+//
+// 这里必须用**显式的窗口外时刻**。零值 PricingAt 的生产语义是
+// 「没有指定计费时刻 → 回退当前时刻」（billing_service.go 的计费时点契约：
+// 请求级 PricingAt → resolved.pricingAt → timezone.Now()），
+// 拿它表达「窗口之外」等于把断言绑到墙上时钟：渠道分时窗口是
+// 09:00-12:00（Asia/Shanghai），于是这条用例每天只有 09:00-12:00 之外才绿，
+// 窗口内必然红。零值语义见 billing_channel_time_pricing_test.go。
 func TestCalculateCostUnified_ChannelTimePricingDoesNotApplyOutsideMatchingTime(t *testing.T) {
 	resolved := channelTimeResolvedForTest(&ModelPricing{InputPricePerToken: 0.001}, nil)
 	billing := NewBillingService(&config.Config{}, nil)
 
-	// 固定时刻：Asia/Shanghai 13:00，落在 09:00–12:00 之外，倍率必须是 1。
-	// 这里不能用零值 PricingAt：零值在生产路径里表示「按当前时刻计费」，
-	// 结果会随墙上时钟变化，那条语义由下面独立的一条用例覆盖。
-	cost, err := billing.CalculateCostUnified(CostInput{
-		Ctx:       context.Background(),
-		Model:     "model",
-		Tokens:    UsageTokens{InputTokens: 1000},
-		Resolver:  &ModelPricingResolver{},
-		Resolved:  resolved,
-		PricingAt: time.Date(2026, 8, 17, 5, 0, 0, 0, time.UTC),
-	})
-	require.NoError(t, err)
-	require.InDelta(t, 1.0, cost.TotalCost, 1e-12)
-}
+	// 渠道分时窗口是 09:00-12:00（Asia/Shanghai）。下面两个时刻都明确落在窗口外，
+	// 且与「现在几点」无关：
+	//   2026-08-17 05:00 UTC = 2026-08-17 13:00（上海）
+	//   2026-08-16 16:00 UTC = 2026-08-17 00:00（上海，跨日边界）
+	for _, pricingAt := range []time.Time{
+		time.Date(2026, 8, 17, 5, 0, 0, 0, time.UTC),
+		time.Date(2026, 8, 16, 16, 0, 0, 0, time.UTC),
+	} {
+		cost, err := billing.CalculateCostUnified(CostInput{
+			Ctx:       context.Background(),
+			Model:     "model",
+			Tokens:    UsageTokens{InputTokens: 1000},
+			Resolver:  &ModelPricingResolver{},
+			Resolved:  resolved,
+			PricingAt: pricingAt,
+		})
+		require.NoError(t, err)
+		require.InDelta(t, 1.0, cost.TotalCost, 1e-12,
+			"pricingAt=%v 不在 09:00-12:00 窗口内，不应套用分时倍率", pricingAt)
+	}
 
-// 没有给出计费时点（PricingAt 为零值）时，生产路径按**当前时刻**判定分时倍率。
-// 期望值不能写死：当前时刻落在 09:00–12:00（Asia/Shanghai）时倍率是 2，其余时间是 1，
-// 写死会让这条用例每天有三小时必然失败。期望值用生产函数按当前时刻算，
-// 避免在测试里把判定逻辑抄一遍。
-func TestCalculateCostUnified_ChannelTimePricingUsesCurrentTimeWhenPricingAtIsMissing(t *testing.T) {
-	resolved := channelTimeResolvedForTest(&ModelPricing{InputPricePerToken: 0.001}, nil)
-	billing := NewBillingService(&config.Config{}, nil)
-
-	cost, err := billing.CalculateCostUnified(CostInput{
-		Ctx:       context.Background(),
-		Model:     "model",
-		Tokens:    UsageTokens{InputTokens: 1000},
-		Resolver:  &ModelPricingResolver{},
-		Resolved:  resolved,
-	})
-	require.NoError(t, err)
-
-	expected := 1.0 * resolved.channelPricing.TimePricing.MultiplierAt(time.Now())
-	require.InDelta(t, expected, cost.TotalCost, 1e-12)
 }
 
 func TestApplyCostBreakdownMultiplierScalesAllMonetaryFields(t *testing.T) {

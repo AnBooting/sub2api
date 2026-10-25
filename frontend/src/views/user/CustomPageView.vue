@@ -114,10 +114,19 @@
             <Icon name="externalLink" size="sm" class="mr-1.5" :stroke-width="2" />
             {{ t('customPage.openInNewTab') }}
           </a>
+          <!--
+            sandbox 收紧嵌入页权限：允许脚本/表单/同源存储（多数第三方页需要），
+            但禁止 top-level 跳转、弹窗与下载，避免嵌入页劫持整站导航。
+            referrerpolicy 避免把带 query（含 user_id 等）的完整 URL 泄露给下游。
+          -->
           <iframe
+            ref="embedFrame"
             :src="embeddedUrl"
             class="custom-embed-frame"
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups-to-escape-sandbox"
+            referrerpolicy="strict-origin-when-cross-origin"
             allowfullscreen
+            @load="deliverEmbedToken"
           ></iframe>
         </div>
       </div>
@@ -136,7 +145,7 @@ import { useAdminSettingsStore } from '@/stores/adminSettings'
 import AppLayout from '@/components/layout/AppLayout.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { buildApiUrl } from '@/api/client'
-import { buildEmbeddedUrl, detectTheme } from '@/utils/embedded-url'
+import { buildEmbeddedUrl, detectTheme, EMBED_AUTH_TOKEN_MESSAGE_TYPE } from '@/utils/embedded-url'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 
@@ -163,6 +172,7 @@ let themeObserver: MutationObserver | null = null
 let markdownRequestVersion = 0
 
 const embedShell = ref<HTMLElement | null>(null)
+const embedFrame = ref<HTMLIFrameElement | null>(null)
 const openButton = ref<HTMLAnchorElement | null>(null)
 const openButtonPosition = ref<{ x: number; y: number } | null>(null)
 let buttonDrag: { pointerId: number; startX: number; startY: number; x: number; y: number } | null = null
@@ -244,14 +254,38 @@ const isMarkdownMode = computed(() => !!markdownSlug.value)
 
 const embeddedUrl = computed(() => {
   if (!menuItem.value || isMarkdownMode.value) return ''
+  // 不传 token：令牌经 postMessage 定向交付，避免进入 URL/历史/Referer。
   return buildEmbeddedUrl(
     menuItem.value.url,
     authStore.user?.id,
-    authStore.token,
     pageTheme.value,
     locale.value,
   )
 })
+
+/**
+ * 把访问令牌定向交付给嵌入页。
+ *
+ * 不把令牌放进 iframe 的 src：URL 会进入浏览器历史、Referer 与访问日志。
+ * 这里用 targetOrigin 精确限定为菜单配置的源，避免广播给任意页面。
+ */
+function deliverEmbedToken() {
+  const frame = embedFrame.value
+  const targetUrl = menuItem.value?.url
+  const token = authStore.token
+  if (!frame?.contentWindow || !targetUrl || !token) return
+  let targetOrigin = ""
+  try {
+    targetOrigin = new URL(targetUrl).origin
+  } catch {
+    return
+  }
+  if (!targetOrigin || targetOrigin === "null") return
+  frame.contentWindow.postMessage(
+    { type: EMBED_AUTH_TOKEN_MESSAGE_TYPE, token },
+    targetOrigin,
+  )
+}
 
 const isValidUrl = computed(() => {
   if (isMarkdownMode.value) return false

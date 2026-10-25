@@ -380,7 +380,9 @@ func applyUsageBilling(ctx context.Context, requestID string, usageLog *UsageLog
 	}
 
 	if result == nil || !result.Applied {
-		deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+		if deps.deferredService != nil {
+			deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+		}
 		return false, nil
 	}
 
@@ -409,12 +411,14 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 				logger.LegacyPrintf("service.gateway", "Warning: invalidate simple-mode api key rate-limit cache failed for key %d: %v", p.APIKey.ID, err)
 			}
 		}
-		deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+		if deps.deferredService != nil {
+			deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+		}
 		return
 	}
 
 	if p.IsSubscriptionBill {
-		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil {
+		if p.Cost.ActualCost > 0 && p.User != nil && p.APIKey != nil && p.APIKey.GroupID != nil && deps.billingCacheService != nil {
 			deps.billingCacheService.QueueUpdateSubscriptionUsage(p.User.ID, *p.APIKey.GroupID, p.Cost.ActualCost)
 		}
 	} else if p.Cost.ActualCost > 0 && p.User != nil {
@@ -425,7 +429,9 @@ func finalizePostUsageBilling(ctx context.Context, p *postUsageBillingParams, de
 		deps.billingCacheService.QueueUpdateAPIKeyRateLimitUsage(p.APIKey.ID, p.Cost.ActualCost)
 	}
 
-	deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+	if deps.deferredService != nil {
+		deps.deferredService.ScheduleLastUsedUpdate(p.Account.ID)
+	}
 
 	// Platform quota 累加：仅在 standard（余额）模式生效；订阅模式豁免；仅对有 limit 的用户写
 	// Redis 同步写 + DB 异步持久化（flag=false 降级）或 flusher 异步刷（flag=true）:
@@ -817,7 +823,7 @@ func (s *GatewayService) recordUsageCore(ctx context.Context, input *recordUsage
 	var imageMultiplier float64
 	pricingAt := requestPricingAt(ctx, input.PricingAt)
 	ctx = context.WithValue(ctx, gatewayTokenRequestPricingAtCtxKey{}, pricingAt)
-	billingModel := ""
+	var billingModel string
 	var cost *CostBreakdown
 	var lockedQuote *LockedRequestPricing
 	if requestPricing != nil {

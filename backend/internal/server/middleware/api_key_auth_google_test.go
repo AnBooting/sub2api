@@ -398,6 +398,62 @@ func TestApiKeyAuthWithSubscriptionGoogleSetsGroupContext(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 }
 
+func TestApiKeyAuthWithSubscriptionGoogleInjectsUserIDIntoContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	group := &service.Group{
+		ID:       99,
+		Name:     "g1",
+		Status:   service.StatusActive,
+		Platform: service.PlatformGemini,
+		Hydrated: true,
+	}
+	user := &service.User{
+		ID:          7,
+		Role:        service.RoleUser,
+		Status:      service.StatusActive,
+		Balance:     10,
+		Concurrency: 3,
+	}
+	apiKey := &service.APIKey{
+		ID:     100,
+		UserID: user.ID,
+		Key:    "test-key",
+		Status: service.StatusActive,
+		User:   user,
+		Group:  group,
+	}
+	apiKey.GroupID = &group.ID
+
+	apiKeyService := service.NewAPIKeyService(
+		fakeAPIKeyRepo{
+			getByKey: func(ctx context.Context, key string) (*service.APIKey, error) {
+				clone := *apiKey
+				return &clone, nil
+			},
+		},
+		nil, nil, nil, nil, nil,
+		&config.Config{RunMode: config.RunModeSimple},
+	)
+
+	cfg := &config.Config{RunMode: config.RunModeSimple}
+	r := gin.New()
+	r.Use(APIKeyAuthWithSubscriptionGoogle(apiKeyService, nil, cfg))
+	var gotUserID int64
+	r.GET("/v1beta/test", func(c *gin.Context) {
+		gotUserID, _ = c.Request.Context().Value(ctxkey.UserID).(int64)
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/v1beta/test", nil)
+	req.Header.Set("x-api-key", apiKey.Key)
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	// Gemini/Antigravity 路由依赖该值解析用户专属倍率；缺失会让利润控制用错阈值。
+	require.Equal(t, user.ID, gotUserID)
+}
 func TestApiKeyAuthWithSubscriptionGoogle_QueryKeyAllowedOnV1Beta(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

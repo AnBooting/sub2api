@@ -5,6 +5,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
 	"github.com/gin-gonic/gin"
@@ -78,7 +79,10 @@ func enforceSessionBinding(
 	}
 
 	if authService != nil {
-		_ = authService.RevokeSessionFamily(c.Request.Context(), claims.SessionID)
+		if err := authService.RevokeSessionFamily(c.Request.Context(), claims.SessionID); err != nil {
+			// 撤销失败不能静默：refresh token 家族可能仍然存活，运维需要可见性。
+			logger.LegacyPrintf("middleware.session_binding", "[SessionBinding] Failed to revoke session family: user_id=%d session_id=%s err=%v", claims.UserID, claims.SessionID, err)
+		}
 	}
 	if auditService != nil {
 		uid := claims.UserID

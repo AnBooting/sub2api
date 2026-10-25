@@ -968,14 +968,13 @@ func (h *GroupHandler) GetStats(c *gin.Context) {
 		return
 	}
 
-	// Return mock data for now
+	// Do not return fabricated zero statistics to administrators.
+	// Group stats need dashboard/repository aggregation and are not implemented yet.
 	response.Success(c, gin.H{
-		"total_api_keys":  0,
-		"active_api_keys": 0,
-		"total_requests":  0,
-		"total_cost":      0.0,
+		"implemented": false,
+		"reason":      "group stats are not implemented",
+		"group_id":    groupID,
 	})
-	_ = groupID // TODO: implement actual stats
 }
 
 // GetUsageSummary returns today's, yesterday's, and cumulative cost for all groups.

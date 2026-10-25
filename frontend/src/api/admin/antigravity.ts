@@ -58,8 +58,8 @@ export async function refreshAntigravityToken(
   refreshToken: string,
   proxyId?: number | null
 ): Promise<AntigravityTokenInfo> {
-  const payload: Record<string, any> = { refresh_token: refreshToken }
-  if (proxyId) payload.proxy_id = proxyId
+  const payload: { refresh_token: string; proxy_id?: number } = { refresh_token: refreshToken }
+  if (proxyId !== undefined && proxyId !== null) payload.proxy_id = proxyId
   
   const { data } = await apiClient.post<AntigravityTokenInfo>(
     '/admin/antigravity/oauth/refresh-token',

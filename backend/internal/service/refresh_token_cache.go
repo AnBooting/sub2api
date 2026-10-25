@@ -10,6 +10,11 @@ import (
 // This is used to abstract away the underlying cache implementation (e.g., redis.Nil).
 var ErrRefreshTokenNotFound = errors.New("refresh token not found")
 
+// ErrConsumedRefreshTokenNotFound is returned when no consumed-refresh-token
+// tombstone exists for a token hash. It lets callers distinguish "never rotated"
+// from a cache error.
+var ErrConsumedRefreshTokenNotFound = errors.New("consumed refresh token not found")
+
 // RefreshTokenData 存储在Redis中的Refresh Token数据
 type RefreshTokenData struct {
 	UserID       int64     `json:"user_id"`
@@ -71,4 +76,11 @@ type RefreshTokenCache interface {
 	// IsTokenInFamily 检查Token是否属于指定家族
 	// 用于验证Token家族关系
 	IsTokenInFamily(ctx context.Context, familyID string, tokenHash string) (bool, error)
+
+	// MarkRefreshTokenConsumed 在Token轮转时写入 tombstones，保留其家族ID到原TTL。
+	MarkRefreshTokenConsumed(ctx context.Context, tokenHash string, familyID string, ttl time.Duration) error
+
+	// GetConsumedRefreshTokenFamilyID 读取已被轮转消费的Token家族ID。
+	// 无 tombstone 时返回 ErrConsumedRefreshTokenNotFound，其他错误表示缓存故障。
+	GetConsumedRefreshTokenFamilyID(ctx context.Context, tokenHash string) (string, error)
 }

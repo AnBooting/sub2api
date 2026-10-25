@@ -210,6 +210,8 @@ func ProvideHandlers(
 	asyncImageHandler *AsyncImageHandler,
 	batchImageHandler *BatchImageHandler,
 	shopHandler *yunmaohandler.ShopHandler,
+	shopAdminHandler *admin.ShopSyncStatusHandler,
+	videoTaskHandler *VideoTaskHandler,
 	_ *service.IdempotencyCoordinator,
 	_ *service.IdempotencyCleanupService,
 	_ *service.OpenAIQuotaAutoResetService,
@@ -237,6 +239,8 @@ func ProvideHandlers(
 		AsyncImage:       asyncImageHandler,
 		BatchImage:       batchImageHandler,
 		Shop:             shopHandler,
+		ShopAdmin:        shopAdminHandler,
+		VideoTask:        videoTaskHandler,
 	}
 }
 
@@ -262,6 +266,7 @@ var ProviderSet = wire.NewSet(
 	NewAvailableChannelHandler,
 	NewModelPlazaHandler,
 	yunmaohandler.NewShopHandler,
+	NewVideoTaskHandler,
 	NewAsyncImageHandler,
 	ProvideBatchImageHandler,
 
@@ -301,6 +306,7 @@ var ProviderSet = wire.NewSet(
 	admin.NewAffiliateHandler,
 	admin.NewComplianceHandler,
 	admin.NewAuditLogHandler,
+	admin.NewShopSyncStatusHandler,
 
 	// AdminHandlers and Handlers constructors
 	ProvideAdminHandlers,

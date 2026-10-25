@@ -100,3 +100,13 @@ Compose 部署三容器（app / postgres / redis），后两者不对宿主暴�
 - `go test -tags=unit ./...` 有 5 个失败用例（`internal/repository` ×4、`internal/service` ×1），见 [../11-collaboration-norms.md](../11-collaboration-norms.md) §7。
 - 根 `Makefile` 的 `FRONTEND_CRITICAL_VITEST`（29 条）**不含** fork 新增的 5 个 spec。
 - `api/admin/pricing.ts` 未注册进 `adminAPI` barrel。
+
+## 全量审计结构补充（2026-10-19）
+
+| 文档 | 范围 | 状态 |
+|---|---|---|
+| [07-audit-structure.md](07-audit-structure.md) | 前后端/模块/部署边界与待决策项 | ✅ 本轮新增 |
+| [../22-repository-status-2026-10-19.md](../22-repository-status-2026-10-19.md) | 仓库状态与审计执行记录 | ✅ 本轮新增 |
+| [../security/security-audit-2026-10-19.md](../security/security-audit-2026-10-19.md) | 安全/质量 findings | ✅ 本轮新增 |
+| [../reviews/full-audit-2026-10-19.md](../reviews/full-audit-2026-10-19.md) | 复审结论与限制 | ✅ 本轮新增 |
+

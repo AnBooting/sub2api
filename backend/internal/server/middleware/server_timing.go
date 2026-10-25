@@ -152,8 +152,10 @@ func isUserTimingPath(path string) bool {
 	if rest == "" {
 		return false
 	}
+	// 必须以 / 分隔：/api/v1keys 这类路径不在 /api/v1/ 下，
+	// 若补成 /keys 会误判为命中并泄露 Server-Timing。
 	if !strings.HasPrefix(rest, "/") {
-		rest = "/" + rest
+		return false
 	}
 
 	switch {
