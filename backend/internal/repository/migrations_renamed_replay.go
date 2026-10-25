@@ -1,9 +1,12 @@
 package repository
 
 import (
+	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"regexp"
 	"slices"
 	"strings"
@@ -131,11 +134,12 @@ func postgresErrorCode(err error) string {
 	return ""
 }
 
-// tolerateRenamedMigrationReplay 判断一次迁移执行失败能否按「旧库重放已应用过的改名迁移」容错。
+// tolerateRenamedMigrationReplay 判断一次迁移执行失败能否**进入**「旧库重放已应用过的
+// 改名迁移」的容错判定。
 //
-// 返回 true 时，调用方应记录告警并跳过该迁移（不得写 schema_migrations，也不得额外
-// 访问数据库），让服务正常启动；运维随后按迁移改名对账流程把新文件名写进
-// schema_migrations，避免每次启动都重试。
+// 注意这只是第一道闸：它比对的是「源码里的迁移文件」与「登记表」，完全没有访问数据库。
+// 返回 true 之后，调用方必须再调用 verifyRenamedMigrationLegacyHistory 向数据库取得
+// 「这台库确实执行过旧迁移」的证据，两者都成立才允许放行。
 func tolerateRenamedMigrationReplay(name string, checksum string, err error) (renamedMigrationReplayRule, bool) {
 	rule, ok := renamedMigrationReplayRules[name]
 	if !ok {
@@ -159,4 +163,35 @@ func tolerateRenamedMigrationReplay(name string, checksum string, err error) (re
 		return renamedMigrationReplayRule{}, false
 	}
 	return rule, true
+}
+
+// verifyRenamedMigrationLegacyHistory 向数据库取证：这台库是否真的完整执行过改名前的迁移。
+//
+// 只看「新文件名没记录 + 撞了重复对象错误」是不够的：迁移事务是原子的，重复对象错误会
+// 让整份迁移回滚，后续语句从未执行；若此时按「已生效」放行，库里会静默缺列/缺表。
+// 因此必须在持有 advisory lock 的连接上核对 schema_migrations 里的旧文件名记录及其
+// checksum：只有与登记的旧校验和逐字一致，才说明这份迁移曾经完整执行过。
+//
+// 返回 error 时调用方必须照旧失败退出——缺证据就不放行，不做任何猜测或降级。
+func verifyRenamedMigrationLegacyHistory(ctx context.Context, conn migrationConnection, rule renamedMigrationReplayRule) error {
+	var recorded string
+	err := conn.QueryRowContext(ctx,
+		"SELECT checksum FROM schema_migrations WHERE filename = $1", rule.oldName,
+	).Scan(&recorded)
+	if errors.Is(err, sql.ErrNoRows) {
+		return fmt.Errorf(
+			"duplicate object error is not proof that %s ran completely: no record for the previous filename %s; refusing to skip the migration",
+			rule.newName, rule.oldName,
+		)
+	}
+	if err != nil {
+		return fmt.Errorf("verify legacy history for %s: %w", rule.newName, err)
+	}
+	if recorded != rule.oldChecksum {
+		return fmt.Errorf(
+			"legacy history drift for %s: schema_migrations records %s with checksum %s, registry expects %s; refusing to skip the migration",
+			rule.newName, rule.oldName, recorded, rule.oldChecksum,
+		)
+	}
+	return nil
 }
