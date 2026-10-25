@@ -305,5 +305,45 @@ export const getUserSteps = (t: (key: string) => string): DriveStep[] => [
       align: 'center',
       showButtons: ['close']
     }
+  },
+
+  // ========== 本轮新功能：充值与兑换 / 分组链与兜底 / 使用记录 / 站内帮助 ==========
+  // 这几步是「说明型」步骤（不绑定具体元素），只讲真实存在的能力，
+  // 避免元素不在当前页面时引导卡住。
+  {
+    popover: {
+      title: t('onboarding.user.recharge.title'),
+      description: t('onboarding.user.recharge.description'),
+      align: 'center',
+      nextBtnText: t('onboarding.user.welcome.nextBtn'),
+      prevBtnText: t('onboarding.user.welcome.prevBtn')
+    }
+  },
+  {
+    popover: {
+      title: t('onboarding.user.keyChain.title'),
+      description: t('onboarding.user.keyChain.description'),
+      align: 'center',
+      nextBtnText: t('onboarding.user.welcome.nextBtn'),
+      prevBtnText: t('onboarding.user.welcome.prevBtn')
+    }
+  },
+  {
+    popover: {
+      title: t('onboarding.user.usage.title'),
+      description: t('onboarding.user.usage.description'),
+      align: 'center',
+      nextBtnText: t('onboarding.user.welcome.nextBtn'),
+      prevBtnText: t('onboarding.user.welcome.prevBtn')
+    }
+  },
+  {
+    popover: {
+      title: t('onboarding.user.help.title'),
+      description: t('onboarding.user.help.description'),
+      align: 'center',
+      nextBtnText: t('onboarding.user.welcome.nextBtn'),
+      prevBtnText: t('onboarding.user.welcome.prevBtn')
+    }
   }
 ]

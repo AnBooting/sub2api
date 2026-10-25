@@ -253,7 +253,7 @@ export default {
         actions: '操作'
       },
       types: {
-        balance: '余额',
+        balance: '余额（Credit）',
         concurrency: '并发数',
         subscription: '订阅',
         invitation: '邀请码',
@@ -262,7 +262,7 @@ export default {
         admin_concurrency: '并发数（管理员）'
       },
       // 用于选择器和筛选器的直接键
-      balance: '余额',
+      balance: '余额（Credit）',
       concurrency: '并发数',
       subscription: '订阅',
       invitation: '邀请码',
@@ -416,9 +416,9 @@ export default {
         addAndCondition: '添加 AND 条件',
         conditionType: '条件类型',
         conditionSubscription: '订阅套餐',
-        conditionBalance: '余额',
+        conditionBalance: '余额（Credit）',
         operator: '运算符',
-        balanceValue: '余额阈值',
+        balanceValue: '余额阈值（Credit）',
         selectPackages: '选择套餐'
       },
       operators: {
@@ -540,7 +540,7 @@ export default {
       failedToLoad: '加载使用记录失败',
       billingType: '计费类型',
       allBillingTypes: '全部计费类型',
-      billingTypeBalance: '钱包余额',
+      billingTypeBalance: '钱包余额（Credit）',
       billingTypeSubscription: '订阅套餐',
       billingMode: '计费模式',
       billingModeToken: '按量',

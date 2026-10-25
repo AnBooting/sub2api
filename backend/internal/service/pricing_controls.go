@@ -155,10 +155,37 @@ func (s *PricingService) GetPricingControlStatus() map[string]any {
 		"deepseek_holiday_dates":         holidayDates,
 		"deepseek_calendar_year_missing": calendarMissing,
 		"deepseek_calendar_years":        years, "deepseek_calendar_error": calendarError,
-		"usd_model_count": len(s.pricingData), "usd_last_updated": s.lastUpdated,
+		"deepseek_current_period": s.deepseekCurrentPeriod(),
+		"usd_model_count":         len(s.pricingData), "usd_last_updated": s.lastUpdated,
 		"usd_error":       s.usdPricingError,
 		"cny_model_count": len(s.nativeCNYCards), "cny_last_updated": s.nativeCNYUpdated, "cny_error": s.nativeCNYError,
 	}
+}
+
+// deepseekCurrentPeriod 返回 DeepSeek 官方峰谷的当前档位。
+//
+// 判定口径与计费路径完全一致：同一份假日日历（deepseekCalendarAt）、
+// 同一套窗口规则（deepseekOfficialStateAt / deepseekOfficialNextSwitchAt），
+// 因此管理端看到的「现在是峰还是谷、下一档什么时候切」与实际计费不会两套。
+func (s *PricingService) deepseekCurrentPeriod() map[string]any {
+	now := time.Now()
+	calendar := s.deepseekCalendarAt(now)
+	state, label, multiplier := deepseekOfficialStateAt(now, calendar)
+	period := deepseekPricingPeriodWithCalendar(now, calendar)
+	out := map[string]any{
+		"state":                 state,
+		"label":                 label,
+		"timezone":              DeepSeekPricingTimezone,
+		"window":                deepseekOfficialPeakWindow,
+		"multiplier":            multiplier,
+		"calendar_year_missing": period.CalendarYearMissing,
+	}
+	if next, ok := deepseekOfficialNextSwitchAt(now, calendar); ok {
+		out["next_switch_at"] = next.Format(time.RFC3339)
+	} else {
+		out["next_switch_at"] = nil
+	}
+	return out
 }
 
 func (s *PricingService) loadControls(ctx context.Context) error {

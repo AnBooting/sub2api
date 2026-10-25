@@ -586,6 +586,14 @@
           :disabled="submitting"
           @changed="onHAChanged"
         />
+        <!-- PRD-04/TS-04：新建 Key 时也能开启高可用兜底。授权对象是新建出来的
+             Key，所以这里先记录选择，创建成功后再逐个开通。 -->
+        <KeyHAGroupPicker
+          v-if="!showEditModal"
+          v-model="formData.ha_group_ids"
+          :groups="groups"
+          :disabled="submitting"
+        />
 
         <!-- Custom Key Section (only for create) -->
         <div v-if="!showEditModal" class="space-y-3">
@@ -1225,6 +1233,7 @@ import BulkEditKeysModal from '@/components/keys/BulkEditKeysModal.vue'
 import GroupChainEditor from '@/components/keys/GroupChainEditor.vue'
 import KeyGroupChain from '@/components/keys/KeyGroupChain.vue'
 import KeyHAGroupOptIn from '@/components/keys/KeyHAGroupOptIn.vue'
+import KeyHAGroupPicker from '@/components/keys/KeyHAGroupPicker.vue'
 import { normalGroupIds, normalGroupEntries, replaceNormalGroups, isGroupChainConflict } from '@/utils/keyGroupChain'
 	import DataTable from '@/components/common/DataTable.vue'
 	import Pagination from '@/components/common/Pagination.vue'
@@ -1448,6 +1457,8 @@ const formData = ref({
   name: '',
   group_id: null as number | null,
   group_ids: [] as number[],
+  // 新建 Key 时勾选的高可用兜底分组（创建成功后逐个开通授权）
+  ha_group_ids: [] as number[],
   status: 'active' as 'active' | 'inactive',
   use_custom_key: false,
   custom_key: '',
@@ -1732,6 +1743,8 @@ const editKey = (key: ApiKey) => {
     name: key.name,
     group_id: normalGroupIds(key)[0] ?? null,
     group_ids: normalGroupIds(key),
+    // 编辑态不展示新建用的兜底勾选（授权在编辑页单独管理）
+    ha_group_ids: [],
     status: key.status === 'quota_exhausted' || key.status === 'expired' ? 'inactive' : key.status,
     use_custom_key: false,
     custom_key: '',
@@ -1904,7 +1917,7 @@ const handleSubmit = async () => {
       appStore.showSuccess(t('keys.keyUpdatedSuccess'))
     } else {
       const customKey = formData.value.use_custom_key ? formData.value.custom_key : undefined
-      await keysAPI.create(
+      const created = await keysAPI.create(
         formData.value.name,
         formData.value.group_id,
         customKey,
@@ -1915,6 +1928,13 @@ const handleSubmit = async () => {
         rateLimitData,
         normalGroupEntries(formData.value.group_ids.length ? formData.value.group_ids : (formData.value.group_id ? [formData.value.group_id] : []))
       )
+      // 新建 Key 时勾选的高可用兜底：Key 建好之后才能逐个开通（服务端会重新校验分组标记与范围）。
+      if (formData.value.ha_group_ids.length) {
+        const { failed } = await keysAPI.enableKeyHAGroups(created.id, formData.value.ha_group_ids)
+        if (failed.length) {
+          appStore.showWarning(t('keys.ha.enablePartialFailed', { count: failed.length }))
+        }
+      }
       appStore.showSuccess(t('keys.keyCreatedSuccess'))
       // Only advance tour if active, on submit step, and creation succeeded
       if (onboardingStore.isCurrentStep('[data-tour="key-form-submit"]')) {
@@ -1960,6 +1980,7 @@ const closeModals = () => {
     name: '',
     group_id: null,
     group_ids: [],
+    ha_group_ids: [],
     status: 'active',
     use_custom_key: false,
     custom_key: '',

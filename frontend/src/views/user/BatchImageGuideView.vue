@@ -762,6 +762,7 @@ import Select, { type SelectOption } from '@/components/common/Select.vue'
 import SearchInput from '@/components/common/SearchInput.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { useClipboard } from '@/composables/useClipboard'
+import { formatCustomerCredit } from '@/utils/billingCredits'
 import { getPersistedPageSize, setPersistedPageSize } from '@/composables/usePersistedPageSize'
 import { useAppStore } from '@/stores/app'
 import { keysAPI } from '@/api'
@@ -2385,8 +2386,9 @@ function friendlyItemError(error: BatchImageItem['error']) {
 }
 
 function formatMoney(value: number | null | undefined) {
-  if (value === null || value === undefined || Number.isNaN(Number(value))) return '$0.00'
-  return `$${Number(value).toFixed(2)}`
+  // 批量生图费用走账户余额，统一用 Credit（客户账本单位），不再混用 $ 前缀。
+  if (value === null || value === undefined || Number.isNaN(Number(value))) return formatCustomerCredit(0)
+  return formatCustomerCredit(Number(value))
 }
 
 function terminalZeroCost(job: Pick<BatchImageJob, 'status' | 'actual_cost'>) {

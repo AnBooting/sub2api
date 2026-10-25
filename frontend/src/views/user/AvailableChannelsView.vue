@@ -22,6 +22,10 @@
           </div>
 
           <div class="flex w-full flex-shrink-0 flex-wrap items-center justify-end gap-3 lg:w-auto">
+            <!-- 视频任务入口：与「可用渠道」相邻，用户可查看自己提交的视频任务状态 -->
+            <RouterLink to="/video-tasks" class="btn btn-secondary" data-testid="video-tasks-entry">
+              {{ t('videoTasks.entry') }}
+            </RouterLink>
             <button
               @click="loadChannels"
               :disabled="loading"

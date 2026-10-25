@@ -4,6 +4,8 @@ export default {
     subtitle: 'Browse products, place an order and collect your code on this site',
     accountLabel: 'Recharge account',
     currentBalance: 'Current balance',
+    creditRateHint: '\u00a51 gets you 1 Credit (no currency conversion)',
+    manualRedeemHint: 'A successful payment is not credited automatically \u2014 redeem the card code on the Redeem page.',
     tabs: {
       products: 'Products',
       orders: 'My orders',
@@ -55,9 +57,18 @@ export default {
       title: 'Complete your payment',
       qrHint: 'Scan the QR code below with your payment app to complete the payment',
       redirectHint: 'Continue to the payment page to complete the payment',
+      goPay: 'Go to payment',
       redirectBlocked: 'The payment redirect target is not authorized, so the redirect was blocked. Please contact the site owner.',
       pendingHint: 'After paying, click "Check latest status". This page never treats a frontend result as proof of payment.',
       expiresAt: 'Pay before {time}',
+    },
+    orders: {
+      title: 'My orders',
+      detailTitle: 'Order details',
+      backToList: 'Back to order list',
+      empty: 'No orders yet',
+      loading: 'Loading orders\u2026',
+      paidAt: 'Paid at',
     },
     steps: {
       select: 'Choose product',

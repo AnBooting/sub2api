@@ -13,6 +13,14 @@
       v-html="descriptionHtml"
     ></div>
 
+    <!-- 价格口径说明:这里展示的是源币种价目,不是账户余额的 Credit -->
+    <p
+      class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs leading-relaxed text-gray-600 dark:border-dark-700/60 dark:bg-dark-800/50 dark:text-gray-300"
+      data-testid="model-plaza-source-price-note"
+    >
+      {{ t('modelPlaza.sourcePriceNote') }}
+    </p>
+
     <!-- 未登录提示 -->
     <p
       v-if="!isAuthenticated"
