@@ -30,6 +30,7 @@ func ProvideOpenAIGatewayService(
 	settingService *SettingService,
 	userPlatformQuotaRepo UserPlatformQuotaRepository,
 	apiKeyService *APIKeyService,
+	opsRepo OpsRepository,
 ) *OpenAIGatewayService {
 	gateway := NewOpenAIGatewayService(
 		accountRepo,
@@ -56,5 +57,7 @@ func ProvideOpenAIGatewayService(
 		userPlatformQuotaRepo,
 	)
 	gateway.SetAPIKeyService(apiKeyService)
+	// Live 结算失败审计走 ops 错误日志（独立于 usage_logs，不参与用量汇总）。
+	gateway.SetOpsRepository(opsRepo)
 	return gateway
 }
