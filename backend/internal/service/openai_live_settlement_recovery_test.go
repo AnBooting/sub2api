@@ -252,3 +252,99 @@ func TestLiveSettlementRefreezeDurationFallsBackWhenExpiresAtMissing(t *testing.
 	require.Equal(t, fallback, svc.liveSettlementDurationCapMs(record), "缺 ExpiresAt 时回落到配置的最大会话时长")
 	require.LessOrEqual(t, *log.DurationMs, fallback, "时长必须封顶到回落上限")
 }
+
+// liveRecordingOpsRepo 只记录 InsertErrorLog 的入参，用于断言审计事件的形状。
+// 它不实现其它方法：Live 审计只用到 InsertErrorLog。
+type liveRecordingOpsRepo struct {
+	OpsRepository
+	mu      sync.Mutex
+	entries []*OpsInsertErrorLogInput
+	err     error
+}
+
+func (r *liveRecordingOpsRepo) InsertErrorLog(_ context.Context, input *OpsInsertErrorLogInput) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.entries = append(r.entries, input)
+	return int64(len(r.entries)), r.err
+}
+
+func (r *liveRecordingOpsRepo) snapshot() []*OpsInsertErrorLogInput {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	out := make([]*OpsInsertErrorLogInput, len(r.entries))
+	copy(out, r.entries)
+	return out
+}
+
+// TestLiveSettlementPendingAuditIsObservable 锁定失败审计的落库口径。
+//
+// 这条审计是「结算停在 pending」唯一的排障入口，写歪了等于没写：
+//   - CreatedAt 零值会落成 0001-01-01 → 时间窗查询查不到、retention 下一轮删掉；
+//   - StatusCode < 400 会被管理端错误列表的守卫挡掉；
+//   - ErrorPhase 必须落在管理端枚举内。
+func TestLiveSettlementPendingAuditIsObservable(t *testing.T) {
+	price := 0.1
+	svc, store, usage, billing := newLiveSettlementTestService()
+	audit := &liveRecordingOpsRepo{}
+	svc.SetOpsRepository(audit)
+	record := newLiveSettlementRecord(t, store, 0, &price)
+
+	billing.err = errors.New("temporary ledger outage")
+	svc.finalizeLiveCall(record)
+
+	entries := audit.snapshot()
+	require.Len(t, entries, 1, "结算失败必须留下一条审计事件")
+
+	entry := entries[0]
+	require.Equal(t, record.CallHash, entry.RequestID)
+	require.False(t, entry.CreatedAt.IsZero(), "CreatedAt 必须显式填写，零值会落成 0001-01-01")
+	require.GreaterOrEqual(t, entry.StatusCode, 400, "StatusCode 必须 >= 400，否则管理端错误列表会过滤掉")
+	require.Equal(t, "internal", entry.ErrorPhase, "ErrorPhase 必须在管理端枚举内")
+	require.Equal(t, "live_settlement_pending", entry.ErrorType)
+	require.NotEmpty(t, entry.ErrorMessage)
+	require.Contains(t, entry.ErrorMessage, "1 attempt")
+
+	// 审计事件不参与用量汇总：usage_logs 仍然一行都没有。
+	require.Len(t, usage.logs, 0, "失败尝试不得写 usage_logs")
+}
+
+// TestLiveSettlementPendingAuditSurvivesOpsFailure 审计写入失败不得影响结算。
+func TestLiveSettlementPendingAuditSurvivesOpsFailure(t *testing.T) {
+	price := 0.1
+	svc, store, _, billing := newLiveSettlementTestService()
+	audit := &liveRecordingOpsRepo{err: errors.New("ops store unavailable")}
+	svc.SetOpsRepository(audit)
+	record := newLiveSettlementRecord(t, store, 0, &price)
+
+	billing.err = errors.New("temporary ledger outage")
+	require.NotPanics(t, func() { svc.finalizeLiveCall(record) })
+
+	// 结算状态仍然是 pending 且金额已冻结，等待下一次重试。
+	current, err := store.GetLiveCall(context.Background(), record.CallHash)
+	require.NoError(t, err)
+	require.NotNil(t, current.Settlement)
+	require.Equal(t, LiveSettlementPending, current.Settlement.Status)
+	require.Positive(t, current.Settlement.TotalCost)
+}
+
+// TestLiveSettlementRetryKeepsBudgetWhenCheckpointWriteKeepsFailing 检查点持续写不进
+// Redis 时，重试预算不能被「存储里没有 Settlement」提前耗尽。
+func TestLiveSettlementRetryKeepsBudgetWhenCheckpointWriteKeepsFailing(t *testing.T) {
+	previous := liveSettlementRetryInterval
+	liveSettlementRetryInterval = func(int) time.Duration { return time.Millisecond }
+	t.Cleanup(func() { liveSettlementRetryInterval = previous })
+
+	price := 0.1
+	svc, store, _, billing := newLiveSettlementTestService()
+	record := newLiveSettlementRecord(t, store, 0, &price)
+	svc.cache = &liveCheckpointFailStore{liveTestStore: store, failSave: true}
+	billing.err = errors.New("temporary ledger outage")
+
+	svc.finalizeLiveCall(record)
+	require.Equal(t, 1, billing.calls, "首次 finalize 尝试一次扣费")
+	// 检查点写不进 Redis：存储里永远没有 Settlement，重试必须靠内存冻结继续。
+	svc.retryPendingLiveSettlement(record)
+	require.Equal(t, 1+liveSettlementRetryAttempts, billing.calls,
+		"检查点持续写失败时重试预算不得塌缩")
+}

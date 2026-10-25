@@ -855,11 +855,25 @@ func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord
 		}
 		// finalizeLiveCall 内部会重新读取记录，这里必须回读才能看到最新状态，
 		// 否则会话已结算后仍会多睡一整轮退避。
+		//
+		// 退出判据必须与入口一致：检查点写不进 Redis 时存储里永远没有 Settlement，
+		// 若这里按「存储为空就退出」判断，重试预算会从 5 次塌缩成 2 次——而
+		// 「检查点写失败」正是这条重试存在的原因。因此存储为空但内存还有冻结时，
+		// 继续用内存冻结判断：只有它不再是 pending（已结算）才真正退出。
 		settled, getErr := store.GetLiveCall(context.Background(), record.CallHash)
 		if getErr != nil {
-			return
+			if frozen == nil {
+				return
+			}
+			continue
 		}
-		if settled.Settlement == nil || settled.Settlement.Status != LiveSettlementPending {
+		if settled == nil || settled.Settlement == nil {
+			if frozen == nil {
+				return
+			}
+			continue
+		}
+		if settled.Settlement.Status != LiveSettlementPending {
 			return
 		}
 	}
@@ -1149,14 +1163,24 @@ func (s *OpenAIGatewayService) writeLiveUsageLog(usageLog *UsageLog) bool {
 	return writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
 }
 
-// recordLiveSettlementPendingAudit 记录一次"结算未完成"的审计事件。
+// recordLiveSettlementPendingAudit 记录一次「结算未完成」的审计事件。
 //
 // 它刻意**不写 usage_logs**：那张表是请求数、目录费用、账号成本与会话时长的单一
 // 事实源，汇总 SQL 直接按 total_cost / duration_ms 求和，多一条行就会把一次会话
 // 的费用与时长重复计入。失败诊断属于排障信息，放 ops 错误日志更合适，也不参与
 // 任何用量汇总。
 //
-// best-effort：ops 未装配或写入失败都只记日志，绝不影响结算正确性。
+// 落库口径必须与 OpsService.RecordError 对齐，否则这条记录「写了但看不见」：
+//   - CreatedAt 必须显式填（InsertErrorLog 不像批量接口那样兜底，零值会落成
+//     0001-01-01，时间窗查询查不到、retention 下一轮就删掉）；
+//   - StatusCode 必须 >= 400：管理端错误列表的守卫是
+//     (COALESCE(status_code,0) >= 400 OR error_type='cyber_policy')，NULL 会被挡掉；
+//   - ErrorPhase 必须在管理端枚举内（request/auth/routing/upstream/network/internal），
+//     所以用 internal，具体原因放 ErrorType；
+//   - Severity 用表内既有的 P0-P3 分类，warning 不在其中。
+//
+// best-effort：ops 未装配或写入失败都只记日志，绝不影响结算正确性；插入带超时，
+// 避免数据库卡住时把 observer goroutine 一起挂住。
 func (s *OpenAIGatewayService) recordLiveSettlementPendingAudit(record *LiveCallRecord, state *LiveSettlement, cause error) {
 	if s == nil || s.opsRepo == nil || record == nil {
 		return
@@ -1167,7 +1191,10 @@ func (s *OpenAIGatewayService) recordLiveSettlementPendingAudit(record *LiveCall
 	}
 	requestType := int16(RequestTypeLive)
 	userID, apiKeyID, accountID := record.UserID, record.APIKeyID, record.AccountID
-	_, err := s.opsRepo.InsertErrorLog(context.Background(), &OpsInsertErrorLogInput{
+	statusCode := http.StatusInternalServerError
+	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	defer cancel()
+	_, err := s.opsRepo.InsertErrorLog(ctx, &OpsInsertErrorLogInput{
 		RequestID:    record.CallHash,
 		UserID:       &userID,
 		APIKeyID:     &apiKeyID,
@@ -1175,9 +1202,11 @@ func (s *OpenAIGatewayService) recordLiveSettlementPendingAudit(record *LiveCall
 		Platform:     PlatformOpenAI,
 		Model:        record.Model,
 		RequestType:  &requestType,
-		ErrorPhase:   "settlement",
+		CreatedAt:    time.Now(),
+		ErrorPhase:   "internal",
 		ErrorType:    "live_settlement_pending",
-		Severity:     "warning",
+		Severity:     "P2",
+		StatusCode:   statusCode,
 		ErrorMessage: fmt.Sprintf("live settlement pending after %d attempts: %v", attempts, cause),
 	})
 	if err != nil {
