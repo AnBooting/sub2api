@@ -1,0 +1,24 @@
+{
+  "date": "2026-10-25",
+  "timezone": "Asia/Singapore",
+  "repository": "AnBooting/sub2api",
+  "develop": "4956d55982b134e615feb1e787e19846b1c9ddf0",
+  "heads": {
+    "11": "98296a89c9a7efd5b8f26073022a71d285e5cfb5",
+    "12": "ca323218cf55084a0757b60f61d2e0fb41f07dc2",
+    "13": "a7ac8e389de852abe1f3335c86451a7f1cd5ccc6"
+  },
+  "sharedMigrationBlobs": {
+    "backend/internal/repository/migrations_runner.go": "27b8439c429674fd82c143c9641e1b236ed9fdcf",
+    "backend/internal/repository/migrations_renamed_replay.go": "dd0c250efe9d0182e9346adca3e709e21bcf7bc8"
+  },
+  "expectedFailingTests": [
+    "TestReviewMigrationDuplicateWithoutVerifiedLegacyHistoryMustFail",
+    "TestReviewLiveObserverRetriesWhenCheckpointAndLedgerFailTogether",
+    "TestReviewLiveFailedAttemptDoesNotDoubleRecordedUsage"
+  ],
+  "merged": [],
+  "deployed": false,
+  "realDatabaseUpgradeTested": false,
+  "paidUpstreamRequests": false
+}
