@@ -488,6 +488,9 @@ type OpenAIGatewayService struct {
 	userPlatformQuotaRepo UserPlatformQuotaRepository
 	liveAttestation       liveattestation.Provider
 	liveAttestationCipher SecretEncryptor
+	// opsRepo 用于 Live 结算失败的审计事件（独立于 usage_logs，不参与用量汇总）。
+	// 可为 nil：未装配时只记日志，不影响结算。
+	opsRepo OpsRepository
 
 	openaiWSPoolOnce               sync.Once
 	openaiWSStateStoreOnce         sync.Once
@@ -727,6 +730,18 @@ func (s *OpenAIGatewayService) SetAPIKeyService(apiKeyService *APIKeyService) {
 		return
 	}
 	s.apiKeyService = apiKeyService
+}
+
+// SetOpsRepository 注入 ops 错误日志仓储，供 Live 结算失败时记录审计事件。
+//
+// 与 SetAPIKeyService 同款「构造后注入」：NewOpenAIGatewayService 已有 22 个位置
+// 参数、被大量测试装配按位置引用，加宽参数会连锁修改几十处测试；而审计只是可选的
+// 旁路依赖，未注入时降级为日志即可。
+func (s *OpenAIGatewayService) SetOpsRepository(opsRepo OpsRepository) {
+	if s == nil {
+		return
+	}
+	s.opsRepo = opsRepo
 }
 
 // CloseOpenAIWSPool 关闭 OpenAI WebSocket 连接池的后台 worker 和空闲连接。

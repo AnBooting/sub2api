@@ -802,22 +802,39 @@ func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord
 	if err != nil {
 		return
 	}
-	// 状态一律以存储中的最新记录为准：调用方手上的副本可能还没带上刚冻结的
-	// pending 检查点（检查点保存失败、或结算刚在本次调用里冻结），按副本判断会
-	// 直接返回，重试永远启动不了 —— 这正是"结算停在 pending 却没人再收"的成因。
-	readCtx, readCancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	latest, getErr := store.GetLiveCall(readCtx, record.CallHash)
-	readCancel()
-	if getErr != nil || latest == nil {
-		return
-	}
-	if latest.Settlement == nil || latest.Settlement.Status != LiveSettlementPending {
-		return
-	}
-	// 规则 A：本进程内已经冻结过就沿用那一份（调用方副本带着首次冻结）。
+	// 规则 A（必须在回读存储**之前**取）：本进程内已经冻结过就沿用那一份。
+	//
+	// 检查点写失败时（Redis 写不进去），存储里根本没有 Settlement —— 若先回读、
+	// 看到 Settlement 为空就返回，那么「检查点与账本同时失败」这个正是要救的场景
+	// 永远走不到重试分支，待收费用只能等短 TTL 过期丢掉。所以顺序必须是
+	// 「先取内存冻结 → 再回读存储 → 两者都没有才放弃」。
 	var frozen *LiveSettlement
 	if record.Settlement != nil && record.Settlement.Status == LiveSettlementPending {
 		frozen = record.Settlement
+	}
+	readCtx, readCancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	latest, getErr := store.GetLiveCall(readCtx, record.CallHash)
+	readCancel()
+	if getErr != nil {
+		// 回读失败不等于「没有待结算」：内存里有冻结就继续重试，
+		// 让重试循环里的回读去消化这次抖动。
+		if frozen == nil {
+			return
+		}
+		latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+	}
+	if latest == nil {
+		if frozen == nil {
+			return
+		}
+		latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+	}
+	if latest.Settlement == nil && frozen != nil {
+		// 存储里没有检查点（写失败过），但内存里还留着首次冻结：带上它继续重试。
+		latest.Settlement = frozen
+	}
+	if latest.Settlement == nil || latest.Settlement.Status != LiveSettlementPending {
+		return
 	}
 	for attempt := 0; attempt < liveSettlementRetryAttempts; attempt++ {
 		time.Sleep(liveSettlementRetryInterval(attempt))
@@ -991,14 +1008,14 @@ func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
 			zap.Int("attempts", settleState.Attempts),
 			zap.Error(err),
 		)
-		// 失败审计行用**独立**的 request_id：usage_logs 的唯一键是
-		// (request_id, api_key_id) 且 ON CONFLICT DO NOTHING，若审计行占住正式费用行的
-		// request_id，补扣成功后的正式金额行会被这条零费用行挡住 —— 余额扣了钱，
-		// 用户账单与汇总统计却永远是 0。审计与财务用量行必须是两行。
-		auditLog := *usageLog
-		auditLog.RequestID = livePendingAuditRequestID(current)
-		auditLog.ActualCost = 0
-		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, &auditLog, "service.openai_live")
+		// 失败诊断**不写进 usage_logs**：usage_logs 是请求数、目录费用、账号成本回落
+		// 与会话时长的单一事实源，汇总 SQL 直接 SUM(total_cost)/SUM(duration_ms)。
+		// 往里塞第二条审计行（哪怕 ActualCost 清零）会把一次会话的 TotalCost 与
+		// DurationMs 重复计一遍：余额没重复扣，但统计口径全部失真。
+		//
+		// 因此失败诊断走 ops 错误日志（独立存储、不参与用量汇总），
+		// usage_logs 保持「每会话恰好一条财务用量行」。
+		s.recordLiveSettlementPendingAudit(current, settleState, err)
 		return
 	}
 	// 只有确认金额行已落库才置 UsageLogWritten：置早了这次结算就不会再补写，
@@ -1132,15 +1149,41 @@ func (s *OpenAIGatewayService) writeLiveUsageLog(usageLog *UsageLog) bool {
 	return writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
 }
 
-// livePendingAuditRequestID 是"结算未完成"审计行的 request_id：与正式费用行
-// (record.CallHash) 分开，避免占住正式行的唯一键——正式行的金额必须在补扣成功后
-// 以自己的 request_id 落库（usage_logs 唯一键 + ON CONFLICT DO NOTHING）。
+// recordLiveSettlementPendingAudit 记录一次"结算未完成"的审计事件。
 //
-// 后缀固定为 ":pending"：管理员用量列表会展示 request_id，这里要的是人能读懂的
-// 形态（"这条会话的结算还没完成"），不放重试次数之类的内部诊断；同一会话多次失败
-// 也只留一条审计行（唯一键去重）。
-func livePendingAuditRequestID(record *LiveCallRecord) string {
-	return record.CallHash + ":pending"
+// 它刻意**不写 usage_logs**：那张表是请求数、目录费用、账号成本与会话时长的单一
+// 事实源，汇总 SQL 直接按 total_cost / duration_ms 求和，多一条行就会把一次会话
+// 的费用与时长重复计入。失败诊断属于排障信息，放 ops 错误日志更合适，也不参与
+// 任何用量汇总。
+//
+// best-effort：ops 未装配或写入失败都只记日志，绝不影响结算正确性。
+func (s *OpenAIGatewayService) recordLiveSettlementPendingAudit(record *LiveCallRecord, state *LiveSettlement, cause error) {
+	if s == nil || s.opsRepo == nil || record == nil {
+		return
+	}
+	attempts := 0
+	if state != nil {
+		attempts = state.Attempts
+	}
+	requestType := int16(RequestTypeLive)
+	userID, apiKeyID, accountID := record.UserID, record.APIKeyID, record.AccountID
+	_, err := s.opsRepo.InsertErrorLog(context.Background(), &OpsInsertErrorLogInput{
+		RequestID:    record.CallHash,
+		UserID:       &userID,
+		APIKeyID:     &apiKeyID,
+		AccountID:    &accountID,
+		Platform:     PlatformOpenAI,
+		Model:        record.Model,
+		RequestType:  &requestType,
+		ErrorPhase:   "settlement",
+		ErrorType:    "live_settlement_pending",
+		Severity:     "warning",
+		ErrorMessage: fmt.Sprintf("live settlement pending after %d attempts: %v", attempts, cause),
+	})
+	if err != nil {
+		logger.LegacyPrintf("service.openai_live",
+			"live settlement audit unavailable call_hash=%s attempts=%d err=%v", record.CallHash, attempts, err)
+	}
 }
 
 func liveUsageLog(record *LiveCallRecord, state *LiveSettlement, actualCost float64) *UsageLog {

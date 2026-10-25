@@ -120,10 +120,11 @@ func TestLiveSettlementRetryReconcilesZeroCostUsageRow(t *testing.T) {
 	require.Positive(t, billing.lastCmd.BalanceCost)
 	require.Equal(t, billing.lastCmd.BalanceCost, usage.rows[record.CallHash].ActualCost,
 		"补扣成功后正式费用行必须是真实金额")
-	// 失败审计是独立的一行（零费用），不覆盖正式行。
-	audit, ok := usage.rows[record.CallHash+":pending"]
-	require.True(t, ok, "失败审计行必须用独立 request_id 留痕")
-	require.Zero(t, audit.ActualCost)
+	// 失败诊断不进 usage_logs：那张表是费用/时长/请求数的单一事实源，
+	// 多一条行会让一次会话被重复统计。审计改走 ops 错误日志。
+	_, hasPendingRow := usage.rows[record.CallHash+":pending"]
+	require.False(t, hasPendingRow, "失败诊断不得写进 usage_logs")
+	require.Len(t, usage.rows, 1, "一次会话在 usage_logs 里恰好一行")
 }
 
 // TestLiveSettlementCheckpointFailureDoesNotHideSettlement 关闭标记已落库、但冻结
