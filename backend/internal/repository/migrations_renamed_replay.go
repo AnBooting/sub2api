@@ -38,6 +38,20 @@ type renamedMigrationReplayRule struct {
 	currentChecksum string
 	// duplicateErrorCodes 是允许容错的 PostgreSQL SQLSTATE；为空表示该迁移重跑本身不报错。
 	duplicateErrorCodes []string
+	// requiredColumns 是「这份迁移执行完必然存在」的列，用于放行前的完整性取证。
+	//
+	// 为什么必须有这一条：迁移正文在**同一个事务**里执行，任一语句失败就整体回滚。
+	// 旧历史取证只能证明「旧库当年执行过旧名迁移」，不能证明「新名迁移的每条语句
+	// 都生效过」——若库里后来被人删过列、或旧库是部分应用状态，取证仍会通过，
+	// 而放行会把这份迁移永久标记为已应用，缺失的 DDL 再也补不上。
+	// 所以放行前必须确认这些列真实存在；缺失即视为「旧迁移没有完整执行」，失败退出。
+	requiredColumns []requiredColumn
+}
+
+// requiredColumn 描述一份迁移执行完必然存在的列。
+type requiredColumn struct {
+	table  string
+	column string
 }
 
 // renamedMigrationReplayRules 登记 0.2.17 上游同步时重命名的 8 个迁移。
@@ -61,6 +75,12 @@ var renamedMigrationReplayRules = map[string]renamedMigrationReplayRule{
 		oldChecksum:         "007f996aff9b1bb9c6645253087c89d695e09c0356e5f3dd7aa67e870b21ec6a",
 		currentChecksum:     "007f996aff9b1bb9c6645253087c89d695e09c0356e5f3dd7aa67e870b21ec6a",
 		duplicateErrorCodes: []string{"42710"},
+		// 251 共 3 条语句：第 2 条 ADD CONSTRAINT 撞 42710 会让整份迁移回滚，
+		// 第 3 条 pricing_snapshot 从未执行。这两列是「整份迁移真的跑完了」的判据。
+		requiredColumns: []requiredColumn{
+			{table: "channel_model_pricing", column: "currency"},
+			{table: "usage_logs", column: "pricing_snapshot"},
+		},
 	},
 	"252_api_key_group_links.sql": {
 		newName:             "252_api_key_group_links.sql",
@@ -68,6 +88,15 @@ var renamedMigrationReplayRules = map[string]renamedMigrationReplayRule{
 		oldChecksum:         "905b0cb091bce9f60bbf890e3a864f96061172d050ddbc1aa3054e8f261ef82e",
 		currentChecksum:     "905b0cb091bce9f60bbf890e3a864f96061172d050ddbc1aa3054e8f261ef82e",
 		duplicateErrorCodes: []string{"42710", "42P07"},
+		// 252 的失败点在第 2 条 ADD CONSTRAINT；后面的建表与 usage_logs 四列
+		// 都会随事务一起回滚。逐项取证，缺一即失败。
+		requiredColumns: []requiredColumn{
+			{table: "api_keys", column: "group_chain_revision"},
+			{table: "usage_logs", column: "requested_group_id"},
+			{table: "usage_logs", column: "served_group_id"},
+			{table: "usage_logs", column: "failover"},
+			{table: "usage_logs", column: "attempt_count"},
+		},
 	},
 	"253_group_scheduling_strategy.sql": {
 		newName:         "253_group_scheduling_strategy.sql",
@@ -192,6 +221,24 @@ func verifyRenamedMigrationLegacyHistory(ctx context.Context, conn migrationConn
 			"legacy history drift for %s: schema_migrations records %s with checksum %s, registry expects %s; refusing to skip the migration",
 			rule.newName, rule.oldName, recorded, rule.oldChecksum,
 		)
+	}
+	// 旧历史只证明「旧库当年执行过旧名迁移」。迁移正文在同一个事务里执行，
+	// 任一语句失败都会整体回滚，所以还必须确认这份迁移的目标对象真实存在——
+	// 否则放行会把「从未执行过的 DDL」永久标记为已应用，缺列再也补不上。
+	for _, col := range rule.requiredColumns {
+		var exists bool
+		if err := conn.QueryRowContext(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1 AND column_name = $2)",
+			col.table, col.column,
+		).Scan(&exists); err != nil {
+			return fmt.Errorf("verify column %s.%s for %s: %w", col.table, col.column, rule.newName, err)
+		}
+		if !exists {
+			return fmt.Errorf(
+				"column %s.%s is missing but %s is about to be marked as applied: the previous run did not complete; refusing to skip the migration",
+				col.table, col.column, rule.newName,
+			)
+		}
 	}
 	return nil
 }

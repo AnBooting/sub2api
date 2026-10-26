@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-26",
+  "timezone": "Asia/Singapore",
+  "repository": "AnBooting/sub2api",
+  "base": "4956d55982b134e615feb1e787e19846b1c9ddf0",
+  "heads": {
+    "11": "653f4db5330ef9db5868f3cc045cc16ad02a7318",
+    "12": "9372f3ec80de333ea04b3ec3c3e8d9bce8edc6e6",
+    "13": "4b91a93ed5f207f484262a0488d9001591c01f82"
+  },
+  "testedSource": "4b91a93ed5f207f484262a0488d9001591c01f82",
+  "sharedBlobs": {
+    "migrationRunnerAllThreePRs": "a093915d01d16b7237248ce9857d2bcd5588aaed",
+    "legacyIntegrationScenarioAllThreePRs": "8c53cf59a3a8c3297ddf9af22114a0780042767b",
+    "openaiLivePR12AndPR13": "5d8005ce110496652a28ee2332eac430b2723ead"
+  },
+  "expectedFailedTopLevelTests": [
+    "TestReviewExistingLegacyIntegrationContract",
+    "TestReviewLiveObserverRecoversFromOneRedisReadFailure",
+    "TestReviewLiveSettlementDiagnosticIsPrivateFromUserErrorList"
+  ],
+  "merges": [],
+  "preexistingFindingCommit": "6ec185397",
+  "productionChanges": false,
+  "realDatabaseIntegrationRun": false,
+  "paidRequests": false
+}
