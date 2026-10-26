@@ -303,7 +303,11 @@ func TestLiveSettlementPendingAuditIsObservable(t *testing.T) {
 	require.Equal(t, "internal", entry.ErrorPhase, "ErrorPhase 必须在管理端枚举内")
 	require.Equal(t, "live_settlement_pending", entry.ErrorType)
 	require.NotEmpty(t, entry.ErrorMessage)
-	require.Contains(t, entry.ErrorMessage, "1 attempt")
+	// 尝试次数属于排障信息：用户投影会原样下发 error_message，所以它只能留在
+	// 管理员字段（upstream_error_message），不能进公开说明。
+	require.NotContains(t, entry.ErrorMessage, "1 attempt", "公开说明必须是固定文案，不含内部细节")
+	require.NotNil(t, entry.UpstreamErrorMessage)
+	require.Contains(t, *entry.UpstreamErrorMessage, "1 attempt", "管理员侧必须保留尝试次数")
 
 	// 审计事件不参与用量汇总：usage_logs 仍然一行都没有。
 	require.Len(t, usage.logs, 0, "失败尝试不得写 usage_logs")

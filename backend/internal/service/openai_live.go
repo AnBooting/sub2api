@@ -816,12 +816,38 @@ func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord
 	latest, getErr := store.GetLiveCall(readCtx, record.CallHash)
 	readCancel()
 	if getErr != nil {
-		// 回读失败不等于「没有待结算」：内存里有冻结就继续重试，
-		// 让重试循环里的回读去消化这次抖动。
-		if frozen == nil {
+		// 回读失败不等于「没有待结算」：这次可能只是一次瞬时抖动。
+		//
+		// 三处容错点（入口 / 循环头 / 循环尾）必须一致，都不能因为一次读失败
+		// 就放弃。入口先按退避重试几次回读：只要有一次成功就能拿到真实的
+		// pending 记录；全都失败时，只有内存里还握着冻结金额（检查点写失败
+		// 场景）才值得继续，否则无从判断这笔结算是否存在。
+		if errors.Is(getErr, ErrLiveCallNotFound) {
 			return
 		}
-		latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+		latest = nil
+		for entryAttempt := 0; entryAttempt < liveSettlementRetryAttempts; entryAttempt++ {
+			time.Sleep(liveSettlementRetryInterval(entryAttempt))
+			retryCtx, retryCancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+			retried, retryErr := store.GetLiveCall(retryCtx, record.CallHash)
+			retryCancel()
+			if retryErr == nil {
+				latest = retried
+				break
+			}
+			if errors.Is(retryErr, ErrLiveCallNotFound) {
+				return
+			}
+			logger.LegacyPrintf("service.openai_live",
+				"Live 待结算入口回读失败，退避重试 call_hash=%s attempt=%d err=%v",
+				record.CallHash, entryAttempt, retryErr)
+		}
+		if latest == nil {
+			if frozen == nil {
+				return
+			}
+			latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+		}
 	}
 	if latest == nil {
 		if frozen == nil {
@@ -840,7 +866,24 @@ func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord
 		time.Sleep(liveSettlementRetryInterval(attempt))
 		latest, getErr := store.GetLiveCall(context.Background(), record.CallHash)
 		if getErr != nil {
-			return
+			// 一次瞬时读失败不等于「这笔结算不存在」：此刻手上还握着 pending 的冻结
+			// 金额，也还有剩余预算。直接 return 会让 observer 永久退出这条重试链，
+			// 钱只能等 TTL 过期丢掉。只有「记录明确不存在」才值得放弃。
+			if errors.Is(getErr, ErrLiveCallNotFound) {
+				return
+			}
+			logger.LegacyPrintf("service.openai_live",
+				"Live 待结算重试回读失败，保留冻结金额与剩余预算 call_hash=%s attempt=%d err=%v",
+				record.CallHash, attempt, getErr)
+			continue
+		}
+		if latest == nil {
+			// store 返回 (nil, nil) 不是正常契约，但不能因此 panic：
+			// 入口对 nil 有守卫，循环里必须同样处理。
+			if frozen == nil {
+				return
+			}
+			latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
 		}
 		if latest.Settlement == nil && frozen != nil {
 			// 存储里没有冻结检查点（写失败过）：沿用本进程内首次冻结的时长/金额。
@@ -1163,6 +1206,22 @@ func (s *OpenAIGatewayService) writeLiveUsageLog(usageLog *UsageLog) bool {
 	return writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
 }
 
+// liveSettlementPendingPublicMessage 是「结算未完成」对用户可见的唯一说明。
+//
+// ops_error_logs **不是管理员专用表**：OpsService.ListUserErrorRequests 按当前用户
+// 查同一张表，ToUserErrorRequest 把 error_message 原样下发给前端（500 也正好通过
+// status >= 400 的守卫）。账本错误的原文常带内网地址、表名与 SQL 片段，写进
+// error_message 就等于把内部拓扑展示给普通用户。
+//
+// 因此 error_message 只能是这条**固定的公开说明**：不含内部细节、不随错误变化，
+// 前端按稳定的错误码（error_phase=internal → code=internal_error）判定，不解析文案。
+//
+// 文案**不能承诺「会自动重试」**：重试只在 observer 还活着且预算未耗尽时进行
+// （liveSettlementRetryAttempts=4，退避合计约 7.5 分钟），预算耗尽后没有任何后台
+// sweeper 接手，这笔结算会停在 pending 直到记录 TTL 过期。承诺自动重试会把
+// 「泄露内部细节」换成「给用户一个不成立的承诺」。
+const liveSettlementPendingPublicMessage = "Settlement is temporarily unavailable. Please contact support if this persists."
+
 // recordLiveSettlementPendingAudit 记录一次「结算未完成」的审计事件。
 //
 // 它刻意**不写 usage_logs**：那张表是请求数、目录费用、账号成本与会话时长的单一
@@ -1194,21 +1253,57 @@ func (s *OpenAIGatewayService) recordLiveSettlementPendingAudit(record *LiveCall
 	statusCode := http.StatusInternalServerError
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
 	defer cancel()
-	_, err := s.opsRepo.InsertErrorLog(ctx, &OpsInsertErrorLogInput{
-		RequestID:    record.CallHash,
-		UserID:       &userID,
-		APIKeyID:     &apiKeyID,
-		AccountID:    &accountID,
-		Platform:     PlatformOpenAI,
-		Model:        record.Model,
-		RequestType:  &requestType,
-		CreatedAt:    time.Now(),
-		ErrorPhase:   "internal",
-		ErrorType:    "live_settlement_pending",
-		Severity:     "P2",
-		StatusCode:   statusCode,
-		ErrorMessage: fmt.Sprintf("live settlement pending after %d attempts: %v", attempts, cause),
-	})
+	// 只在**首次**失败时留一条审计。
+	//
+	// ops_error_logs 没有 (request_id, error_type) 唯一键，重试每失败一次就写一行；
+	// 而用户错误列表按 user_id 查这张表，于是一条卡住的会话会在用户自己的列表里
+	// 出现 N 条一模一样的「请求失败」——用户会以为自己的请求失败了 N 次。
+	// 重试进度由结构化日志与 settlement.Attempts 记录，这里不需要逐次留痕。
+	if attempts > 1 {
+		return
+	}
+	// 管理员侧摘要与完整诊断：尝试次数是排障的第一分诊信息，cause 原文
+	// （内网地址 / 表名 / SQL 片段）是第二层，两者都只进管理员字段。
+	adminSummary := fmt.Sprintf("live settlement pending after %d attempts", attempts)
+	adminDetail := ""
+	if cause != nil {
+		adminDetail = cause.Error()
+	}
+	input := &OpsInsertErrorLogInput{
+		RequestID:   record.CallHash,
+		UserID:      &userID,
+		APIKeyID:    &apiKeyID,
+		AccountID:   &accountID,
+		Platform:    PlatformOpenAI,
+		Model:       record.Model,
+		RequestType: &requestType,
+		CreatedAt:   time.Now(),
+		ErrorPhase:  "internal",
+		ErrorType:   "live_settlement_pending",
+		Severity:    "P2",
+		StatusCode:  statusCode,
+		// 用户可见：固定公开说明。绝不写 cause。
+		ErrorMessage: liveSettlementPendingPublicMessage,
+		// 管理员可见：完整诊断。用户投影不含这两个字段。
+		UpstreamErrorMessage: &adminSummary,
+		// 这是业务侧暂时不可用（内部账本故障），不是网关自身故障。
+		// 置 true 让运营看板的 SLA 判据（status>=400 AND NOT is_business_limited）
+		// 不把它算成服务端错误——否则一次内部账本故障会按重试次数拉低 SLA。
+		IsBusinessLimited: true,
+	}
+	if adminDetail != "" {
+		input.UpstreamErrorDetail = &adminDetail
+	}
+	// 结构化日志：管理员侧的第二个排障入口（审计写入失败时同样保留）。
+	logger.FromContext(context.Background()).Warn(
+		"Live 会话结算未完成：完整诊断只落管理员字段",
+		zap.Int64("user_id", record.UserID),
+		zap.Int64("api_key_id", record.APIKeyID),
+		zap.String("call_hash", record.CallHash),
+		zap.Int("attempts", attempts),
+		zap.Error(cause),
+	)
+	_, err := s.opsRepo.InsertErrorLog(ctx, input)
 	if err != nil {
 		logger.LegacyPrintf("service.openai_live",
 			"live settlement audit unavailable call_hash=%s attempts=%d err=%v", record.CallHash, attempts, err)
