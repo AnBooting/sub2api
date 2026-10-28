@@ -1,0 +1,71 @@
+=== RUN   TestReviewMigrationDuplicateWithoutVerifiedLegacyHistoryMustFail
+2026/10/25 19:44:06 WARN renamed migration replay tolerated on legacy database migration=251_native_currency_pricing.sql previous_filename=243_native_currency_pricing.sql sqlstate=42710 error="pq: constraint \"channel_model_pricing_currency_check\" already exists (SQLSTATE 42710)"
+    review_migration_history_test.go:27: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261025/pr11/backend/internal/repository/review_migration_history_test.go:27
+        	Error:      	An error is expected but got nil.
+        	Test:       	TestReviewMigrationDuplicateWithoutVerifiedLegacyHistoryMustFail
+        	Messages:   	duplicate constraint alone must not certify the complete old migration or bypass legacy checksum verification
+--- FAIL: TestReviewMigrationDuplicateWithoutVerifiedLegacyHistoryMustFail (0.00s)
+=== RUN   TestReviewRenamedMigrationUpgradesExistingDevelopDatabase
+2026/10/25 19:44:06 WARN renamed migration replay tolerated on legacy database migration=251_native_currency_pricing.sql previous_filename=243_native_currency_pricing.sql sqlstate=42710 error="pq: constraint \"channel_model_pricing_currency_check\" for relation \"channel_model_pricing\" already exists (SQLSTATE 42710)"
+--- PASS: TestReviewRenamedMigrationUpgradesExistingDevelopDatabase (0.00s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	3.908s
+FAIL
+PR #11 review test exit code: 1
+2026/10/25 11:44:42 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestReviewLiveObserverRetriesWhenCheckpointAndLedgerFailTogether
+    review_live_combined_failure_test.go:27: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261025/pr12/backend/internal/service/review_live_combined_failure_test.go:27
+        	Error:      	"1" is not greater than or equal to "2"
+        	Test:       	TestReviewLiveObserverRetriesWhenCheckpointAndLedgerFailTogether
+        	Messages:   	the observer must retry with its in-memory frozen settlement when Redis checkpoint writes failed
+--- FAIL: TestReviewLiveObserverRetriesWhenCheckpointAndLedgerFailTogether (0.00s)
+=== RUN   TestReviewLiveFailedAttemptDoesNotDoubleRecordedUsage
+    review_live_combined_failure_test.go:44: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261025/pr12/backend/internal/service/review_live_combined_failure_test.go:44
+        	Error:      	Max difference between 0.2 and 0.4 allowed is 1e-12, but difference was -0.2
+        	Test:       	TestReviewLiveFailedAttemptDoesNotDoubleRecordedUsage
+        	Messages:   	one successful live session must not contribute its full total_cost twice
+--- FAIL: TestReviewLiveFailedAttemptDoesNotDoubleRecordedUsage (0.00s)
+=== RUN   TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts
+=== RUN   TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/balance
+=== RUN   TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/subscription
+--- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts (0.00s)
+    --- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/balance (0.00s)
+    --- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/subscription (0.00s)
+=== RUN   TestReviewLiveTransientSettlementFailureCanBeRetried
+--- PASS: TestReviewLiveTransientSettlementFailureCanBeRetried (0.00s)
+=== RUN   TestReviewLiveCommandPreservesKeyLimitCosts
+    review_live_followup_test.go:64: live key costs: quota=0.200000 rate_limit=0.200000; full-key builder: quota=0.200000 rate_limit=0.200000
+--- PASS: TestReviewLiveCommandPreservesKeyLimitCosts (0.00s)
+=== RUN   TestReviewLiveRetryUpdatesDurableUsageAmount
+--- PASS: TestReviewLiveRetryUpdatesDurableUsageAmount (0.00s)
+=== RUN   TestReviewLivePendingSurvivesCheckpointWriteFailure
+--- PASS: TestReviewLivePendingSurvivesCheckpointWriteFailure (0.00s)
+=== RUN   TestReviewLiveObserverExpiryAutomaticallyRetriesPendingSettlement
+--- PASS: TestReviewLiveObserverExpiryAutomaticallyRetriesPendingSettlement (0.01s)
+=== RUN   TestReviewLiveReportedChargeHasFinancialSettlement
+=== RUN   TestReviewLiveReportedChargeHasFinancialSettlement/balance
+    review_live_settlement_test.go:36: usage actual_cost=0.200000; billing Apply=1; balance deduction=0; subscription increment=0
+=== RUN   TestReviewLiveReportedChargeHasFinancialSettlement/subscription
+    review_live_settlement_test.go:36: usage actual_cost=0.200000; billing Apply=1; balance deduction=0; subscription increment=0
+--- PASS: TestReviewLiveReportedChargeHasFinancialSettlement (0.00s)
+    --- PASS: TestReviewLiveReportedChargeHasFinancialSettlement/balance (0.00s)
+    --- PASS: TestReviewLiveReportedChargeHasFinancialSettlement/subscription (0.00s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/service	0.854s
+FAIL
+PR #12 review test exit code: 1
+2026/10/25 11:45:09 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestReviewVideoTaskWorkerErrorIsPrivateInUserResponse
+--- PASS: TestReviewVideoTaskWorkerErrorIsPrivateInUserResponse (0.00s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/service	0.495s
+=== RUN   TestReviewVideoTaskSummaryHidesInternalAccountError
+--- PASS: TestReviewVideoTaskSummaryHidesInternalAccountError (0.00s)
+=== RUN   TestVideoTaskPublicErrorMessageFallsBackToInternal
+--- PASS: TestVideoTaskPublicErrorMessageFallsBackToInternal (0.00s)
+PASS
+ok  	github.com/Wei-Shaw/sub2api/internal/handler/dto	0.325s
+PR #13 review test exit code: 0

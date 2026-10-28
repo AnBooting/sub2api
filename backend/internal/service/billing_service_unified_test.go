@@ -300,6 +300,7 @@ func TestCalculateCostUnified_ChannelTimePricingDoesNotApplyOutsideMatchingTime(
 		require.InDelta(t, 1.0, cost.TotalCost, 1e-12,
 			"pricingAt=%v 不在 09:00-12:00 窗口内，不应套用分时倍率", pricingAt)
 	}
+
 }
 
 func TestApplyCostBreakdownMultiplierScalesAllMonetaryFields(t *testing.T) {

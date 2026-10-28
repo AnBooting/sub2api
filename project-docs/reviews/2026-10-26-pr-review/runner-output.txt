@@ -1,0 +1,100 @@
+=== RUN   TestRenamedMigrationReplayRegistryMatchesEmbeddedFiles
+--- PASS: TestRenamedMigrationReplayRegistryMatchesEmbeddedFiles (0.00s)
+=== RUN   TestRenamedMigrationReplayToleratesRegisteredDuplicateConstraint
+2026/10/26 20:20:26 WARN renamed migration replay tolerated on legacy database migration=251_native_currency_pricing.sql previous_filename=243_native_currency_pricing.sql sqlstate=42710 error="pq: constraint \"channel_model_pricing_currency_check\" for relation \"channel_model_pricing\" already exists (SQLSTATE 42710)"
+--- PASS: TestRenamedMigrationReplayToleratesRegisteredDuplicateConstraint (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsUnregisteredMigration
+--- PASS: TestRenamedMigrationReplayRejectsUnregisteredMigration (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsUnexpectedErrorCode
+--- PASS: TestRenamedMigrationReplayRejectsUnexpectedErrorCode (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsModifiedMigrationContent
+--- PASS: TestRenamedMigrationReplayRejectsModifiedMigrationContent (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsMissingLegacyHistory
+--- PASS: TestRenamedMigrationReplayRejectsMissingLegacyHistory (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsLegacyChecksumDrift
+--- PASS: TestRenamedMigrationReplayRejectsLegacyChecksumDrift (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsLegacyHistoryQueryError
+--- PASS: TestRenamedMigrationReplayRejectsLegacyHistoryQueryError (0.00s)
+=== RUN   TestRenamedMigrationReplayRejectsLegacyHistoryRecordFailure
+--- PASS: TestRenamedMigrationReplayRejectsLegacyHistoryRecordFailure (0.00s)
+=== RUN   TestPostgresErrorCodeExtraction
+--- PASS: TestPostgresErrorCodeExtraction (0.00s)
+=== RUN   TestReviewExistingLegacyIntegrationContract
+2026/10/26 20:20:26 WARN renamed migration replay tolerated on legacy database migration=251_native_currency_pricing.sql previous_filename=243_native_currency_pricing.sql sqlstate=42710 error="constraint \"channel_model_pricing_currency_check\" already exists (SQLSTATE 42710)"
+    review_original_legacy_scenario_test.go:69: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261026/source/backend/internal/repository/review_original_legacy_scenario_test.go:69
+        	            				C:/Users/Lans/Documents/sub2api/.review-20261026/source/backend/internal/repository/review_legacy_integration_contract_test.go:47
+        	Error:      	Should be zero, but was 1
+        	Test:       	TestReviewExistingLegacyIntegrationContract
+        	Messages:   	容错路径不应写 schema_migrations（否则会多一次数据库往返）
+--- FAIL: TestReviewExistingLegacyIntegrationContract (0.00s)
+=== RUN   TestReviewMigrationDuplicateWithoutVerifiedLegacyHistoryMustFail
+--- PASS: TestReviewMigrationDuplicateWithoutVerifiedLegacyHistoryMustFail (0.00s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/repository	0.484s
+2026/10/26 12:20:26 Timezone initialized: UTC (UTC offset: +00:00)
+=== RUN   TestReviewLiveSettlementDiagnosticIsPrivateFromUserErrorList
+    review_live_audit_privacy_test.go:46: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261026/source/backend/internal/service/review_live_audit_privacy_test.go:46
+        	Error:      	"{\"items\":[{\"id\":1,\"created_at\":\"2026-10-26T12:20:26.6468249Z\",\"model\":\"gpt-live-test\",\"inbound_endpoint\":\"\",\"status_code\":500,\"category\":\"internal\",\"code\":\"internal_error\",\"platform\":\"openai\",\"message\":\"live settlement pending after 1 attempts: ledger at 10.23.45.67:5432: relation \\\"usage_billing_dedup\\\" is unavailable\",\"key_name\":\"\",\"key_deleted\":false,\"stream\":false}],\"total\":1,\"page\":1,\"page_size\":20}" should not contain "10.23.45.67"
+        	Test:       	TestReviewLiveSettlementDiagnosticIsPrivateFromUserErrorList
+        	Messages:   	internal ledger diagnostics must not become a public error message
+--- FAIL: TestReviewLiveSettlementDiagnosticIsPrivateFromUserErrorList (0.00s)
+=== RUN   TestReviewLiveObserverRetriesWhenCheckpointAndLedgerFailTogether
+--- PASS: TestReviewLiveObserverRetriesWhenCheckpointAndLedgerFailTogether (0.01s)
+=== RUN   TestReviewLiveFailedAttemptDoesNotDoubleRecordedUsage
+--- PASS: TestReviewLiveFailedAttemptDoesNotDoubleRecordedUsage (0.00s)
+=== RUN   TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts
+=== RUN   TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/balance
+=== RUN   TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/subscription
+--- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts (0.00s)
+    --- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/balance (0.00s)
+    --- PASS: TestReviewLiveSimpleModeDoesNotDebitFinancialAccounts/subscription (0.00s)
+=== RUN   TestReviewLiveTransientSettlementFailureCanBeRetried
+--- PASS: TestReviewLiveTransientSettlementFailureCanBeRetried (0.00s)
+=== RUN   TestReviewLiveCommandPreservesKeyLimitCosts
+    review_live_followup_test.go:66: live key costs: quota=0.200000 rate_limit=0.200000; full-key builder: quota=0.200000 rate_limit=0.200000
+--- PASS: TestReviewLiveCommandPreservesKeyLimitCosts (0.00s)
+=== RUN   TestReviewLiveObserverRecoversFromOneRedisReadFailure
+=== RUN   TestReviewLiveObserverRecoversFromOneRedisReadFailure/retry_entry_read
+=== RUN   TestReviewLiveObserverRecoversFromOneRedisReadFailure/retry_loop_read
+    review_live_read_glitch_test.go:53: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261026/source/backend/internal/service/review_live_read_glitch_test.go:53
+        	Error:      	Not equal: 
+        	            	expected: 2
+        	            	actual  : 1
+        	Test:       	TestReviewLiveObserverRecoversFromOneRedisReadFailure/retry_loop_read
+        	Messages:   	one transient read must not discard the remaining retry budget
+    review_live_read_glitch_test.go:54: 
+        	Error Trace:	C:/Users/Lans/Documents/sub2api/.review-20261026/source/backend/internal/service/review_live_read_glitch_test.go:54
+        	Error:      	Not equal: 
+        	            	expected: "settled"
+        	            	actual  : "pending"
+        	            	
+        	            	Diff:
+        	            	--- Expected
+        	            	+++ Actual
+        	            	@@ -1 +1 @@
+        	            	-settled
+        	            	+pending
+        	Test:       	TestReviewLiveObserverRecoversFromOneRedisReadFailure/retry_loop_read
+--- FAIL: TestReviewLiveObserverRecoversFromOneRedisReadFailure (0.00s)
+    --- PASS: TestReviewLiveObserverRecoversFromOneRedisReadFailure/retry_entry_read (0.00s)
+    --- FAIL: TestReviewLiveObserverRecoversFromOneRedisReadFailure/retry_loop_read (0.00s)
+=== RUN   TestReviewLiveRetryUpdatesDurableUsageAmount
+--- PASS: TestReviewLiveRetryUpdatesDurableUsageAmount (0.00s)
+=== RUN   TestReviewLivePendingSurvivesCheckpointWriteFailure
+--- PASS: TestReviewLivePendingSurvivesCheckpointWriteFailure (0.00s)
+=== RUN   TestReviewLiveObserverExpiryAutomaticallyRetriesPendingSettlement
+--- PASS: TestReviewLiveObserverExpiryAutomaticallyRetriesPendingSettlement (0.01s)
+=== RUN   TestReviewLiveReportedChargeHasFinancialSettlement
+=== RUN   TestReviewLiveReportedChargeHasFinancialSettlement/balance
+    review_live_settlement_test.go:38: usage actual_cost=0.200000; billing Apply=1; balance deduction=0; subscription increment=0
+=== RUN   TestReviewLiveReportedChargeHasFinancialSettlement/subscription
+    review_live_settlement_test.go:38: usage actual_cost=0.200000; billing Apply=1; balance deduction=0; subscription increment=0
+--- PASS: TestReviewLiveReportedChargeHasFinancialSettlement (0.00s)
+    --- PASS: TestReviewLiveReportedChargeHasFinancialSettlement/balance (0.00s)
+    --- PASS: TestReviewLiveReportedChargeHasFinancialSettlement/subscription (0.00s)
+FAIL
+FAIL	github.com/Wei-Shaw/sub2api/internal/service	0.702s
+FAIL
