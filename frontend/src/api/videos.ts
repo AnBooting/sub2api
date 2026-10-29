@@ -3,7 +3,8 @@
  *
  * 契约（后端正在改成游标分页）：GET /api/v1/videos/tasks?limit=20&cursor=<cursor>
  *  - 响应 data：{ items: [...], next_cursor: string | null }
- *  - 每项：{ task_no, status, model, platform, billing_mode, created_at, settled_at, last_error }
+ *  - 每项：{ task_no, status, model, platform, billing_mode, created_at, settled_at, last_error, last_error_code }
+ *  - last_error 是可公开的失败说明；last_error_code 是稳定错误码（界面按码 i18n）
  *  - status ∈ processing | completed | failed
  *  - billing_mode ∈ per_token（按量）/ per_request（按次）/ per_second（按秒）
  *  - 空列表返回空数组（不是 404）；未登录 401。
@@ -19,6 +20,21 @@ export type VideoTaskStatus = 'processing' | 'completed' | 'failed'
 
 export type VideoTaskBillingMode = 'per_token' | 'per_request' | 'per_second'
 
+/**
+ * 视频任务失败原因的用户侧错误码（稳定、可枚举、可翻译）。
+ *
+ * 后端只给「错误码 + 可公开说明」，不把内部诊断（承载账号 ID、仓储错误、SQL 片段…）
+ * 下发给用户；界面按码做 i18n，不按文案匹配。
+ */
+export type VideoTaskErrorCode =
+  | 'processing_delayed'
+  | 'account_not_bound'
+  | 'account_load_failed'
+  | 'dependency_unavailable'
+  | 'upstream_failed'
+  | 'settlement_failed'
+  | 'internal_error'
+
 export interface VideoTaskSummary {
   task_no: string
   status: VideoTaskStatus
@@ -28,8 +44,10 @@ export interface VideoTaskSummary {
   created_at: string
   /** 未结算时后端不下发该字段。 */
   settled_at?: string
-  /** 失败原因；成功或处理中为空。 */
+  /** 失败说明或处理状态更新（后端给的是可公开文案，不含内部诊断）。 */
   last_error?: string
+  /** 稳定错误码；界面按码做 i18n。 */
+  last_error_code?: VideoTaskErrorCode
 }
 
 export interface VideoTaskListParams {

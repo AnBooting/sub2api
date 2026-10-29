@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import VideoTasksView from '../VideoTasksView.vue'
+import zhDashboard from '@/i18n/locales/zh/dashboard'
+import enDashboard from '@/i18n/locales/en/dashboard'
 
 const { listVideoTasks } = vi.hoisted(() => ({ listVideoTasks: vi.fn() }))
 
@@ -11,7 +13,13 @@ vi.mock('@/api/videos', () => ({
 
 vi.mock('vue-i18n', async () => {
   const actual = await vi.importActual<typeof import('vue-i18n')>('vue-i18n')
-  return { ...actual, useI18n: () => ({ t: (key: string) => key }) }
+  // 真实 i18n 会翻译；这里只为错误码那组键提供译文，其余键按键名回显，
+  // 便于断言「界面用的是稳定错误码的译文，而不是后端文案」。
+  const translations: Record<string, string> = {
+    'videoTasks.errors.account_load_failed': '任务读取上游账号失败',
+    'videoTasks.errors.processing_delayed': '任务仍在处理中，请稍后查看状态或联系客服。',
+  }
+  return { ...actual, useI18n: () => ({ t: (key: string) => translations[key] ?? key }) }
 })
 
 vi.mock('@/utils/platformColors', () => ({
@@ -108,6 +116,56 @@ describe('VideoTasksView', () => {
     await flushPromises()
 
     expect(wrapper.get('[data-testid="video-task-error"]').text()).toContain('upstream timeout')
+    wrapper.unmount()
+  })
+
+  it('does not promise automatic checks when the worker may be disabled', () => {
+    expect(zhDashboard.videoTasks.errors.processing_delayed).toBe('任务仍在处理中，请稍后查看状态或联系客服。')
+    expect(zhDashboard.videoTasks.errors.settlement_failed).toBe('视频已生成但结算尚未完成，请稍后查看状态或联系客服。')
+    expect(enDashboard.videoTasks.errors.processing_delayed).toBe('The task is still processing. Check its status later or contact support.')
+    expect(enDashboard.videoTasks.errors.settlement_failed).toBe('The video was generated, but settlement is not complete. Check its status later or contact support.')
+  })
+
+  it('labels a processing diagnostic as an update rather than a failure', async () => {
+    listVideoTasks.mockResolvedValue({
+      items: [{
+        ...baseTask,
+        status: 'processing',
+        last_error: 'The task is still processing. Its status will be checked again.',
+        last_error_code: 'processing_delayed',
+      }],
+      next_cursor: null,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.get('[data-testid="video-task-error"]').text()
+    expect(text).toContain('videoTasks.processingUpdate')
+    expect(text).toContain('任务仍在处理中，请稍后查看状态或联系客服。')
+    expect(text).not.toContain('The task is still processing. Its status will be checked again.')
+    expect(text).not.toContain('videoTasks.lastError')
+    wrapper.unmount()
+  })
+
+  it('shows the failure reason by the stable error code and never renders the backend text', async () => {
+    listVideoTasks.mockResolvedValue({
+      items: [{
+        ...baseTask,
+        status: 'failed',
+        last_error: 'load carrying account 99 failed: database temporarily unavailable',
+        last_error_code: 'account_load_failed',
+      }],
+      next_cursor: null,
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const text = wrapper.get('[data-testid="video-task-error"]').text()
+    expect(text).toContain('任务读取上游账号失败')
+    expect(text).not.toContain('load carrying account')
+    expect(text).not.toContain('99')
     wrapper.unmount()
   })
 
