@@ -48,10 +48,11 @@
               </p>
               <p
                 v-if="task.last_error"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1 text-xs"
+                :class="task.status === 'processing' ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'"
                 data-testid="video-task-error"
               >
-                {{ t('videoTasks.lastError') }}: {{ task.last_error }}
+                {{ t(task.status === 'processing' ? 'videoTasks.processingUpdate' : 'videoTasks.lastError') }}: {{ taskErrorLabel(task) }}
               </p>
             </div>
             <span
@@ -115,6 +116,20 @@ function formatTime(value: string | undefined): string {
   const parsed = new Date(value)
   if (Number.isNaN(parsed.getTime())) return '—'
   return parsed.toLocaleString()
+}
+
+/**
+ * 失败说明：优先按后端给的稳定错误码做 i18n（不按文案匹配），
+ * 没有错误码时回落到后端的可公开文案。
+ */
+function taskErrorLabel(task: VideoTaskSummary): string {
+	const code = task.last_error_code
+	if (code) {
+		const key = `videoTasks.errors.${code}`
+		const translated = t(key)
+		if (translated && translated !== key) return translated
+	}
+	return task.last_error || ''
 }
 
 /** 状态只有三种：处理中 / 已完成 / 失败。 */

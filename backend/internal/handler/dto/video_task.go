@@ -11,6 +11,10 @@ import (
 // 字段最少化：只暴露「我提交过哪些视频任务、现在什么状态」，
 // 绝不包含 upstream_task_id / account_id / billing_snapshot
 // （上游内部标识、承载账号与计费快照不属于用户侧视图）。
+//
+// last_error 只给**可公开**的状态说明，last_error_code 给稳定错误码；
+// 内部诊断（承载账号 ID、仓储错误、SQL 片段…）不进入用户响应，
+// 完整 last_error 仍保留在库里供管理端排障。
 type VideoTaskSummaryDTO struct {
 	TaskNo      string  `json:"task_no"`
 	Status      string  `json:"status"`
@@ -19,7 +23,10 @@ type VideoTaskSummaryDTO struct {
 	BillingMode string  `json:"billing_mode,omitempty"`
 	CreatedAt   string  `json:"created_at"`
 	SettledAt   *string `json:"settled_at,omitempty"`
-	LastError   string  `json:"last_error,omitempty"`
+	// LastError 是可公开的状态说明（不含内部诊断）。
+	LastError string `json:"last_error,omitempty"`
+	// LastErrorCode 是稳定错误码（可枚举、可翻译）；前端按码显示，不解析文案。
+	LastErrorCode string `json:"last_error_code,omitempty"`
 }
 
 // VideoTaskPageDTO 是用户侧视频任务列表的分页响应。
@@ -35,15 +42,25 @@ func ToVideoTaskSummaryDTO(task *service.VideoTask) VideoTaskSummaryDTO {
 	if task == nil {
 		return VideoTaskSummaryDTO{}
 	}
+	code := VideoTaskPublicErrorCode(task.LastError)
+	switch task.Status {
+	case service.VideoTaskStatusCompleted:
+		code = ""
+	case service.VideoTaskStatusProcessing:
+		if code != "" && code != VideoTaskErrorCodeSettlementFailed {
+			code = VideoTaskErrorCodeProcessingDelayed
+		}
+	}
 	return VideoTaskSummaryDTO{
-		TaskNo:      task.TaskNo,
-		Status:      task.Status,
-		Model:       task.Model,
-		Platform:    task.Platform,
-		BillingMode: task.BillingMode,
-		CreatedAt:   formatVideoTaskTime(task.CreatedAt),
-		SettledAt:   formatVideoTaskTimePtr(task.SettledAt),
-		LastError:   task.LastError,
+		TaskNo:        task.TaskNo,
+		Status:        task.Status,
+		Model:         task.Model,
+		Platform:      task.Platform,
+		BillingMode:   task.BillingMode,
+		CreatedAt:     formatVideoTaskTime(task.CreatedAt),
+		SettledAt:     formatVideoTaskTimePtr(task.SettledAt),
+		LastError:     VideoTaskPublicErrorMessage(code),
+		LastErrorCode: code,
 	}
 }
 
