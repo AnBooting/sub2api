@@ -585,6 +585,7 @@ func (s *OpenAIGatewayService) ProxyLiveSideband(
 	_, _ = store.ReleaseLiveController(context.Background(), record.CallHash, owner)
 	if liveSessionEnded(runErr) || !time.Now().Before(record.ExpiresAt) {
 		s.finalizeLiveCall(record)
+		go s.retryPendingLiveSettlement(record)
 		return runErr
 	}
 	go s.observeLiveCall(record)
@@ -680,6 +681,10 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 		}
 		if !time.Now().Before(record.ExpiresAt) {
 			s.finalizeLiveCall(record)
+			// 本 observer 负责收尾：结算若因账本故障停在 pending，必须在这里接上自动
+			// 重试。少了这一步，observer 退出后没有任何人会再重试这笔结算，记录只能
+			// 等 TTL 过期被清掉（钱就收不回来了）。
+			s.retryPendingLiveSettlement(record)
 			return
 		}
 		upstream, dialErr := s.dialLiveSideband(context.Background(), record)
@@ -696,6 +701,8 @@ func (s *OpenAIGatewayService) observeLiveCall(record *LiveCallRecord) {
 		}
 		if liveSessionEnded(runErr) {
 			s.finalizeLiveCall(record)
+			// 同上：observer 自己结束会话时，pending 结算的责任必须交出去重试。
+			s.retryPendingLiveSettlement(record)
 			return
 		}
 		if !s.waitForLiveObserverRetry(record) {
@@ -785,42 +792,160 @@ func (s *OpenAIGatewayService) waitForLiveObserverRetry(record *LiveCallRecord) 
 	return getErr == nil && controller == LiveControllerObserver
 }
 
+func liveSettlementNeedsRetry(state *LiveSettlement) bool {
+	return state != nil && (state.Status == LiveSettlementPending || (state.Status == LiveSettlementSettled && !state.UsageLogWritten))
+}
+
 // retryPendingLiveSettlement 自动重试待结算的 Live 会话。
-// 只处理 Settlement.Status == pending 的记录：金额在首次尝试前已冻结，重试复用同一
-// 份金额，账本按 request_id 幂等。返回时记录要么已结算，要么已被 TTL 清理。
+// 待结算和已结算但日志未确认的记录均可重试；金额复用权威冻结。
 func (s *OpenAIGatewayService) retryPendingLiveSettlement(record *LiveCallRecord) {
-	if record == nil || record.Settlement == nil || record.Settlement.Status != LiveSettlementPending {
+	if record == nil || record.settlementIdentityRejected {
 		return
 	}
 	store, err := s.liveStore()
 	if err != nil {
 		return
 	}
+	// 规则 A（必须在回读存储**之前**取）：本进程内已经冻结过就沿用那一份。
+	//
+	// 检查点写失败时（Redis 写不进去），存储里根本没有 Settlement —— 若先回读、
+	// 看到 Settlement 为空就返回，那么「检查点与账本同时失败」这个正是要救的场景
+	// 永远走不到重试分支，待收费用只能等短 TTL 过期丢掉。所以顺序必须是
+	// 「先取内存冻结 → 再回读存储 → 两者都没有才放弃」。
+	var frozen *LiveSettlement
+	if liveCallHasCompleteSnapshot(record) && liveSettlementNeedsRetry(record.Settlement) {
+		frozen = record.Settlement
+	}
+	readCtx, readCancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	latest, getErr := store.GetLiveCall(readCtx, record.CallHash)
+	readCancel()
+	if getErr != nil {
+		// 回读失败不等于「没有待结算」：这次可能只是一次瞬时抖动。
+		//
+		// 三处容错点（入口 / 循环头 / 循环尾）必须一致，都不能因为一次读失败
+		// 就放弃。入口有界回读：已有冻结时保留主循环的退避预算，无冻结时
+		// 使用入口退避；全都失败时，只有内存里还握着冻结金额（检查点写失败
+		// 场景）才值得继续，否则无从判断这笔结算是否存在。
+		if errors.Is(getErr, ErrLiveCallNotFound) {
+			return
+		}
+		latest = nil
+		for entryAttempt := 0; entryAttempt < liveSettlementRetryAttempts; entryAttempt++ {
+			// A retained checkpoint still has the main retry budget below.
+			if frozen == nil {
+				time.Sleep(liveSettlementRetryInterval(entryAttempt))
+			}
+			retryCtx, retryCancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+			retried, retryErr := store.GetLiveCall(retryCtx, record.CallHash)
+			retryCancel()
+			if retryErr == nil {
+				latest = retried
+				break
+			}
+			if errors.Is(retryErr, ErrLiveCallNotFound) {
+				return
+			}
+			logger.LegacyPrintf("service.openai_live",
+				"Live 待结算入口回读失败，退避重试 call_hash=%s attempt=%d err=%v",
+				record.CallHash, entryAttempt, retryErr)
+		}
+		if latest == nil {
+			if frozen == nil {
+				return
+			}
+			latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+		}
+	}
+	if latest == nil {
+		if frozen == nil {
+			return
+		}
+		latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+	}
+	if latest.Settlement == nil && frozen != nil {
+		if !sameLiveCallBillingSnapshot(record, latest) {
+			rejectLiveSettlementCandidate(record)
+			return
+		}
+		latest.Settlement = frozen
+	}
+	if !liveSettlementNeedsRetry(latest.Settlement) {
+		return
+	}
 	for attempt := 0; attempt < liveSettlementRetryAttempts; attempt++ {
 		time.Sleep(liveSettlementRetryInterval(attempt))
 		latest, getErr := store.GetLiveCall(context.Background(), record.CallHash)
 		if getErr != nil {
-			return
+			// 一次瞬时读失败不等于「这笔结算不存在」：此刻手上还握着 pending 的冻结
+			// 金额，也还有剩余预算。直接 return 会让 observer 永久退出这条重试链，
+			// 钱只能等 TTL 过期丢掉。只有「记录明确不存在」才值得放弃。
+			if errors.Is(getErr, ErrLiveCallNotFound) {
+				return
+			}
+			logger.LegacyPrintf("service.openai_live",
+				"Live 待结算重试回读失败，保留冻结金额与剩余预算 call_hash=%s attempt=%d err=%v",
+				record.CallHash, attempt, getErr)
+			s.finalizeLiveCallWithRead(record, store, nil, getErr)
+			if record.settlementIdentityRejected {
+				return
+			}
+			frozen = record.Settlement
+			if frozen != nil && !liveSettlementNeedsRetry(frozen) {
+				return
+			}
+			continue
 		}
-		if latest.Settlement == nil || latest.Settlement.Status != LiveSettlementPending {
+		if latest == nil {
+			// store 返回 (nil, nil) 不是正常契约，但不能因此 panic：
+			// 入口对 nil 有守卫，循环里必须同样处理。
+			if frozen == nil {
+				return
+			}
+			latest = &LiveCallRecord{CallHash: record.CallHash, Settlement: frozen}
+		}
+		if latest.Settlement == nil && frozen != nil {
+			if !sameLiveCallBillingSnapshot(record, latest) {
+				rejectLiveSettlementCandidate(record)
+				return
+			}
+			latest.Settlement = frozen
+		}
+		if !liveSettlementNeedsRetry(latest.Settlement) {
 			return
 		}
 		s.finalizeLiveCall(latest)
+		if latest.Settlement != nil {
+			frozen = latest.Settlement
+		}
 		// finalizeLiveCall 内部会重新读取记录，这里必须回读才能看到最新状态，
 		// 否则会话已结算后仍会多睡一整轮退避。
+		//
+		// 退出判据必须与入口一致：检查点写不进 Redis 时存储里永远没有 Settlement，
+		// 若这里按「存储为空就退出」判断，重试预算会从 5 次塌缩成 2 次——而
+		// 「检查点写失败」正是这条重试存在的原因。因此存储为空但内存还有冻结时，
+		// 继续用内存冻结判断：只有它不再是 pending（已结算）才真正退出。
 		settled, getErr := store.GetLiveCall(context.Background(), record.CallHash)
 		if getErr != nil {
-			return
+			if frozen == nil {
+				return
+			}
+			continue
 		}
-		if settled.Settlement == nil || settled.Settlement.Status != LiveSettlementPending {
+		if settled == nil || settled.Settlement == nil {
+			if frozen == nil {
+				return
+			}
+			continue
+		}
+		if !liveSettlementNeedsRetry(settled.Settlement) {
 			return
 		}
 	}
 }
 
-// finalizeLiveCallAfterExpiry 是 store 持续报错、observer 无法继续观察时的兜底：
-// 等到会话最长时限 ExpiresAt 再 finalize，保证 usage log 与租约释放最迟在会话到期
-// 时完成。MarkLiveCallClosed 的 first 语义保证与其他恢复路径不会重复落库。
+// finalizeLiveCallAfterExpiry 在 observer 无法继续观察时等待会话到期后尝试结算。
+// 关闭和金额须由原子 Begin 确认，后续使用 CAS 推进并有限重试；持续故障或
+// 进程退出可能导致结算、用量日志或租约释放未完成。
 func (s *OpenAIGatewayService) finalizeLiveCallAfterExpiry(record *LiveCallRecord) {
 	if record == nil {
 		return
@@ -829,6 +954,8 @@ func (s *OpenAIGatewayService) finalizeLiveCallAfterExpiry(record *LiveCallRecor
 		time.Sleep(wait)
 	}
 	s.finalizeLiveCall(record)
+	// 兜底 finalize 同样可能留下 pending（账本临时故障）：把重试责任交出去。
+	s.retryPendingLiveSettlement(record)
 }
 
 func (s *OpenAIGatewayService) refreshLiveLease(record *LiveCallRecord) bool {
@@ -852,96 +979,219 @@ func (s *OpenAIGatewayService) releaseLiveLease(accountID, userID, apiKeyID int6
 	_ = cache.ReleaseLiveLease(ctx, accountID, userID, apiKeyID, leaseID)
 }
 
-func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
+const (
+	liveSettlementModeStandard      = "standard"
+	liveSettlementModeSimpleSkip    = "simple_skip"
+	liveSettlementModeSimpleKeyOnly = "simple_key_only"
+)
+
+func (s *OpenAIGatewayService) liveSettlementMode(record *LiveCallRecord) string {
+	apiKey, _ := liveBillingAPIKey(record)
+	skip, keyOnly := s.liveSettlementPolicy(apiKey)
+	if skip {
+		return liveSettlementModeSimpleSkip
+	}
+	if keyOnly {
+		return liveSettlementModeSimpleKeyOnly
+	}
+	return liveSettlementModeStandard
+}
+
+func liveCallHasCompleteSnapshot(record *LiveCallRecord) bool {
+	return record != nil && record.CallID != "" && record.CallHash == hashLiveCallID(record.CallID) &&
+		record.UserID > 0 && record.AccountID > 0 && record.APIKeyID > 0 && record.LeaseID != "" &&
+		record.Model != "" && record.CreatedAt.UnixMilli() > 0 && record.ExpiresAt.UnixMilli() > 0
+}
+
+// A local checkpoint may only be reused with the exact immutable billing
+// snapshot from which it was derived. Compare timestamps at Redis precision.
+func sameLiveCallBillingSnapshot(a, b *LiveCallRecord) bool {
+	if !liveCallHasCompleteSnapshot(a) || !liveCallHasCompleteSnapshot(b) {
+		return false
+	}
+	if a.CallID != b.CallID || a.CallHash != b.CallHash || a.UserID != b.UserID || a.AccountID != b.AccountID || a.APIKeyID != b.APIKeyID || a.GroupID != b.GroupID || a.SubscriptionID != b.SubscriptionID || a.LeaseID != b.LeaseID || a.Model != b.Model || a.CreatedAt.UnixMilli() != b.CreatedAt.UnixMilli() || a.ExpiresAt.UnixMilli() != b.ExpiresAt.UnixMilli() || a.UserAgent != b.UserAgent || a.IPAddress != b.IPAddress || a.InboundEndpoint != b.InboundEndpoint {
+		return false
+	}
+	if (a.RealtimePricePerMin == nil) != (b.RealtimePricePerMin == nil) || (a.BillingPolicy == nil) != (b.BillingPolicy == nil) {
+		return false
+	}
+	if a.RealtimePricePerMin != nil && *a.RealtimePricePerMin != *b.RealtimePricePerMin {
+		return false
+	}
+	return a.BillingPolicy == nil || *a.BillingPolicy == *b.BillingPolicy
+}
+
+func rejectLiveSettlementCandidate(record *LiveCallRecord) {
 	if record == nil {
+		return
+	}
+	record.Settlement = nil
+	record.settlementIdentityRejected = true
+	logger.FromContext(context.Background()).Error("Live settlement snapshot mismatch; manual review required", zap.String("call_hash", record.CallHash))
+}
+
+func (s *OpenAIGatewayService) finalizeLiveCall(record *LiveCallRecord) {
+	if record == nil || record.CallHash == "" || record.settlementIdentityRejected {
 		return
 	}
 	store, err := s.liveStore()
 	if err != nil {
 		return
 	}
-	// 结算可能由 observer 从 Redis 回读记录后触发，也可能是对上次失败的结算重试；
-	// 始终以存储中的最新记录为准，避免用过期副本覆盖已冻结的金额。
 	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	current := record
-	if stored, getErr := store.GetLiveCall(ctx, record.CallHash); getErr == nil && stored != nil {
-		current = stored
+	current, getErr := store.GetLiveCall(ctx, record.CallHash)
+	cancel()
+	s.finalizeLiveCallWithRead(record, store, current, getErr)
+}
+
+func (s *OpenAIGatewayService) finalizeLiveCallWithRead(record *LiveCallRecord, store LiveCallStore, current *LiveCallRecord, getErr error) {
+	if errors.Is(getErr, ErrLiveCallNotFound) {
+		return
 	}
-	if current.Settlement != nil && current.Settlement.Status == LiveSettlementSettled {
-		// 已结算的会话不重复扣费；但结算成功与写用量日志之间的崩溃窗口可能留下
-		// 缺日志，这里补一次（usage_logs 对 request_id 幂等，重复写入被忽略）。
+	verified := getErr != nil || current == nil
+	if verified {
+		if !liveCallHasCompleteSnapshot(record) || s.usageLogRepo == nil {
+			return
+		}
+		copy := *record
+		current = &copy
+	}
+	if s.usageLogRepo == nil {
+		ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		first, err := store.MarkLiveCallClosed(ctx, current.CallHash, liveClosedRecordTTL)
 		cancel()
-		if s.usageLogRepo != nil && !current.Settlement.UsageLogWritten {
-			writeUsageLogBestEffort(context.Background(), s.usageLogRepo,
-				liveUsageLog(current, current.Settlement, current.Settlement.ActualCost), "service.openai_live")
-			current.Settlement.UsageLogWritten = true
-			s.persistLiveSettlement(current)
+		if err == nil && first {
+			s.releaseLiveLease(current.AccountID, current.UserID, current.APIKeyID, current.LeaseID)
 		}
 		return
 	}
-	first, markErr := store.MarkLiveCallClosed(ctx, current.CallHash, liveClosedRecordTTL)
-	cancel()
-	if markErr != nil {
-		return
+	if current.Settlement != nil {
+		state := *current.Settlement
+		current.Settlement = &state
+	} else if record.Settlement != nil {
+		if !sameLiveCallBillingSnapshot(record, current) {
+			rejectLiveSettlementCandidate(record)
+			return
+		}
+		state := *record.Settlement
+		current.Settlement = &state
 	}
-	retrying := current.Settlement != nil && current.Settlement.Status == LiveSettlementPending
-	if !first && !retrying {
-		return
-	}
-	if first {
-		s.releaseLiveLease(current.AccountID, current.UserID, current.APIKeyID, current.LeaseID)
-	}
-	if s.usageLogRepo == nil {
-		return
-	}
-
-	// 金额只在第一次尝试前冻结并持久化：重试复用同一份金额，不随再次调用时间增长。
 	if current.Settlement == nil {
 		current.Settlement = s.freezeLiveSettlement(current)
-		s.persistLiveSettlement(current)
 	}
-	settleState := current.Settlement
-	if settleState.Status == LiveSettlementSettled {
-		// 缺价/零费用：不伪造扣费，按未计费落库后结束。
-		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, liveUsageLog(current, settleState, 0), "service.openai_live")
-		settleState.UsageLogWritten = true
-		s.persistLiveSettlement(current)
+	if current.Settlement.SettlementMode == "" {
+		current.Settlement.SettlementMode = s.liveSettlementMode(current)
+	}
+	record.Settlement = current.Settlement
+
+	begin := func(ctx context.Context) (*LiveSettlement, string, bool, error) {
+		if verified {
+			return store.BeginLiveSettlementVerified(ctx, current, current.Settlement, liveClosedRecordTTL)
+		}
+		return store.BeginLiveSettlement(ctx, current.CallHash, current.Settlement, liveClosedRecordTTL)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	state, token, _, beginErr := begin(ctx)
+	cancel()
+	uncertain := beginErr != nil && !errors.Is(beginErr, ErrLiveCallNotFound) && !errors.Is(beginErr, ErrLiveIdentityMismatch)
+	if uncertain {
+		// The first command may have committed despite a lost reply. Repeating
+		// this atomic operation returns the existing winner, not a new amount.
+		ctx, cancel = context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		state, token, _, beginErr = begin(ctx)
+		cancel()
+	}
+	if errors.Is(beginErr, ErrLiveIdentityMismatch) {
+		rejectLiveSettlementCandidate(record)
+		return
+	}
+	if beginErr != nil || state == nil {
+		logger.FromContext(context.Background()).Warn("Live settlement checkpoint unavailable; billing deferred", zap.String("call_hash", current.CallHash), zap.Error(beginErr))
+		return
+	}
+	// The close is confirmed. ZREM is idempotent for this unique lease, so
+	// even another process can recover a release after the closer crashed.
+	s.releaseLiveLease(current.AccountID, current.UserID, current.APIKeyID, current.LeaseID)
+	current.Controller = LiveControllerClosed
+	current.ControllerOwner = ""
+	current.Settlement = state
+	defer func() { record.Settlement = current.Settlement }()
+
+	// Legacy checkpoints have no mode. Establish it with CAS before any
+	// billing or log write so competing instances use the same decision.
+	if state.SettlementMode == "" {
+		next := *state
+		next.SettlementMode = s.liveSettlementMode(current)
+		var ok bool
+		token, ok = s.persistLiveSettlement(current, token, &next)
+		if !ok {
+			return
+		}
+		state = current.Settlement
+	}
+	if state.SettlementMode != liveSettlementModeStandard && state.SettlementMode != liveSettlementModeSimpleSkip && state.SettlementMode != liveSettlementModeSimpleKeyOnly {
+		logger.FromContext(context.Background()).Warn("Unknown Live settlement mode", zap.String("call_hash", current.CallHash))
+		return
+	}
+	actualCost := state.ActualCost
+	if state.SettlementMode == liveSettlementModeSimpleSkip {
+		actualCost = 0
+	}
+	if state.Status == LiveSettlementSettled {
+		if !state.UsageLogWritten && s.writeLiveUsageLog(liveUsageLog(current, state, actualCost)) {
+			next := *state
+			next.UsageLogWritten = true
+			s.persistLiveSettlement(current, token, &next)
+		}
+		return
+	}
+	if state.Status != LiveSettlementPending {
+		return
+	}
+	if state.SettlementMode == liveSettlementModeSimpleSkip {
+		next := *state
+		next.UsageLogWritten = s.writeLiveUsageLog(liveUsageLog(current, state, 0))
+		next.Status = LiveSettlementSettled
+		s.persistLiveSettlement(current, token, &next)
 		return
 	}
 
 	apiKey, policy := liveBillingAPIKey(current)
-	skip, simpleModeKeyRateLimitOnly := s.liveSettlementPolicy(apiKey)
-	if skip {
-		// 简易模式且未开启密钥窗口限额：与请求路径一致，只记用量不做财务结算。
-		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, liveUsageLog(current, settleState, 0), "service.openai_live")
-		settleState.Status = LiveSettlementSettled
-		settleState.UsageLogWritten = true
-		s.persistLiveSettlement(current)
+	cost := &CostBreakdown{TotalCost: state.TotalCost, ActualCost: state.ActualCost, BillingMode: state.BillingMode}
+	usageLog := liveUsageLog(current, state, state.ActualCost)
+	if err := s.settleLiveCallUsage(current, usageLog, cost, apiKey, policy, state.SettlementMode == liveSettlementModeSimpleKeyOnly); err != nil {
+		auditToken, auditNeeded := s.recordLiveSettlementFailure(current, token)
+		logger.FromContext(context.Background()).Warn("Live 会话扣费失败：保留待结算状态，等待重试",
+			zap.Int64("user_id", current.UserID), zap.Int64("api_key_id", current.APIKeyID),
+			zap.String("call_hash", current.CallHash), zap.Int("attempts", current.Settlement.Attempts), zap.Error(err))
+		if auditNeeded {
+			s.tryLiveSettlementPendingAudit(current, auditToken, err)
+		}
 		return
 	}
+	next := *state
+	next.UsageLogWritten = s.writeLiveUsageLog(usageLog)
+	next.Status = LiveSettlementSettled
+	s.persistLiveSettlement(current, token, &next)
+}
 
-	cost := &CostBreakdown{TotalCost: settleState.TotalCost, ActualCost: settleState.ActualCost, BillingMode: settleState.BillingMode}
-	usageLog := liveUsageLog(current, settleState, settleState.ActualCost)
-	if err := s.settleLiveCallUsage(current, usageLog, cost, apiKey, policy, simpleModeKeyRateLimitOnly); err != nil {
-		// 保留 pending 状态与冻结金额，后续 finalize 可安全重试（账本按 request_id 幂等）。
-		settleState.Attempts++
-		s.persistLiveSettlement(current)
-		logger.FromContext(context.Background()).Warn(
-			"Live 会话扣费失败：保留待结算状态，等待重试",
-			zap.Int64("user_id", current.UserID),
-			zap.Int64("api_key_id", current.APIKeyID),
-			zap.String("call_hash", current.CallHash),
-			zap.Int("attempts", settleState.Attempts),
-			zap.Error(err),
-		)
-		usageLog.ActualCost = 0
-		writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
-		return
+// liveSettlementDurationCapMs 是单次会话可计费的最大时长（毫秒）。
+//
+// 口径：锚在**会话自己的历史事实**上——ExpiresAt 是会话开始时记下的到期时间
+// （= CreatedAt + 当时的会话上限），不会因为后来把配置调小而被追溯性地削掉已发生的
+// 用量时长。因此上限取 ExpiresAt - CreatedAt；只有历史遗留记录缺 ExpiresAt 时才回落到
+// 配置的最大会话时长（再没有就是配置默认值）。
+//
+// 用途：冻结检查点写失败后只能重新冻结时（跨进程），时长必须被这个上限封住——故障再久，
+// 用户也只为整个会话上限付费。
+func (s *OpenAIGatewayService) liveSettlementDurationCapMs(record *LiveCallRecord) int {
+	if record == nil {
+		return int(s.liveMaxSessionDuration().Milliseconds())
 	}
-	writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
-	settleState.Status = LiveSettlementSettled
-	settleState.UsageLogWritten = true
-	s.persistLiveSettlement(current)
+	if d := int(record.ExpiresAt.Sub(record.CreatedAt).Milliseconds()); d > 0 {
+		return d
+	}
+	return int(s.liveMaxSessionDuration().Milliseconds())
 }
 
 // freezeLiveSettlement 冻结本次会话的时长与金额（含缺价/零费用情形）。
@@ -949,6 +1199,12 @@ func (s *OpenAIGatewayService) freezeLiveSettlement(record *LiveCallRecord) *Liv
 	duration := int(time.Since(record.CreatedAt).Milliseconds())
 	if duration < 0 {
 		duration = 0
+	}
+	// 规则 B（跨进程/只能从存储重新冻结）：时长必须封顶到会话自身的上限
+	// （ExpiresAt - CreatedAt，历史事实）。用户不该为"会话结束之后的故障时长"付费——
+	// 故障再久，计费时长也有界。
+	if max := s.liveSettlementDurationCapMs(record); duration > max {
+		duration = max
 	}
 	state := &LiveSettlement{Status: LiveSettlementSettled, DurationMs: duration, FrozenAt: time.Now()}
 	cost, err := s.liveSessionCost(record, duration)
@@ -971,26 +1227,158 @@ func (s *OpenAIGatewayService) freezeLiveSettlement(record *LiveCallRecord) *Liv
 	return state
 }
 
-// persistLiveSettlement 把结算事实写回会话记录；失败只告警，不阻断财务结算。
-func (s *OpenAIGatewayService) persistLiveSettlement(record *LiveCallRecord) {
+// recordLiveSettlementFailure increments only after a confirmed CAS. A write
+// error is ambiguous and must not be replayed as another failure.
+func (s *OpenAIGatewayService) recordLiveSettlementFailure(record *LiveCallRecord, token string) (string, bool) {
 	store, err := s.liveStore()
-	if err != nil {
+	if err != nil || record == nil || record.Settlement == nil {
+		return "", false
+	}
+	original := *record.Settlement
+	current := original
+	for attempt := 0; attempt < 8; attempt++ {
+		if current.Status != LiveSettlementPending {
+			return "", false
+		}
+		next := current
+		next.Attempts++
+		ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		swapped, swapErr := store.CompareAndSwapLiveSettlement(ctx, record.CallHash, token, &next, liveClosedRecordTTL)
+		cancel()
+		if swapErr == nil && swapped {
+			data, marshalErr := json.Marshal(&next)
+			if marshalErr != nil {
+				return "", true
+			}
+			record.Settlement = &next
+			return string(data), true
+		}
+		if swapErr != nil {
+			logger.FromContext(context.Background()).Warn("Live failure checkpoint result uncertain", zap.String("call_hash", record.CallHash), zap.Error(swapErr))
+		}
+		ctx, cancel = context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		latest, latestToken, first, readErr := store.BeginLiveSettlement(ctx, record.CallHash, &current, liveClosedRecordTTL)
+		cancel()
+		if readErr != nil || latest == nil {
+			// Without a readable checkpoint, retain a best-effort SQL alert.
+			return "", true
+		}
+		if first {
+			s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
+		}
+		record.Settlement = latest
+		if latest.Status != LiveSettlementPending || latest.TotalCost != original.TotalCost || latest.ActualCost != original.ActualCost || latest.BillingMode != original.BillingMode || latest.SettlementMode != original.SettlementMode || latest.DurationMs != original.DurationMs || !latest.FrozenAt.Equal(original.FrozenAt) {
+			return "", false
+		}
+		if swapErr != nil {
+			return latestToken, true
+		}
+		// A conflict is definite: the attempted increment did not happen.
+		current = *latest
+		token = latestToken
+	}
+	return token, true
+}
+
+// The claim limits normal concurrent SQL inserts. Redis and SQL do not share a
+// transaction, so an uncertain response or crash can still duplicate or lose
+// the best-effort alert. A failed insert releases the claim for a later retry.
+func (s *OpenAIGatewayService) tryLiveSettlementPendingAudit(record *LiveCallRecord, token string, cause error) {
+	if s == nil || s.opsRepo == nil || record == nil || record.Settlement == nil || record.Settlement.Status != LiveSettlementPending {
 		return
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
-	defer cancel()
-	// 结算状态只在关闭标记写入之后持久化。记录副本里的 controller 可能还是关闭前
-	// 的旧值（MarkLiveCallClosed 只改存储里的标记），直接回写会把已关闭的会话“复活”：
-	// 下一次 finalize 又会拿到 first=true，会话也可能被重新 claim 成控制端。
-	record.Controller = LiveControllerClosed
-	record.ControllerOwner = ""
-	if err := store.SaveLiveCall(ctx, record, liveClosedRecordTTL); err != nil {
-		logger.FromContext(context.Background()).Warn(
-			"Live 结算状态持久化失败",
-			zap.String("call_hash", record.CallHash),
-			zap.Error(err),
-		)
+	store, err := s.liveStore()
+	if err != nil || token == "" {
+		s.recordLiveSettlementPendingAudit(record, record.Settlement, cause)
+		return
 	}
+	owner := uuid.NewString()
+	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	claimed, claimErr := store.ClaimLiveSettlementAudit(ctx, record.CallHash, owner, 10*time.Second)
+	cancel()
+	if claimErr != nil && !errors.Is(claimErr, ErrLiveSettlementInvalid) && !errors.Is(claimErr, ErrLiveCallNotFound) {
+		// The same owner may safely retry after a lost claim response.
+		ctx, cancel = context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		claimed, claimErr = store.ClaimLiveSettlementAudit(ctx, record.CallHash, owner, 10*time.Second)
+		cancel()
+	}
+	if claimErr != nil {
+		logger.FromContext(context.Background()).Warn("Live audit claim unavailable", zap.String("call_hash", record.CallHash), zap.Error(claimErr))
+		if !errors.Is(claimErr, ErrLiveSettlementInvalid) && !errors.Is(claimErr, ErrLiveCallNotFound) {
+			// Redis did not confirm a claim; preserve an alert without promising deduplication.
+			s.recordLiveSettlementPendingAudit(record, record.Settlement, cause)
+		}
+		return
+	}
+	if !claimed {
+		return
+	}
+	written := s.recordLiveSettlementPendingAudit(record, record.Settlement, cause)
+	ctx, cancel = context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	_, finishErr := store.FinishLiveSettlementAudit(ctx, record.CallHash, owner, written)
+	cancel()
+	if finishErr != nil {
+		logger.FromContext(context.Background()).Warn("Live audit claim completion uncertain", zap.String("call_hash", record.CallHash), zap.Error(finishErr))
+	}
+}
+
+// persistLiveSettlement advances a confirmed checkpoint without allowing a
+// stale retry to replace the frozen amount or regress settled/logged state.
+func (s *OpenAIGatewayService) persistLiveSettlement(record *LiveCallRecord, token string, proposed *LiveSettlement) (string, bool) {
+	store, err := s.liveStore()
+	if err != nil || record == nil || proposed == nil {
+		return token, false
+	}
+	desired := *proposed
+	for attempt := 0; attempt < 8; attempt++ {
+		ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		swapped, swapErr := store.CompareAndSwapLiveSettlement(ctx, record.CallHash, token, &desired, liveClosedRecordTTL)
+		cancel()
+		if swapErr == nil && swapped {
+			encoded, err := json.Marshal(&desired)
+			if err != nil {
+				return token, false
+			}
+			state := desired
+			record.Settlement = &state
+			return string(encoded), true
+		}
+		if errors.Is(swapErr, ErrLiveCallNotFound) {
+			return token, false
+		}
+		// A rejected or ambiguous CAS is resolved by reading the authoritative
+		// checkpoint through the idempotent atomic begin operation.
+		ctx, cancel = context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+		current, newToken, first, readErr := store.BeginLiveSettlement(ctx, record.CallHash, &desired, liveClosedRecordTTL)
+		cancel()
+		if readErr != nil || current == nil {
+			logger.FromContext(context.Background()).Warn("Live 结算状态持久化失败", zap.String("call_hash", record.CallHash), zap.Error(readErr))
+			return token, false
+		}
+		if first {
+			s.releaseLiveLease(record.AccountID, record.UserID, record.APIKeyID, record.LeaseID)
+		}
+		record.Settlement = current
+		token = newToken
+		if current.TotalCost != desired.TotalCost || current.ActualCost != desired.ActualCost ||
+			current.BillingMode != desired.BillingMode || current.DurationMs != desired.DurationMs || !current.FrozenAt.Equal(desired.FrozenAt) {
+			return token, false
+		}
+		if current.SettlementMode != "" && desired.SettlementMode != current.SettlementMode {
+			return token, true
+		}
+		if desired.SettlementMode == "" {
+			desired.SettlementMode = current.SettlementMode
+		}
+		if current.Status == LiveSettlementSettled {
+			desired.Status = LiveSettlementSettled
+		}
+		desired.UsageLogWritten = desired.UsageLogWritten || current.UsageLogWritten
+		if desired.Attempts < current.Attempts {
+			desired.Attempts = current.Attempts
+		}
+	}
+	return token, false
 }
 
 // liveBillingAPIKey 用开播时冻结的策略构造最小 APIKey；会话创建时未冻结策略的
@@ -1024,6 +1412,122 @@ func (s *OpenAIGatewayService) liveSettlementPolicy(apiKey *APIKey) (skip bool, 
 		return false, true
 	}
 	return true, false
+}
+
+// writeLiveUsageLog 写入 Live 会话的用量行，返回是否已确认落库。
+//
+// 与通用 writeUsageLogBestEffort 的差别：这里需要"金额是否真的持久化"的结论——
+// 只有确认落库，调用方才能把 UsageLogWritten 置真（置早了就再也不会补写，出现
+// "余额已扣、用量行金额为 0 或缺失"的账实不符）。
+//
+// 写入方式沿用共享助手（best-effort 入队 + 失败后同步兜底，保留"已扣费就必须有
+// usage_log"的既有契约），只多返回一个"是否已确认落库"的结论。
+func (s *OpenAIGatewayService) writeLiveUsageLog(usageLog *UsageLog) bool {
+	if s == nil || s.usageLogRepo == nil || usageLog == nil {
+		return false
+	}
+	return writeUsageLogBestEffort(context.Background(), s.usageLogRepo, usageLog, "service.openai_live")
+}
+
+// liveSettlementPendingPublicMessage 是「结算未完成」对用户可见的唯一说明。
+//
+// ops_error_logs **不是管理员专用表**：OpsService.ListUserErrorRequests 按当前用户
+// 查同一张表，ToUserErrorRequest 把 error_message 原样下发给前端（500 也正好通过
+// status >= 400 的守卫）。账本错误的原文常带内网地址、表名与 SQL 片段，写进
+// error_message 就等于把内部拓扑展示给普通用户。
+//
+// 因此 error_message 只能是这条**固定的公开说明**：不含内部细节、不随错误变化，
+// 前端按稳定的错误码（error_phase=internal → code=internal_error）判定，不解析文案。
+//
+// 文案**不能承诺「会自动重试」**：重试只在 observer 还活着且预算未耗尽时进行
+// （liveSettlementRetryAttempts=4，退避合计约 7.5 分钟），预算耗尽后没有任何后台
+// sweeper 接手，这笔结算会停在 pending 直到记录 TTL 过期。承诺自动重试会把
+// 「泄露内部细节」换成「给用户一个不成立的承诺」。
+const liveSettlementPendingPublicMessage = "Settlement is temporarily unavailable. Please contact support if this persists."
+
+// recordLiveSettlementPendingAudit 记录一次「结算未完成」的审计事件。
+//
+// 它刻意**不写 usage_logs**：那张表是请求数、目录费用、账号成本与会话时长的单一
+// 事实源，汇总 SQL 直接按 total_cost / duration_ms 求和，多一条行就会把一次会话
+// 的费用与时长重复计入。失败诊断属于排障信息，放 ops 错误日志更合适，也不参与
+// 任何用量汇总。
+//
+// 落库口径必须与 OpsService.RecordError 对齐，否则这条记录「写了但看不见」：
+//   - CreatedAt 必须显式填（InsertErrorLog 不像批量接口那样兜底，零值会落成
+//     0001-01-01，时间窗查询查不到、retention 下一轮就删掉）；
+//   - StatusCode 必须 >= 400：管理端错误列表的守卫是
+//     (COALESCE(status_code,0) >= 400 OR error_type='cyber_policy')，NULL 会被挡掉；
+//   - ErrorPhase 必须在管理端枚举内（request/auth/routing/upstream/network/internal），
+//     所以用 internal，具体原因放 ErrorType；
+//   - Severity 用表内既有的 P0-P3 分类，warning 不在其中。
+//
+// best-effort：ops 未装配或写入失败都只记日志，绝不影响结算正确性；插入带超时，
+// 避免数据库卡住时把 observer goroutine 一起挂住。
+func (s *OpenAIGatewayService) recordLiveSettlementPendingAudit(record *LiveCallRecord, state *LiveSettlement, cause error) bool {
+	if s == nil || s.opsRepo == nil || record == nil {
+		return false
+	}
+	attempts := 0
+	if state != nil {
+		attempts = state.Attempts
+	}
+	requestType := int16(RequestTypeLive)
+	userID, apiKeyID, accountID := record.UserID, record.APIKeyID, record.AccountID
+	statusCode := http.StatusInternalServerError
+	ctx, cancel := context.WithTimeout(context.Background(), liveRedisOperationTimeout)
+	defer cancel()
+	// The claim, rather than the attempt count, controls duplicate SQL writes.
+	if attempts < 1 {
+		attempts = 1
+	}
+	// 管理员侧摘要与完整诊断：尝试次数是排障的第一分诊信息，cause 原文
+	// （内网地址 / 表名 / SQL 片段）是第二层，两者都只进管理员字段。
+	adminSummary := fmt.Sprintf("live settlement pending after %d attempts", attempts)
+	adminDetail := ""
+	if cause != nil {
+		adminDetail = cause.Error()
+	}
+	input := &OpsInsertErrorLogInput{
+		RequestID:   record.CallHash,
+		UserID:      &userID,
+		APIKeyID:    &apiKeyID,
+		AccountID:   &accountID,
+		Platform:    PlatformOpenAI,
+		Model:       record.Model,
+		RequestType: &requestType,
+		CreatedAt:   time.Now(),
+		ErrorPhase:  "internal",
+		ErrorType:   "live_settlement_pending",
+		Severity:    "P2",
+		StatusCode:  statusCode,
+		// 用户可见：固定公开说明。绝不写 cause。
+		ErrorMessage: liveSettlementPendingPublicMessage,
+		// 管理员可见：完整诊断。用户投影不含这两个字段。
+		UpstreamErrorMessage: &adminSummary,
+		// 这是业务侧暂时不可用（内部账本故障），不是网关自身故障。
+		// 置 true 让运营看板的 SLA 判据（status>=400 AND NOT is_business_limited）
+		// 不把它算成服务端错误——否则一次内部账本故障会按重试次数拉低 SLA。
+		IsBusinessLimited: true,
+	}
+	if adminDetail != "" {
+		input.UpstreamErrorDetail = &adminDetail
+	}
+	// 结构化日志：管理员侧的第二个排障入口（审计写入失败时同样保留）。
+	logger.FromContext(context.Background()).Warn(
+		"Live 会话结算未完成：完整诊断只落管理员字段",
+		zap.Int64("user_id", record.UserID),
+		zap.Int64("api_key_id", record.APIKeyID),
+		zap.String("call_hash", record.CallHash),
+		zap.Int("attempts", attempts),
+		zap.Error(cause),
+	)
+	_, err := s.opsRepo.InsertErrorLog(ctx, input)
+	if err != nil {
+		logger.LegacyPrintf("service.openai_live",
+			"live settlement audit unavailable call_hash=%s attempts=%d err=%v", record.CallHash, attempts, err)
+		return false
+	}
+	return true
 }
 
 func liveUsageLog(record *LiveCallRecord, state *LiveSettlement, actualCost float64) *UsageLog {

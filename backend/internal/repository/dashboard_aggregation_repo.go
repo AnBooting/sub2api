@@ -73,22 +73,63 @@ func (r *dashboardAggregationRepository) AggregateRange(ctx context.Context, sta
 	dayStart := truncateToDay(startLocal)
 	dayEnd := truncateToDay(endLocal)
 	if endLocal.After(dayEnd) {
-		dayEnd = dayEnd.Add(24 * time.Hour)
+		dayEnd = dayEnd.AddDate(0, 0, 1)
 	}
 
-	if db, ok := r.sql.(*sql.DB); ok {
-		tx, err := db.BeginTx(ctx, nil)
-		if err != nil {
-			return err
-		}
-		txRepo := newDashboardAggregationRepositoryWithSQL(tx)
-		if err := txRepo.aggregateRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd); err != nil {
-			_ = tx.Rollback()
-			return err
-		}
-		return tx.Commit()
+	db, ok := r.sql.(*sql.DB)
+	if !ok {
+		return fmt.Errorf("cannot aggregate usage statistics without a database transaction")
 	}
-	return r.aggregateRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd)
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.ExecContext(ctx, "LOCK TABLE ONLY usage_logs IN ACCESS SHARE MODE"); err != nil {
+		return err
+	}
+	if err := lockGroupUsageRollupState(ctx, tx); err != nil {
+		return err
+	}
+	control, err := readUsageRepairControl(ctx, tx)
+	if err != nil {
+		return err
+	}
+	quarantined, err := loadQuarantinedRepairDays(ctx, tx, dayStart, dayEnd)
+	if err != nil {
+		return err
+	}
+	txRepo := newDashboardAggregationRepositoryWithSQL(tx)
+	today := truncateToDay(r.now().In(loc))
+	for day := dayStart; day.Before(dayEnd); day = day.AddDate(0, 0, 1) {
+		next := day.AddDate(0, 0, 1)
+		if _, blocked := quarantined[day.UTC()]; blocked {
+			continue
+		}
+		reason := ""
+		if control.timezoneName != timezone.Name() {
+			reason = "timezone_changed"
+		} else if day.Before(today) && day.Before(control.rawSafeFrom) {
+			reason = "raw_history_incomplete"
+		}
+		if reason != "" {
+			if err := quarantineUsageRepairDay(ctx, tx, day, next, reason); err != nil {
+				return err
+			}
+			continue
+		}
+		first, last := hourStart, hourEnd
+		if first.Before(day) {
+			first = day
+		}
+		if last.After(next) {
+			last = next
+		}
+		if err := txRepo.aggregateRangeInTx(ctx, first, last, day, next); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (r *dashboardAggregationRepository) aggregateRangeInTx(ctx context.Context, hourStart, hourEnd, dayStart, dayEnd time.Time) error {
@@ -96,7 +137,7 @@ func (r *dashboardAggregationRepository) aggregateRangeInTx(ctx context.Context,
 	if err := r.insertHourlyActiveUsers(ctx, hourStart, hourEnd); err != nil {
 		return err
 	}
-	if err := r.insertDailyActiveUsers(ctx, hourStart, hourEnd); err != nil {
+	if err := r.insertDailyActiveUsers(ctx, dayStart, dayEnd); err != nil {
 		return err
 	}
 	if err := r.upsertHourlyAggregates(ctx, hourStart, hourEnd); err != nil {
@@ -128,18 +169,32 @@ func (r *dashboardAggregationRepository) RecomputeRange(ctx context.Context, sta
 	dayStart := truncateToDay(startLocal)
 	dayEnd := truncateToDay(endLocal)
 	if endLocal.After(dayEnd) {
-		dayEnd = dayEnd.Add(24 * time.Hour)
+		dayEnd = dayEnd.AddDate(0, 0, 1)
 	}
 
-	// 尽量使用事务保证范围内的一致性（允许在非 *sql.DB 的情况下退化为非事务执行）。
 	if db, ok := r.sql.(*sql.DB); ok {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, "LOCK TABLE ONLY usage_logs IN ACCESS SHARE MODE"); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
 		if err := lockGroupUsageRollupState(ctx, tx); err != nil {
 			_ = tx.Rollback()
 			return err
+		}
+		unsafe, err := quarantineUnsafeUsageRepairRange(ctx, tx, dayStart, dayEnd)
+		if err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if unsafe {
+			if err := tx.Commit(); err != nil {
+				return err
+			}
+			return fmt.Errorf("cannot safely recompute usage statistics: incomplete source or timezone mismatch")
 		}
 		if err := invalidateGroupUsageRollupsAt(ctx, tx, start); err != nil {
 			_ = tx.Rollback()
@@ -156,7 +211,106 @@ func (r *dashboardAggregationRepository) RecomputeRange(ctx context.Context, sta
 		}
 		return tx.Commit()
 	}
-	return r.recomputeRangeInTx(ctx, hourStart, hourEnd, dayStart, dayEnd)
+	return fmt.Errorf("cannot safely recompute usage statistics without a database transaction")
+}
+
+type usageRepairControl struct {
+	rawSafeFrom  time.Time
+	timezoneName string
+}
+
+func readUsageRepairControl(ctx context.Context, tx *sql.Tx) (usageRepairControl, error) {
+	var control usageRepairControl
+	err := tx.QueryRowContext(ctx, `SELECT raw_safe_from, timezone_name FROM usage_stats_repair_control WHERE id = 1 FOR UPDATE`).Scan(&control.rawSafeFrom, &control.timezoneName)
+	if err != nil {
+		return usageRepairControl{}, fmt.Errorf("read usage statistics repair control: %w", err)
+	}
+	return control, nil
+}
+
+func quarantineUsageRepairDay(ctx context.Context, tx *sql.Tx, day, next time.Time, reason string) error {
+	result, err := tx.ExecContext(ctx, `INSERT INTO usage_stats_repair_days
+		(timezone_name, day_start, day_end, generation, applied_generation, state, reason_code, updated_at)
+	VALUES ($1, $2, $3, 1, 0, 'quarantine', $4, clock_timestamp())
+	ON CONFLICT (timezone_name, day_start) DO UPDATE SET
+		generation = usage_stats_repair_days.generation + 1,
+		state = 'quarantine',
+		reason_code = CASE WHEN usage_stats_repair_days.state = 'quarantine' THEN usage_stats_repair_days.reason_code ELSE EXCLUDED.reason_code END,
+		updated_at = clock_timestamp()
+	WHERE usage_stats_repair_days.day_end = EXCLUDED.day_end`,
+		timezone.Name(), day.UTC(), next.UTC(), reason)
+	if err != nil {
+		return fmt.Errorf("record unsafe usage statistics day: %w", err)
+	}
+	count, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("read quarantine affected rows: %w", err)
+	}
+	if count != 1 {
+		return fmt.Errorf("record unsafe usage statistics day: unexpected affected rows %d", count)
+	}
+	return nil
+}
+
+// loadQuarantinedRepairDays 返回范围内已被持久隔离（quarantine）的日，
+// 这些日不得被聚合/重算覆盖，即使 raw_safe_from 已经越过它们。
+func loadQuarantinedRepairDays(ctx context.Context, tx *sql.Tx, start, end time.Time) (map[time.Time]struct{}, error) {
+	loc := timezone.Location()
+	rows, err := tx.QueryContext(ctx, `SELECT day_start
+		FROM usage_stats_repair_days
+		WHERE timezone_name = $1
+			AND state = 'quarantine'
+			AND day_start >= $2
+			AND day_start < $3`, timezone.Name(), start.In(loc).UTC(), end.In(loc).UTC())
+	if err != nil {
+		return nil, fmt.Errorf("read quarantined usage statistics days: %w", err)
+	}
+	defer rows.Close()
+	quarantined := make(map[time.Time]struct{})
+	var dayStart time.Time
+	for rows.Next() {
+		if err := rows.Scan(&dayStart); err != nil {
+			return nil, err
+		}
+		quarantined[dayStart.UTC()] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return quarantined, nil
+}
+
+// quarantineUnsafeUsageRepairRange runs after the group-state lock and before any bucket mutation.
+func quarantineUnsafeUsageRepairRange(ctx context.Context, tx *sql.Tx, start, end time.Time) (bool, error) {
+	control, err := readUsageRepairControl(ctx, tx)
+	if err != nil {
+		return false, err
+	}
+	quarantined, err := loadQuarantinedRepairDays(ctx, tx, start, end)
+	if err != nil {
+		return false, err
+	}
+	for day := start; day.Before(end); day = day.AddDate(0, 0, 1) {
+		if _, blocked := quarantined[day.UTC()]; blocked {
+			// 范围内任一已有隔离日即整体拒绝：重算会先 DELETE 再重建，绝不能用
+			// 不完整明细覆盖已隔离的旧桶。
+			return true, nil
+		}
+		reason := ""
+		if control.timezoneName != timezone.Name() {
+			reason = "timezone_changed"
+		} else if day.Before(control.rawSafeFrom) {
+			reason = "raw_history_incomplete"
+		}
+		if reason == "" {
+			continue
+		}
+		if err := quarantineUsageRepairDay(ctx, tx, day, day.AddDate(0, 0, 1), reason); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	return false, nil
 }
 
 func (r *dashboardAggregationRepository) recomputeRangeInTx(ctx context.Context, hourStart, hourEnd, dayStart, dayEnd time.Time) error {
@@ -177,7 +331,7 @@ func (r *dashboardAggregationRepository) recomputeRangeInTx(ctx context.Context,
 	if err := r.insertHourlyActiveUsers(ctx, hourStart, hourEnd); err != nil {
 		return err
 	}
-	if err := r.insertDailyActiveUsers(ctx, hourStart, hourEnd); err != nil {
+	if err := r.insertDailyActiveUsers(ctx, dayStart, dayEnd); err != nil {
 		return err
 	}
 	if err := r.upsertHourlyAggregates(ctx, hourStart, hourEnd); err != nil {
@@ -250,33 +404,13 @@ func (r *dashboardAggregationRepository) CleanupUsageLogs(ctx context.Context, c
 
 func (r *dashboardAggregationRepository) cleanupUsageLogsBatches(ctx context.Context, cutoff time.Time) error {
 	db, transactional := r.sql.(*sql.DB)
+	if !transactional {
+		// 非事务执行器无法保证「推进完整性边界 + 隔离 + 删除」的原子性，
+		// 直接删除会让已发布日桶被静默破坏，fail-closed。
+		return fmt.Errorf("cannot clean usage statistics source without a database transaction")
+	}
 	for {
-		if transactional {
-			affected, err := cleanupUsageLogsBatchWithRollupInvalidation(ctx, db, cutoff)
-			if err != nil {
-				return err
-			}
-			if affected < usageLogsCleanupBatchSize {
-				return nil
-			}
-			continue
-		}
-
-		res, err := r.sql.ExecContext(ctx, `
-			WITH victims AS (
-				SELECT tableoid, ctid
-				FROM usage_logs
-				WHERE created_at < $1
-				ORDER BY created_at ASC, id ASC
-				LIMIT $2
-			)
-			DELETE FROM usage_logs
-			WHERE (tableoid, ctid) IN (SELECT tableoid, ctid FROM victims)
-		`, cutoff.UTC(), usageLogsCleanupBatchSize)
-		if err != nil {
-			return err
-		}
-		affected, err := res.RowsAffected()
+		affected, err := cleanupUsageLogsBatchWithRollupInvalidation(ctx, db, cutoff)
 		if err != nil {
 			return err
 		}
@@ -285,7 +419,6 @@ func (r *dashboardAggregationRepository) cleanupUsageLogsBatches(ctx context.Con
 		}
 	}
 }
-
 func cleanupUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB, cutoff time.Time) (int64, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -296,7 +429,13 @@ func cleanupUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB
 		return 0, err
 	}
 
+	if _, err := tx.ExecContext(ctx, "LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE"); err != nil {
+		return rollback(err)
+	}
 	if err := lockGroupUsageRollupState(ctx, tx); err != nil {
+		return rollback(err)
+	}
+	if err := advanceUsageRawSafeFrom(ctx, tx, cutoff); err != nil {
 		return rollback(err)
 	}
 	rows, err := tx.QueryContext(ctx, `
@@ -316,7 +455,6 @@ func cleanupUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB
 	}
 
 	var affected int64
-	var earliestDeletedAt time.Time
 	for rows.Next() {
 		var deletedAt time.Time
 		if err := rows.Scan(&deletedAt); err != nil {
@@ -324,9 +462,6 @@ func cleanupUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB
 			return rollback(err)
 		}
 		affected++
-		if earliestDeletedAt.IsZero() || deletedAt.Before(earliestDeletedAt) {
-			earliestDeletedAt = deletedAt
-		}
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
@@ -335,15 +470,51 @@ func cleanupUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB
 	if err := rows.Close(); err != nil {
 		return rollback(err)
 	}
-	if affected > 0 {
-		if err := invalidateGroupUsageRollupsAt(ctx, tx, earliestDeletedAt); err != nil {
-			return rollback(err)
+	if affected == 0 {
+		if err := tx.Rollback(); err != nil {
+			return 0, err
 		}
+		return 0, nil
 	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
 	return affected, nil
+}
+
+// advanceUsageRawSafeFrom is called with the group-state lock held, before retention removes any source row.
+func advanceUsageRawSafeFrom(ctx context.Context, tx *sql.Tx, cutoff time.Time) error {
+	control, err := readUsageRepairControl(ctx, tx)
+	if err != nil {
+		return err
+	}
+	if control.timezoneName != timezone.Name() {
+		return fmt.Errorf("cannot clean usage statistics source: timezone mismatch")
+	}
+	boundary := truncateToDay(cutoff.In(timezone.Location()))
+	if boundary.Before(cutoff) {
+		boundary = boundary.AddDate(0, 0, 1)
+	}
+	if boundary.Before(control.rawSafeFrom) {
+		boundary = control.rawSafeFrom
+	}
+	result, err := tx.ExecContext(ctx, `UPDATE usage_stats_repair_control
+		SET raw_safe_from = GREATEST(raw_safe_from, $1), generation = generation + 1, updated_at = clock_timestamp()
+		WHERE id = 1`, boundary.UTC())
+	if err != nil {
+		return fmt.Errorf("advance usage statistics completeness boundary: %w", err)
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected != 1 {
+		return fmt.Errorf("usage statistics control row missing")
+	}
+	_, err = tx.ExecContext(ctx, `UPDATE usage_stats_repair_days SET
+		state = 'quarantine', reason_code = 'raw_history_incomplete', updated_at = clock_timestamp()
+		WHERE state = 'dirty' AND day_start < $1`, boundary.UTC())
+	return err
 }
 
 func (r *dashboardAggregationRepository) CleanupUsageBillingDedup(ctx context.Context, cutoff time.Time) error {
@@ -413,10 +584,10 @@ func (r *dashboardAggregationRepository) insertDailyActiveUsers(ctx context.Cont
 	query := `
 		INSERT INTO usage_dashboard_daily_users (bucket_date, user_id)
 		SELECT DISTINCT
-			(bucket_start AT TIME ZONE $3)::date AS bucket_date,
+			(created_at AT TIME ZONE $3)::date AS bucket_date,
 			user_id
-		FROM usage_dashboard_hourly_users
-		WHERE bucket_start >= $1 AND bucket_start < $2
+		FROM usage_logs
+		WHERE created_at >= $1 AND created_at < $2
 		ON CONFLICT DO NOTHING
 	`
 	_, err := r.sql.ExecContext(ctx, query, start, end, tzName)
@@ -500,19 +671,19 @@ func (r *dashboardAggregationRepository) upsertDailyAggregates(ctx context.Conte
 	query := `
 		WITH daily AS (
 			SELECT
-				(bucket_start AT TIME ZONE $5)::date AS bucket_date,
-				COALESCE(SUM(total_requests), 0) AS total_requests,
+				(created_at AT TIME ZONE $5)::date AS bucket_date,
+				COUNT(*) AS total_requests,
 				COALESCE(SUM(input_tokens), 0) AS input_tokens,
 				COALESCE(SUM(output_tokens), 0) AS output_tokens,
 				COALESCE(SUM(cache_creation_tokens), 0) AS cache_creation_tokens,
 				COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,
 				COALESCE(SUM(total_cost), 0) AS total_cost,
 				COALESCE(SUM(actual_cost), 0) AS actual_cost,
-				COALESCE(SUM(account_cost), 0) AS account_cost,
-				COALESCE(SUM(total_duration_ms), 0) AS total_duration_ms
-			FROM usage_dashboard_hourly
-			WHERE bucket_start >= $1 AND bucket_start < $2
-			GROUP BY (bucket_start AT TIME ZONE $5)::date
+				COALESCE(SUM(COALESCE(account_stats_cost, total_cost) * COALESCE(account_rate_multiplier, 1)), 0) AS account_cost,
+				COALESCE(SUM(COALESCE(duration_ms, 0)), 0) AS total_duration_ms
+			FROM usage_logs
+			WHERE created_at >= $1 AND created_at < $2
+			GROUP BY (created_at AT TIME ZONE $5)::date
 		),
 		user_counts AS (
 			SELECT bucket_date, COUNT(*) AS active_users
@@ -638,14 +809,9 @@ func (r *dashboardAggregationRepository) dropUsageLogsPartitions(ctx context.Con
 		}
 		return nil
 	}
-	for _, partition := range partitions {
-		if _, err := r.sql.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", pq.QuoteIdentifier(partition.name))); err != nil {
-			return err
-		}
-	}
-	return nil
+	// 非事务执行器无法保证推进完整性边界，DROP 会让落下的月份静默从统计消失，fail-closed。
+	return fmt.Errorf("cannot drop usage_logs partitions without a database transaction")
 }
-
 func dropUsageLogsPartitionWithRollupInvalidation(ctx context.Context, db *sql.DB, name string, monthStart time.Time) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -656,10 +822,13 @@ func dropUsageLogsPartitionWithRollupInvalidation(ctx context.Context, db *sql.D
 		return err
 	}
 
+	if _, err := tx.ExecContext(ctx, "LOCK TABLE ONLY usage_logs IN ACCESS EXCLUSIVE MODE"); err != nil {
+		return rollback(err)
+	}
 	if err := lockGroupUsageRollupState(ctx, tx); err != nil {
 		return rollback(err)
 	}
-	if err := invalidateGroupUsageRollupsAt(ctx, tx, monthStart); err != nil {
+	if err := advanceUsageRawSafeFrom(ctx, tx, truncateToMonthUTC(monthStart).AddDate(0, 1, 0)); err != nil {
 		return rollback(err)
 	}
 	if _, err := tx.ExecContext(ctx, fmt.Sprintf("DROP TABLE IF EXISTS %s", pq.QuoteIdentifier(name))); err != nil {

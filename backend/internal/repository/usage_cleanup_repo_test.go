@@ -9,6 +9,7 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -407,10 +408,10 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatch(t *testing.T) {
 	db, mock := newSQLMock(t)
 	repo := &usageCleanupRepository{sql: db}
 
-	start := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	userID := int64(3)
-	model := " gpt-4 "
+	userID := int64(7)
+	model := "gpt-4"
 	filters := service.UsageCleanupFilters{
 		StartTime: start,
 		EndTime:   end,
@@ -419,14 +420,13 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatch(t *testing.T) {
 	}
 
 	mock.ExpectBegin()
+	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT id FROM usage_group_rollup_state.*FOR UPDATE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	// 人工删除不推进全局 raw_safe_from：任何 repair_control / repair_days 写入都是未预期查询。
 	mock.ExpectQuery("DELETE FROM usage_logs").
 		WithArgs(start, end, userID, "gpt-4", 2).
 		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(start.Add(time.Hour)).AddRow(start.Add(2 * time.Hour)))
-	mock.ExpectExec(`UPDATE usage_group_rollup_state`).
-		WithArgs(start.Add(time.Hour), "Asia/Shanghai").
-		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	deleted, err := repo.DeleteUsageLogsBatch(context.Background(), filters, 2)
@@ -447,6 +447,7 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchAtomicallyInvalidatesGroupRol
 	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
 
 	mock.ExpectBegin()
+	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT id FROM usage_group_rollup_state.*FOR UPDATE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectQuery(`(?s)DELETE FROM usage_logs.*RETURNING created_at`).
@@ -454,14 +455,39 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchAtomicallyInvalidatesGroupRol
 		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).
 			AddRow(firstDeletedAt).
 			AddRow(secondDeletedAt))
-	mock.ExpectExec(`UPDATE usage_group_rollup_state`).
-		WithArgs(firstDeletedAt, "Asia/Shanghai").
-		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	deleted, err := repo.DeleteUsageLogsBatch(context.Background(), filters, 2)
 	require.NoError(t, err)
 	require.Equal(t, int64(2), deleted)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// 空匹配（含未来窗口）不得改变任何完整性状态：不推进 raw_safe_from、不写 repair_days，
+// 直接提交并返回 0。sqlmock 会把任何多余的维修表写入判为未预期而失败，因此本测试能
+// 真正拦住「零行删除也推进边界」的缺陷（P1-17）。
+func TestUsageCleanupRepositoryDeleteUsageLogsBatchEmptyWindowDoesNotTouchRepairState(t *testing.T) {
+	setUsageCleanupRollupTestTimezone(t)
+	db, mock := newSQLMock(t)
+	repo := &usageCleanupRepository{sql: db}
+
+	// 未来窗口：正常情况下没有任何行匹配。
+	start := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	end := start.Add(24 * time.Hour)
+	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
+
+	mock.ExpectBegin()
+	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT id FROM usage_group_rollup_state.*FOR UPDATE`).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectQuery(`(?s)DELETE FROM usage_logs.*RETURNING created_at`).
+		WithArgs(start, end, 2).
+		WillReturnRows(sqlmock.NewRows([]string{"created_at"}))
+	mock.ExpectCommit()
+
+	deleted, err := repo.DeleteUsageLogsBatch(context.Background(), filters, 2)
+	require.NoError(t, err)
+	require.Zero(t, deleted)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -472,18 +498,11 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchRollsBackWhenInvalidationFail
 
 	start := time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 	end := start.Add(24 * time.Hour)
-	deletedAt := time.Date(2026, 8, 1, 3, 0, 0, 0, time.UTC)
 	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
 
 	mock.ExpectBegin()
-	mock.ExpectQuery(`SELECT id FROM usage_group_rollup_state.*FOR UPDATE`).
-		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
-	mock.ExpectQuery(`(?s)DELETE FROM usage_logs.*RETURNING created_at`).
-		WithArgs(start, end, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"created_at"}).AddRow(deletedAt))
-	mock.ExpectExec(`UPDATE usage_group_rollup_state`).
-		WithArgs(deletedAt, "Asia/Shanghai").
-		WillReturnError(sql.ErrConnDone)
+	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectQuery(`SELECT id FROM usage_group_rollup_state.*FOR UPDATE`).WillReturnError(sql.ErrConnDone)
 	mock.ExpectRollback()
 
 	_, err := repo.DeleteUsageLogsBatch(context.Background(), filters, 1)
@@ -492,6 +511,7 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchRollsBackWhenInvalidationFail
 }
 
 func TestUsageCleanupRepositoryDeleteUsageLogsBatchQueryError(t *testing.T) {
+	setUsageCleanupRollupTestTimezone(t)
 	db, mock := newSQLMock(t)
 	repo := &usageCleanupRepository{sql: db}
 
@@ -500,6 +520,7 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchQueryError(t *testing.T) {
 	filters := service.UsageCleanupFilters{StartTime: start, EndTime: end}
 
 	mock.ExpectBegin()
+	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
 	mock.ExpectQuery(`SELECT id FROM usage_group_rollup_state.*FOR UPDATE`).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	mock.ExpectQuery("DELETE FROM usage_logs").
@@ -510,6 +531,18 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchQueryError(t *testing.T) {
 	_, err := repo.DeleteUsageLogsBatch(context.Background(), filters, 5)
 	require.Error(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+// advanceToBoundary 复现 production advanceUsageRawSafeFrom 的边界语义：
+// 取 cutoff 在配置时区内的自然日零点；若早于 cutoff 则推到次日零点（UTC 表示）。
+func advanceToBoundary(t *testing.T, cutoff time.Time) time.Time {
+	t.Helper()
+	loc := timezone.Location()
+	boundary := truncateToDay(cutoff.In(loc))
+	if boundary.Before(cutoff) {
+		boundary = boundary.AddDate(0, 0, 1)
+	}
+	return boundary.UTC()
 }
 
 func TestBuildUsageCleanupWhere(t *testing.T) {

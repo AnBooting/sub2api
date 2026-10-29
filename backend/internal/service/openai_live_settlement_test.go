@@ -101,7 +101,11 @@ func TestFinalizeLiveCallSettlesSubscriptionUsage(t *testing.T) {
 }
 
 // TestFinalizeLiveCallBillingFailureWritesNoCharge 锁定失败处理：结算失败时不得
-// 留下"已计费但未扣费"的账单，用量日志仍要落库供对账。
+// 留下"已计费但未扣费"的账单。
+//
+// 对账责任由**结算记录本身**（Settlement 保持 pending + 冻结金额）与 ops 审计承担，
+// 不再往 usage_logs 写零费用占位行：usage_logs 是请求数、目录费用、账号成本与会话
+// 时长的单一事实源，汇总 SQL 直接 SUM，多一条行会把一次会话重复统计。
 func TestFinalizeLiveCallBillingFailureWritesNoCharge(t *testing.T) {
 	price := 0.10
 	svc, store, usageRepo, billingRepo := newLiveSettlementTestService()
@@ -111,11 +115,17 @@ func TestFinalizeLiveCallBillingFailureWritesNoCharge(t *testing.T) {
 	require.NotPanics(t, func() { svc.finalizeLiveCall(record) })
 
 	require.Equal(t, 1, billingRepo.calls)
+	// 待结算状态与冻结金额保留在结算记录里，重试与对账都以它为准。
+	current, err := store.GetLiveCall(context.Background(), record.CallHash)
+	require.NoError(t, err)
+	require.NotNil(t, current.Settlement)
+	require.Equal(t, LiveSettlementPending, current.Settlement.Status)
+	require.InDelta(t, 0.2, current.Settlement.TotalCost, 0.02)
+	require.Equal(t, 1, current.Settlement.Attempts)
+	// 失败的尝试不得在 usage_logs 留下任何行。
 	usageRepo.mu.Lock()
 	defer usageRepo.mu.Unlock()
-	require.Len(t, usageRepo.logs, 1)
-	require.Zero(t, usageRepo.logs[0].ActualCost)
-	require.InDelta(t, 0.2, usageRepo.logs[0].TotalCost, 0.02)
+	require.Len(t, usageRepo.logs, 0, "失败尝试不得写 usage_logs")
 }
 
 // TestFinalizeLiveCallWithoutPriceSkipsSettlement 锁定缺价不得放行：没有冻结单价时
