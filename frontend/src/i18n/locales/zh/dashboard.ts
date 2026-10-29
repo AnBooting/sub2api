@@ -903,6 +903,16 @@ export default {
     loadMoreFailed: '加载更多视频任务失败，请重试',
     loadMore: '加载更多',
     lastError: '失败原因',
+    processingUpdate: '处理进展',
+    errors: {
+      processing_delayed: '任务仍在处理中，请稍后查看状态或联系客服。',
+      account_not_bound: '任务当前没有可用的上游账号，请稍后重试或联系客服。',
+      account_load_failed: '任务读取上游账号失败，请稍后重试或联系客服。',
+      dependency_unavailable: '任务依赖暂时不可用，请稍后重试或联系客服。',
+      upstream_failed: '视频任务未完成，请确认结果后再提交新任务。',
+      settlement_failed: '视频已生成但结算尚未完成，请稍后查看状态或联系客服。',
+      internal_error: '任务处理失败，请稍后重试或联系客服。'
+    },
     billingMode: {
       per_token: '按量（Token）',
       per_request: '按次',
