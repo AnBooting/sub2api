@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +49,7 @@ func TestUsageStatsRepair_ScheduledSkipsUnsafeClosedDayButRefreshesOpenDay(t *te
 	today := time.Date(2026, 10, 28, 16, 0, 0, 0, time.UTC)
 	repo.clock = func() time.Time { return today.Add(6 * time.Hour) }
 	yesterday := today.AddDate(0, 0, -1)
-	rawSafeFrom := today.Add(time.Hour)
+	rawSafeFrom := today
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ACCESS SHARE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
@@ -68,7 +69,7 @@ func TestUsageStatsRepair_ScheduledSkipsUnsafeClosedDayButRefreshesOpenDay(t *te
 	mock.ExpectExec(`INSERT INTO usage_dashboard_daily`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	require.NoError(t, repo.AggregateRange(context.Background(), yesterday, today.Add(6*time.Hour)))
+	require.ErrorIs(t, repo.AggregateRange(context.Background(), yesterday, today.Add(6*time.Hour)), service.ErrUsageStatsIncomplete)
 	require.NoError(t, mock.ExpectationsWereMet(), "only the open day may be refreshed")
 }
 
@@ -79,7 +80,7 @@ func TestUsageStatsRepair_AggregateSkipsAlreadyQuarantinedDay(t *testing.T) {
 	today := time.Date(2026, 10, 28, 16, 0, 0, 0, time.UTC)
 	repo.clock = func() time.Time { return today.Add(6 * time.Hour) }
 	yesterday := today.AddDate(0, 0, -1)
-	rawSafeFrom := today.Add(time.Hour)
+	rawSafeFrom := today
 
 	mock.ExpectBegin()
 	mock.ExpectExec(`LOCK TABLE ONLY usage_logs IN ACCESS SHARE MODE`).WillReturnResult(sqlmock.NewResult(0, 0))
@@ -97,7 +98,7 @@ func TestUsageStatsRepair_AggregateSkipsAlreadyQuarantinedDay(t *testing.T) {
 	mock.ExpectExec(`INSERT INTO usage_dashboard_daily`).WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
-	require.NoError(t, repo.AggregateRange(context.Background(), yesterday, today.Add(6*time.Hour)))
+	require.ErrorIs(t, repo.AggregateRange(context.Background(), yesterday, today.Add(6*time.Hour)), service.ErrUsageStatsIncomplete)
 	require.NoError(t, mock.ExpectationsWereMet(), "已隔离日不聚合，开放日仍刷新")
 }
 

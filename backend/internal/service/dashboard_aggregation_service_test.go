@@ -22,6 +22,7 @@ type dashboardAggregationRepoTestStub struct {
 	lastStart             time.Time
 	lastEnd               time.Time
 	watermark             time.Time
+	watermarkCalls        int
 	aggregateErr          error
 	cleanupAggregatesErr  error
 	cleanupUsageErr       error
@@ -70,7 +71,17 @@ func (s *dashboardAggregationRepoTestStub) GetAggregationWatermark(ctx context.C
 }
 
 func (s *dashboardAggregationRepoTestStub) UpdateAggregationWatermark(ctx context.Context, aggregatedAt time.Time) error {
+	s.watermarkCalls++
 	return nil
+}
+
+func TestDashboardAggregationServiceIncompleteRangeDoesNotPublishWatermark(t *testing.T) {
+	repo := &dashboardAggregationRepoTestStub{watermark: time.Now().Add(-48 * time.Hour), aggregateErr: ErrUsageStatsIncomplete}
+	svc := &DashboardAggregationService{repo: repo, cfg: config.DashboardAggregationConfig{LookbackSeconds: 120}}
+	svc.runScheduledAggregation()
+	svc.runScheduledAggregation()
+	require.Equal(t, 2, repo.aggregateCalls, "a persisted gap must not disable future scheduled work")
+	require.Zero(t, repo.watermarkCalls, "an incomplete scan is not a complete publication")
 }
 
 func (s *dashboardAggregationRepoTestStub) CleanupAggregates(ctx context.Context, hourlyCutoff, dailyCutoff time.Time) error {

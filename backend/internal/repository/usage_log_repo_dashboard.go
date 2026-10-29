@@ -193,6 +193,16 @@ func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats
 }
 
 func (r *usageLogRepository) fillDashboardUsageStatsAggregated(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
+	return r.readUsageStatsSnapshot(ctx, func(snapshot *usageLogRepository) error {
+		// This endpoint includes all retained daily buckets, not only today.
+		if err := snapshot.requireUsageStatsAvailable(ctx, time.Unix(0, 0).UTC(), time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+			return err
+		}
+		return snapshot.fillDashboardUsageStatsAvailable(ctx, stats, todayUTC, now)
+	})
+}
+
+func (r *usageLogRepository) fillDashboardUsageStatsAvailable(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
 	totalStatsQuery := `
 		SELECT
 			COALESCE(SUM(total_requests), 0) as total_requests,

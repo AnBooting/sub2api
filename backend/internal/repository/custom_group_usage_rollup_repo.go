@@ -83,6 +83,26 @@ func (r *usageLogRepository) getAllGroupUsageSummaryFromRollups(ctx context.Cont
 	if err != nil {
 		return nil, err
 	}
+	// This check and the rollup/raw reads run in one repeatable-read snapshot.
+	// Published quarantined buckets are also unsafe: they may predate a manual
+	// deletion. Checking only the raw tail would still return a stale total.
+	retainedStart, err := service.ParseGroupUsageDate(state.retainedDate)
+	if err != nil {
+		return nil, err
+	}
+	var complete bool
+	if err := scanSingleRow(ctx, r.sql, `SELECT
+		EXISTS (SELECT 1 FROM usage_stats_repair_control
+			WHERE id = 1 AND timezone_name = $1 AND raw_safe_from <= $2)
+		AND NOT EXISTS (SELECT 1 FROM usage_stats_repair_days
+			WHERE state = 'quarantine'
+			AND (timezone_name <> $1 OR day_end > $3))`,
+		[]any{timezoneName, state.tailStart, retainedStart}, &complete); err != nil {
+		return nil, fmt.Errorf("read group usage completeness: %w", err)
+	}
+	if !complete {
+		return nil, service.ErrUsageStatsIncomplete
+	}
 
 	// 尾段起点必须以**查询参数**的形式给进来。
 	//
@@ -264,11 +284,15 @@ func (r *dashboardAggregationRepository) syncGroupUsageRollupsInTx(ctx context.C
 	// 已发布水位与 safe 起点之间的不完整区间持久隔离，禁止重算覆盖。
 	if !timezoneChanged && rebuildStart.After(closedTime) {
 		quarantineStart := closedTime
-		for day := quarantineStart; day.Before(rebuildStart); day = day.AddDate(0, 0, 1) {
+		for day := quarantineStart; day.Before(rebuildStart) && day.Before(todayStart); day = day.AddDate(0, 0, 1) {
 			if err := quarantineUsageRepairDay(ctx, tx, day, day.AddDate(0, 0, 1), "raw_history_incomplete"); err != nil {
 				return err
 			}
 		}
+		// The gap starts at the published boundary. There is no complete prefix
+		// to publish, even if later days can be rebuilt. Commit the quarantine
+		// facts without changing any existing buckets or the watermark.
+		return nil
 	}
 	if timezoneChanged {
 		// 跨时区：不重算旧桶、不推进水位，持久隔离待人工/对账确认。

@@ -39,7 +39,7 @@ const usageStatsRepairFailSQL = `UPDATE usage_stats_repair_days
 		    next_retry_at = clock_timestamp() + ($8::bigint * INTERVAL '1 millisecond'),
 		    lease_until = NULL, updated_at = clock_timestamp()
 		WHERE timezone_name = $1 AND day_start = $2 AND generation = $3
-		  AND claim_owner = $4 AND claim_fence = $5`
+		  AND claim_owner = $4 AND claim_fence = $5 AND state = 'dirty'`
 
 type usageStatsRepairQueueSQL struct {
 	db *sql.DB
@@ -135,7 +135,7 @@ func (r *usageStatsRepairQueueSQL) Fail(ctx context.Context, timezoneName string
 		    next_retry_at = clock_timestamp() + ($8::bigint * INTERVAL '1 millisecond'),
 		    lease_until = NULL, updated_at = clock_timestamp()
 		WHERE timezone_name = $1 AND day_start = $2 AND generation = $3
-		  AND claim_owner = $4 AND claim_fence = $5`,
+		  AND claim_owner = $4 AND claim_fence = $5 AND state = 'dirty'`,
 		timezoneName, dayStart.UTC(), generation, owner, fence, service.UsageStatsRepairMaxAttempts, reason, backoffMs)
 	if err != nil {
 		return err

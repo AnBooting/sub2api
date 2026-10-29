@@ -20,6 +20,10 @@ var ErrUsageRepairStoreUnavailable = errors.New("usage statistics repair store i
 // ErrUsageRepairLostLease 表示该日的代次已被后续写入推进，本次 ack/fail 已过期。
 var ErrUsageRepairLostLease = errors.New("usage statistics repair claim has expired or changed")
 
+// ErrUsageStatsIncomplete means the requested statistics include unproven history.
+// Callers must not publish a successful watermark or substitute a zero total.
+var ErrUsageStatsIncomplete = errors.New("usage statistics unavailable: incomplete history requires reconciliation")
+
 // UsageRepairDayClaim 是一次脏日领取快照。
 // Owner/Fence 是本次领取的独占凭证：Ack/Fail 必须携带并命中，
 // 防止旧 worker 在租期过期或其他 worker 重领后越权修改状态。

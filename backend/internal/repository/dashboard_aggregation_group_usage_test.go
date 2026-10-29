@@ -394,7 +394,6 @@ func TestDashboardAggregationRepositorySyncGroupUsageRollupsSafeFromMiddayStarts
 	todayStart := time.Date(2026, 8, 13, 16, 0, 0, 0, time.UTC) // 2026-08-14 00:00+08
 	rawSafeFrom := time.Date(2026, 8, 9, 22, 0, 0, 0, time.UTC) // 2026-08-10 06:00+08（当天中途）
 	closedBefore := "2026-08-09"
-	safeNextDay := time.Date(2026, 8, 10, 16, 0, 0, 0, time.UTC) // 2026-08-11 00:00+08
 
 	mock.ExpectBegin()
 	mock.ExpectQuery(`SELECT closed_before::text, retained_from.*FOR UPDATE`).
@@ -413,20 +412,8 @@ func TestDashboardAggregationRepositorySyncGroupUsageRollupsSafeFromMiddayStarts
 	mock.ExpectExec(`INSERT INTO usage_stats_repair_days`).
 		WithArgs("Asia/Shanghai", closedTime.AddDate(0, 0, 1), closedTime.AddDate(0, 0, 2), "raw_history_incomplete").
 		WillReturnResult(sqlmock.NewResult(0, 1))
-	// P1-16：水位上界查询（无 mid-range 隔离日 → 推进到 today）
-	mock.ExpectQuery(`(?s)SELECT day_start.*state = 'quarantine'`).
-		WithArgs("Asia/Shanghai", safeNextDay, todayStart).
-		WillReturnRows(sqlmock.NewRows([]string{"day_start"}))
-	// 重建从 08-11 开始，DELETE 只覆盖 [08-11, 08-14)
-	mock.ExpectExec(`DELETE FROM usage_group_daily_rollups`).
-		WithArgs("2026-08-11", "2026-08-14").
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`INSERT INTO usage_group_daily_rollups`).
-		WithArgs(safeNextDay, todayStart, "Asia/Shanghai").
-		WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec(`UPDATE usage_group_rollup_state`).
-		WithArgs("2026-08-14", time.Unix(0, 0).UTC(), "Asia/Shanghai").
-		WillReturnResult(sqlmock.NewResult(0, 1))
+	// The newly quarantined gap starts at closedBefore. No bucket or watermark
+	// may be changed, even though raw data after 08-11 is complete.
 	mock.ExpectCommit()
 
 	require.NoError(t, repo.SyncGroupUsageRollups(context.Background(), todayStart))

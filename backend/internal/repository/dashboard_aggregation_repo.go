@@ -100,22 +100,24 @@ func (r *dashboardAggregationRepository) AggregateRange(ctx context.Context, sta
 		return err
 	}
 	txRepo := newDashboardAggregationRepositoryWithSQL(tx)
-	today := truncateToDay(r.now().In(loc))
+	var incomplete error
 	for day := dayStart; day.Before(dayEnd); day = day.AddDate(0, 0, 1) {
 		next := day.AddDate(0, 0, 1)
 		if _, blocked := quarantined[day.UTC()]; blocked {
+			incomplete = service.ErrUsageStatsIncomplete
 			continue
 		}
 		reason := ""
 		if control.timezoneName != timezone.Name() {
 			reason = "timezone_changed"
-		} else if day.Before(today) && day.Before(control.rawSafeFrom) {
+		} else if day.Before(control.rawSafeFrom) {
 			reason = "raw_history_incomplete"
 		}
 		if reason != "" {
 			if err := quarantineUsageRepairDay(ctx, tx, day, next, reason); err != nil {
 				return err
 			}
+			incomplete = service.ErrUsageStatsIncomplete
 			continue
 		}
 		first, last := hourStart, hourEnd
@@ -129,7 +131,12 @@ func (r *dashboardAggregationRepository) AggregateRange(ctx context.Context, sta
 			return err
 		}
 	}
-	return tx.Commit()
+	// Commit safe days even when a preceding gap prevents publishing a complete
+	// watermark. Otherwise an upgrade-day quarantine would halt all later days.
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return incomplete
 }
 
 func (r *dashboardAggregationRepository) aggregateRangeInTx(ctx context.Context, hourStart, hourEnd, dayStart, dayEnd time.Time) error {
