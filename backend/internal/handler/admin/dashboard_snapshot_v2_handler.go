@@ -22,12 +22,31 @@ type dashboardSnapshotV2Stats struct {
 	Uptime int64 `json:"uptime"`
 }
 
+// Explicitly preserve uptime: promoting DashboardStats.MarshalJSON from the
+// embedded field would otherwise silently omit fields on this response wrapper.
+func (s dashboardSnapshotV2Stats) MarshalJSON() ([]byte, error) {
+	data, err := json.Marshal(s.DashboardStats)
+	if err != nil {
+		return nil, err
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return nil, err
+	}
+	fields["uptime"], err = json.Marshal(s.Uptime)
+	if err != nil {
+		return nil, err
+	}
+	return json.Marshal(fields)
+}
+
 type dashboardSnapshotV2Response struct {
 	GeneratedAt string `json:"generated_at"`
 
-	StartDate   string `json:"start_date"`
-	EndDate     string `json:"end_date"`
-	Granularity string `json:"granularity"`
+	StartDate           string   `json:"start_date"`
+	EndDate             string   `json:"end_date"`
+	Granularity         string   `json:"granularity"`
+	UnavailableSections []string `json:"unavailable_sections,omitempty"`
 
 	Stats      *dashboardSnapshotV2Stats        `json:"stats,omitempty"`
 	Trend      []usagestats.TrendDataPoint      `json:"trend,omitempty"`
@@ -158,6 +177,25 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 	includeStats, includeTrend, includeModels, includeGroups, includeUsersTrend bool,
 	usersTrendLimit int,
 ) (*dashboardSnapshotV2Response, error) {
+	var result *dashboardSnapshotV2Response
+	err := h.dashboardService.WithUsageStatsSnapshot(ctx, func(snapshot *service.DashboardService) error {
+		scoped := *h
+		scoped.dashboardService = snapshot
+		var err error
+		result, err = scoped.buildSnapshotV2InUsageSnapshot(ctx, startTime, endTime, granularity, filters, includeStats, includeTrend, includeModels, includeGroups, includeUsersTrend, usersTrendLimit)
+		return err
+	})
+	return result, err
+}
+
+func (h *DashboardHandler) buildSnapshotV2InUsageSnapshot(
+	ctx context.Context,
+	startTime, endTime time.Time,
+	granularity string,
+	filters *dashboardSnapshotV2Filters,
+	includeStats, includeTrend, includeModels, includeGroups, includeUsersTrend bool,
+	usersTrendLimit int,
+) (*dashboardSnapshotV2Response, error) {
 	resp := &dashboardSnapshotV2Response{
 		GeneratedAt: time.Now().UTC().Format(time.RFC3339),
 		StartDate:   startTime.Format("2006-01-02"),
@@ -176,76 +214,60 @@ func (h *DashboardHandler) buildSnapshotV2Response(
 		}
 	}
 
+	// Do not let an unavailable chart discard independently available cards.
+	// Raw chart sections share this range, including filtered model/user series.
+	if includeTrend || includeModels || includeGroups || includeUsersTrend {
+		if err := h.dashboardService.CheckUsageStatsAvailable(ctx, startTime, endTime); err != nil {
+			if !errors.Is(err, service.ErrUsageStatsIncomplete) {
+				return nil, err
+			}
+			for _, section := range []struct {
+				name    string
+				include bool
+			}{
+				{"trend", includeTrend}, {"models", includeModels}, {"groups", includeGroups}, {"users_trend", includeUsersTrend},
+			} {
+				if section.include {
+					resp.UnavailableSections = append(resp.UnavailableSections, section.name)
+				}
+			}
+			return resp, nil
+		}
+	}
+
+	usageFilters := usagestats.UsageLogFilters{
+		UserID: filters.UserID, APIKeyID: filters.APIKeyID, AccountID: filters.AccountID, GroupID: filters.GroupID,
+		Model: filters.Model, RequestType: filters.RequestType, Stream: filters.Stream,
+		NativeCompactionV2: filters.NativeCompactionV2, BillingType: filters.BillingType,
+		UpstreamModelMismatch: filters.UpstreamModelMismatch,
+	}
+	// Cache the complete response in GetSnapshotV2. Section caches may describe
+	// another committed state, so bypass them while constructing this snapshot.
 	if includeTrend {
-		trend, _, err := h.getUsageTrendCached(
-			ctx,
-			startTime,
-			endTime,
-			granularity,
-			filters.UserID,
-			filters.APIKeyID,
-			filters.AccountID,
-			filters.GroupID,
-			filters.Model,
-			filters.RequestType,
-			filters.Stream,
-			filters.NativeCompactionV2,
-			filters.BillingType,
-			filters.UpstreamModelMismatch,
-		)
+		trend, err := h.dashboardService.GetUsageTrendWithUsageFilters(ctx, startTime, endTime, granularity, usageFilters)
 		if err != nil {
-			return nil, errors.New("failed to get usage trend")
+			return nil, err
 		}
 		resp.Trend = trend
 	}
-
 	if includeModels {
-		models, _, err := h.getModelStatsCached(
-			ctx,
-			startTime,
-			endTime,
-			filters.UserID,
-			filters.APIKeyID,
-			filters.AccountID,
-			filters.GroupID,
-			usagestats.ModelSourceRequested,
-			filters.RequestType,
-			filters.Stream,
-			filters.NativeCompactionV2,
-			filters.BillingType,
-			filters.UpstreamModelMismatch,
-		)
+		models, err := h.dashboardService.GetModelStatsWithUsageFiltersBySource(ctx, startTime, endTime, usageFilters, usagestats.ModelSourceRequested)
 		if err != nil {
-			return nil, errors.New("failed to get model statistics")
+			return nil, err
 		}
 		resp.Models = models
 	}
-
 	if includeGroups {
-		groups, _, err := h.getGroupStatsCached(
-			ctx,
-			startTime,
-			endTime,
-			filters.UserID,
-			filters.APIKeyID,
-			filters.AccountID,
-			filters.GroupID,
-			filters.RequestType,
-			filters.Stream,
-			filters.NativeCompactionV2,
-			filters.BillingType,
-			filters.UpstreamModelMismatch,
-		)
+		groups, err := h.dashboardService.GetGroupStatsWithUsageFilters(ctx, startTime, endTime, usageFilters)
 		if err != nil {
-			return nil, errors.New("failed to get group statistics")
+			return nil, err
 		}
 		resp.Groups = groups
 	}
-
 	if includeUsersTrend {
-		usersTrend, _, err := h.getUserUsageTrendCached(ctx, startTime, endTime, granularity, usersTrendLimit, "tokens")
+		usersTrend, err := h.dashboardService.GetUserUsageTrend(ctx, startTime, endTime, granularity, usersTrendLimit, "tokens")
 		if err != nil {
-			return nil, errors.New("failed to get user usage trend")
+			return nil, err
 		}
 		resp.UsersTrend = usersTrend
 	}

@@ -33,6 +33,35 @@ type dashboardStatsRangeFetcher interface {
 	GetDashboardStatsWithRange(ctx context.Context, start, end time.Time) (*usagestats.DashboardStats, error)
 }
 
+func (s *DashboardService) CheckUsageStatsAvailable(ctx context.Context, start, end time.Time) error {
+	if repo, ok := s.usageRepo.(interface {
+		CheckUsageStatsAvailable(context.Context, time.Time, time.Time) error
+	}); ok {
+		return repo.CheckUsageStatsAvailable(ctx, start, end)
+	}
+	return ErrUsageStatsIncomplete
+}
+
+func (s *DashboardService) WithUsageStatsSnapshot(ctx context.Context, read func(*DashboardService) error) error {
+	if repo, ok := s.usageRepo.(interface {
+		WithUsageStatsSnapshot(context.Context, func(UsageLogRepository) error) error
+	}); ok {
+		return repo.WithUsageStatsSnapshot(ctx, func(snapshot UsageLogRepository) error {
+			// Copy immutable configuration only; refreshing is concurrently
+			// updated atomically on the original service.
+			scoped := &DashboardService{
+				usageRepo: snapshot, aggRepo: s.aggRepo,
+				cacheFreshTTL: s.cacheFreshTTL, cacheTTL: s.cacheTTL,
+				refreshTimeout: s.refreshTimeout, aggEnabled: s.aggEnabled,
+				aggInterval: s.aggInterval, aggLookback: s.aggLookback,
+				aggUsageDays: s.aggUsageDays,
+			}
+			return read(scoped)
+		})
+	}
+	return read(s)
+}
+
 type dashboardStatsCacheEntry struct {
 	Stats     *usagestats.DashboardStats `json:"stats"`
 	UpdatedAt int64                      `json:"updated_at"`

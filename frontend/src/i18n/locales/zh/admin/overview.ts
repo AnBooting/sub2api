@@ -1,6 +1,9 @@
 export default {
     // Dashboard
     dashboard: {
+      partialUsage: '部分用量统计不可用：缺失区间需要核对，其他已确认完整的指标仍可查看。',
+      unavailable: '不可用',
+      chartsUnavailable: '所选时间范围包含不完整数据，暂不显示统计图表。请改选完整日期或完成数据核对。',
       title: '管理控制台',
       description: '系统概览与统计数据',
       apiKeys: 'API 密钥',

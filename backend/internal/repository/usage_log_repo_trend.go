@@ -284,6 +284,11 @@ func (r *usageLogRepository) GetUsageTrendWithUsageFilters(ctx context.Context, 
 func (r *usageLogRepository) getUsageTrendWithFilters(ctx context.Context, startTime, endTime time.Time, granularity string, userID, apiKeyID, accountID, groupID int64, model string, modelSource string, requestType *int16, stream *bool, billingType *int8, billingMode string, upstreamModelMismatch *bool, nativeCompactionV2 *bool) (results []TrendDataPoint, err error) {
 	if shouldUsePreaggregatedTrend(granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, billingType, billingMode, upstreamModelMismatch, nativeCompactionV2) {
 		aggregated, aggregatedErr := r.getUsageTrendFromAggregates(ctx, startTime, endTime, granularity)
+		if aggregatedErr != nil {
+			// Falling back to the same incomplete raw source would erase the
+			// completeness failure and turn partial history into a normal chart.
+			return nil, aggregatedErr
+		}
 		if aggregatedErr == nil && len(aggregated) > 0 {
 			return aggregated, nil
 		}
@@ -374,6 +379,21 @@ func shouldUsePreaggregatedTrend(granularity string, userID, apiKeyID, accountID
 }
 
 func (r *usageLogRepository) getUsageTrendFromAggregates(ctx context.Context, startTime, endTime time.Time, granularity string) (results []TrendDataPoint, err error) {
+	err = r.readUsageStatsSnapshot(ctx, func(snapshot *usageLogRepository) error {
+		if err := snapshot.requireUsageStatsAvailable(ctx, startTime, endTime); err != nil {
+			return err
+		}
+		var err error
+		results, err = snapshot.getUsageTrendFromAvailableAggregates(ctx, startTime, endTime, granularity)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+func (r *usageLogRepository) getUsageTrendFromAvailableAggregates(ctx context.Context, startTime, endTime time.Time, granularity string) (results []TrendDataPoint, err error) {
 	dateFormat := safeDateFormat(granularity)
 	query := ""
 	args := []any{startTime, endTime}
@@ -726,7 +746,16 @@ func (r *usageLogRepository) GetUserBreakdownStats(ctx context.Context, startTim
 
 // GetAllGroupUsageSummary 返回所有分组在服务端配置时区内的今日、昨日与当前保留记录累计金额。
 func (r *usageLogRepository) GetAllGroupUsageSummary(ctx context.Context, todayStart time.Time) ([]usagestats.GroupUsageSummary, error) {
-	return r.getAllGroupUsageSummaryFromRollups(ctx, todayStart)
+	var result []usagestats.GroupUsageSummary
+	err := r.readUsageStatsSnapshot(ctx, func(snapshot *usageLogRepository) error {
+		var err error
+		result, err = snapshot.getAllGroupUsageSummaryFromRollups(ctx, todayStart)
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
 }
 
 // resolveModelDimensionExpression maps model source type to a safe SQL expression.

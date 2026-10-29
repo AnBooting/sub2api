@@ -48,9 +48,15 @@ func (r *usageLogRepository) readGroupUsageRollupSnapshot(ctx context.Context, t
 		return groupUsageRollupSnapshot{}, fmt.Errorf("读取分组用量汇总水位: %w", err)
 	}
 	if rowCount != 1 || !closedBefore.Valid || !retainedFrom.Valid ||
-		!stateTimezone.Valid || stateTimezone.String != timezoneName ||
-		closedBefore.String > todayDate {
+		!stateTimezone.Valid || closedBefore.String > todayDate {
 		return invalid, nil
+	}
+	if stateTimezone.String != timezoneName {
+		// 时区变更时不得用配置时区重新解释旧日桶：任何数字都是误导，
+		// 必须 fail-closed，交由对账/补正流程处理。
+		return groupUsageRollupSnapshot{}, fmt.Errorf(
+			"group usage rollup timezone mismatch: state=%s configured=%s (reconciliation required)",
+			stateTimezone.String, timezoneName)
 	}
 
 	tailStart, err := service.ParseGroupUsageDate(closedBefore.String)
@@ -76,6 +82,26 @@ func (r *usageLogRepository) getAllGroupUsageSummaryFromRollups(ctx context.Cont
 	state, err := r.readGroupUsageRollupSnapshot(ctx, timezoneName, todayDate)
 	if err != nil {
 		return nil, err
+	}
+	// This check and the rollup/raw reads run in one repeatable-read snapshot.
+	// Published quarantined buckets are also unsafe: they may predate a manual
+	// deletion. Checking only the raw tail would still return a stale total.
+	retainedStart, err := service.ParseGroupUsageDate(state.retainedDate)
+	if err != nil {
+		return nil, err
+	}
+	var complete bool
+	if err := scanSingleRow(ctx, r.sql, `SELECT
+		EXISTS (SELECT 1 FROM usage_stats_repair_control
+			WHERE id = 1 AND timezone_name = $1 AND raw_safe_from <= $2)
+		AND NOT EXISTS (SELECT 1 FROM usage_stats_repair_days
+			WHERE state = 'quarantine'
+			AND (timezone_name <> $1 OR day_end > $3))`,
+		[]any{timezoneName, state.tailStart, retainedStart}, &complete); err != nil {
+		return nil, fmt.Errorf("read group usage completeness: %w", err)
+	}
+	if !complete {
+		return nil, service.ErrUsageStatsIncomplete
 	}
 
 	// 尾段起点必须以**查询参数**的形式给进来。
@@ -180,25 +206,41 @@ func (r *dashboardAggregationRepository) SyncGroupUsageRollups(ctx context.Conte
 		}
 		return tx.Commit()
 	}
-	return r.syncGroupUsageRollupsInTx(ctx, todayStart)
+	// 非事务执行器无法保证「水位+完整性控制+桶」的原子发布，fail-closed。
+	return fmt.Errorf("cannot sync group usage rollups without a database transaction")
 }
 
 func (r *dashboardAggregationRepository) syncGroupUsageRollupsInTx(ctx context.Context, todayStart time.Time) error {
+	// 同步必须在事务内执行：水位、完整性控制与桶三者原子发布。
+	tx, ok := r.sql.(*sql.Tx)
+	if !ok {
+		return fmt.Errorf("cannot sync group usage rollups without a database transaction")
+	}
+
 	var closedBefore string
 	var previousRetainedFrom time.Time
 	var stateTimezoneName string
-	if err := scanSingleRow(ctx, r.sql, `
-		SELECT closed_before::text, retained_from, timezone_name
+	if err := scanSingleRow(ctx, r.sql, `SELECT closed_before::text, retained_from, timezone_name
 		FROM usage_group_rollup_state
 		WHERE id = 1
-		FOR UPDATE
-	`, nil, &closedBefore, &previousRetainedFrom, &stateTimezoneName); err != nil {
+		FOR UPDATE`, nil, &closedBefore, &previousRetainedFrom, &stateTimezoneName); err != nil {
 		return fmt.Errorf("读取分组用量汇总水位: %w", err)
 	}
 
 	todayDate := service.GroupUsageDate(todayStart)
 	timezoneName := service.GroupUsageTimezoneName()
 	timezoneChanged := stateTimezoneName != timezoneName
+
+	// 完整性控制行缺失或时区不匹配时不得发布/重算：宁可保持旧桶与旧水位，
+	// 也不要用不完整明细覆盖已发布历史或推进水位到未知时区。
+	control, err := readUsageRepairControl(ctx, tx)
+	if err != nil {
+		return fmt.Errorf("读取用量统计完整性控制: %w", err)
+	}
+	if control.timezoneName != timezoneName {
+		return fmt.Errorf("用量统计完整性控制时区不匹配: %s != %s", control.timezoneName, timezoneName)
+	}
+
 	var closedTime time.Time
 	if !timezoneChanged {
 		var err error
@@ -218,21 +260,20 @@ func (r *dashboardAggregationRepository) syncGroupUsageRollupsInTx(ctx context.C
 		}
 	}
 
-	var earliest sql.NullTime
-	if err := scanSingleRow(ctx, r.sql, "SELECT MIN(created_at) FROM usage_logs", nil, &earliest); err != nil {
-		return fmt.Errorf("读取最早用量记录: %w", err)
-	}
-	retainedFrom := todayStart
-	if earliest.Valid {
-		retainedFrom = earliest.Time.UTC()
-	}
-	retainedDate := service.GroupUsageDate(retainedFrom)
-	retainedDateTime, err := service.ParseGroupUsageDate(retainedDate)
+	// 最早可重算日必须是 raw_safe_from 所在**完整日**的起点：
+	// 若 raw_safe_from 恰在本地零点则当天可用，否则（迁移发生在当天中途）
+	// 当天明细不完整，只能从下一天开始重建。
+	safeFromDay := service.GroupUsageDate(control.rawSafeFrom)
+	safeFromDayTime, err := service.ParseGroupUsageDate(safeFromDay)
 	if err != nil {
 		return err
 	}
-	rebuildStartDate := retainedDate
-	if !timezoneChanged && closedTime.After(retainedDateTime) {
+	earliestSafe := safeFromDayTime
+	if control.rawSafeFrom.After(safeFromDayTime) {
+		earliestSafe = service.GroupUsageTodayStart(safeFromDayTime.AddDate(0, 0, 1))
+	}
+	rebuildStartDate := service.GroupUsageDate(earliestSafe)
+	if !timezoneChanged && closedTime.After(earliestSafe) {
 		rebuildStartDate = closedBefore
 	}
 	rebuildStart, err := service.ParseGroupUsageDate(rebuildStartDate)
@@ -240,17 +281,55 @@ func (r *dashboardAggregationRepository) syncGroupUsageRollupsInTx(ctx context.C
 		return err
 	}
 
-	if _, err := r.sql.ExecContext(ctx, `
-		DELETE FROM usage_group_daily_rollups
-		WHERE bucket_date < $1::date
-			OR (bucket_date >= $2::date AND bucket_date < $3::date)
-			OR bucket_date >= $3::date
-	`, retainedDate, rebuildStartDate, todayDate); err != nil {
+	// 已发布水位与 safe 起点之间的不完整区间持久隔离，禁止重算覆盖。
+	if !timezoneChanged && rebuildStart.After(closedTime) {
+		quarantineStart := closedTime
+		for day := quarantineStart; day.Before(rebuildStart) && day.Before(todayStart); day = day.AddDate(0, 0, 1) {
+			if err := quarantineUsageRepairDay(ctx, tx, day, day.AddDate(0, 0, 1), "raw_history_incomplete"); err != nil {
+				return err
+			}
+		}
+		// The gap starts at the published boundary. There is no complete prefix
+		// to publish, even if later days can be rebuilt. Commit the quarantine
+		// facts without changing any existing buckets or the watermark.
+		return nil
+	}
+	if timezoneChanged {
+		// 跨时区：不重算旧桶、不推进水位，持久隔离待人工/对账确认。
+		quarantineStart, err := service.ParseGroupUsageDate(closedBefore)
+		if err != nil {
+			return err
+		}
+		for day := quarantineStart; day.Before(todayStart); day = day.AddDate(0, 0, 1) {
+			if err := quarantineUsageRepairDay(ctx, tx, day, day.AddDate(0, 0, 1), "timezone_changed"); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// 水位最多推进到范围内首个未证实完整的隔离日（不含）：已发布水位绝不能在
+	// 未证实完整的区间上越过。DELETE/重建也只覆盖该上界之前的连续安全区间。
+	publishEnd := todayStart
+	publishEndDate := todayDate
+	quarantinedNext, err := loadQuarantinedRepairDays(ctx, tx, rebuildStart, todayStart)
+	if err != nil {
+		return err
+	}
+	for day := rebuildStart; day.Before(todayStart); day = day.AddDate(0, 0, 1) {
+		if _, blocked := quarantinedNext[day.UTC()]; blocked {
+			publishEnd = day
+			publishEndDate = service.GroupUsageDate(day)
+			break
+		}
+	}
+
+	if _, err := r.sql.ExecContext(ctx, `DELETE FROM usage_group_daily_rollups
+		WHERE bucket_date >= $1::date AND bucket_date < $2::date`, rebuildStartDate, publishEndDate); err != nil {
 		return fmt.Errorf("清理分组用量日桶: %w", err)
 	}
 
-	if _, err := r.sql.ExecContext(ctx, `
-		INSERT INTO usage_group_daily_rollups (bucket_date, group_id, actual_cost, computed_at)
+	if _, err := r.sql.ExecContext(ctx, `INSERT INTO usage_group_daily_rollups (bucket_date, group_id, actual_cost, computed_at)
 		SELECT
 			(created_at AT TIME ZONE $3::text)::date AS bucket_date,
 			group_id,
@@ -264,24 +343,20 @@ func (r *dashboardAggregationRepository) syncGroupUsageRollupsInTx(ctx context.C
 		ON CONFLICT (bucket_date, group_id)
 		DO UPDATE SET
 			actual_cost = EXCLUDED.actual_cost,
-			computed_at = EXCLUDED.computed_at
-	`, rebuildStart.UTC(), todayStart.UTC(), timezoneName); err != nil {
+			computed_at = EXCLUDED.computed_at`, rebuildStart.UTC(), publishEnd.UTC(), timezoneName); err != nil {
 		return fmt.Errorf("重建分组用量日桶: %w", err)
 	}
 
-	if _, err := r.sql.ExecContext(ctx, `
-		UPDATE usage_group_rollup_state
+	if _, err := r.sql.ExecContext(ctx, `UPDATE usage_group_rollup_state
 		SET closed_before = $1::date,
 			retained_from = $2,
 			timezone_name = $3,
 			updated_at = NOW()
-		WHERE id = 1
-	`, todayDate, retainedFrom, timezoneName); err != nil {
+		WHERE id = 1`, publishEndDate, previousRetainedFrom, timezoneName); err != nil {
 		return fmt.Errorf("更新分组用量汇总水位: %w", err)
 	}
 	return nil
 }
-
 func lockGroupUsageRollupState(ctx context.Context, tx *sql.Tx) error {
 	var id int16
 	if err := tx.QueryRowContext(ctx, `
