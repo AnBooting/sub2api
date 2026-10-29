@@ -48,10 +48,11 @@
               </p>
               <p
                 v-if="task.last_error"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1 text-xs"
+                :class="task.status === 'processing' ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'"
                 data-testid="video-task-error"
               >
-                {{ t('videoTasks.lastError') }}: {{ taskErrorLabel(task) }}
+                {{ t(task.status === 'processing' ? 'videoTasks.processingUpdate' : 'videoTasks.lastError') }}: {{ taskErrorLabel(task) }}
               </p>
             </div>
             <span

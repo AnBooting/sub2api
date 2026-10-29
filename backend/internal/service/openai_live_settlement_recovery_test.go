@@ -131,23 +131,26 @@ func TestLiveSettlementRetryReconcilesZeroCostUsageRow(t *testing.T) {
 // 检查点写失败时，后续结算不能被关闭标记永久遮住：那笔金额必须还能收上来。
 func TestLiveSettlementCheckpointFailureDoesNotHideSettlement(t *testing.T) {
 	price := 0.1
-	svc, store, _, billing := newLiveSettlementTestService()
+	svc, store, usage, billing := newLiveSettlementTestService()
 	record := newLiveSettlementRecord(t, store, 0, &price)
 	failing := &liveCheckpointFailStore{liveTestStore: store, failSave: true}
 	svc.cache = failing
-	billing.err = errors.New("temporary billing outage")
-
 	svc.finalizeLiveCall(record)
-	require.Equal(t, 1, billing.calls)
-
+	require.Zero(t, billing.calls, "no charge before the authoritative checkpoint is confirmed")
+	require.NotNil(t, record.Settlement)
 	failing.failSave = false
-	billing.err = nil
-	// 从持久化存储重试（observer/重启后的路径）。
+	// A restarted process has only the persisted record: the original freeze
+	// cannot be recovered when no checkpoint ever committed.
 	persisted, err := store.GetLiveCall(context.Background(), record.CallHash)
 	require.NoError(t, err)
 	svc.finalizeLiveCall(persisted)
-	require.Equal(t, 2, billing.calls,
-		"关闭标记已落库也不能让检查点失败的结算永远收不上来")
+	require.Equal(t, 1, billing.calls)
+	current, err := store.GetLiveCall(context.Background(), record.CallHash)
+	require.NoError(t, err)
+	require.Equal(t, LiveSettlementSettled, current.Settlement.Status)
+	require.LessOrEqual(t, current.Settlement.DurationMs, svc.liveSettlementDurationCapMs(current))
+	require.Len(t, usage.logs, 1)
+	require.InDelta(t, billing.lastCmd.BalanceCost, usage.logs[0].ActualCost, 0.000001)
 }
 
 // TestLiveObserverFinalizationStartsPendingSettlementRetry observer 自己结束会话
@@ -184,29 +187,20 @@ func TestLiveSettlementRetryReusesFrozenDurationAfterCheckpointFailure(t *testin
 	record := newLiveSettlementRecord(t, store, 0, &price)
 	failing := &liveCheckpointFailStore{liveTestStore: store, failSave: true}
 	svc.cache = failing
-	billing.err = errors.New("temporary billing outage")
-
-	// 第一次：冻结 → 账本失败 → 冻结检查点写失败（存储里始终没有冻结记录）。
 	svc.finalizeLiveCall(record)
-	require.Equal(t, 1, billing.calls)
-	require.NotNil(t, record.Settlement, "冻结结果必须回写给调用方，供同进程重试链沿用")
-	firstDuration := record.Settlement.DurationMs
-	require.Positive(t, firstDuration)
-
-	// 稍后重试（同进程）：账本恢复、检查点可写。
+	require.Zero(t, billing.calls, "unconfirmed checkpoints must not reach the ledger")
+	require.NotNil(t, record.Settlement)
+	frozen := *record.Settlement
+	require.Positive(t, frozen.DurationMs)
 	time.Sleep(20 * time.Millisecond)
-	billing.err = nil
 	failing.failSave = false
 	svc.finalizeLiveCall(record)
-
-	require.Equal(t, 2, billing.calls)
-	require.NotEmpty(t, usage.logs)
-	retryLog := usage.logs[len(usage.logs)-1]
-	require.NotNil(t, retryLog.DurationMs)
-	require.Equal(t, firstDuration, *retryLog.DurationMs,
-		"同进程重试链必须沿用首次冻结的时长，不能按重试时刻重算")
-	require.LessOrEqual(t, *retryLog.DurationMs, svc.liveSettlementDurationCapMs(record),
-		"重试结算的时长不得超过会话上限")
+	require.Equal(t, 1, billing.calls)
+	require.Len(t, usage.logs, 1)
+	require.NotNil(t, usage.logs[0].DurationMs)
+	require.Equal(t, frozen.DurationMs, *usage.logs[0].DurationMs)
+	require.InDelta(t, frozen.ActualCost, usage.logs[0].ActualCost, 0.000001)
+	require.LessOrEqual(t, *usage.logs[0].DurationMs, svc.liveSettlementDurationCapMs(record))
 }
 
 // TestLiveSettlementRefreezeDurationIsCappedToSessionLimit 规则 B：只能从存储重新
@@ -338,17 +332,26 @@ func TestLiveSettlementRetryKeepsBudgetWhenCheckpointWriteKeepsFailing(t *testin
 	previous := liveSettlementRetryInterval
 	liveSettlementRetryInterval = func(int) time.Duration { return time.Millisecond }
 	t.Cleanup(func() { liveSettlementRetryInterval = previous })
-
 	price := 0.1
-	svc, store, _, billing := newLiveSettlementTestService()
+	svc, store, usage, billing := newLiveSettlementTestService()
 	record := newLiveSettlementRecord(t, store, 0, &price)
-	svc.cache = &liveCheckpointFailStore{liveTestStore: store, failSave: true}
-	billing.err = errors.New("temporary ledger outage")
-
+	failing := &reviewLiveCheckpointSequenceStore{liveTestStore: store, failAlways: true}
+	svc.cache = failing
 	svc.finalizeLiveCall(record)
-	require.Equal(t, 1, billing.calls, "首次 finalize 尝试一次扣费")
-	// 检查点写不进 Redis：存储里永远没有 Settlement，重试必须靠内存冻结继续。
+	require.Zero(t, billing.calls)
+	require.NotNil(t, record.Settlement)
+	frozen := *record.Settlement
 	svc.retryPendingLiveSettlement(record)
-	require.Equal(t, 1+liveSettlementRetryAttempts, billing.calls,
-		"检查点持续写失败时重试预算不得塌缩")
+	require.Equal(t, 2*(1+liveSettlementRetryAttempts), failing.beginCalls, "every finalization retries an ambiguous checkpoint once and retains the full retry budget")
+	require.Zero(t, billing.calls)
+	require.Empty(t, usage.logs)
+	failing.failAlways = false
+	svc.retryPendingLiveSettlement(record)
+	require.Equal(t, 1, billing.calls)
+	current, err := store.GetLiveCall(context.Background(), record.CallHash)
+	require.NoError(t, err)
+	require.Equal(t, LiveSettlementSettled, current.Settlement.Status)
+	require.Equal(t, frozen.DurationMs, current.Settlement.DurationMs)
+	require.Len(t, usage.logs, 1)
+	require.InDelta(t, frozen.ActualCost, usage.logs[0].ActualCost, 0.000001)
 }

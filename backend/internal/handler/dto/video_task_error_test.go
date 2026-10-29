@@ -81,6 +81,58 @@ func TestVideoTaskSummaryNeverLeaksInternalDiagnostics(t *testing.T) {
 	}
 }
 
+// TestVideoTaskSummaryProcessingDoesNotReportFailure keeps a retryable worker
+// diagnostic from implying that a processing task has failed.
+func TestVideoTaskSummaryProcessingDoesNotReportFailure(t *testing.T) {
+	cases := []struct {
+		name      string
+		lastError string
+		wantCode  string
+		wantText  string
+	}{
+		{"awaiting reconciliation", "beyond_settlement_window: awaiting reconciliation", "processing_delayed", "The task is still processing. Check its status later or contact support."},
+		{"account unavailable", "load carrying account 918273 failed: database temporarily unavailable", "processing_delayed", "The task is still processing. Check its status later or contact support."},
+		{"upstream unavailable", "upstream status transport error: dial tcp 10.0.0.7:443", "processing_delayed", "The task is still processing. Check its status later or contact support."},
+		{"upstream error mentions settlement", "upstream error: settlement deferred: upstream succeeded but billing did not complete", "processing_delayed", "The task is still processing. Check its status later or contact support."},
+		{"settlement deferred", "settlement deferred: upstream succeeded but billing did not complete", VideoTaskErrorCodeSettlementFailed, "The video was generated, but settlement is not complete. Check its status later or contact support."},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			task := &service.VideoTask{TaskNo: "task-processing", Status: "processing", LastError: tc.lastError}
+			summary := ToVideoTaskSummaryDTO(task)
+			require.Equal(t, tc.wantCode, summary.LastErrorCode)
+			require.Equal(t, tc.wantText, summary.LastError)
+			require.NotContains(t, summary.LastError, "918273")
+			require.NotContains(t, summary.LastError, "10.0.0.7")
+			require.Equal(t, tc.lastError, task.LastError)
+		})
+	}
+}
+
+// A completed task can retain the last retry diagnostic in storage; it must
+// not present a stale pending-settlement message after successful completion.
+func TestVideoTaskSummaryCompletedHidesStaleDiagnostic(t *testing.T) {
+	task := &service.VideoTask{
+		TaskNo:    "task-completed",
+		Status:    "completed",
+		LastError: "settlement deferred: upstream succeeded but billing did not complete",
+	}
+	summary := ToVideoTaskSummaryDTO(task)
+	require.Empty(t, summary.LastErrorCode)
+	require.Empty(t, summary.LastError)
+	require.NotEmpty(t, task.LastError)
+}
+
+func TestVideoTaskSummaryTerminalUpstreamFailureIsNotReportedAsOutage(t *testing.T) {
+	summary := ToVideoTaskSummaryDTO(&service.VideoTask{
+		TaskNo:    "task-failed",
+		Status:    service.VideoTaskStatusFailed,
+		LastError: "upstream reported a terminal failure state",
+	})
+	require.Equal(t, VideoTaskErrorCodeUpstreamFailed, summary.LastErrorCode)
+	require.Equal(t, "The video task did not complete. Check its result before submitting another task.", summary.LastError)
+}
+
 // TestVideoTaskSummaryWithoutErrorHasNoErrorFields 没有失败原因时不出现错误码与错误文案。
 func TestVideoTaskSummaryWithoutErrorHasNoErrorFields(t *testing.T) {
 	dto := ToVideoTaskSummaryDTO(&service.VideoTask{TaskNo: "task-2", Status: "processing"})

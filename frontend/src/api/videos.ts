@@ -27,6 +27,7 @@ export type VideoTaskBillingMode = 'per_token' | 'per_request' | 'per_second'
  * 下发给用户；界面按码做 i18n，不按文案匹配。
  */
 export type VideoTaskErrorCode =
+  | 'processing_delayed'
   | 'account_not_bound'
   | 'account_load_failed'
   | 'dependency_unavailable'
@@ -43,7 +44,7 @@ export interface VideoTaskSummary {
   created_at: string
   /** 未结算时后端不下发该字段。 */
   settled_at?: string
-  /** 失败说明（后端给的是可公开文案，不含内部诊断）；成功或处理中为空。 */
+  /** 失败说明或处理状态更新（后端给的是可公开文案，不含内部诊断）。 */
   last_error?: string
   /** 稳定错误码；界面按码做 i18n。 */
   last_error_code?: VideoTaskErrorCode
