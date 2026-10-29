@@ -1,6 +1,9 @@
 export default {
     // Dashboard
     dashboard: {
+      partialUsage: 'Some usage statistics are unavailable while incomplete history is reconciled. Other verified metrics remain available.',
+      unavailable: 'Unavailable',
+      chartsUnavailable: 'This range contains incomplete data. Charts are unavailable; select a complete range or reconcile the missing history.',
       title: 'Admin Dashboard',
       description: 'System overview and real-time statistics',
       apiKeys: 'API Keys',

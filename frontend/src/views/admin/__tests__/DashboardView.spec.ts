@@ -119,6 +119,47 @@ describe('admin DashboardView', () => {
     })
   })
 
+  it('keeps safe cards and labels unavailable totals and charts instead of displaying zero', async () => {
+    getSnapshotV2.mockResolvedValue({
+      stats: {
+        ...createDashboardStats(),
+        total_api_keys: 17,
+        today_tokens: 321,
+        total_tokens: null,
+        total_actual_cost: null,
+        average_duration_ms: null,
+        usage_availability: { total: false, today: true, hourly: true, performance: true }
+      },
+      unavailable_sections: ['trend', 'models']
+    })
+    const wrapper = mount(DashboardView, { global: { stubs: {
+      AppLayout: { template: '<div><slot /></div>' }, LoadingSpinner: true,
+      Icon: true, DateRangePicker: true, Select: true, ModelDistributionChart: true,
+      TokenUsageTrend: true
+    } } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('17')
+    expect(wrapper.text()).toContain('321')
+    expect(wrapper.find('[data-testid="usage-partial-notice"]').text()).toContain('admin.dashboard.partialUsage')
+    expect(wrapper.find('[data-testid="total-tokens"]').text()).toBe('admin.dashboard.unavailable')
+    expect(wrapper.find('[data-testid="charts-unavailable"]').exists()).toBe(true)
+    expect(wrapper.findComponent({ name: 'TokenUsageTrend' }).exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'ModelDistributionChart' }).exists()).toBe(false)
+    expect(getUserUsageTrend).not.toHaveBeenCalled()
+    expect(getUserSpendingRanking).not.toHaveBeenCalled()
+
+    getSnapshotV2.mockResolvedValue({ trend: [], models: [] })
+    const picker = wrapper.findComponent({ name: 'DateRangePicker' })
+    picker.vm.$emit('update:startDate', '2026-10-28')
+    picker.vm.$emit('update:endDate', '2026-10-29')
+    picker.vm.$emit('change', { startDate: '2026-10-28', endDate: '2026-10-29', preset: null })
+    await flushPromises()
+    expect(wrapper.find('[data-testid="charts-unavailable"]').exists()).toBe(false)
+    expect(wrapper.findComponent({ name: 'TokenUsageTrend' }).exists()).toBe(true)
+    expect(getUserUsageTrend).toHaveBeenCalledTimes(1)
+    expect(getUserSpendingRanking).toHaveBeenCalledTimes(1)
+  })
+
   it('switches metrics and ignores a stale tokens response', async () => {
     let resolveTokens!: (value: any) => void
     getUserUsageTrend.mockImplementationOnce(() => new Promise(resolve => { resolveTokens = resolve }))

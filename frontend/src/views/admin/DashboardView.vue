@@ -7,6 +7,10 @@
       </div>
 
       <template v-else-if="stats">
+        <div v-if="hasPartialUsage" role="status" data-testid="usage-partial-notice"
+          class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          {{ t('admin.dashboard.partialUsage') }}
+        </div>
         <!-- Row 1: Core Stats -->
         <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <!-- Total API Keys -->
@@ -65,7 +69,7 @@
                   {{ t('admin.dashboard.todayRequests') }}
                 </p>
                 <p class="text-xl font-bold text-gray-900 dark:text-white">
-                  {{ stats.today_requests }}
+                  {{ formatNumber(stats.today_requests) }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
                   {{ t('common.total') }}: {{ formatNumber(stats.total_requests) }}
@@ -110,7 +114,7 @@
                 <p class="text-xl font-bold text-gray-900 dark:text-white">
                   {{ formatTokens(stats.today_tokens) }}
                 </p>
-                <p class="text-xs">
+                <p v-if="usageAvailable('today')" class="text-xs">
                   <span
                     class="text-green-600 dark:text-green-400"
                     :title="t('admin.dashboard.actual')"
@@ -129,6 +133,7 @@
                     >{{ formatCustomerCredit(formatCost(stats.today_cost)) }}</span
                   >
                 </p>
+                <p v-else class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.dashboard.unavailable') }}</p>
               </div>
             </div>
           </div>
@@ -143,10 +148,10 @@
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.totalTokens') }}
                 </p>
-                <p class="text-xl font-bold text-gray-900 dark:text-white">
+                <p data-testid="total-tokens" class="text-xl font-bold text-gray-900 dark:text-white">
                   {{ formatTokens(stats.total_tokens) }}
                 </p>
-                <p class="text-xs">
+                <p v-if="usageAvailable('total')" class="text-xs">
                   <span
                     class="text-green-600 dark:text-green-400"
                     :title="t('admin.dashboard.actual')"
@@ -165,6 +170,7 @@
                     >{{ formatCustomerCredit(formatCost(stats.total_cost)) }}</span
                   >
                 </p>
+                <p v-else class="text-xs text-amber-700 dark:text-amber-300">{{ t('admin.dashboard.unavailable') }}</p>
               </div>
             </div>
           </div>
@@ -209,7 +215,7 @@
                   {{ formatDuration(stats.average_duration_ms) }}
                 </p>
                 <p class="text-xs text-gray-500 dark:text-gray-400">
-                  {{ stats.active_users }} {{ t('admin.dashboard.activeUsers') }}
+                  {{ stats.active_users ?? t('admin.dashboard.unavailable') }} {{ t('admin.dashboard.activeUsers') }}
                 </p>
               </div>
             </div>
@@ -298,7 +304,11 @@
           </div>
 
           <!-- Charts Grid -->
-          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div v-if="chartsUnavailable" data-testid="charts-unavailable" role="status"
+            class="card p-6 text-sm text-amber-700 dark:text-amber-300">
+            {{ t('admin.dashboard.chartsUnavailable') }}
+          </div>
+          <div v-else class="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <ModelDistributionChart
               :model-stats="modelStats"
               :enable-ranking-view="true"
@@ -331,6 +341,9 @@
             <div class="h-64">
               <div v-if="userTrendLoading" class="flex h-full items-center justify-center">
                 <LoadingSpinner size="md" />
+              </div>
+              <div v-else-if="chartsUnavailable" class="flex h-full items-center justify-center text-sm text-amber-700 dark:text-amber-300">
+                {{ t('admin.dashboard.chartsUnavailable') }}
               </div>
               <Line v-else-if="userTrendChartData" :data="userTrendChartData" :options="lineOptions" />
               <div
@@ -401,6 +414,9 @@ const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 const stats = ref<DashboardStats | null>(null)
 const loading = ref(false)
 const chartsLoading = ref(false)
+const chartsUnavailable = ref(false)
+const hasPartialUsage = computed(() => chartsUnavailable.value || Object.values(stats.value?.usage_availability ?? {}).some(available => !available))
+const usageAvailable = (section: 'total' | 'today') => stats.value?.usage_availability?.[section] !== false
 const userTrendLoading = ref(false)
 const rankingLoading = ref(false)
 const rankingError = ref(false)
@@ -583,8 +599,9 @@ const userTrendChartData = computed(() => {
 const formatUserTrendValue = (value: number): string =>
   userTrendMetric.value === 'tokens' ? formatTokens(value) : `$${formatCost(value)}`
 
-const formatTokens = (value: number | undefined): string => {
-  if (value === undefined || value === null) return '0'
+const formatTokens = (value: number | null | undefined): string => {
+  if (value === null) return t('admin.dashboard.unavailable')
+  if (value === undefined) return '0'
   if (value >= 1_000_000_000) {
     return `${(value / 1_000_000_000).toFixed(2)}B`
   } else if (value >= 1_000_000) {
@@ -601,6 +618,7 @@ const toFiniteNumber = (value: unknown): number => {
 }
 
 const formatNumber = (value: number | null | undefined): string => {
+  if (value === null) return t('admin.dashboard.unavailable')
   return toFiniteNumber(value).toLocaleString()
 }
 
@@ -616,7 +634,8 @@ const formatCost = (value: number | null | undefined): string => {
   return safeValue.toFixed(4)
 }
 
-const formatDuration = (ms: number): string => {
+const formatDuration = (ms: number | null): string => {
+  if (ms === null) return t('admin.dashboard.unavailable')
   if (ms >= 1000) {
     return `${(ms / 1000).toFixed(2)}s`
   }
@@ -677,10 +696,12 @@ const loadDashboardSnapshot = async (includeStats: boolean) => {
     if (includeStats && response.stats) {
       stats.value = response.stats
     }
+    chartsUnavailable.value = (response.unavailable_sections?.length ?? 0) > 0
     trendData.value = response.trend || []
     modelStats.value = response.models || []
   } catch (error) {
     if (currentSeq !== chartLoadSeq) return
+    chartsUnavailable.value = true
     appStore.showError(t('admin.dashboard.failedToLoad'))
     console.error('Error loading dashboard snapshot:', error)
   } finally {
@@ -699,6 +720,7 @@ const setUserTrendMetric = (metric: 'tokens' | 'actual_cost') => {
 }
 
 const loadUsersTrend = async () => {
+  if (chartsUnavailable.value) { userTrend.value = []; return }
   const currentSeq = ++usersTrendLoadSeq
   userTrendLoading.value = true
   try {
@@ -723,6 +745,7 @@ const loadUsersTrend = async () => {
 }
 
 const loadUserSpendingRanking = async () => {
+  if (chartsUnavailable.value) { rankingItems.value = []; return }
   const currentSeq = ++rankingLoadSeq
   rankingLoading.value = true
   rankingError.value = false
@@ -753,19 +776,13 @@ const loadUserSpendingRanking = async () => {
 }
 
 const loadDashboardStats = async () => {
-  await Promise.all([
-    loadDashboardSnapshot(true),
-    loadUsersTrend(),
-    loadUserSpendingRanking()
-  ])
+  await loadDashboardSnapshot(true)
+  await Promise.all([loadUsersTrend(), loadUserSpendingRanking()])
 }
 
 const loadChartData = async () => {
-  await Promise.all([
-    loadDashboardSnapshot(false),
-    loadUsersTrend(),
-    loadUserSpendingRanking()
-  ])
+  await loadDashboardSnapshot(false)
+  await Promise.all([loadUsersTrend(), loadUserSpendingRanking()])
 }
 
 onMounted(() => {

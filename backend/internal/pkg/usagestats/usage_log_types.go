@@ -27,6 +27,7 @@ func NormalizeModelSource(source string) string {
 
 // DashboardStats 仪表盘统计
 type DashboardStats struct {
+	UsageAvailability *DashboardUsageAvailability `json:"usage_availability,omitempty"`
 	// 用户统计
 	TotalUsers    int64 `json:"total_users"`
 	TodayNewUsers int64 `json:"today_new_users"` // 今日新增用户数

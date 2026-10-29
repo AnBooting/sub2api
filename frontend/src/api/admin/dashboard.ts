@@ -143,6 +143,7 @@ export interface DashboardSnapshotV2Stats extends DashboardStats {
 }
 
 export interface DashboardSnapshotV2Response {
+  unavailable_sections?: string[]
   generated_at: string
   start_date: string
   end_date: string

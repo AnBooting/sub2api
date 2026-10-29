@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -44,11 +45,90 @@ func TestReview29DashboardReadersRejectQuarantine(t *testing.T) {
 	require.ErrorIs(t, publicErr, service.ErrUsageStatsIncomplete, "the public entry must not fall back to incomplete raw logs")
 	_, err := repo.getUsageTrendFromAggregates(context.Background(), day, day.AddDate(0, 0, 1), "day")
 	require.ErrorIs(t, err, service.ErrUsageStatsIncomplete)
-	err = repo.fillDashboardUsageStatsAggregated(context.Background(), &DashboardStats{}, day, day.Add(12*time.Hour))
-	require.ErrorIs(t, err, service.ErrUsageStatsIncomplete)
+	stats := &DashboardStats{}
+	err = repo.fillDashboardUsageStatsAggregated(context.Background(), stats, day, day.Add(12*time.Hour))
+	require.NoError(t, err)
+	require.False(t, stats.UsageAvailability.Total)
+	require.False(t, stats.UsageAvailability.Today)
 	// A later range must recover independently, without clearing the unsafe day.
 	_, err = repo.getUsageTrendFromAggregates(context.Background(), day.AddDate(0, 0, 1), day.AddDate(0, 0, 2), "day")
 	require.NoError(t, err)
+}
+
+func TestReview29DashboardPartialHistoryKeepsSafeToday(t *testing.T) {
+	setGroupUsageRollupTestTimezone(t)
+	db := review29DB(t)
+	review29Exec(t, db, `UPDATE usage_stats_repair_control SET raw_safe_from='2026-08-13 06:00+08';
+	INSERT INTO usage_dashboard_daily(bucket_date,total_requests,actual_cost) VALUES('2026-08-13',99,999),('2026-08-14',2,5);
+	INSERT INTO usage_logs(created_at,actual_cost) VALUES('2026-08-13 10:15+08',3),('2026-08-14 10:15+08',5)`)
+	day := time.Date(2026, 8, 14, 0, 0, 0, 0, time.FixedZone("CST", 8*3600))
+	repo := newUsageLogRepositoryWithSQL(nil, db)
+	stats := &DashboardStats{}
+	require.NoError(t, repo.fillDashboardUsageStatsAggregated(context.Background(), stats, day, day.Add(12*time.Hour)))
+	require.False(t, stats.UsageAvailability.Total)
+	require.True(t, stats.UsageAvailability.Today)
+	require.Equal(t, float64(5), stats.TodayActualCost)
+	require.Zero(t, stats.TotalActualCost, "do not read the preserved unproven bucket")
+	// An upgrade-day insert must hide only that day's metrics, not entity cards.
+	require.NoError(t, repo.fillDashboardUsageStatsAggregated(context.Background(), stats, day.AddDate(0, 0, -1), day.Add(-12*time.Hour)))
+	require.False(t, stats.UsageAvailability.Today)
+	require.False(t, stats.UsageAvailability.Performance)
+	// A raw chart range after the gap remains independently available.
+	require.NoError(t, repo.CheckUsageStatsAvailable(context.Background(), day, day.AddDate(0, 0, 1)))
+	require.ErrorIs(t, repo.CheckUsageStatsAvailable(context.Background(), day.AddDate(0, 0, -1), day), service.ErrUsageStatsIncomplete)
+	// Exercise the public aggregated and aggregation-disabled dashboard entries,
+	// including entity cards, against actual SQL rather than mocked responses.
+	review29Exec(t, db, `CREATE TABLE users(created_at timestamptz, deleted_at timestamptz);
+	CREATE TABLE api_keys(status text, deleted_at timestamptz);
+	CREATE TABLE accounts(status text, schedulable boolean, rate_limited_at timestamptz, rate_limit_reset_at timestamptz, overload_until timestamptz, deleted_at timestamptz);
+	INSERT INTO users(created_at) VALUES(clock_timestamp())`)
+	for _, raw := range []bool{false, true} {
+		var got *DashboardStats
+		var err error
+		if raw {
+			got, err = repo.GetDashboardStatsWithRange(context.Background(), day.AddDate(0, 0, -1), day.AddDate(0, 0, 1))
+		} else {
+			got, err = repo.GetDashboardStats(context.Background())
+		}
+		require.NoError(t, err)
+		require.Equal(t, int64(1), got.TotalUsers)
+		require.False(t, got.UsageAvailability.Total)
+		require.True(t, got.UsageAvailability.Today)
+		data, err := json.Marshal(got)
+		require.NoError(t, err)
+		var payload map[string]any
+		require.NoError(t, json.Unmarshal(data, &payload))
+		require.Nil(t, payload["total_actual_cost"])
+	}
+	review29Exec(t, db, `DELETE FROM usage_stats_repair_control`)
+	got, err := repo.GetDashboardStats(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, int64(1), got.TotalUsers)
+	require.False(t, got.UsageAvailability.Today, "missing completeness control must never become a normal zero")
+}
+
+func TestReview29DashboardSnapshotKeepsRangeCheckAndReadTogether(t *testing.T) {
+	setGroupUsageRollupTestTimezone(t)
+	db := review29DB(t)
+	review29Exec(t, db, `UPDATE usage_stats_repair_control SET raw_safe_from='2026-08-01 00:00+08';
+	INSERT INTO usage_logs(created_at,actual_cost) VALUES('2026-08-14 10:15+08',5)`)
+	repo := newUsageLogRepositoryWithSQL(nil, db)
+	svc := service.NewDashboardService(repo, nil, nil, nil)
+	day := time.Date(2026, 8, 14, 0, 0, 0, 0, time.FixedZone("CST", 8*3600))
+	ctx := context.Background()
+	err := svc.WithUsageStatsSnapshot(ctx, func(snapshot *service.DashboardService) error {
+		require.NoError(t, snapshot.CheckUsageStatsAvailable(ctx, day, day.AddDate(0, 0, 1)))
+		// Concurrent committed cleanup/correction after the range check.
+		review29Exec(t, db, `UPDATE usage_logs SET actual_cost=100;
+		UPDATE usage_stats_repair_days SET state='quarantine'`)
+		trend, err := snapshot.GetUsageTrendWithFilters(ctx, day, day.AddDate(0, 0, 1), "day", 0, 0, 0, 0, "", nil, nil, nil)
+		require.NoError(t, err)
+		require.Len(t, trend, 1)
+		require.Equal(t, float64(5), trend[0].ActualCost, "availability and data must come from the same committed snapshot")
+		return nil
+	})
+	require.NoError(t, err)
+	require.ErrorIs(t, svc.CheckUsageStatsAvailable(ctx, day, day.AddDate(0, 0, 1)), service.ErrUsageStatsIncomplete)
 }
 
 func TestReview29GroupSummaryCompleteness(t *testing.T) {

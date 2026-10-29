@@ -19,10 +19,7 @@ import (
 // Production repository methods and unmodified migration SQL do the work.
 func review29DB(t *testing.T) *sql.DB {
 	t.Helper()
-	dsn := os.Getenv("REVIEW29_PG_DSN")
-	if dsn == "" {
-		t.Skip("set REVIEW29_PG_DSN to a disposable loopback PostgreSQL instance")
-	}
+	dsn := review29DSN(t)
 	require.Contains(t, dsn, "host=127.0.0.1", "only use a disposable loopback instance")
 	admin, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
@@ -108,10 +105,7 @@ func TestReview29UpgradeDayMustNotSilentlySkipDashboardAggregation(t *testing.T)
 }
 
 func TestReview29FullMigrationRunner(t *testing.T) {
-	dsn := os.Getenv("REVIEW29_PG_DSN")
-	if dsn == "" {
-		t.Skip("set REVIEW29_PG_DSN to a disposable loopback PostgreSQL instance")
-	}
+	dsn := review29DSN(t)
 	require.Contains(t, dsn, "host=127.0.0.1")
 	admin, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
@@ -131,4 +125,16 @@ func TestReview29FullMigrationRunner(t *testing.T) {
 	require.Equal(t, 2, count)
 	require.NoError(t, ApplyMigrations(ctx, db), "second application must be idempotent")
 	t.Log("production migration runner applied all migrations including 259/260, then repeated successfully")
+}
+
+func review29DSN(t *testing.T) string {
+	t.Helper()
+	dsn := os.Getenv("REVIEW29_PG_DSN")
+	if dsn == "" {
+		if os.Getenv("REVIEW29_PG_REQUIRED") == "1" {
+			t.Fatal("REVIEW29_PG_DSN is required; PostgreSQL regressions must execute in CI")
+		}
+		t.Skip("set REVIEW29_PG_DSN to a disposable loopback PostgreSQL instance")
+	}
+	return dsn
 }

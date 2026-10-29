@@ -13,7 +13,11 @@ import (
 
 // getPerformanceStats 获取 RPM 和 TPM（近5分钟平均值，可选按用户过滤）
 func (r *usageLogRepository) getPerformanceStats(ctx context.Context, userID int64) (rpm, tpm int64, err error) {
-	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
+	return r.getPerformanceStatsAt(ctx, userID, time.Now())
+}
+
+func (r *usageLogRepository) getPerformanceStatsAt(ctx context.Context, userID int64, now time.Time) (rpm, tpm int64, err error) {
+	fiveMinutesAgo := now.Add(-5 * time.Minute)
 	query := `
 		SELECT
 			COUNT(*) as request_count,
@@ -90,13 +94,6 @@ func (r *usageLogRepository) GetDashboardStats(ctx context.Context) (*DashboardS
 		return nil, err
 	}
 
-	rpm, tpm, err := r.getPerformanceStats(ctx, 0)
-	if err != nil {
-		return nil, err
-	}
-	stats.Rpm = rpm
-	stats.Tpm = tpm
-
 	return stats, nil
 }
 
@@ -114,16 +111,17 @@ func (r *usageLogRepository) GetDashboardStatsWithRange(ctx context.Context, sta
 	if err := r.fillDashboardEntityStats(ctx, stats, todayStart, now); err != nil {
 		return nil, err
 	}
-	if err := r.fillDashboardUsageStatsFromUsageLogs(ctx, stats, startUTC, endUTC, todayStart, now); err != nil {
+	if err := r.readUsageStatsSnapshot(ctx, func(snapshot *usageLogRepository) error {
+		if err := snapshot.setDashboardUsageAvailability(ctx, stats, startUTC, endUTC, todayStart, now, true); err != nil {
+			return err
+		}
+		if err := snapshot.fillDashboardUsageStatsFromUsageLogs(ctx, stats, startUTC, endUTC, todayStart, now); err != nil {
+			return err
+		}
+		return snapshot.fillDashboardPerformance(ctx, stats, now)
+	}); err != nil {
 		return nil, err
 	}
-
-	rpm, tpm, err := r.getPerformanceStats(ctx, 0)
-	if err != nil {
-		return nil, err
-	}
-	stats.Rpm = rpm
-	stats.Tpm = tpm
 
 	return stats, nil
 }
@@ -192,18 +190,61 @@ func (r *usageLogRepository) fillDashboardEntityStats(ctx context.Context, stats
 	return nil
 }
 
-func (r *usageLogRepository) fillDashboardUsageStatsAggregated(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
-	return r.readUsageStatsSnapshot(ctx, func(snapshot *usageLogRepository) error {
-		// This endpoint includes all retained daily buckets, not only today.
-		if err := snapshot.requireUsageStatsAvailable(ctx, time.Unix(0, 0).UTC(), time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC)); err != nil {
+func (r *usageLogRepository) setDashboardUsageAvailability(ctx context.Context, stats *DashboardStats, start, end, today, now time.Time, raw bool) error {
+	a := &usagestats.DashboardUsageAvailability{}
+	hour := now.In(timezone.Location()).Truncate(time.Hour)
+	for _, check := range []struct {
+		from, to time.Time
+		raw      bool
+		result   *bool
+	}{
+		{start, end, raw, &a.Total},
+		{today, today.AddDate(0, 0, 1), true, &a.Today},
+		{hour, hour.Add(time.Hour), true, &a.Hourly},
+		{now.Add(-5 * time.Minute), now, true, &a.Performance},
+	} {
+		available, err := r.usageStatsRangeAvailable(ctx, check.from, check.to, check.raw)
+		if err != nil {
 			return err
 		}
-		return snapshot.fillDashboardUsageStatsAvailable(ctx, stats, todayUTC, now)
+		*check.result = available
+	}
+	// The retained-history aggregate includes today even before a first insert
+	// has created its queue row on the migration day.
+	if !raw && !a.Today {
+		a.Total = false
+	}
+	stats.UsageAvailability = a
+	return nil
+}
+
+func (r *usageLogRepository) fillDashboardPerformance(ctx context.Context, stats *DashboardStats, now time.Time) error {
+	if !stats.UsageAvailability.Performance {
+		return nil
+	}
+	rpm, tpm, err := r.getPerformanceStatsAt(ctx, 0, now)
+	if err != nil {
+		return err
+	}
+	stats.Rpm, stats.Tpm = rpm, tpm
+	return nil
+}
+
+func (r *usageLogRepository) fillDashboardUsageStatsAggregated(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
+	return r.readUsageStatsSnapshot(ctx, func(snapshot *usageLogRepository) error {
+		if err := snapshot.setDashboardUsageAvailability(ctx, stats, time.Unix(0, 0).UTC(), time.Date(9999, 1, 1, 0, 0, 0, 0, time.UTC), todayUTC, now, false); err != nil {
+			return err
+		}
+		if err := snapshot.fillDashboardUsageStatsAvailable(ctx, stats, todayUTC, now); err != nil {
+			return err
+		}
+		return snapshot.fillDashboardPerformance(ctx, stats, now)
 	})
 }
 
 func (r *usageLogRepository) fillDashboardUsageStatsAvailable(ctx context.Context, stats *DashboardStats, todayUTC, now time.Time) error {
-	totalStatsQuery := `
+	if stats.UsageAvailability.Total {
+		totalStatsQuery := `
 		SELECT
 			COALESCE(SUM(total_requests), 0) as total_requests,
 			COALESCE(SUM(input_tokens), 0) as total_input_tokens,
@@ -216,30 +257,33 @@ func (r *usageLogRepository) fillDashboardUsageStatsAvailable(ctx context.Contex
 			COALESCE(SUM(total_duration_ms), 0) as total_duration_ms
 		FROM usage_dashboard_daily
 	`
-	var totalDurationMs int64
-	if err := scanSingleRow(
-		ctx,
-		r.sql,
-		totalStatsQuery,
-		nil,
-		&stats.TotalRequests,
-		&stats.TotalInputTokens,
-		&stats.TotalOutputTokens,
-		&stats.TotalCacheCreationTokens,
-		&stats.TotalCacheReadTokens,
-		&stats.TotalCost,
-		&stats.TotalActualCost,
-		&stats.TotalAccountCost,
-		&totalDurationMs,
-	); err != nil {
-		return err
-	}
-	stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheCreationTokens + stats.TotalCacheReadTokens
-	if stats.TotalRequests > 0 {
-		stats.AverageDurationMs = float64(totalDurationMs) / float64(stats.TotalRequests)
+		var totalDurationMs int64
+		if err := scanSingleRow(
+			ctx,
+			r.sql,
+			totalStatsQuery,
+			nil,
+			&stats.TotalRequests,
+			&stats.TotalInputTokens,
+			&stats.TotalOutputTokens,
+			&stats.TotalCacheCreationTokens,
+			&stats.TotalCacheReadTokens,
+			&stats.TotalCost,
+			&stats.TotalActualCost,
+			&stats.TotalAccountCost,
+			&totalDurationMs,
+		); err != nil {
+			return err
+		}
+		stats.TotalTokens = stats.TotalInputTokens + stats.TotalOutputTokens + stats.TotalCacheCreationTokens + stats.TotalCacheReadTokens
+		if stats.TotalRequests > 0 {
+			stats.AverageDurationMs = float64(totalDurationMs) / float64(stats.TotalRequests)
+		}
+
 	}
 
-	todayStatsQuery := `
+	if stats.UsageAvailability.Today {
+		todayStatsQuery := `
 		SELECT
 			total_requests as today_requests,
 			input_tokens as today_input_tokens,
@@ -253,44 +297,49 @@ func (r *usageLogRepository) fillDashboardUsageStatsAvailable(ctx context.Contex
 		FROM usage_dashboard_daily
 		WHERE bucket_date = $1::date
 	`
-	if err := scanSingleRow(
-		ctx,
-		r.sql,
-		todayStatsQuery,
-		[]any{todayUTC},
-		&stats.TodayRequests,
-		&stats.TodayInputTokens,
-		&stats.TodayOutputTokens,
-		&stats.TodayCacheCreationTokens,
-		&stats.TodayCacheReadTokens,
-		&stats.TodayCost,
-		&stats.TodayActualCost,
-		&stats.TodayAccountCost,
-		&stats.ActiveUsers,
-	); err != nil {
-		if err != sql.ErrNoRows {
-			return err
+		if err := scanSingleRow(
+			ctx,
+			r.sql,
+			todayStatsQuery,
+			[]any{todayUTC},
+			&stats.TodayRequests,
+			&stats.TodayInputTokens,
+			&stats.TodayOutputTokens,
+			&stats.TodayCacheCreationTokens,
+			&stats.TodayCacheReadTokens,
+			&stats.TodayCost,
+			&stats.TodayActualCost,
+			&stats.TodayAccountCost,
+			&stats.ActiveUsers,
+		); err != nil {
+			if err != sql.ErrNoRows {
+				return err
+			}
 		}
-	}
-	stats.TodayTokens = stats.TodayInputTokens + stats.TodayOutputTokens + stats.TodayCacheCreationTokens + stats.TodayCacheReadTokens
+		stats.TodayTokens = stats.TodayInputTokens + stats.TodayOutputTokens + stats.TodayCacheCreationTokens + stats.TodayCacheReadTokens
 
-	hourlyActiveQuery := `
+	}
+
+	if stats.UsageAvailability.Hourly {
+		hourlyActiveQuery := `
 		SELECT active_users
 		FROM usage_dashboard_hourly
 		WHERE bucket_start = $1
 	`
-	hourStart := now.In(timezone.Location()).Truncate(time.Hour)
-	if err := scanSingleRow(ctx, r.sql, hourlyActiveQuery, []any{hourStart}, &stats.HourlyActiveUsers); err != nil {
-		if err != sql.ErrNoRows {
-			return err
+		hourStart := now.In(timezone.Location()).Truncate(time.Hour)
+		if err := scanSingleRow(ctx, r.sql, hourlyActiveQuery, []any{hourStart}, &stats.HourlyActiveUsers); err != nil {
+			if err != sql.ErrNoRows {
+				return err
+			}
 		}
+
 	}
 
 	return nil
 }
 
 func (r *usageLogRepository) fillDashboardUsageStatsFromUsageLogs(ctx context.Context, stats *DashboardStats, startUTC, endUTC, todayUTC, now time.Time) error {
-	todayEnd := todayUTC.Add(24 * time.Hour)
+	todayEnd := todayUTC.AddDate(0, 0, 1)
 	combinedStatsQuery := `
 		WITH scoped AS (
 			SELECT
