@@ -435,6 +435,14 @@ func ProvideDashboardAggregationService(repo DashboardAggregationRepository, tim
 	return svc
 }
 
+// ProvideUsageStatsRepairService 创建并启动迟到用量统计补正服务（脏日队列 worker）。
+// 依赖 queue（repository 提供）与 dashboard 聚合仓储；故障仅记录，不阻塞主启动。
+func ProvideUsageStatsRepairService(queue UsageStatsRepairQueue, dashboards DashboardAggregationRepository, timingWheel *TimingWheelService) *UsageStatsRepairService {
+	svc := NewUsageStatsRepairService(queue, dashboards, timingWheel)
+	svc.Start()
+	return svc
+}
+
 // ProvideUsageCleanupService 创建并启动使用记录清理任务服务
 func ProvideUsageCleanupService(repo UsageCleanupRepository, timingWheel *TimingWheelService, dashboardAgg *DashboardAggregationService, cfg *config.Config) *UsageCleanupService {
 	svc := NewUsageCleanupService(repo, timingWheel, dashboardAgg, cfg)
@@ -1000,6 +1008,7 @@ var ProviderSet = wire.NewSet(
 	ProvideSubscriptionExpiryService,
 	ProvideTimingWheelService,
 	ProvideDashboardAggregationService,
+	ProvideUsageStatsRepairService,
 	ProvideUsageCleanupService,
 	ProvideDeferredService,
 	NewAntigravityQuotaFetcher,

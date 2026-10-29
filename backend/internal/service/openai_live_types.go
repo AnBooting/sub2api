@@ -19,6 +19,7 @@ var (
 	ErrLiveConcurrencyFull   = errors.New("live concurrency is full")
 	ErrLiveCallNotFound      = errors.New("live call not found")
 	ErrLiveIdentityMismatch  = errors.New("live call identity mismatch")
+	ErrLiveSettlementInvalid = errors.New("invalid live settlement state")
 	ErrLiveControllerChanged = errors.New("live controller changed")
 )
 
@@ -70,13 +71,14 @@ type LiveBillingPolicy struct {
 // LiveSettlement 持久化一次 Live 会话的结算事实：金额在第一次尝试前冻结，
 // 重试只复用冻结金额，不随再次调用时间增长；status=settled 后不再重复扣费。
 type LiveSettlement struct {
-	Status      string    `json:"status"`
-	TotalCost   float64   `json:"total_cost"`
-	ActualCost  float64   `json:"actual_cost"`
-	BillingMode string    `json:"billing_mode,omitempty"`
-	DurationMs  int       `json:"duration_ms"`
-	Attempts    int       `json:"attempts"`
-	FrozenAt    time.Time `json:"frozen_at"`
+	Status         string    `json:"status"`
+	TotalCost      float64   `json:"total_cost"`
+	ActualCost     float64   `json:"actual_cost"`
+	BillingMode    string    `json:"billing_mode,omitempty"`
+	SettlementMode string    `json:"settlement_mode,omitempty"`
+	DurationMs     int       `json:"duration_ms"`
+	Attempts       int       `json:"attempts"`
+	FrozenAt       time.Time `json:"frozen_at"`
 	// UsageLogWritten 标记用量日志已落库，避免结算成功后重复补写（崩溃窗口补偿）。
 	UsageLogWritten bool `json:"usage_log_written,omitempty"`
 }
@@ -113,7 +115,8 @@ type LiveCallRecord struct {
 	// BillingPolicy 是开播时冻结的计费策略快照，随记录持久化。
 	BillingPolicy *LiveBillingPolicy
 	// Settlement 记录结算状态；nil 表示尚未开始结算。
-	Settlement *LiveSettlement
+	Settlement                 *LiveSettlement
+	settlementIdentityRejected bool
 }
 
 type LiveCallCreated struct {
@@ -131,6 +134,11 @@ type LiveCallStore interface {
 	ReleaseLiveController(ctx context.Context, callHash, owner string) (bool, error)
 	GetLiveController(ctx context.Context, callHash string) (string, error)
 	MarkLiveCallClosed(ctx context.Context, callHash string, ttl time.Duration) (bool, error)
+	BeginLiveSettlement(ctx context.Context, callHash string, candidate *LiveSettlement, ttl time.Duration) (*LiveSettlement, string, bool, error)
+	BeginLiveSettlementVerified(ctx context.Context, record *LiveCallRecord, candidate *LiveSettlement, ttl time.Duration) (*LiveSettlement, string, bool, error)
+	CompareAndSwapLiveSettlement(ctx context.Context, callHash, expected string, next *LiveSettlement, ttl time.Duration) (bool, error)
+	ClaimLiveSettlementAudit(ctx context.Context, callHash, owner string, ttl time.Duration) (bool, error)
+	FinishLiveSettlementAudit(ctx context.Context, callHash, owner string, written bool) (bool, error)
 }
 
 type LiveConcurrencyCache interface {

@@ -623,9 +623,16 @@ func (s *GatewayService) billingDeps() *billingDeps {
 	}
 }
 
-func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) {
+// writeUsageLogBestEffort 写入用量日志，返回是否已确认落库。
+//
+// 返回 true 表示这一行已经在库里（新建成功、幂等重放命中唯一键，或 best-effort
+// 失败后的同步兜底成功）；返回 false 表示未能确认落库——调用方据此才能决定要不要
+// 置"日志已写"标记（置早了就再也不会补写，出现"已扣费但用量行金额为 0"的账实不符）。
+//
+// 既有的调用方忽略返回值即可，行为不变。
+func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usageLog *UsageLog, logKey string) bool {
 	if repo == nil || usageLog == nil {
-		return
+		return false
 	}
 	usageCtx, cancel := detachedBillingContext(ctx)
 	defer cancel()
@@ -634,7 +641,7 @@ func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usage
 		if err := writer.CreateBestEffort(usageCtx, usageLog); err != nil {
 			logger.LegacyPrintf(logKey, "Create usage log failed: %v", err)
 			// 计费已在此前完成，日志必须落库：dropped（批处理队列超时）同样走同步兜底，
-			// 否则会出现“已扣费但无 usage_log”的对账缺口（issue #3656）。
+			// 否则会出现"已扣费但无 usage_log"的对账缺口（issue #3656）。
 			// 重复写入由 usage_logs 的 ON CONFLICT (request_id, api_key_id) DO NOTHING 防护。
 			fallbackCtx := usageCtx
 			if usageCtx.Err() != nil {
@@ -645,14 +652,18 @@ func writeUsageLogBestEffort(ctx context.Context, repo UsageLogRepository, usage
 			}
 			if _, syncErr := repo.Create(fallbackCtx, usageLog); syncErr != nil {
 				logger.LegacyPrintf(logKey, "Create usage log sync fallback failed: %v", syncErr)
+				return false
 			}
+			return true
 		}
-		return
+		return true
 	}
 
 	if _, err := repo.Create(usageCtx, usageLog); err != nil {
 		logger.LegacyPrintf(logKey, "Create usage log failed: %v", err)
+		return false
 	}
+	return true
 }
 
 // RecordUsage 记录使用量并扣费（或更新订阅用量）

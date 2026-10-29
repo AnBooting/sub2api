@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -354,6 +355,17 @@ var claimLiveControllerScript = redis.NewScript(`
 	local key = KEYS[1]
 	local target = ARGV[1]
 	local owner = ARGV[2]
+	if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then
+		if not ARGV[3] then return -4 end
+		local identity = redis.call('HGET', key, 'handoff_v2_identity')
+		local op = redis.call('HGET', key, 'handoff_v2_operation')
+		if not identity or not op or redis.call('HGET', key, 'handoff_v2_generation') ~= ARGV[3] or
+			redis.call('GET', KEYS[2]) ~= op .. ':' .. identity .. ':' .. ARGV[3] then return -2 end
+		if redis.call('PTTL', KEYS[2]) ~= -1 then return -3 end
+		if redis.call('HGET', key, 'handoff_v2_phase') ~= 'active' or redis.call('PTTL', key) <= 0 then return -3 end
+	elseif ARGV[3] then
+		return -4
+	end
 	local current = redis.call('HGET', key, 'controller')
 	if current == false or current == 'closed' then
 		return 0
@@ -374,6 +386,7 @@ var markLiveCallClosedScript = redis.NewScript(`
 	if redis.call('EXISTS', key) == 0 then
 		return 0
 	end
+	if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then return -4 end
 	if redis.call('HGET', key, 'controller') == 'closed' then
 		return 0
 	end
@@ -384,12 +397,57 @@ var markLiveCallClosedScript = redis.NewScript(`
 
 var releaseLiveControllerScript = redis.NewScript(`
 	local key = KEYS[1]
+	if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then
+		if not ARGV[2] then return -4 end
+		local identity = redis.call('HGET', key, 'handoff_v2_identity')
+		local op = redis.call('HGET', key, 'handoff_v2_operation')
+		if not identity or not op or redis.call('HGET', key, 'handoff_v2_generation') ~= ARGV[2] or
+			redis.call('GET', KEYS[2]) ~= op .. ':' .. identity .. ':' .. ARGV[2] then return -2 end
+		if redis.call('PTTL', KEYS[2]) ~= -1 then return -3 end
+		if redis.call('HGET', key, 'handoff_v2_phase') ~= 'active' or redis.call('PTTL', key) <= 0 then return -3 end
+	elseif ARGV[2] then
+		return -4
+	end
 	if redis.call('HGET', key, 'controller') ~= 'proxy' or
 		redis.call('HGET', key, 'controller_owner') ~= ARGV[1] then
 		return 0
 	end
 	redis.call('HSET', key, 'controller', 'pending', 'controller_owner', '')
 	return 1
+`)
+
+var claimLiveSettlementAuditScript = redis.NewScript(`
+    redis.replicate_commands()
+    local key = KEYS[1]
+    if redis.call('EXISTS', key) == 0 then return -1 end
+    if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then return -4 end
+    local raw = redis.call('HGET', key, 'settlement')
+    if not raw then return -2 end
+    local valid, state = pcall(cjson.decode, raw)
+    if not valid or type(state) ~= 'table' then return -2 end
+    if state.status == 'settled' then return 0 end
+    if state.status ~= 'pending' then return -2 end
+    if redis.call('HGET', key, 'audit_written') == '1' then return 0 end
+    local clock = redis.call('TIME')
+    local now = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+    local owner = redis.call('HGET', key, 'audit_owner')
+    local expires = tonumber(redis.call('HGET', key, 'audit_until') or '0') or 0
+    if owner and expires > now then
+        if owner == ARGV[1] then return 1 end
+        return 0
+    end
+    redis.call('HSET', key, 'audit_owner', ARGV[1], 'audit_until', now + tonumber(ARGV[2]))
+    return 1
+`)
+
+var finishLiveSettlementAuditScript = redis.NewScript(`
+    local key = KEYS[1]
+    if redis.call('EXISTS', key) == 0 then return -1 end
+    if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then return -4 end
+    if redis.call('HGET', key, 'audit_owner') ~= ARGV[1] then return 0 end
+    if ARGV[2] == '1' then redis.call('HSET', key, 'audit_written', '1') end
+    redis.call('HDEL', key, 'audit_owner', 'audit_until')
+    return 1
 `)
 
 func liveCallKey(callHash string) string {
@@ -400,6 +458,14 @@ func HashLiveCallID(callID string) string {
 	sum := sha256.Sum256([]byte(callID))
 	return hex.EncodeToString(sum[:])
 }
+
+var saveLegacyLiveCallScript = redis.NewScript(`
+	local key, guard = KEYS[1], KEYS[2]
+	if redis.call('EXISTS', guard) ~= 0 or redis.call('HGET', key, 'handoff_v2_protocol') == '2' then return -4 end
+	redis.call('HSET', key, unpack(ARGV, 2))
+	redis.call('EXPIRE', key, ARGV[1])
+	return 1
+`)
 
 func (c *gatewayCache) SaveLiveCall(ctx context.Context, record *service.LiveCallRecord, ttl time.Duration) error {
 	if record == nil || record.CallHash == "" || record.CallID == "" {
@@ -438,12 +504,22 @@ func (c *gatewayCache) SaveLiveCall(ctx context.Context, record *service.LiveCal
 			values["settlement"] = string(encoded)
 		}
 	}
-	key := liveCallKey(record.CallHash)
-	pipe := c.rdb.TxPipeline()
-	pipe.HSet(ctx, key, values)
-	pipe.Expire(ctx, key, ttl)
-	_, err := pipe.Exec(ctx)
-	return err
+	seconds := int64(ttl / time.Second)
+	if ttl > 0 && ttl < time.Second {
+		seconds = 1
+	}
+	args := []any{seconds}
+	for field, value := range values {
+		args = append(args, field, value)
+	}
+	result, err := saveLegacyLiveCallScript.Run(ctx, c.rdb, []string{liveCallKey(record.CallHash), liveHandoffGuardKey(record.CallHash)}, args...).Int()
+	if err != nil {
+		return err
+	}
+	if result == -4 {
+		return service.ErrLiveHandoffProtocol
+	}
+	return nil
 }
 
 func (c *gatewayCache) GetLiveCall(ctx context.Context, callHash string) (*service.LiveCallRecord, error) {
@@ -505,7 +581,7 @@ func (c *gatewayCache) GetLiveCall(ctx context.Context, callHash string) (*servi
 
 func (c *gatewayCache) ClaimLiveController(ctx context.Context, callHash, controller, owner string) (bool, error) {
 	result, err := claimLiveControllerScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, controller, owner).Int()
-	return result == 1, err
+	return liveHandoffControllerResult(result, err)
 }
 
 func (c *gatewayCache) GetLiveController(ctx context.Context, callHash string) (string, error) {
@@ -518,10 +594,218 @@ func (c *gatewayCache) GetLiveController(ctx context.Context, callHash string) (
 
 func (c *gatewayCache) ReleaseLiveController(ctx context.Context, callHash, owner string) (bool, error) {
 	result, err := releaseLiveControllerScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, owner).Int()
-	return result == 1, err
+	return liveHandoffControllerResult(result, err)
 }
 
 func (c *gatewayCache) MarkLiveCallClosed(ctx context.Context, callHash string, ttl time.Duration) (bool, error) {
 	result, err := markLiveCallClosedScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, int64(ttl.Seconds())).Int()
-	return result == 1, err
+	return liveHandoffControllerResult(result, err)
+}
+
+// BeginLiveSettlement atomically closes an existing call and establishes the
+// first frozen amount. The returned token is the exact stored JSON for CAS.
+var beginLiveSettlementScript = redis.NewScript(`
+    local key = KEYS[1]
+    if redis.call('EXISTS', key) == 0 then return {-1, ''} end
+    if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then return {-4, ''} end
+    if ARGV[3] == '1' then
+        for i = 4, #ARGV, 3 do
+            local value = redis.call('HGET', key, ARGV[i])
+            local presence = ARGV[i + 1]
+            if presence == '0' and value then return {-2, ''} end
+            if presence == '1' and (not value or value ~= ARGV[i + 2]) then return {-2, ''} end
+            if presence == '2' and (value or '0') ~= ARGV[i + 2] then return {-2, ''} end
+        end
+    end
+    local current = redis.call('HGET', key, 'settlement')
+    if not current then
+        current = ARGV[1]
+        redis.call('HSET', key, 'settlement', current)
+    end
+    local first = 0
+    if redis.call('HGET', key, 'controller') ~= 'closed' then first = 1 end
+    redis.call('HSET', key, 'controller', 'closed', 'controller_owner', '')
+    redis.call('EXPIRE', key, ARGV[2])
+    return {first, current}
+`)
+
+var compareAndSwapLiveSettlementScript = redis.NewScript(`
+    local key = KEYS[1]
+    if redis.call('EXISTS', key) == 0 then return -1 end
+    if redis.call('HGET', key, 'handoff_v2_protocol') == '2' then return -4 end
+    if redis.call('HGET', key, 'settlement') ~= ARGV[1] then return 0 end
+    redis.call('HSET', key, 'settlement', ARGV[2])
+    redis.call('EXPIRE', key, ARGV[3])
+    return 1
+`)
+
+func (c *gatewayCache) BeginLiveSettlement(ctx context.Context, callHash string, candidate *service.LiveSettlement, ttl time.Duration) (*service.LiveSettlement, string, bool, error) {
+	return c.beginLiveSettlement(ctx, callHash, candidate, nil, ttl)
+}
+
+func (c *gatewayCache) BeginLiveSettlementVerified(ctx context.Context, record *service.LiveCallRecord, candidate *service.LiveSettlement, ttl time.Duration) (*service.LiveSettlement, string, bool, error) {
+	if record == nil || candidate == nil || record.CallID == "" || HashLiveCallID(record.CallID) != record.CallHash || record.UserID <= 0 || record.AccountID <= 0 || record.APIKeyID <= 0 || record.LeaseID == "" || record.Model == "" || record.CreatedAt.UnixMilli() <= 0 || record.ExpiresAt.UnixMilli() <= 0 {
+		return nil, "", false, service.ErrLiveIdentityMismatch
+	}
+	if record.RealtimePricePerMin == nil {
+		if candidate.ActualCost != 0 || candidate.TotalCost != 0 {
+			return nil, "", false, service.ErrLiveIdentityMismatch
+		}
+	} else if *record.RealtimePricePerMin <= 0 || math.IsNaN(*record.RealtimePricePerMin) || math.IsInf(*record.RealtimePricePerMin, 0) {
+		return nil, "", false, service.ErrLiveIdentityMismatch
+	}
+	return c.beginLiveSettlement(ctx, record.CallHash, candidate, record, ttl)
+}
+
+func (c *gatewayCache) beginLiveSettlement(ctx context.Context, callHash string, candidate *service.LiveSettlement, expected *service.LiveCallRecord, ttl time.Duration) (*service.LiveSettlement, string, bool, error) {
+	if callHash == "" || candidate == nil || ttl < time.Second {
+		return nil, "", false, fmt.Errorf("invalid live settlement")
+	}
+	encoded, err := json.Marshal(candidate)
+	if err != nil {
+		return nil, "", false, err
+	}
+	args := []any{string(encoded), int64(ttl.Seconds()), "0"}
+	if expected != nil {
+		price := ""
+		if expected.RealtimePricePerMin != nil {
+			price = strconv.FormatFloat(*expected.RealtimePricePerMin, 'f', -1, 64)
+		}
+		policy := ""
+		if expected.BillingPolicy != nil {
+			value, err := json.Marshal(expected.BillingPolicy)
+			if err != nil {
+				return nil, "", false, err
+			}
+			policy = string(value)
+		}
+		args[2] = "1"
+		required := func(field, value string) { args = append(args, field, "1", value) }
+		optional := func(field, value string, present bool) {
+			flag := "0"
+			if present {
+				flag = "1"
+			}
+			args = append(args, field, flag, value)
+		}
+		required("call_id", expected.CallID)
+		required("user_id", strconv.FormatInt(expected.UserID, 10))
+		required("account_id", strconv.FormatInt(expected.AccountID, 10))
+		required("api_key_id", strconv.FormatInt(expected.APIKeyID, 10))
+		required("group_id", strconv.FormatInt(expected.GroupID, 10))
+		required("subscription_id", strconv.FormatInt(expected.SubscriptionID, 10))
+		required("lease_id", expected.LeaseID)
+		required("model", expected.Model)
+		required("created_at", strconv.FormatInt(expected.CreatedAt.UnixMilli(), 10))
+		required("expires_at", strconv.FormatInt(expected.ExpiresAt.UnixMilli(), 10))
+		optional("realtime_price_per_min", price, expected.RealtimePricePerMin != nil)
+		optional("billing_policy", policy, expected.BillingPolicy != nil)
+		required("user_agent", expected.UserAgent)
+		required("ip_address", expected.IPAddress)
+		required("inbound_endpoint", expected.InboundEndpoint)
+	}
+	result, err := beginLiveSettlementScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, args...).Slice()
+	if err != nil {
+		return nil, "", false, err
+	}
+	if len(result) != 2 {
+		return nil, "", false, fmt.Errorf("invalid live settlement response")
+	}
+	first, ok := result[0].(int64)
+	if !ok {
+		return nil, "", false, fmt.Errorf("invalid live settlement close result")
+	}
+	if first == -1 {
+		return nil, "", false, service.ErrLiveCallNotFound
+	}
+	if first == -2 {
+		return nil, "", false, service.ErrLiveIdentityMismatch
+	}
+	if first == -4 {
+		return nil, "", false, service.ErrLiveHandoffProtocol
+	}
+	token, ok := result[1].(string)
+	if !ok || token == "" {
+		return nil, "", false, fmt.Errorf("invalid live settlement checkpoint")
+	}
+	var state service.LiveSettlement
+	if err := json.Unmarshal([]byte(token), &state); err != nil {
+		return nil, "", false, fmt.Errorf("invalid live settlement checkpoint: %w", err)
+	}
+	return &state, token, first == 1, nil
+}
+
+func (c *gatewayCache) ClaimLiveSettlementAudit(ctx context.Context, callHash, owner string, ttl time.Duration) (bool, error) {
+	if callHash == "" || owner == "" || ttl < time.Second {
+		return false, fmt.Errorf("invalid live audit claim")
+	}
+	result, err := claimLiveSettlementAuditScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, owner, ttl.Milliseconds()).Int64()
+	if err != nil {
+		return false, err
+	}
+	if result == -1 {
+		return false, service.ErrLiveCallNotFound
+	}
+	if result == -2 {
+		return false, service.ErrLiveSettlementInvalid
+	}
+	if result == -4 {
+		return false, service.ErrLiveHandoffProtocol
+	}
+	return result == 1, nil
+}
+
+func (c *gatewayCache) FinishLiveSettlementAudit(ctx context.Context, callHash, owner string, written bool) (bool, error) {
+	if callHash == "" || owner == "" {
+		return false, fmt.Errorf("invalid live audit completion")
+	}
+	success := "0"
+	if written {
+		success = "1"
+	}
+	result, err := finishLiveSettlementAuditScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, owner, success).Int64()
+	if err != nil {
+		return false, err
+	}
+	if result == -1 {
+		return false, service.ErrLiveCallNotFound
+	}
+	if result == -4 {
+		return false, service.ErrLiveHandoffProtocol
+	}
+	return result == 1, nil
+}
+
+func (c *gatewayCache) CompareAndSwapLiveSettlement(ctx context.Context, callHash, expected string, next *service.LiveSettlement, ttl time.Duration) (bool, error) {
+	if callHash == "" || expected == "" || next == nil || ttl < time.Second {
+		return false, fmt.Errorf("invalid live settlement update")
+	}
+	var previous service.LiveSettlement
+	if err := json.Unmarshal([]byte(expected), &previous); err != nil {
+		return false, fmt.Errorf("invalid live settlement checkpoint: %w", err)
+	}
+	if previous.TotalCost != next.TotalCost || previous.ActualCost != next.ActualCost ||
+		previous.BillingMode != next.BillingMode || previous.DurationMs != next.DurationMs ||
+		!previous.FrozenAt.Equal(next.FrozenAt) ||
+		(previous.SettlementMode != "" && previous.SettlementMode != next.SettlementMode) ||
+		(previous.Status == service.LiveSettlementSettled && next.Status != service.LiveSettlementSettled) ||
+		(next.Status != service.LiveSettlementPending && next.Status != service.LiveSettlementSettled) ||
+		(previous.UsageLogWritten && !next.UsageLogWritten) || next.Attempts < previous.Attempts {
+		return false, fmt.Errorf("invalid live settlement transition")
+	}
+	encoded, err := json.Marshal(next)
+	if err != nil {
+		return false, err
+	}
+	result, err := compareAndSwapLiveSettlementScript.Run(ctx, c.rdb, []string{liveCallKey(callHash)}, expected, string(encoded), int64(ttl.Seconds())).Int()
+	if err != nil {
+		return false, err
+	}
+	if result == -1 {
+		return false, service.ErrLiveCallNotFound
+	}
+	if result == -4 {
+		return false, service.ErrLiveHandoffProtocol
+	}
+	return result == 1, nil
 }

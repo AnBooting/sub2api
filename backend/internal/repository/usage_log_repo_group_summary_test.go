@@ -65,11 +65,6 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryFallsBackWhenWatermarkInvalid(
 				AddRow(0, nil, nil, nil),
 		},
 		{
-			name: "时区与当前配置不一致",
-			rows: sqlmock.NewRows([]string{"count", "closed_before", "retained_from", "timezone_name"}).
-				AddRow(1, "2026-03-07", time.Date(2026, 2, 1, 5, 0, 0, 0, time.UTC), "Asia/Shanghai"),
-		},
-		{
 			name: "水位位于未来",
 			rows: sqlmock.NewRows([]string{"count", "closed_before", "retained_from", "timezone_name"}).
 				AddRow(1, "2026-03-10", time.Date(2026, 2, 1, 5, 0, 0, 0, time.UTC), "America/New_York"),
@@ -93,4 +88,21 @@ func TestUsageLogRepositoryGetAllGroupUsageSummaryFallsBackWhenWatermarkInvalid(
 			require.NoError(t, mock.ExpectationsWereMet())
 		})
 	}
+}
+
+// 时区与配置不一致时不得静默退化为 epoch 全量回扫：旧日桶是旧时区解释的，
+// 用配置时区重算会给出误导性数字。必须 fail-closed 返回专属错误。
+func TestUsageLogRepositoryGetAllGroupUsageSummaryFailsClosedOnTimezoneMismatch(t *testing.T) {
+	useGroupUsageRepositoryTestTimezone(t, "America/New_York")
+	db, mock := newSQLMock(t)
+	repo := newUsageLogRepositoryWithSQL(nil, db)
+	todayStart := time.Date(2026, 3, 9, 4, 0, 0, 0, time.UTC)
+
+	mock.ExpectQuery(`(?s)COUNT\(\*\).*usage_group_rollup_state.*WHERE id = 1`).
+		WillReturnRows(sqlmock.NewRows([]string{"count", "closed_before", "retained_from", "timezone_name"}).
+			AddRow(1, "2026-03-07", time.Date(2026, 2, 1, 5, 0, 0, 0, time.UTC), "Asia/Shanghai"))
+
+	_, err := repo.GetAllGroupUsageSummary(context.Background(), todayStart)
+	require.ErrorContains(t, err, "timezone mismatch")
+	require.NoError(t, mock.ExpectationsWereMet(), "时区不一致必须 fail-closed，绝不进入 epoch 回扫查询")
 }
