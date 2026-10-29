@@ -12,6 +12,7 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	dbusagecleanuptask "github.com/Wei-Shaw/sub2api/ent/usagecleanuptask"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -292,38 +293,14 @@ func (r *usageCleanupRepository) DeleteUsageLogsBatch(ctx context.Context, filte
 	}
 	args = append(args, limit)
 	if db, ok := r.sql.(*sql.DB); ok {
-		return r.deleteUsageLogsBatchWithRollupInvalidation(ctx, db, whereClause, args)
+		return r.deleteUsageLogsBatchWithRollupInvalidation(ctx, db, whereClause, args, filters.EndTime)
 	}
-	query := fmt.Sprintf(`
-		WITH target AS (
-			SELECT id
-			FROM usage_logs
-			WHERE %s
-			ORDER BY created_at ASC, id ASC
-			LIMIT $%d
-		)
-		DELETE FROM usage_logs
-		WHERE id IN (SELECT id FROM target)
-		RETURNING created_at
-	`, whereClause, len(args))
-
-	rows, err := r.sql.QueryContext(ctx, query, args...)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = rows.Close() }()
-
-	var deleted int64
-	for rows.Next() {
-		deleted++
-	}
-	if err := rows.Err(); err != nil {
-		return 0, err
-	}
-	return deleted, nil
+	// 非事务执行器无法保证「推进完整性边界 + 隔离 + 删除」的原子性，
+	// 直接删除会让已发布日桶被静默破坏，故 fail-closed。
+	return 0, fmt.Errorf("cannot manually clean usage statistics without a database transaction")
 }
 
-func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB, whereClause string, args []any) (int64, error) {
+func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx context.Context, db *sql.DB, whereClause string, args []any, windowEnd time.Time) (int64, error) {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
@@ -333,9 +310,21 @@ func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx 
 		return 0, err
 	}
 
+	if _, err := tx.ExecContext(ctx, "LOCK TABLE ONLY usage_logs IN ROW EXCLUSIVE MODE"); err != nil {
+		return rollback(err)
+	}
 	if err := lockGroupUsageRollupState(ctx, tx); err != nil {
 		return rollback(err)
 	}
+	// 人工删除刻意不推进全局 raw_safe_from：
+	//   1) 推进等于宣称「该日之前的明细都不可信」，会让被删当日永久失去重算能力，
+	//      已发布的日桶/分组桶就会一直保留被删掉的请求与金额（P1-18）；
+	//   2) 空匹配或未来窗口的删除若也推进，会把正常历史全部打成不可证明（P1-17）。
+	// 正确路径：由 usage_logs 上的 260 触发器把受影响日原子置 dirty（原本已不可证明
+	// 完整的日则置 sticky quarantine），再由持久脏日队列按剩余明细重算，
+	// 使已发布统计与删除后的真实数据保持一致。windowEnd 仅保留用于调用方语义说明。
+	_ = windowEnd
+
 	query := fmt.Sprintf(`
 		WITH target AS (
 			SELECT id
@@ -354,17 +343,13 @@ func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx 
 	}
 
 	var deleted int64
-	var earliestDeletedAt time.Time
+	var scannedAt time.Time
 	for rows.Next() {
-		var deletedAt time.Time
-		if err := rows.Scan(&deletedAt); err != nil {
+		if err := rows.Scan(&scannedAt); err != nil {
 			_ = rows.Close()
 			return rollback(err)
 		}
 		deleted++
-		if earliestDeletedAt.IsZero() || deletedAt.Before(earliestDeletedAt) {
-			earliestDeletedAt = deletedAt
-		}
 	}
 	if err := rows.Err(); err != nil {
 		_ = rows.Close()
@@ -373,18 +358,11 @@ func (r *usageCleanupRepository) deleteUsageLogsBatchWithRollupInvalidation(ctx 
 	if err := rows.Close(); err != nil {
 		return rollback(err)
 	}
-
-	if deleted > 0 {
-		if err := invalidateGroupUsageRollupsAt(ctx, tx, earliestDeletedAt); err != nil {
-			return rollback(err)
-		}
-	}
 	if err := tx.Commit(); err != nil {
 		return 0, err
 	}
 	return deleted, nil
 }
-
 func buildUsageCleanupWhere(filters service.UsageCleanupFilters) (string, []any) {
 	conditions := make([]string, 0, 8)
 	args := make([]any, 0, 8)
@@ -586,6 +564,14 @@ func (r *usageCleanupRepository) markTaskFailedWithEnt(ctx context.Context, task
 		SetUpdatedAt(now).
 		Save(ctx)
 	return err
+}
+
+// usageCleanupWindowEnd 返回给定时刻所在配置时区自然日的 UTC 末刻度。
+// 传 EndTime 即把其所在整天标记为不可证明完整（含 EndTime 当日的删除）。
+func usageCleanupWindowEnd(at time.Time) time.Time {
+	loc := timezone.Location()
+	at = at.In(loc)
+	return time.Date(at.Year(), at.Month(), at.Day(), 23, 59, 59, 999999999, loc).UTC()
 }
 
 func usageCleanupTaskFromEnt(row *dbent.UsageCleanupTask) (service.UsageCleanupTask, error) {

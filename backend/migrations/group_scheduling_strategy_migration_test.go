@@ -86,7 +86,7 @@ func TestSchedulingStrategyMigrationNumbering(t *testing.T) {
 	require.True(t, seen["256"], "256 迁移缺失：编号必须连续")
 	require.True(t, seen["257"], "257 迁移缺失：编号必须连续")
 	require.True(t, seen["258"], "258 迁移缺失：编号必须连续")
-	require.Equal(t, "258_relax_group_link_authorization_check.sql", latest,
+	require.Equal(t, "260_usage_stats_repair.sql", latest,
 		"最新迁移必须与磁盘上的最高编号一致")
 
 	// 246–250 必须保持为空档：0.2.17 同步把本 fork 的迁移整体后移到 251 起，

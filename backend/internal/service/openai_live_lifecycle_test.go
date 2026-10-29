@@ -294,7 +294,7 @@ func TestFinalizeLiveCallIsIdempotentAndWritesZeroUsage(t *testing.T) {
 	service.finalizeLiveCall(record)
 
 	concurrencyCache.mu.Lock()
-	require.Equal(t, 1, concurrencyCache.releases)
+	require.Equal(t, 2, concurrencyCache.releases, "each confirmed close retries the idempotent lease release")
 	concurrencyCache.mu.Unlock()
 	usageRepo.mu.Lock()
 	require.Len(t, usageRepo.logs, 1)
@@ -510,12 +510,21 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 	liveObserverStoreRetryInterval = time.Millisecond
 	t.Cleanup(func() { liveObserverStoreRetryInterval = restore })
 
+	settlementClock := liveSettlementRetryInterval
+	settlementRetries := 0
+	liveSettlementRetryInterval = func(int) time.Duration {
+		settlementRetries++
+		return time.Millisecond
+	}
+	t.Cleanup(func() { liveSettlementRetryInterval = settlementClock })
+
 	cases := []struct {
-		name   string
-		inject func(*liveTestStore)
+		name                  string
+		inject                func(*liveTestStore)
+		wantSettlementRetries int
 	}{
-		{"GetLiveCall 持续报错", func(s *liveTestStore) { s.getCallErr = errors.New("redis: i/o timeout") }},
-		{"ClaimLiveController 报错", func(s *liveTestStore) { s.claimErr = errors.New("redis: i/o timeout") }},
+		{"GetLiveCall 持续报错", func(s *liveTestStore) { s.getCallErr = errors.New("redis: i/o timeout") }, liveSettlementRetryAttempts},
+		{"ClaimLiveController 报错", func(s *liveTestStore) { s.claimErr = errors.New("redis: i/o timeout") }, 0},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -542,7 +551,9 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 				usageLogRepo:       usageRepo,
 			}
 
+			beforeSettlementRetries := settlementRetries
 			svc.observeLiveCall(record)
+			require.Equal(t, tc.wantSettlementRetries, settlementRetries-beforeSettlementRetries)
 
 			concurrencyCache.mu.Lock()
 			require.Equal(t, 1, concurrencyCache.releases, "store 故障时租约释放不能丢")
@@ -553,6 +564,23 @@ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
 			usageRepo.mu.Unlock()
 		})
 	}
+}
+
+func TestObserveLiveCallStoreOutageIsolatesSettlementBackoff(t *testing.T) {
+	previous := liveSettlementRetryInterval
+	var inheritedCalls []int
+	liveSettlementRetryInterval = func(attempt int) time.Duration {
+		inheritedCalls = append(inheritedCalls, attempt)
+		return 0
+	}
+	t.Cleanup(func() { liveSettlementRetryInterval = previous })
+
+	require.True(t, t.Run("lifecycle", TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize))
+	require.Empty(t, inheritedCalls, "生命周期测试不能使用传入的结算退避")
+
+	// 子测试清理后应恢复先前的时钟，避免影响后续测试。
+	_ = liveSettlementRetryInterval(42)
+	require.Equal(t, []int{42}, inheritedCalls)
 }
 
 type liveTestBestEffortUsageRepo struct {

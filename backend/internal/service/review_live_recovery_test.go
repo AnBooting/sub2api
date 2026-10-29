@@ -62,21 +62,26 @@ func (s *reviewUnavailableSettlementStore) SaveLiveCall(ctx context.Context, rec
 
 func TestReviewLivePendingSurvivesCheckpointWriteFailure(t *testing.T) {
 	price := 0.1
-	svc, store, _, billing := newLiveSettlementTestService()
+	svc, store, usage, billing := newLiveSettlementTestService()
 	record := newLiveSettlementRecord(t, store, 0, &price)
 	failing := &reviewUnavailableSettlementStore{liveTestStore: store, failSave: true}
 	svc.cache = failing
-	billing.err = errors.New("temporary billing outage")
 	svc.finalizeLiveCall(record)
-	require.Equal(t, 1, billing.calls)
+	require.Zero(t, billing.calls)
+	require.NotNil(t, record.Settlement)
 	failing.failSave = false
-	billing.err = nil
-	// Deliberately retry from persisted storage, as observer/restart does.
+	// A process restarting without a persisted checkpoint cannot retain its
+	// local freeze, but still must settle within the session duration cap.
 	persisted, err := store.GetLiveCall(context.Background(), record.CallHash)
 	require.NoError(t, err)
 	svc.finalizeLiveCall(persisted)
-	require.Equal(t, 2, billing.calls,
-		"a successful close marker must not permanently hide settlement whose checkpoint failed")
+	require.Equal(t, 1, billing.calls)
+	current, err := store.GetLiveCall(context.Background(), record.CallHash)
+	require.NoError(t, err)
+	require.Equal(t, LiveSettlementSettled, current.Settlement.Status)
+	require.LessOrEqual(t, current.Settlement.DurationMs, svc.liveSettlementDurationCapMs(current))
+	require.Len(t, usage.logs, 1)
+	require.InDelta(t, billing.lastCmd.BalanceCost, usage.logs[0].ActualCost, 0.000001)
 }
 
 func TestReviewLiveObserverExpiryAutomaticallyRetriesPendingSettlement(t *testing.T) {
