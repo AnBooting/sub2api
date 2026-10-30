@@ -31,6 +31,9 @@ func TestSessionBindingContextFollowsForwardedIPSwitch(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := &config.Config{}
 			cfg.SetTrustForwardedIPForAPIKeyACL(tc.trustForwarded)
+			// 受信代理按生产装配方式同时灌入 pkg/ip 策略（server.configureClientIPTrust）。
+			require.NoError(t, ip.SetTrustedProxyPolicy(tc.trustedProxies, len(tc.trustedProxies) > 0))
+			t.Cleanup(func() { require.NoError(t, ip.SetTrustedProxyPolicy(nil, false)) })
 
 			r := gin.New()
 			require.NoError(t, r.SetTrustedProxies(tc.trustedProxies))
@@ -56,6 +59,9 @@ func TestSessionBindingContextFollowsForwardedIPSwitch(t *testing.T) {
 	}
 }
 
+// 本用例测的是“一次请求内快照 cfg 的开关与自定义头”，不是信任模型本身：
+// 因此直连对端必须是受信代理（同机反代），否则转发头会被 F-01 的对端闸门忽略，
+// 变成在测另一件事。受信对端的判定见 pkg/ip 的 TestGetSecurityClientIP*。
 func TestSessionBindingContextSnapshotsForwardedModeAndHeaders(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -77,7 +83,8 @@ func TestSessionBindingContextSnapshotsForwardedModeAndHeaders(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/t", nil)
-	req.RemoteAddr = "9.9.9.9:12345"
+	// 同机反代 = 默认受信对端（未配置 server.trusted_proxies 时唯一默认信任的形态）
+	req.RemoteAddr = "127.0.0.1:12345"
 	req.Header.Set("X-Initial-IP", "1.2.3.4")
 	req.Header.Set("X-Changed-IP", "4.4.4.4")
 	req.Header.Set("X-Real-IP", "8.8.8.8")

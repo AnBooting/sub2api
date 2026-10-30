@@ -9,8 +9,10 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ctxkey"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 type testLogSink struct {
@@ -260,6 +262,11 @@ func TestLogger_IngressRejectRemainsInStandardAccessLog(t *testing.T) {
 func TestLogger_AccessLogUsesForwardedClientIPFromTrustedProxy(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	sink := initMiddlewareTestLogger(t)
+
+	// 受信代理必须按生产装配方式同时灌入 pkg/ip 策略（见 server.configureClientIPTrust）：
+	// 只配 gin 的 trusted_proxies 不足以让审计日志采信转发头。
+	require.NoError(t, ip.SetTrustedProxyPolicy([]string{"104.23.251.120"}, true))
+	t.Cleanup(func() { require.NoError(t, ip.SetTrustedProxyPolicy(nil, false)) })
 
 	r := gin.New()
 	if err := r.SetTrustedProxies([]string{"104.23.251.120"}); err != nil {
