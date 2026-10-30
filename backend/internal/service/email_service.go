@@ -183,6 +183,45 @@ func (s *EmailService) GetSMTPConfig(ctx context.Context) (*SMTPConfig, error) {
 	}, nil
 }
 
+// 邮件配置缺失的原因码（IsConfigured 的第二个返回值）。
+//
+// 这些是**稳定**的机器可读标识：管理端设置页与发码错误路径都用它给出可行动的提示
+// （"去填 smtp_host"而不是泛化的 "email service not configured"）。
+const (
+	EmailConfigReasonHostMissing = "smtp_host_missing"
+	EmailConfigReasonFromMissing = "smtp_from_missing"
+)
+
+// IsConfigured 回答"现在能不能真的把邮件发出去"，并给出缺失项的原因码（I-01）。
+//
+// 为什么需要它：SendVerifyCodeAsync 走异步队列，队列只负责入队、发信在 worker 里失败
+// 只写日志；于是 SMTP 完全未配置时接口仍返回 200 + countdown，前端显示"已发送"、
+// 用户永远收不到，运维也看不出邮件不可用。调用方必须在**入队之前**同步问一次本函数。
+//
+// 判定只看"发信必需项"：smtp_host（服务器）与 smtp_from（发件人）。
+// 不校验 smtp_username/password：不少内网中继允许匿名投递，把凭据缺失当成未配置会
+// 误伤这类部署；真正的认证失败会在 SendEmailWithConfig 里如实报错。
+//
+// 返回 (true, "") 表示配置齐全；否则返回 (false, 原因码)。
+func (s *EmailService) IsConfigured(ctx context.Context) (bool, string) {
+	if s == nil || s.settingRepo == nil {
+		return false, EmailConfigReasonHostMissing
+	}
+	settings, err := s.settingRepo.GetMultiple(ctx, []string{SettingKeySMTPHost, SettingKeySMTPFrom})
+	if err != nil {
+		// 读设置失败等价于"无法确认可用"：按未配置处理（fail-closed），
+		// 让调用方给出明确错误而不是假装成功。
+		return false, EmailConfigReasonHostMissing
+	}
+	if strings.TrimSpace(settings[SettingKeySMTPHost]) == "" {
+		return false, EmailConfigReasonHostMissing
+	}
+	if strings.TrimSpace(settings[SettingKeySMTPFrom]) == "" {
+		return false, EmailConfigReasonFromMissing
+	}
+	return true, ""
+}
+
 // SendEmail 发送邮件（使用数据库中保存的配置）
 func (s *EmailService) SendEmail(ctx context.Context, to, subject, body string) error {
 	config, err := s.GetSMTPConfig(ctx)

@@ -132,6 +132,13 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 	}
 	passkeyConfigured, passkeyRPID, passkeyRPOrigins := h.settingService.PasskeyConfiguration()
 
+	// I-01：只读派生字段，回答"现在能否真的发信"。与发码路径共用 EmailService.IsConfigured，
+	// 保证"设置页显示可用"与"发码真的成功"是同一份判据，不会各说各话。
+	smtpConfigured := false
+	if h.emailService != nil {
+		smtpConfigured, _ = h.emailService.IsConfigured(c.Request.Context())
+	}
+
 	payload := dto.SystemSettings{
 		RegistrationEnabled:                                    settings.RegistrationEnabled,
 		EmailVerifyEnabled:                                     settings.EmailVerifyEnabled,
@@ -161,6 +168,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SMTPFrom:                                               settings.SMTPFrom,
 		SMTPFromName:                                           settings.SMTPFromName,
 		SMTPUseTLS:                                             settings.SMTPUseTLS,
+		SMTPConfigured:                                         smtpConfigured,
 		TurnstileEnabled:                                       settings.TurnstileEnabled,
 		TurnstileSiteKey:                                       settings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:                           settings.TurnstileSecretKeyConfigured,
