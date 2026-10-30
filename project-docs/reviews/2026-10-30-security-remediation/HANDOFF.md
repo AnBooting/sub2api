@@ -2,6 +2,10 @@
 
 本文件是 `PLAN.md` / `EVIDENCE.md` / `FIELD-INVENTORY.md` / `E2E-REPORT.md` / `VERIFICATION.md` 的入口摘要。**交付前的最终数字以 `VERIFICATION.md` 为准**（含 Lead 与 verifier 双方实跑）。
 
+- **分支**：`fix/security-remediation-20261030`
+- **PR**：https://github.com/AnBooting/sub2api/pull/18 （base `develop`，7 个提交，91 文件 +14337/−116）
+- **需要人做的事**：见 `ACTION-ITEMS.md`（EdgeOne 网段、两步上线、上线后自检、数据清理授权、下一轮技术债）
+
 ## 1. 本轮做了什么
 
 | 编号 | 项 | 状态 | 归属 |
