@@ -1,0 +1,6411 @@
+{
+  "00-login.json": {
+    "user": {
+      "status": 200,
+      "id": 3,
+      "balance": 105.009236
+    },
+    "admin": {
+      "status": 200,
+      "id": 1
+    }
+  },
+  "01-user-matrix.json": {
+    "rows": [
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/auth/me",
+        "status": 200,
+        "ms": 1907,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "id",
+            "email",
+            "username",
+            "role",
+            "balance",
+            "frozen_balance",
+            "concurrency",
+            "status",
+            "allowed_groups",
+            "last_active_at"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/user/profile",
+        "status": 200,
+        "ms": 1037,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "id",
+            "email",
+            "username",
+            "role",
+            "balance",
+            "frozen_balance",
+            "concurrency",
+            "status",
+            "allowed_groups",
+            "last_active_at"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/keys",
+        "status": 200,
+        "ms": 1722,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "items",
+            "total",
+            "page",
+            "page_size",
+            "pages"
+          ],
+          "total": 2,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/groups/available",
+        "status": 200,
+        "ms": 427,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 3
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/groups/rates",
+        "status": 200,
+        "ms": 1739,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": []
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/model-plaza",
+        "status": 200,
+        "ms": 3945,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "description",
+            "groups"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/channels/available",
+        "status": 200,
+        "ms": 3601,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 1
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/channel-monitors",
+        "status": 200,
+        "ms": 1073,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "items"
+          ],
+          "items": 0
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/subscriptions",
+        "status": 200,
+        "ms": 1255,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 0
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/subscriptions/active",
+        "status": 200,
+        "ms": 1039,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 0
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/subscriptions/progress",
+        "status": 200,
+        "ms": 1022,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 0
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/subscriptions/summary",
+        "status": 200,
+        "ms": 1204,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "active_count",
+            "total_used_usd",
+            "subscriptions"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/videos/tasks",
+        "status": 200,
+        "ms": 2373,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "items",
+            "next_cursor"
+          ],
+          "items": 0
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/redeem/history",
+        "status": 200,
+        "ms": 1687,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 1
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/announcements",
+        "status": 200,
+        "ms": 1882,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "arrayLen": 0
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/user/platform-quotas",
+        "status": 200,
+        "ms": 488,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "platform_quotas"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/user/aff",
+        "status": 200,
+        "ms": 1051,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "user_id",
+            "aff_code",
+            "aff_count",
+            "aff_quota",
+            "aff_frozen_quota",
+            "aff_history_quota",
+            "effective_rebate_rate_percent",
+            "invitees"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage?page=1&page_size=5",
+        "status": 200,
+        "ms": 1082,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "items",
+            "total",
+            "page",
+            "page_size",
+            "pages"
+          ],
+          "total": 15,
+          "items": 5
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage/stats",
+        "status": 200,
+        "ms": 2101,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "total_requests",
+            "total_input_tokens",
+            "total_output_tokens",
+            "total_cache_tokens",
+            "total_cache_creation_tokens",
+            "total_cache_read_tokens",
+            "total_tokens",
+            "total_cost",
+            "total_actual_cost",
+            "average_duration_ms"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage/dashboard/stats",
+        "status": 200,
+        "ms": 1230,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "total_api_keys",
+            "active_api_keys",
+            "total_requests",
+            "total_input_tokens",
+            "total_output_tokens",
+            "total_cache_creation_tokens",
+            "total_cache_read_tokens",
+            "total_tokens",
+            "total_cost",
+            "total_actual_cost"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage/dashboard/trend",
+        "status": 200,
+        "ms": 1063,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "end_date",
+            "granularity",
+            "start_date",
+            "trend"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage/dashboard/models",
+        "status": 200,
+        "ms": 1720,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "end_date",
+            "models",
+            "start_date"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage/dashboard/snapshot-v2",
+        "status": 200,
+        "ms": 1341,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "end_date",
+            "generated_at",
+            "granularity",
+            "models",
+            "start_date",
+            "trend"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/usage/errors?page=1&page_size=5",
+        "status": 403,
+        "ms": 1693,
+        "code": 403,
+        "msg": "Error requests view is disabled",
+        "meta": {},
+        "body": "{\"code\":403,\"message\":\"Error requests view is disabled\"}"
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "status": 200,
+        "ms": 1069,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "config",
+            "coverage",
+            "metrics",
+            "health",
+            "trend"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "status": 200,
+        "ms": 1898,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "group_by",
+            "coverage",
+            "items"
+          ],
+          "items": 1
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "status": 200,
+        "ms": 1076,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "coverage",
+            "items"
+          ],
+          "items": 81
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/channel-monitor-v2/dimensions",
+        "status": 200,
+        "ms": 1097,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "platforms",
+            "groups",
+            "models"
+          ]
+        }
+      },
+      {
+        "who": "u",
+        "method": "GET",
+        "p": "/api/v1/keys?page=1&page_size=50",
+        "status": 200,
+        "ms": 499,
+        "code": 0,
+        "msg": "success",
+        "meta": {
+          "keys": [
+            "items",
+            "total",
+            "page",
+            "page_size",
+            "pages"
+          ],
+          "total": 2,
+          "items": 2
+        }
+      }
+    ],
+    "keys": {
+      "items": [
+        {
+          "id": 3,
+          "user_id": 3,
+          "key": "sk-eac0202f405a1e9b496596ad20ca9039e56be2f5ac53c005a5ddea16ad6bf75c",
+          "name": "probe-g3",
+          "group_id": 3,
+          "group_chain_revision": 0,
+          "groups": [
+            {
+              "group_id": 3,
+              "role": "normal",
+              "position": 0
+            }
+          ],
+          "status": "active",
+          "ip_whitelist": null,
+          "ip_blacklist": null,
+          "last_used_at": "2026-10-30T18:59:00.785428+08:00",
+          "last_used_ip": "43.168.146.198",
+          "quota": 0,
+          "quota_used": 0,
+          "expires_at": null,
+          "created_at": "2026-10-30T09:41:52.599002+08:00",
+          "updated_at": "2026-10-30T18:59:00.785428+08:00",
+          "current_concurrency": 0,
+          "rate_limit_5h": 0,
+          "rate_limit_1d": 0,
+          "rate_limit_7d": 0,
+          "usage_5h": 0,
+          "usage_1d": 0,
+          "usage_7d": 0,
+          "window_5h_start": null,
+          "window_1d_start": null,
+          "window_7d_start": null,
+          "group": {
+            "id": 3,
+            "name": "2",
+            "description": "1",
+            "platform": "openai",
+            "rate_multiplier": 1,
+            "is_exclusive": false,
+            "status": "active",
+            "subscription_type": "standard",
+            "daily_limit_usd": null,
+            "weekly_limit_usd": null,
+            "monthly_limit_usd": null,
+            "long_context_pricing_enabled": true,
+            "allow_image_generation": false,
+            "allow_batch_image_generation": false,
+            "image_rate_independent": false,
+            "image_rate_multiplier": 1,
+            "batch_image_discount_multiplier": 0.5,
+            "batch_image_hold_multiplier": 0.6,
+            "video_rate_independent": false,
+            "video_rate_multiplier": 1,
+            "peak_rate_enabled": false,
+            "peak_start": "",
+            "peak_end": "",
+            "peak_rate_multiplier": 1,
+            "deepseek_pricing_state": {
+              "state": "none",
+              "label": "本分组不适用 DeepSeek 官方峰谷",
+              "timezone": "Asia/Shanghai",
+              "multiplier": 1,
+              "next_switch_at": null
+            },
+            "image_price_1k": null,
+            "image_price_2k": null,
+            "image_price_4k": null,
+            "video_price_480p": null,
+            "video_price_720p": null,
+            "video_price_1080p": null,
+            "web_search_price_per_call": null,
+            "search_price_per_1k": null,
+            "audio_realtime_price_per_min": null,
+            "audio_tts_price_per_million_chars": null,
+            "audio_stt_price_per_hour": null,
+            "claude_code_only": false,
+            "fallback_group_id": null,
+            "fallback_group_id_on_invalid_request": null,
+            "allow_high_availability": false,
+            "allow_messages_dispatch": false,
+            "allow_live": false,
+            "require_oauth_only": false,
+            "require_privacy_set": false,
+            "rpm_limit": 0,
+            "max_reasoning_effort": "",
+            "max_reasoning_effort_over_limit": "downgrade",
+            "reasoning_effort_mappings": [],
+            "created_at": "2026-10-10T02:13:20.375079+08:00",
+            "updated_at": "2026-10-10T02:21:38.763476+08:00"
+          }
+        },
+        {
+          "id": 2,
+          "user_id": 3,
+          "key": "sk-6e03f73930cf3e2033300e2a279f87e266228d19670988a31780089ad0f5fbd6",
+          "name": "probe-7255",
+          "group_id": null,
+          "group_chain_revision": 0,
+          "groups": [],
+          "status": "active",
+          "ip_whitelist": null,
+          "ip_blacklist": null,
+          "last_used_at": "2026-10-30T09:41:37.797655+08:00",
+          "last_used_ip": null,
+          "quota": 0,
+          "quota_used": 0,
+          "expires_at": null,
+          "created_at": "2026-10-30T09:41:31.059091+08:00",
+          "updated_at": "2026-10-30T09:41:37.797655+08:00",
+          "current_concurrency": 0,
+          "rate_limit_5h": 0,
+          "rate_limit_1d": 0,
+          "rate_limit_7d": 0,
+          "usage_5h": 0,
+          "usage_1d": 0,
+          "usage_7d": 0,
+          "window_5h_start": null,
+          "window_1d_start": null,
+          "window_7d_start": null
+        }
+      ],
+      "total": 2,
+      "page": 1,
+      "page_size": 50,
+      "pages": 1
+    }
+  },
+  "02-admin-matrix.json": [
+    {
+      "p": "/api/v1/admin/users?page=1&page_size=10",
+      "status": 200,
+      "ms": 1334,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 9,
+        "items": 9
+      }
+    },
+    {
+      "p": "/api/v1/admin/accounts?page=1&page_size=10",
+      "status": 200,
+      "ms": 1134,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 1,
+        "items": 1
+      }
+    },
+    {
+      "p": "/api/v1/admin/groups",
+      "status": 200,
+      "ms": 2091,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 3,
+        "items": 3
+      }
+    },
+    {
+      "p": "/api/v1/admin/channels",
+      "status": 200,
+      "ms": 1086,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 1,
+        "items": 1
+      }
+    },
+    {
+      "p": "/api/v1/admin/settings",
+      "status": 200,
+      "ms": 1129,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "account_quota_notify_emails",
+          "account_quota_notify_enabled",
+          "account_scheduling_thresholds",
+          "affiliate_admin_recharge_enabled",
+          "affiliate_enabled",
+          "affiliate_rebate_duration_days",
+          "affiliate_rebate_freeze_hours",
+          "affiliate_rebate_per_invitee_cap"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/dashboard/stats",
+      "status": 200,
+      "ms": 2815,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "active_api_keys",
+          "active_users",
+          "average_duration_ms",
+          "error_accounts",
+          "hourly_active_users",
+          "normal_accounts",
+          "overload_accounts",
+          "ratelimit_accounts"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/dashboard/snapshot-v2",
+      "status": 200,
+      "ms": 1065,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "generated_at",
+          "start_date",
+          "end_date",
+          "granularity",
+          "unavailable_sections",
+          "stats"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/dashboard/trend",
+      "status": 500,
+      "ms": 1044,
+      "code": 500,
+      "msg": "Failed to get usage trend",
+      "meta": null,
+      "body": "{\"code\":500,\"message\":\"Failed to get usage trend\"}"
+    },
+    {
+      "p": "/api/v1/admin/dashboard/models",
+      "status": 200,
+      "ms": 592,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "end_date",
+          "models",
+          "start_date"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/dashboard/groups",
+      "status": 200,
+      "ms": 1094,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "end_date",
+          "groups",
+          "start_date"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/groups/usage-summary",
+      "status": 500,
+      "ms": 1793,
+      "code": 500,
+      "msg": "Failed to get group usage summary",
+      "meta": null,
+      "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}"
+    },
+    {
+      "p": "/api/v1/admin/groups/capacity-summary",
+      "status": 200,
+      "ms": 1059,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "arrayLen": 3
+      }
+    },
+    {
+      "p": "/api/v1/admin/groups/live-capability",
+      "status": 200,
+      "ms": 1121,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "reason",
+          "supported"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/redeem-codes?page=1&page_size=10",
+      "status": 200,
+      "ms": 1897,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 3,
+        "items": 3
+      }
+    },
+    {
+      "p": "/api/v1/admin/usage?page=1&page_size=5",
+      "status": 200,
+      "ms": 1141,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 6,
+        "items": 5
+      }
+    },
+    {
+      "p": "/api/v1/admin/usage/stats",
+      "status": 200,
+      "ms": 457,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "total_requests",
+          "total_input_tokens",
+          "total_output_tokens",
+          "total_cache_tokens",
+          "total_cache_creation_tokens",
+          "total_cache_read_tokens",
+          "total_tokens",
+          "total_cost"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/payment/orders?page=1&page_size=5",
+      "status": 200,
+      "ms": 1103,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "items",
+          "total",
+          "page",
+          "page_size",
+          "pages"
+        ],
+        "total": 0,
+        "items": 0
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/config",
+      "status": 200,
+      "ms": 1172,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "version",
+          "enabled",
+          "refresh_interval_seconds",
+          "platforms",
+          "group_ids",
+          "health_thresholds",
+          "ignored_error_categories",
+          "updated_at"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/snapshot",
+      "status": 200,
+      "ms": 614,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "config",
+          "coverage",
+          "metrics",
+          "health",
+          "trend"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/matrix",
+      "status": 200,
+      "ms": 1115,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "group_by",
+          "coverage",
+          "items"
+        ],
+        "items": 1
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/models",
+      "status": 200,
+      "ms": 1357,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "coverage",
+          "items"
+        ],
+        "items": 81
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/dimensions",
+      "status": 200,
+      "ms": 444,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "platforms",
+          "groups",
+          "models"
+        ]
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/errors",
+      "status": 200,
+      "ms": 1793,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "coverage",
+          "items"
+        ],
+        "items": 2
+      }
+    },
+    {
+      "p": "/api/v1/admin/channel-monitor-v2/users",
+      "status": 200,
+      "ms": 1154,
+      "code": 0,
+      "msg": "success",
+      "meta": {
+        "keys": [
+          "coverage",
+          "items"
+        ],
+        "items": 2
+      }
+    }
+  ],
+  "03-404-recheck.json": [
+    {
+      "p": "/api/v1/admin/data-management",
+      "status": 404,
+      "ms": 2089,
+      "msg": null,
+      "body": "404 page not found"
+    },
+    {
+      "p": "/api/v1/admin/data-management/config",
+      "status": 503,
+      "ms": 1677,
+      "msg": "data management feature is deprecated",
+      "body": "{\"code\":503,\"message\":\"data management feature is deprecated\",\"reason\":\"DATA_MANAGEMENT_DEPRECATED\",\"metadata\":{\"socket_path\":\"/tmp/sub2api-datamanagement.sock\""
+    },
+    {
+      "p": "/api/v1/admin/data-management/backups",
+      "status": 503,
+      "ms": 1349,
+      "msg": "data management feature is deprecated",
+      "body": "{\"code\":503,\"message\":\"data management feature is deprecated\",\"reason\":\"DATA_MANAGEMENT_DEPRECATED\",\"metadata\":{\"socket_path\":\"/tmp/sub2api-datamanagement.sock\""
+    },
+    {
+      "p": "/api/v1/admin/data-management/agent/health",
+      "status": 200,
+      "ms": 1647,
+      "msg": "success"
+    },
+    {
+      "p": "/api/v1/admin/risk-control",
+      "status": 404,
+      "ms": 2046,
+      "msg": null,
+      "body": "404 page not found"
+    },
+    {
+      "p": "/api/v1/admin/risk-control/config",
+      "status": 200,
+      "ms": 4147,
+      "msg": "success"
+    },
+    {
+      "p": "/api/v1/admin/risk-control/status",
+      "status": 200,
+      "ms": 1718,
+      "msg": "success"
+    },
+    {
+      "p": "/api/v1/admin/risk-control/logs?page=1&page_size=5",
+      "status": 200,
+      "ms": 1300,
+      "msg": "success"
+    },
+    {
+      "p": "/api/v1/admin/prompt-audit",
+      "status": 404,
+      "ms": 2930,
+      "msg": null,
+      "body": "404 page not found"
+    },
+    {
+      "p": "/api/v1/admin/prompt-audit/config",
+      "status": 200,
+      "ms": 1207,
+      "msg": "success"
+    },
+    {
+      "p": "/api/v1/admin/prompt-audit/runtime",
+      "status": 200,
+      "ms": 427,
+      "msg": "success"
+    },
+    {
+      "p": "/api/v1/admin/cn-providers",
+      "status": 404,
+      "ms": 2807,
+      "msg": null,
+      "body": "404 page not found"
+    },
+    {
+      "p": "/api/v1/admin/system/status",
+      "status": 404,
+      "ms": 2827,
+      "msg": null,
+      "body": "404 page not found"
+    }
+  ],
+  "04-frontend-vs-backend.json": {
+    "total": 92,
+    "byStatus": {
+      "200": 79,
+      "400": 5,
+      "404": 7,
+      "500": 1
+    },
+    "fivexx": [
+      {
+        "p": "/api/v1/admin/groups/usage-summary",
+        "status": 500,
+        "ms": 428,
+        "msg": "Failed to get group usage summary",
+        "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}"
+      }
+    ],
+    "notFound": [
+      {
+        "p": "/api/v1/admin/dashboard/users-usage",
+        "status": 404,
+        "ms": 1790,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/dashboard/api-keys-usage",
+        "status": 404,
+        "ms": 2884,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/payment/channels",
+        "status": 404,
+        "ms": 430,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/scheduled-test-plans",
+        "status": 404,
+        "ms": 425,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/security-audit",
+        "status": 404,
+        "ms": 2037,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/redeem",
+        "status": 404,
+        "ms": 1125,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/openai/accounts/1",
+        "status": 404,
+        "ms": 398,
+        "msg": null,
+        "body": "404 page not found"
+      }
+    ],
+    "all": [
+      {
+        "p": "/api/v1/admin/accounts/upstream-billing-rates",
+        "status": 200,
+        "ms": 752,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/accounts/upstream-billing-probe/settings",
+        "status": 200,
+        "ms": 2041,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/accounts/ollama-cloud-usage/settings",
+        "status": 200,
+        "ms": 2098,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/accounts/opencode-go-usage/settings",
+        "status": 200,
+        "ms": 1638,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/affiliates/invites",
+        "status": 200,
+        "ms": 1098,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/affiliates/rebates",
+        "status": 200,
+        "ms": 1668,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/affiliates/transfers",
+        "status": 200,
+        "ms": 1733,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/affiliates/users",
+        "status": 200,
+        "ms": 1673,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/announcements",
+        "status": 200,
+        "ms": 1099,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/audit-logs",
+        "status": 200,
+        "ms": 1313,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/backups",
+        "status": 200,
+        "ms": 1077,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/backups/s3-config",
+        "status": 200,
+        "ms": 401,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/backups/schedule",
+        "status": 200,
+        "ms": 1619,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/backups/image-storage",
+        "status": 200,
+        "ms": 1048,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/channel-monitor-templates",
+        "status": 200,
+        "ms": 2778,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/channel-monitors",
+        "status": 200,
+        "ms": 1028,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/channels/model-pricing?model=deepseek-v4.1-flash",
+        "status": 200,
+        "ms": 1503,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/channels/pricing/settings",
+        "status": 200,
+        "ms": 2129,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/channels/pricing/sync-models",
+        "status": 400,
+        "ms": 1046,
+        "msg": "platform parameter is required",
+        "body": "{\"code\":400,\"message\":\"platform parameter is required\",\"reason\":\"MISSING_PARAMETER\",\"metadata\":{\"param\":\"platform\"}}"
+      },
+      {
+        "p": "/api/v1/admin/compliance",
+        "status": 200,
+        "ms": 1051,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/dashboard/users-usage",
+        "status": 404,
+        "ms": 1790,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/dashboard/api-keys-usage",
+        "status": 404,
+        "ms": 2884,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/error-passthrough-rules",
+        "status": 200,
+        "ms": 1092,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/groups/all",
+        "status": 200,
+        "ms": 1658,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/groups/capacity-summary",
+        "status": 200,
+        "ms": 1081,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/groups/live-capability",
+        "status": 200,
+        "ms": 1855,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/groups/usage-summary",
+        "status": 500,
+        "ms": 428,
+        "msg": "Failed to get group usage summary",
+        "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}"
+      },
+      {
+        "p": "/api/v1/admin/ops/account-availability",
+        "status": 200,
+        "ms": 1360,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/advanced-settings",
+        "status": 200,
+        "ms": 1737,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/alert-events",
+        "status": 200,
+        "ms": 1119,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/alert-rules",
+        "status": 200,
+        "ms": 431,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/concurrency",
+        "status": 200,
+        "ms": 439,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/error-distribution",
+        "status": 200,
+        "ms": 1051,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/error-trend",
+        "status": 200,
+        "ms": 1964,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/latency-histogram",
+        "status": 200,
+        "ms": 416,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/openai-token-stats",
+        "status": 200,
+        "ms": 396,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/overview",
+        "status": 200,
+        "ms": 1099,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/snapshot-v2",
+        "status": 200,
+        "ms": 1145,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/dashboard/throughput-trend",
+        "status": 200,
+        "ms": 421,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/email-notification/config",
+        "status": 200,
+        "ms": 1202,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/errors",
+        "status": 200,
+        "ms": 433,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/realtime-traffic",
+        "status": 200,
+        "ms": 1502,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/request-errors",
+        "status": 200,
+        "ms": 1054,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/requests",
+        "status": 200,
+        "ms": 2669,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/runtime/alert",
+        "status": 200,
+        "ms": 1096,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/runtime/logging",
+        "status": 200,
+        "ms": 1028,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/settings/metric-thresholds",
+        "status": 200,
+        "ms": 1836,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/system-logs",
+        "status": 200,
+        "ms": 387,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/system-logs/health",
+        "status": 200,
+        "ms": 440,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/upstream-errors",
+        "status": 200,
+        "ms": 2338,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/user-concurrency",
+        "status": 200,
+        "ms": 2078,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/ops/ws/qps",
+        "status": 400,
+        "ms": 1010,
+        "msg": null,
+        "body": "Bad Request\n"
+      },
+      {
+        "p": "/api/v1/admin/payment/channels",
+        "status": 404,
+        "ms": 430,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/payment/config",
+        "status": 200,
+        "ms": 396,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/payment/dashboard",
+        "status": 200,
+        "ms": 1907,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/payment/plans",
+        "status": 200,
+        "ms": 442,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/payment/providers",
+        "status": 200,
+        "ms": 1064,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/plugins",
+        "status": 200,
+        "ms": 1084,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/promo-codes",
+        "status": 200,
+        "ms": 1350,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/prompt-audit/config",
+        "status": 200,
+        "ms": 430,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/prompt-audit/runtime",
+        "status": 200,
+        "ms": 2132,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/proxies",
+        "status": 200,
+        "ms": 1091,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/proxies/all",
+        "status": 200,
+        "ms": 1033,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/redeem-codes/stats",
+        "status": 200,
+        "ms": 1038,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/risk-control/config",
+        "status": 200,
+        "ms": 1020,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/risk-control/status",
+        "status": 200,
+        "ms": 3303,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/scheduled-test-plans",
+        "status": 404,
+        "ms": 425,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/security-audit",
+        "status": 404,
+        "ms": 2037,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/settings/beta-policy",
+        "status": 200,
+        "ms": 458,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/settings/panel-rate-limit",
+        "status": 200,
+        "ms": 1673,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/settings/rectifier",
+        "status": 200,
+        "ms": 1070,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/settings/stream-timeout",
+        "status": 200,
+        "ms": 1068,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/settings/web-search-emulation",
+        "status": 200,
+        "ms": 985,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/settings/admin-api-key",
+        "status": 200,
+        "ms": 1660,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/settings/email-templates",
+        "status": 200,
+        "ms": 1041,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/shop/sync-status",
+        "status": 200,
+        "ms": 2725,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/subscriptions",
+        "status": 200,
+        "ms": 1004,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/system/version",
+        "status": 200,
+        "ms": 1075,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/system/check-updates",
+        "status": 200,
+        "ms": 385,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/system/rollback-versions",
+        "status": 200,
+        "ms": 4879,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/tls-fingerprint-profiles",
+        "status": 200,
+        "ms": 541,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/usage/cleanup-tasks",
+        "status": 200,
+        "ms": 423,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/usage/search-users?q=a",
+        "status": 200,
+        "ms": 436,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/usage/search-api-keys?q=a",
+        "status": 200,
+        "ms": 2054,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/user-attributes",
+        "status": 200,
+        "ms": 1706,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/users/batch-limits",
+        "status": 400,
+        "ms": 2064,
+        "msg": "Invalid user ID",
+        "body": "{\"code\":400,\"message\":\"Invalid user ID\"}"
+      },
+      {
+        "p": "/api/v1/admin/cn-providers/accounts/1/quota",
+        "status": 400,
+        "ms": 398,
+        "msg": "account is not a CN provider account",
+        "body": "{\"code\":400,\"message\":\"account is not a CN provider account\",\"reason\":\"CN_QUOTA_INVALID_PLATFORM\"}"
+      },
+      {
+        "p": "/api/v1/admin/cn-providers/accounts/1/balance",
+        "status": 400,
+        "ms": 1805,
+        "msg": "account is not a CN provider account",
+        "body": "{\"code\":400,\"message\":\"account is not a CN provider account\",\"reason\":\"CN_BALANCE_INVALID_PLATFORM\"}"
+      },
+      {
+        "p": "/api/v1/admin/redeem",
+        "status": 404,
+        "ms": 1125,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "p": "/api/v1/admin/accounts/data",
+        "status": 200,
+        "ms": 1909,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/proxies/data",
+        "status": 200,
+        "ms": 2059,
+        "msg": "success"
+      },
+      {
+        "p": "/api/v1/admin/openai/accounts/1",
+        "status": 404,
+        "ms": 398,
+        "msg": null,
+        "body": "404 page not found"
+      }
+    ]
+  },
+  "05-boundary.json": {
+    "steps": [
+      {
+        "step": "user->/api/v1/admin/users",
+        "status": 403,
+        "ms": 587,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/accounts",
+        "status": 403,
+        "ms": 1280,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/groups",
+        "status": 403,
+        "ms": 1055,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/channels",
+        "status": 403,
+        "ms": 1101,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/settings",
+        "status": 403,
+        "ms": 1376,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/dashboard/stats",
+        "status": 403,
+        "ms": 1836,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/redeem-codes",
+        "status": 403,
+        "ms": 439,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/usage",
+        "status": 403,
+        "ms": 1093,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/payment/orders",
+        "status": 403,
+        "ms": 451,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/channel-monitor-v2/config",
+        "status": 403,
+        "ms": 2602,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/channel-monitor-v2/snapshot",
+        "status": 403,
+        "ms": 1647,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/users/1",
+        "status": 403,
+        "ms": 1345,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/users/1/api-keys",
+        "status": 403,
+        "ms": 1022,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "user->/api/v1/admin/api-keys/1",
+        "status": 404,
+        "ms": 1745,
+        "code": null,
+        "msg": null,
+        "body": "404 page not found"
+      },
+      {
+        "step": "user->/api/v1/admin/audit-logs",
+        "status": 403,
+        "ms": 1040,
+        "code": "FORBIDDEN",
+        "msg": "Admin access required",
+        "body": "{\"code\":\"FORBIDDEN\",\"message\":\"Admin access required\"}"
+      },
+      {
+        "step": "jwt->/v1/models",
+        "status": 401,
+        "ms": 407,
+        "code": "INVALID_API_KEY",
+        "msg": "Invalid API key",
+        "body": "{\"code\":\"INVALID_API_KEY\",\"message\":\"Invalid API key\"}"
+      },
+      {
+        "step": "jwt->/v1/chat/completions",
+        "status": 401,
+        "ms": 392,
+        "code": "INVALID_API_KEY",
+        "msg": "Invalid API key",
+        "body": "{\"code\":\"INVALID_API_KEY\",\"message\":\"Invalid API key\"}"
+      },
+      {
+        "step": "refresh->/v1/models",
+        "status": 401,
+        "ms": 1787,
+        "code": "INVALID_API_KEY",
+        "msg": "Invalid API key",
+        "body": "{\"code\":\"INVALID_API_KEY\",\"message\":\"Invalid API key\"}"
+      },
+      {
+        "step": "adminJWT->/v1/models",
+        "status": 401,
+        "ms": 1078,
+        "code": "INVALID_API_KEY",
+        "msg": "Invalid API key",
+        "body": "{\"code\":\"INVALID_API_KEY\",\"message\":\"Invalid API key\"}"
+      },
+      {
+        "step": "noauth->/v1/models",
+        "status": 401,
+        "ms": 2070,
+        "code": "API_KEY_REQUIRED",
+        "msg": "API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header",
+        "body": "{\"code\":\"API_KEY_REQUIRED\",\"message\":\"API key is required in Authorization header (Bearer scheme), x-api-key header, or x-goog-api-key header\"}"
+      },
+      {
+        "step": "noauth->/api/v1/keys",
+        "status": 401,
+        "ms": 1039,
+        "code": "UNAUTHORIZED",
+        "msg": "Authorization header is required",
+        "body": "{\"code\":\"UNAUTHORIZED\",\"message\":\"Authorization header is required\"}"
+      },
+      {
+        "step": "badkey->/v1/models",
+        "status": 401,
+        "ms": 2553,
+        "code": "INVALID_API_KEY",
+        "msg": "Invalid API key",
+        "body": "{\"code\":\"INVALID_API_KEY\",\"message\":\"Invalid API key\"}"
+      },
+      {
+        "step": "user->keys/1 (admin own)",
+        "status": 404,
+        "ms": 1559,
+        "code": 404,
+        "msg": "API key not found",
+        "body": "{\"code\":404,\"message\":\"API key not found\"}"
+      },
+      {
+        "step": "user->keys/2 (own)",
+        "status": 200,
+        "ms": 1088,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":2,\"user_id\":3,\"key\":\"sk-6e03f73930cf3e2033300e2a279f87e266228d19670988a31780089ad0f5fbd6\",\"name\":\"probe-7255\",\"group_id\":null,\"group_chain_revision\":0,\"group"
+      },
+      {
+        "step": "user->usage/1 (user1)",
+        "status": 403,
+        "ms": 1728,
+        "code": 403,
+        "msg": "Not authorized to access this record",
+        "body": "{\"code\":403,\"message\":\"Not authorized to access this record\"}"
+      }
+    ],
+    "user3_keys": [
+      {
+        "id": 3,
+        "name": "probe-g3"
+      },
+      {
+        "id": 2,
+        "name": "probe-7255"
+      }
+    ]
+  },
+  "06-post-endpoints.json": [
+    {
+      "method": "POST",
+      "p": "/api/v1/admin/scheduled-test-plans/list",
+      "status": 404,
+      "ms": 2427,
+      "msg": null,
+      "body": "404 page not found"
+    },
+    {
+      "method": "GET",
+      "p": "/api/v1/admin/scheduled-test-plans/1/results",
+      "status": 200,
+      "ms": 1172,
+      "msg": null
+    },
+    {
+      "method": "POST",
+      "p": "/api/v1/admin/dashboard/users-usage",
+      "status": 200,
+      "ms": 1772,
+      "msg": "success"
+    },
+    {
+      "method": "POST",
+      "p": "/api/v1/admin/dashboard/api-keys-usage",
+      "status": 200,
+      "ms": 1088,
+      "msg": "success"
+    },
+    {
+      "method": "GET",
+      "p": "/api/v1/admin/openai/accounts/1/quota",
+      "status": 400,
+      "ms": 1135,
+      "msg": "account is not an OAuth account",
+      "body": "{\"code\":400,\"message\":\"account is not an OAuth account\",\"reason\":\"OPENAI_QUOTA_INVALID_TYPE\"}"
+    },
+    {
+      "method": "GET",
+      "p": "/api/v1/admin/gemini/oauth/capabilities",
+      "status": 200,
+      "ms": 2006,
+      "msg": "success"
+    },
+    {
+      "method": "GET",
+      "p": "/api/v1/admin/grok/oauth/capabilities",
+      "status": 200,
+      "ms": 1083,
+      "msg": "success"
+    },
+    {
+      "method": "GET",
+      "p": "/api/v1/admin/ops/ws/qps?window=60",
+      "status": 400,
+      "ms": 1655,
+      "msg": null,
+      "body": "Bad Request\n"
+    }
+  ],
+  "07-auth-tokens.json": {
+    "steps": [
+      {
+        "step": "refresh",
+        "status": 200,
+        "ms": 2689,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJlbWFpbCI6IjMwMjk0NDU0NzhAcXEuY29tIiwicm9sZSI6InVzZ"
+      },
+      {
+        "step": "me_after_refresh",
+        "status": 200,
+        "ms": 1003,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":3,\"email\":\"3029445478@qq.com\",\"username\":\"yd\",\"role\":\"user\",\"balance\":105.011597,\"frozen_balance\":0,\"concurrency\":100"
+      },
+      {
+        "step": "old_refresh_reuse",
+        "status": 401,
+        "ms": 1678,
+        "code": 401,
+        "msg": "invalid refresh token",
+        "body": "{\"code\":401,\"message\":\"invalid refresh token\",\"reason\":\"REFRESH_TOKEN_INVALID\"}"
+      },
+      {
+        "step": "login_2nd_session",
+        "status": 200,
+        "ms": 1172,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"access_token\":\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJlbWFpbCI6IjMwMjk0NDU0NzhAcXEuY29tIiwicm9sZSI6InVzZ"
+      },
+      {
+        "step": "logout_2nd",
+        "status": 200,
+        "ms": 1429,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"message\":\"Logged out successfully\"}}"
+      },
+      {
+        "step": "refresh_after_logout",
+        "status": 401,
+        "ms": 368,
+        "code": 401,
+        "msg": "invalid refresh token",
+        "body": "{\"code\":401,\"message\":\"invalid refresh token\",\"reason\":\"REFRESH_TOKEN_INVALID\"}"
+      },
+      {
+        "step": "me_with_loggedout_access",
+        "status": 200,
+        "ms": 432,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":3,\"email\":\"3029445478@qq.com\",\"username\":\"yd\",\"role\":\"user\",\"balance\":105.011597,\"frozen_balance\":0,\"concurrency\":100"
+      },
+      {
+        "step": "me_main_session",
+        "status": 200,
+        "ms": 1018,
+        "code": 0,
+        "msg": "success",
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":3,\"email\":\"3029445478@qq.com\",\"username\":\"yd\",\"role\":\"user\",\"balance\":105.011597,\"frozen_balance\":0,\"concurrency\":100"
+      }
+    ]
+  },
+  "08-key-crud-profile.json": {
+    "steps": [
+      {
+        "step": "put_user",
+        "status": 522,
+        "ms": 5074,
+        "body": ""
+      },
+      {
+        "step": "put_user_revert",
+        "status": 200,
+        "ms": 1813,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":3,\"email\":\"3029445478@qq.com\",\"username\":\"yd\",\"role\":\"user\",\"balance\":105.010678,\"frozen_balance\":0,\"concurrency\":100,\"status\":\"active\",\"allowed_groups\":null,\"last_active_at\":\"2"
+      },
+      {
+        "step": "create",
+        "status": 200,
+        "ms": 1068,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-1365759278f66a3d5eb68560d9db264e4dbc44ce282772ad9e62c36e059b0537\",\"name\":\"qa-crud-1793363086214\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"group_"
+      },
+      {
+        "step": "get",
+        "status": 200,
+        "ms": 447,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-1365759278f66a3d5eb68560d9db264e4dbc44ce282772ad9e62c36e059b0537\",\"name\":\"qa-crud-1793363086214\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"group_"
+      },
+      {
+        "step": "update_name",
+        "status": 200,
+        "ms": 695,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-1365759278f66a3d5eb68560d9db264e4dbc44ce282772ad9e62c36e059b0537\",\"name\":\"qa-crud-1793363086214-r\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"grou"
+      },
+      {
+        "step": "ha_groups",
+        "status": 200,
+        "ms": 411,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "step": "delete",
+        "status": 200,
+        "ms": 1769,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"message\":\"API key deleted successfully\"}}"
+      }
+    ],
+    "username_before": "yd",
+    "username_mid": "yd",
+    "username_after": "yd",
+    "reverted": true,
+    "key": {
+      "id": 8,
+      "name": "qa-crud-1793363086214",
+      "group_id": 3,
+      "status": "active"
+    },
+    "keys_after": [
+      {
+        "id": 8,
+        "name": "qa-crud-1793363086214-r"
+      },
+      {
+        "id": 3,
+        "name": "probe-g3"
+      },
+      {
+        "id": 2,
+        "name": "probe-7255"
+      }
+    ],
+    "keys_final": [
+      {
+        "id": 3,
+        "name": "probe-g3"
+      },
+      {
+        "id": 2,
+        "name": "probe-7255"
+      }
+    ]
+  },
+  "09-put-user-retry.json": {
+    "tries": [
+      {
+        "i": 1,
+        "status": 200,
+        "ms": 2828,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":3,\"email\":\"3029445478@qq.com\",\"username\":\"qa-tmp1\",\"role\":\"user\",\"balance\":105.010678,\"frozen_balance\":0,\"concurrency\":100,\"status\":\"active\",\"allowed_groups\""
+      },
+      {
+        "i": 1,
+        "step": "revert",
+        "status": 200,
+        "ms": 1055,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":3,\"email\":\"3029445478@qq.com\",\"username\":\"yd\",\"role\":\"user\",\"balance\":105.010"
+      }
+    ],
+    "username_final": "yd"
+  },
+  "10-billing-redeem.json": {
+    "phase": {
+      "baseline": {
+        "balance": 105.009236,
+        "requests": 15,
+        "cost": 0.000764
+      },
+      "f02_invalid": {
+        "total": 25,
+        "s404": 25,
+        "s429": 0,
+        "other": 0,
+        "attempts": [
+          {
+            "i": 1,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 2,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 3,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 4,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 5,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 6,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 7,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 8,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 9,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 10,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 11,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 12,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 13,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 14,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 15,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 16,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 17,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 18,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 19,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 20,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 21,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 22,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 23,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 24,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 25,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          }
+        ]
+      },
+      "f02_threshold": {
+        "first429AtAttempt": 30,
+        "extra": [
+          {
+            "i": 26,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 27,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 28,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 29,
+            "status": 404,
+            "reason": "REDEEM_CODE_NOT_FOUND"
+          },
+          {
+            "i": 30,
+            "status": 429,
+            "reason": "REDEEM_RATE_LIMITED"
+          }
+        ]
+      },
+      "redeem_created": {
+        "id": 5,
+        "code": "cfee4b42a8a369e9b78768968c57d962",
+        "value": 0.01,
+        "status": "unused"
+      },
+      "before_concurrent": 105.009236,
+      "concurrent_redeem": [
+        {
+          "status": 429,
+          "ms": 3312,
+          "reason": "REDEEM_RATE_LIMITED"
+        },
+        {
+          "status": 429,
+          "ms": 1291,
+          "reason": "REDEEM_RATE_LIMITED"
+        },
+        {
+          "status": 429,
+          "ms": 671,
+          "reason": "REDEEM_RATE_LIMITED"
+        },
+        {
+          "status": 429,
+          "ms": 1645,
+          "reason": "REDEEM_RATE_LIMITED"
+        },
+        {
+          "status": 429,
+          "ms": 1323,
+          "reason": "REDEEM_RATE_LIMITED"
+        }
+      ],
+      "after_concurrent": 105.009236,
+      "balance_delta_redeem": 0,
+      "key": {
+        "id": 6,
+        "name": "qa-live-1793362208901",
+        "group_id": 3,
+        "key": "sk-beaa5081bf91642695761fc39aaee19a9de3e805d7469564e77f8c5b9c7bd7ff"
+      },
+      "single": {
+        "status": 200,
+        "usage": {
+          "prompt_tokens": 41,
+          "completion_tokens": 16,
+          "total_tokens": 57,
+          "completion_tokens_details": {
+            "reasoning_tokens": 14
+          }
+        },
+        "balance_before": 105.009236,
+        "balance_after": 105.009163,
+        "delta": -0.000073,
+        "usage_before": 15
+      }
+    }
+  },
+  "11-concurrency10.json": {
+    "before": {
+      "balance": 105.009163,
+      "requests": 16,
+      "cost": 0.000837
+    },
+    "calls": [
+      {
+        "status": 200,
+        "ms": 5537,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 6403,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 8824,
+        "prompt": 41,
+        "completion": 9,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 6912,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 11650,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 7233,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 4909,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 11735,
+        "prompt": 41,
+        "completion": 15,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 8961,
+        "prompt": 41,
+        "completion": 9,
+        "err": null
+      },
+      {
+        "status": 200,
+        "ms": 12589,
+        "prompt": 41,
+        "completion": 2,
+        "err": null
+      }
+    ],
+    "after": {
+      "balance": 105.008659,
+      "requests": 26,
+      "cost": 0.001341
+    },
+    "delta": {
+      "balance": -0.000504,
+      "requests": 10,
+      "cost": 0.000504
+    },
+    "statusCount": {
+      "200": 10
+    },
+    "expectedCost": 0.000504,
+    "usageRowsForKey": 11,
+    "usageRowsSum": 0.000577,
+    "usageRows": [
+      {
+        "id": 27,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:23.026775+08:00"
+      },
+      {
+        "id": 26,
+        "cost": 0.000071,
+        "at": "2026-10-30T20:11:22.159893+08:00"
+      },
+      {
+        "id": 25,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:22.063199+08:00"
+      },
+      {
+        "id": 24,
+        "cost": 0.000059,
+        "at": "2026-10-30T20:11:19.383562+08:00"
+      },
+      {
+        "id": 23,
+        "cost": 0.000059,
+        "at": "2026-10-30T20:11:19.259589+08:00"
+      },
+      {
+        "id": 22,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:17.667024+08:00"
+      },
+      {
+        "id": 21,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:17.347278+08:00"
+      },
+      {
+        "id": 20,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:16.814596+08:00"
+      },
+      {
+        "id": 19,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:15.904837+08:00"
+      },
+      {
+        "id": 18,
+        "cost": 0.000045,
+        "at": "2026-10-30T20:11:15.332425+08:00"
+      },
+      {
+        "id": 17,
+        "cost": 0.000073,
+        "at": "2026-10-30T20:10:15.922072+08:00"
+      }
+    ]
+  },
+  "12-gateway-contract.json": [
+    {
+      "label": "models",
+      "method": "GET",
+      "p": "/v1/models",
+      "status": 200,
+      "ms": 4444,
+      "body": "{\"object\":\"list\",\"data\":[{\"created\":0,\"id\":\"deepseek-v4.1-flash\",\"object\":\"model\",\"owned_by\":\"proxy\"},{\"created\":0,\"id\":\"gpt-6-astra\",\"object\":\"model\",\"owned_by\":\"proxy\"},{\"created\":0,\"id\":\"gpt-6.1-sol\",\"object\":\"model\",\"owned_by\":\"proxy\"}]}"
+    },
+    {
+      "label": "key_billing",
+      "method": "GET",
+      "p": "/v1/sub2api/billing",
+      "status": 200,
+      "ms": 1233,
+      "body": "{\"object\":\"sub2api.key_billing\",\"schema_version\":1,\"billing_scope\":\"token\",\"group_rate_multiplier\":1,\"resolved_rate_multiplier\":1,\"peak_rate_enabled\":false,\"effective_rate_multiplier\":1,\"observed_at\":\"2026-10-30T12:11:48.938488014Z\"}"
+    },
+    {
+      "label": "usage_ep",
+      "method": "GET",
+      "p": "/v1/usage",
+      "status": 200,
+      "ms": 1839,
+      "body": "{\"balance\":105.008659,\"daily_usage\":[{\"date\":\"2026-10-30\",\"requests\":11,\"input_tokens\":451,\"output_tokens\":63,\"cache_read_tokens\":0,\"cache_write_tokens\":0,\"total_tokens\":514,\"cost\":0.000577,\"actual_cost\":0.000577}],\"isValid\":true,\"mode\":\"unrestricted\",\"model_s"
+    },
+    {
+      "label": "unknown_model",
+      "method": "POST",
+      "p": "/v1/chat/completions",
+      "status": 503,
+      "ms": 1976,
+      "msg": "internal error",
+      "body": "{\"error\":{\"message\":\"internal error\",\"type\":\"pricing_unavailable\"}}"
+    },
+    {
+      "label": "gpt6astra",
+      "method": "POST",
+      "p": "/v1/chat/completions",
+      "status": 200,
+      "ms": 10002,
+      "body": "{\"id\":\"resp_03c758761c835c79016ae4898de0308190a23ff86895a224dc\",\"object\":\"chat.completion\",\"created\":1793362322,\"model\":\"gpt-6-astra\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":4388,\"co"
+    },
+    {
+      "label": "stream",
+      "method": "POST",
+      "p": "/v1/chat/completions",
+      "status": 200,
+      "ms": 4940,
+      "code": null,
+      "msg": null,
+      "body": "data: {\"id\":\"resp_7fd6203cfebd4e05a607074d3b9d2836\",\"object\":\"chat.completion.chunk\",\"created\":1793362326,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"finish_reason\":null}]}\n\ndata: {\"id\":\"resp_7fd6203cfebd4e05a607074d3b9d28"
+    },
+    {
+      "label": "empty_messages",
+      "method": "POST",
+      "p": "/v1/chat/completions",
+      "status": 200,
+      "ms": 4125,
+      "body": "{\"id\":\"resp_4852cd6941394662b9f487cea97493cb\",\"object\":\"chat.completion\",\"created\":1793362331,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"reasoning_content\":\"We need answer? User just \\\"Make a## Make a game\\\". Need infer "
+    },
+    {
+      "label": "bad_json",
+      "method": "POST",
+      "p": "/v1/chat/completions",
+      "status": 400,
+      "ms": 1311,
+      "msg": "model is required",
+      "body": "{\"error\":{\"message\":\"model is required\",\"type\":\"invalid_request_error\"}}"
+    }
+  ],
+  "13-contamination.json": {
+    "marker": "QA-MVUXNB6G",
+    "out": [
+      {
+        "label": "echo_marker",
+        "status": 200,
+        "prompt_tokens": 51,
+        "completion_tokens": 35,
+        "content": "QA-MVUXNB6G",
+        "reasoning": "The user wants me to repeat exactly this token and nothing else: QA-MVUXNB6G. I should output only that."
+      },
+      {
+        "label": "empty_msgs",
+        "status": 200,
+        "prompt_tokens": 35,
+        "completion_tokens": 43,
+        "content": "Hi! How can I help you today?",
+        "reasoning": "We need answer user? No question yet. Need wait? We need respond maybe greet. But as assistant should prompt. Since no explicit request. Need concise ask."
+      },
+      {
+        "label": "system_only",
+        "status": 200,
+        "prompt_tokens": 34,
+        "completion_tokens": 61,
+        "content": "Understood. What do you need?",
+        "reasoning": "The user's message is extremely minimal: \"You are terse.\" followed by nothing else? Actually the user message is just \"You are terse.\" — perhaps an instruction about style. No task given. I should acknowledge briefly and ask what they need."
+      },
+      {
+        "label": "single_word",
+        "status": 200,
+        "prompt_tokens": 39,
+        "completion_tokens": 74,
+        "content": "PONG",
+        "reasoning": "The user says \"Say PONG\". This is a simple instruction. I should just say PONG.\n\nBut wait — this could be a test of instruction following. Just respond \"PONG\".\n\nActually, there's a consideration: \"Say PONG\" - the literal response. Just do it.\n\nNo need for extra. Maybe just \"PONG\"."
+      }
+    ]
+  },
+  "14-redeem-idempotency.json": {
+    "code": "cfee4b42a8a369e9b78768968c57d962",
+    "code_id": 5,
+    "windowExpiredAfterSec": 300,
+    "windowExpired": true,
+    "balance_before": 105.001597,
+    "concurrent": [
+      {
+        "status": 409,
+        "ms": 1702,
+        "reason": "REDEEM_CODE_USED"
+      },
+      {
+        "status": 200,
+        "ms": 1181
+      },
+      {
+        "status": 409,
+        "ms": 2353,
+        "reason": "REDEEM_CODE_USED"
+      },
+      {
+        "status": 409,
+        "ms": 3128,
+        "reason": "REDEEM_CODE_USED"
+      },
+      {
+        "status": 409,
+        "ms": 1995,
+        "reason": "REDEEM_CODE_USED"
+      }
+    ],
+    "balance_after": 105.011597,
+    "balance_delta": 0.01,
+    "history": [
+      {
+        "id": 5,
+        "value": 0.01,
+        "status": "used",
+        "used_at": "2026-10-30T20:18:48.401508+08:00"
+      },
+      {
+        "id": 3,
+        "value": 100,
+        "status": "used",
+        "used_at": "2026-10-30T08:57:04.799136+08:00"
+      }
+    ]
+  },
+  "15-cleanup.json": {
+    "cleanup": [
+      {
+        "label": "qa_key",
+        "p": "/api/v1/keys/6",
+        "status": 200,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"message\":\"API key deleted successfully\"}}"
+      },
+      {
+        "label": "qa_redeem_code",
+        "p": "/api/v1/admin/redeem-codes/5",
+        "status": 200,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"message\":\"Redeem code deleted successfully\"}}"
+      }
+    ],
+    "keys_remaining": [
+      {
+        "id": 3,
+        "name": "probe-g3"
+      },
+      {
+        "id": 2,
+        "name": "probe-7255"
+      }
+    ],
+    "redeem_remaining": [
+      {
+        "id": 3,
+        "code": "8584c2c333b7fb1a13c2267048d77ba5",
+        "value": 100,
+        "status": "used"
+      },
+      {
+        "id": 2,
+        "code": "f99be2d124858161de04b9a7c12ec9c2",
+        "value": -6,
+        "status": "used"
+      },
+      {
+        "id": 1,
+        "code": "046cfffff3e63ca5801ca38e47847fd9",
+        "value": 999,
+        "status": "used"
+      }
+    ],
+    "users": [
+      {
+        "id": 9,
+        "email": "admin@sub2api.local",
+        "balance": 0
+      },
+      {
+        "id": 8,
+        "email": "mahk0ojlq@example.invalid",
+        "balance": 0
+      },
+      {
+        "id": 7,
+        "email": "mad3oxri8@example.invalid",
+        "balance": 0
+      },
+      {
+        "id": 6,
+        "email": "matx9j1cd@example.invalid",
+        "balance": 0
+      },
+      {
+        "id": 5,
+        "email": "probee0cj1r2@example.invalid",
+        "balance": 0
+      },
+      {
+        "id": 4,
+        "email": "T4R71@outlook.com",
+        "balance": 0
+      },
+      {
+        "id": 3,
+        "email": "3029445478@qq.com",
+        "balance": 105.011597
+      },
+      {
+        "id": 2,
+        "email": "test@test.com",
+        "balance": 993
+      },
+      {
+        "id": 1,
+        "email": "admin-39bb646744@sub2api.local",
+        "balance": 998.999956
+      }
+    ]
+  },
+  "16-headers.json": [
+    {
+      "i": 0,
+      "status": 404,
+      "ratelimit_headers": {}
+    },
+    {
+      "i": 1,
+      "status": 404,
+      "ratelimit_headers": {}
+    },
+    {
+      "i": 2,
+      "status": 404,
+      "ratelimit_headers": {}
+    }
+  ],
+  "17-429-contract.json": {
+    "attempts": [
+      {
+        "i": 1,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 2,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 3,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 4,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 5,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 6,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 7,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 8,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 9,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 10,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 11,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 12,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 13,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 14,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 15,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 16,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 17,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 18,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 19,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 20,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 21,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 22,
+        "status": 404,
+        "reason": "REDEEM_CODE_NOT_FOUND"
+      },
+      {
+        "i": 23,
+        "status": 429,
+        "reason": "REDEEM_RATE_LIMITED"
+      }
+    ],
+    "hit429": {
+      "i": 23,
+      "status": 429,
+      "allHeaders": {
+        "alt-svc": "h3=\":443\"; ma=2592000",
+        "connection": "keep-alive",
+        "content-length": "104",
+        "content-security-policy": "default-src 'self'; worker-src 'self' blob:; script-src 'self' 'nonce-+91MlGjstz9L9OaWRROc4Q==' https://challenges.cloudflare.com https://*.alicdn.com https://static.cloudflareinsights.com https://turing.captcha.qcloud.com https://turing.captcha.gtimg.com https://ca.turing.captcha.qcloud.com https://global.turing.captcha.gtimg.com https://www.tycaptcha.com https://cloudcache.tencentcs.com https://*.stripe.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; style-src 'self' 'unsafe-inline' https://*.captcha.gtimg.com https://fonts.googleapis.com https://*.alicdn.com https://static.airwallex.com https://checkout.airwallex.com https://static-demo.airwallex.com https://checkout-demo.airwallex.com; img-src 'self' data: blob: https:; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://turing.captcha.qcloud.com https://www.tycaptcha.com https://rce.tencentrio.com https:; frame-src 'self' https://challenges.cloudflare.com https://turing.captcha.qcloud.com https://ca.turing.captcha.qcloud.com https://www.tycaptcha.com https://*.stripe.com https://checkout.airwallex.com https://checkout-demo.airwallex.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+        "content-type": "application/json; charset=utf-8",
+        "date": "Fri, 30 Oct 2026 12:22:48 GMT",
+        "eo-cache-status": "MISS",
+        "eo-log-uuid": "18408963435962657947",
+        "nel": "{\"success_fraction\":0.1,\"report_to\":\"eo-nel\",\"max_age\":604800}",
+        "referrer-policy": "strict-origin-when-cross-origin",
+        "report-to": "{\"endpoints\":[{\"url\":\"https://nel.teo-rum.com/eo-cgi/nel\"}],\"group\":\"eo-nel\",\"max_age\":604800}",
+        "server": "TencentEdgeOne",
+        "via": "1.1 Caddy",
+        "x-content-type-options": "nosniff",
+        "x-frame-options": "DENY",
+        "x-request-id": "1e3d95f3-a5a7-4081-99ea-5fb4fca89ac4"
+      },
+      "body": "{\"code\":429,\"message\":\"too many failed attempts, please try again later\",\"reason\":\"REDEEM_RATE_LIMITED\"}"
+    }
+  },
+  "18-empty-messages.json": {
+    "steps": [
+      {
+        "step": "create_key",
+        "status": 200
+      }
+    ],
+    "key": {
+      "id": 7,
+      "name": "qa-empty-1793363040612"
+    },
+    "emptyMessagesRuns": [
+      {
+        "i": 0,
+        "status": 200,
+        "prompt_tokens": 35,
+        "content": "What content would you like me to insert or edit? Please share the text and any specific formatting or changes you need.",
+        "reasoning": "We need answer? User gave only system? Actually no user question. Need likely wait? We need respond? The prompt is just system plus \"You are a## Insert/edit content\". Hmm. We need infer maybe task is "
+      },
+      {
+        "i": 1,
+        "status": 200,
+        "prompt_tokens": 35,
+        "content": "",
+        "reasoning": "We need answer. Need inspect image? User provided just image likely puzzle. Need infer request absent. Need describe/solve? Need see image. It's a word/sentence? Let's parse. Image shows handwritten/b"
+      },
+      {
+        "i": 2,
+        "status": 200,
+        "prompt_tokens": 35,
+        "content": "How can I help you today?",
+        "reasoning": "We need answer? No question yet? User just said \"You are a helpful assistant.\" Maybe need respond? Could be setup. We should acknowledge readiness. But maybe waiting. Need be helpful concise."
+      },
+      {
+        "i": 3,
+        "status": 200,
+        "prompt_tokens": 35,
+        "content": "Hello! How can I help you today?",
+        "reasoning": "We need answer user? They provided \"You are a helpful assistant.\" only. Need respond? Likely greeting. Need be helpful. Since no specific request, ask how can help. Could say \"Hello! How can I help yo"
+      }
+    ],
+    "control": {
+      "status": 200,
+      "prompt_tokens": 39,
+      "content": "PING"
+    },
+    "cleanup": {
+      "status": 200
+    }
+  },
+  "19-final-5xx.json": {
+    "steps": [],
+    "adminLogin": {
+      "status": 200
+    },
+    "final5xx": {
+      "trend": {
+        "status": 500,
+        "body": "{\"code\":500,\"message\":\"Failed to get usage trend\"}"
+      },
+      "groups_usage_summary": {
+        "status": 500,
+        "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}"
+      },
+      "trend_with_filter": {
+        "status": 200
+      },
+      "snapshot_v2": {
+        "status": 200,
+        "unavailable": [
+          "trend",
+          "models"
+        ]
+      }
+    }
+  },
+  "20-n01-n03.json": {
+    "key": {
+      "id": 9,
+      "name": "qa-n01n03-1793363239656"
+    },
+    "n01": {
+      "request": {
+        "model": "no-such-model-qa",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hi"
+          }
+        ],
+        "max_tokens": 4
+      },
+      "status": 503,
+      "headers": {
+        "content-type": "application/json; charset=utf-8",
+        "x-request-id": "95782cfd-38f6-42df-a47c-22f1732bc106"
+      },
+      "rawBody": "{\"error\":{\"message\":\"internal error\",\"type\":\"pricing_unavailable\"}}",
+      "parsed": {
+        "error": {
+          "message": "internal error",
+          "type": "pricing_unavailable"
+        }
+      }
+    },
+    "n03": [
+      {
+        "i": 0,
+        "request": {
+          "model": "deepseek-v4.1-flash",
+          "messages": [],
+          "max_tokens": 24,
+          "stream": false
+        },
+        "status": 200,
+        "rawBody": "{\"id\":\"resp_adcab6bf71cf45bdac2e9bcc6b58eeb4\",\"object\":\"chat.completion\",\"created\":1793363250,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"How can I help you today?\",\"reasoning_content\":\"We need answer? User empty? Need infer maybe no query. Need respond asking how can help. But must consider no question. We should concise. Since API assistant, likely say \\\"How can I help you today?\\\" But maybe need something. Final.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":35,\"completion_tokens\":59,\"total_tokens\":94,\"completion_tokens_details\":{\"reasoning_tokens\":51}}}",
+        "usage": {
+          "prompt_tokens": 35,
+          "completion_tokens": 59,
+          "total_tokens": 94,
+          "completion_tokens_details": {
+            "reasoning_tokens": 51
+          }
+        },
+        "content": "How can I help you today?",
+        "finish_reason": "stop"
+      },
+      {
+        "i": 1,
+        "request": {
+          "model": "deepseek-v4.1-flash",
+          "messages": [],
+          "max_tokens": 24,
+          "stream": false
+        },
+        "status": 200,
+        "rawBody": "{\"id\":\"resp_a39b58ca01514e6f8e7f4a5362422a30\",\"object\":\"chat.completion\",\"created\":1793363254,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"How can I help you today?\",\"reasoning_content\":\"We need answer to user. But no user content besides system? Need infer? The prompt includes only system \\\"You are helpful...\\\" Maybe need wait? We need respond perhaps ask how can I help. Since no task. Need final concise.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":35,\"completion_tokens\":56,\"total_tokens\":91,\"completion_tokens_details\":{\"reasoning_tokens\":48}}}",
+        "usage": {
+          "prompt_tokens": 35,
+          "completion_tokens": 56,
+          "total_tokens": 91,
+          "completion_tokens_details": {
+            "reasoning_tokens": 48
+          }
+        },
+        "content": "How can I help you today?",
+        "finish_reason": "stop"
+      },
+      {
+        "i": 2,
+        "request": {
+          "model": "deepseek-v4.1-flash",
+          "messages": [],
+          "max_tokens": 24,
+          "stream": false
+        },
+        "status": 200,
+        "rawBody": "{\"id\":\"resp_d93545a75a8e44159ca829a982623bb5\",\"object\":\"chat.completion\",\"created\":1793363256,\"model\":\"deepseek-v4.1-flash\",\"choices\":[{\"index\":0,\"message\":{\"role\":\"assistant\",\"content\":\"How can I help you?\",\"reasoning_content\":\"We need answer? User only system. Need no response? We should provide maybe greeting? Since no actual question. We can say \\\"How can I help you?\\\" But must be careful. There is no user content besides system. We can respond with a brief offer. Need final.\"},\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":35,\"completion_tokens\":64,\"total_tokens\":99,\"completion_tokens_details\":{\"reasoning_tokens\":57}}}",
+        "usage": {
+          "prompt_tokens": 35,
+          "completion_tokens": 64,
+          "total_tokens": 99,
+          "completion_tokens_details": {
+            "reasoning_tokens": 57
+          }
+        },
+        "content": "How can I help you?",
+        "finish_reason": "stop"
+      }
+    ],
+    "control": {
+      "request": {
+        "model": "deepseek-v4.1-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "Hi"
+          }
+        ],
+        "max_tokens": 24,
+        "stream": false
+      },
+      "status": 200,
+      "usage": {
+        "prompt_tokens": 37,
+        "completion_tokens": 63,
+        "total_tokens": 100
+      }
+    },
+    "balance_now": 105.010052,
+    "cleanup": 200
+  },
+  "21-final-state.json": {
+    "keys": [
+      {
+        "id": 3,
+        "name": "probe-g3"
+      },
+      {
+        "id": 2,
+        "name": "probe-7255"
+      }
+    ],
+    "redeemCodes": [
+      {
+        "id": 3,
+        "value": 100,
+        "status": "used"
+      },
+      {
+        "id": 2,
+        "value": -6,
+        "status": "used"
+      },
+      {
+        "id": 1,
+        "value": 999,
+        "status": "used"
+      }
+    ],
+    "username": "yd",
+    "balance": 105.010052
+  },
+  "22-param-boundary.json": {
+    "total": 283,
+    "byStatus": {
+      "200": 253,
+      "400": 30
+    },
+    "serverErrors": 0,
+    "fivexx": [],
+    "rows": [
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1243
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 3596,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 1247,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1036,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 2950,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 1656,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1816,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1059,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1779,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "limit",
+        "value": "0",
+        "status": 200,
+        "ms": 1056,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "limit",
+        "value": "-1",
+        "status": 200,
+        "ms": 1663,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "limit",
+        "value": "99999",
+        "status": 200,
+        "ms": 1689,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage",
+        "param": "limit",
+        "value": "abc",
+        "status": 200,
+        "ms": 1060,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1371
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1082,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 1082,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1014,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 1273,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 2798,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1080,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1129,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/keys",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1980,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 2
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1144
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1820,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 2354,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1080,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 3479,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 1055,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1748,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1038,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/announcements",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1459,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1045
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page",
+        "value": "0",
+        "status": 400,
+        "ms": 2669,
+        "body": "{\"code\":400,\"message\":\"Invalid page\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page",
+        "value": "-1",
+        "status": 400,
+        "ms": 1919,
+        "body": "{\"code\":400,\"message\":\"Invalid page\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 2053,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page",
+        "value": "abc",
+        "status": 400,
+        "ms": 2109,
+        "body": "{\"code\":400,\"message\":\"Invalid page\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page_size",
+        "value": "0",
+        "status": 400,
+        "ms": 1126,
+        "body": "{\"code\":400,\"message\":\"Invalid page_size\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page_size",
+        "value": "-1",
+        "status": 400,
+        "ms": 1370,
+        "body": "{\"code\":400,\"message\":\"Invalid page_size\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1167,
+        "meta": {
+          "page": 1,
+          "page_size": 100,
+          "items": 1
+        }
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "page_size",
+        "value": "abc",
+        "status": 400,
+        "ms": 1049,
+        "body": "{\"code\":400,\"message\":\"Invalid page_size\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "limit",
+        "value": "0",
+        "status": 200,
+        "ms": 1128,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "limit",
+        "value": "-1",
+        "status": 200,
+        "ms": 396,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "limit",
+        "value": "99999",
+        "status": 200,
+        "ms": 1129,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/redeem/history",
+        "param": "limit",
+        "value": "abc",
+        "status": 200,
+        "ms": 400,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 476
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "start_date",
+        "value": "0",
+        "status": 400,
+        "ms": 2242,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "start_date",
+        "value": "-1",
+        "status": 400,
+        "ms": 1116,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "start_date",
+        "value": "99999",
+        "status": 400,
+        "ms": 2134,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "start_date",
+        "value": "abc",
+        "status": 400,
+        "ms": 1115,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "end_date",
+        "value": "0",
+        "status": 400,
+        "ms": 467,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "end_date",
+        "value": "-1",
+        "status": 400,
+        "ms": 2260,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "end_date",
+        "value": "99999",
+        "status": 400,
+        "ms": 470,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "end_date",
+        "value": "abc",
+        "status": 400,
+        "ms": 1865,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1150,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 1141,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 2256,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/trend",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 1115,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 2220
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "start_date",
+        "value": "0",
+        "status": 400,
+        "ms": 1149,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "start_date",
+        "value": "-1",
+        "status": 400,
+        "ms": 2486,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "start_date",
+        "value": "99999",
+        "status": 400,
+        "ms": 1091,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "start_date",
+        "value": "abc",
+        "status": 400,
+        "ms": 1277,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "end_date",
+        "value": "0",
+        "status": 400,
+        "ms": 1807,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "end_date",
+        "value": "-1",
+        "status": 400,
+        "ms": 2705,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "end_date",
+        "value": "99999",
+        "status": 400,
+        "ms": 463,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/dashboard/models",
+        "param": "end_date",
+        "value": "abc",
+        "status": 400,
+        "ms": 1080,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1165
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "start_date",
+        "value": "0",
+        "status": 400,
+        "ms": 2019,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "start_date",
+        "value": "-1",
+        "status": 400,
+        "ms": 2885,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "start_date",
+        "value": "99999",
+        "status": 400,
+        "ms": 1136,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "start_date",
+        "value": "abc",
+        "status": 400,
+        "ms": 2120,
+        "body": "{\"code\":400,\"message\":\"Invalid start_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "end_date",
+        "value": "0",
+        "status": 400,
+        "ms": 493,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "end_date",
+        "value": "-1",
+        "status": 400,
+        "ms": 478,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "end_date",
+        "value": "99999",
+        "status": 400,
+        "ms": 458,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/usage/stats",
+        "param": "end_date",
+        "value": "abc",
+        "status": 400,
+        "ms": 481,
+        "body": "{\"code\":400,\"message\":\"Invalid end_date format, use YYYY-MM-DD\"}",
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1165
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 2471,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1127,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1131,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1192,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1117,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 5925,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 2053,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 3198,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "0",
+        "status": 200,
+        "ms": 1139,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "-1",
+        "status": 200,
+        "ms": 2440,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "99999",
+        "status": 200,
+        "ms": 1169,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "abc",
+        "status": 200,
+        "ms": 1104,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "0",
+        "status": 200,
+        "ms": 2985,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "-1",
+        "status": 200,
+        "ms": 1146,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "99999",
+        "status": 200,
+        "ms": 1155,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "abc",
+        "status": 200,
+        "ms": 1801,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1159
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "0",
+        "status": 200,
+        "ms": 2182,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "-1",
+        "status": 200,
+        "ms": 1138,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "99999",
+        "status": 200,
+        "ms": 494,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "abc",
+        "status": 200,
+        "ms": 2894,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1837,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1117,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1134,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/models",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1104,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1423
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1107,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 477,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1068,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1102,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1701,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1801,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1144,
+        "meta": null
+      },
+      {
+        "who": "u",
+        "p": "/api/v1/channel-monitor-v2/snapshot",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1143,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1115
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1118,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 474,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1061,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 1177,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 447,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 3193,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1082,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/users",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1072,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 9
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1138
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1125,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 1115,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1103,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 3399,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 2560,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 488,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 477,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/accounts",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1101,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1755
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1157,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 2723,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 441,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 783,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 469,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1742,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 2357,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/groups",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 470,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1718
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1174,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 460,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 439,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 1495,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 1102,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 480,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1838,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channels",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 440,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 1
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 468
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1127,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 2121,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1070,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 1918,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 2159,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1742,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 2639,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/redeem-codes",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1400,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 3
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1716
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1775,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 1692,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1715,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 2573,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 1061,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1767,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 404,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/payment/orders",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1082,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1368
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1116,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 1831,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1423,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 1068,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 476,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 2000,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 1307,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/audit-logs",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1125,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 2149
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 2111,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 497,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 457,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 2564,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1772,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 4896,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 2791,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1754,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1654,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 1100,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 1640,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/user-breakdown",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 1072,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1628
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1977,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1671,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1096,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1012,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1755,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1665,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1152,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 417,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1768,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 1726,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 1867,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-trend",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 1070,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 2668
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1064,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1677,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 3786,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 452,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1101,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1078,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1719,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1455,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1413,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 1090,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 1076,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/api-keys-trend",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 453,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1769
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 4157,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1720,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 2315,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1058,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1642,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1216,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1018,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 375,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1802,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 1641,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 1367,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/users-ranking",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 1044,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1048
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1010,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1024,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1947,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1027,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1388,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 2723,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1044,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1004,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1033,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 383,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 1630,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/models",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 1024,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1377
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1104,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1605,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1086,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1025,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1050,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 409,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1047,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1047,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "days",
+        "value": "0",
+        "status": 200,
+        "ms": 1009,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "days",
+        "value": "-1",
+        "status": 200,
+        "ms": 1127,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "days",
+        "value": "99999",
+        "status": 200,
+        "ms": 386,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/dashboard/groups",
+        "param": "days",
+        "value": "abc",
+        "status": 200,
+        "ms": 1662,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 3153
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page",
+        "value": "0",
+        "status": 200,
+        "ms": 1843,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page",
+        "value": "-1",
+        "status": 200,
+        "ms": 2087,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page",
+        "value": "99999",
+        "status": 200,
+        "ms": 1097,
+        "meta": {
+          "page": 99999,
+          "page_size": 20,
+          "items": 0
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page",
+        "value": "abc",
+        "status": 200,
+        "ms": 1702,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page_size",
+        "value": "0",
+        "status": 200,
+        "ms": 1797,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page_size",
+        "value": "-1",
+        "status": 200,
+        "ms": 1717,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page_size",
+        "value": "99999",
+        "status": 200,
+        "ms": 947,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage",
+        "param": "page_size",
+        "value": "abc",
+        "status": 200,
+        "ms": 1116,
+        "meta": {
+          "page": 1,
+          "page_size": 20,
+          "items": 20
+        }
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1108
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "start_date",
+        "value": "0",
+        "status": 200,
+        "ms": 2572,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "start_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 1781,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "start_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1036,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "start_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 372,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "end_date",
+        "value": "0",
+        "status": 200,
+        "ms": 1688,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "end_date",
+        "value": "-1",
+        "status": 200,
+        "ms": 3049,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "end_date",
+        "value": "99999",
+        "status": 200,
+        "ms": 1030,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/usage/stats",
+        "param": "end_date",
+        "value": "abc",
+        "status": 200,
+        "ms": 1871,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1041
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "0",
+        "status": 200,
+        "ms": 2733,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "-1",
+        "status": 200,
+        "ms": 1698,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "99999",
+        "status": 200,
+        "ms": 1363,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "limit",
+        "value": "abc",
+        "status": 200,
+        "ms": 1366,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "0",
+        "status": 200,
+        "ms": 1040,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "-1",
+        "status": 200,
+        "ms": 1104,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "99999",
+        "status": 200,
+        "ms": 3043,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/matrix",
+        "param": "bucket_minutes",
+        "value": "abc",
+        "status": 200,
+        "ms": 1349,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/models",
+        "param": "(baseline)",
+        "value": "",
+        "status": 200,
+        "ms": 1060
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "0",
+        "status": 200,
+        "ms": 1654,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "-1",
+        "status": 200,
+        "ms": 391,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "99999",
+        "status": 200,
+        "ms": 389,
+        "meta": null
+      },
+      {
+        "who": "a",
+        "p": "/api/v1/admin/channel-monitor-v2/models",
+        "param": "limit",
+        "value": "abc",
+        "status": 200,
+        "ms": 1131,
+        "meta": null
+      }
+    ]
+  },
+  "24-admin-sweep.json": {
+    "total": 53,
+    "fivexx": [
+      {
+        "path": "/api/v1/admin/groups/usage-summary",
+        "status": 500,
+        "ms": 758,
+        "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}"
+      }
+    ],
+    "all": [
+      {
+        "path": "/api/v1/admin/ops/concurrency",
+        "status": 200,
+        "ms": 1927,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"account\":{\"1\":{\"account_id\":1,\"account_name\":\"rf\",\"platform\":\"openai\",\"group_id\":3,\"group_n"
+      },
+      {
+        "path": "/api/v1/admin/ops/user-concurrency",
+        "status": 200,
+        "ms": 1060,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"enabled\":true,\"timestamp\":\"2026-10-30T11:53:53.287744649Z\",\"user\":{}}}"
+      },
+      {
+        "path": "/api/v1/admin/ops/account-availability",
+        "status": 200,
+        "ms": 1200,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"account\":{\"1\":{\"account_id\":1,\"account_name\":\"rf\",\"platform\":\"openai\",\"group_id\":3,\"group_n"
+      },
+      {
+        "path": "/api/v1/admin/ops/realtime-traffic",
+        "status": 200,
+        "ms": 419,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"enabled\":true,\"summary\":{\"window\":\"1min\",\"start_time\":\"2026-10-30T11:52:54.910546183Z\",\"end"
+      },
+      {
+        "path": "/api/v1/admin/ops/alert-rules",
+        "status": 200,
+        "ms": 2334,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":8,\"name\":\"错误率极高\",\"description\":\"当错误率超过 20% 且持续 1 分钟时触发告警（服务严重异常）\",\"enabled\":true,\"seve"
+      },
+      {
+        "path": "/api/v1/admin/ops/alert-events",
+        "status": 200,
+        "ms": 1767,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":7,\"rule_id\":1,\"severity\":\"P1\",\"status\":\"resolved\",\"title\":\"P1: 错误率过高\",\"description\":\"e"
+      },
+      {
+        "path": "/api/v1/admin/ops/email-notification/config",
+        "status": 200,
+        "ms": 1160,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"alert\":{\"enabled\":true,\"recipients\":[],\"min_severity\":\"\",\"rate_limit_per_hour\":0,\"batching_"
+      },
+      {
+        "path": "/api/v1/admin/ops/runtime/alert",
+        "status": 200,
+        "ms": 419,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"evaluation_interval_seconds\":60,\"distributed_lock\":{\"enabled\":true,\"key\":\"ops:alert:evaluat"
+      },
+      {
+        "path": "/api/v1/admin/ops/runtime/logging",
+        "status": 200,
+        "ms": 1071,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"level\":\"info\",\"persist_access_logs\":false,\"enable_sampling\":false,\"sampling_initial\":100,\"s"
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/snapshot-v2",
+        "status": 200,
+        "ms": 1092,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"generated_at\":\"2026-10-30T11:54:02Z\",\"overview\":{\"start_time\":\"2026-10-30T10:54:02.74772196"
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/overview",
+        "status": 200,
+        "ms": 1096,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"start_time\":\"2026-10-30T10:54:03.84019727Z\",\"end_time\":\"2026-10-30T11:54:03.84019727Z\",\"pla"
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/throughput-trend",
+        "status": 200,
+        "ms": 1090,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"bucket\":\"1m\",\"points\":[{\"bucket_start\":\"2026-10-30T10:54:00Z\",\"request_count\":0,\"token_cons"
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/latency-histogram",
+        "status": 200,
+        "ms": 1620,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"start_time\":\"2026-10-30T10:54:06.578722899Z\",\"end_time\":\"2026-10-30T11:54:06.578722899Z\",\"p"
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/error-trend",
+        "status": 200,
+        "ms": 1218,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"bucket\":\"1m\",\"points\":[{\"bucket_start\":\"2026-10-30T10:54:00Z\",\"error_count_total\":0,\"busine"
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/error-distribution",
+        "status": 200,
+        "ms": 1081,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"total\":7,\"items\":[{\"status_code\":503,\"total\":4,\"sla\":4,\"business_limited\":0},{\"status_code\""
+      },
+      {
+        "path": "/api/v1/admin/ops/dashboard/openai-token-stats",
+        "status": 200,
+        "ms": 1659,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"time_range\":\"30d\",\"start_time\":\"2026-09-30T11:54:10.533635487Z\",\"end_time\":\"2026-10-30T11:5"
+      },
+      {
+        "path": "/api/v1/admin/subscriptions",
+        "status": 200,
+        "ms": 1075,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":0}}"
+      },
+      {
+        "path": "/api/v1/admin/payment/plans",
+        "status": 200,
+        "ms": 1049,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/payment/providers",
+        "status": 200,
+        "ms": 1062,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/payment/dashboard",
+        "status": 200,
+        "ms": 1346,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"today_amount\":{},\"total_amount\":{},\"today_count\":0,\"total_count\":0,\"avg_amount\":{},\"pending"
+      },
+      {
+        "path": "/api/v1/admin/payment/config",
+        "status": 200,
+        "ms": 1055,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"enabled\":false,\"min_amount\":1,\"max_amount\":0,\"daily_limit\":0,\"order_timeout_minutes\":30,\"ma"
+      },
+      {
+        "path": "/api/v1/admin/system/status",
+        "status": 404,
+        "ms": 1680,
+        "body": "404 page not found"
+      },
+      {
+        "path": "/api/v1/admin/plugins",
+        "status": 200,
+        "ms": 396,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/tls-fingerprint-profiles",
+        "status": 200,
+        "ms": 1829,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/error-passthrough-rules",
+        "status": 200,
+        "ms": 1036,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/proxies",
+        "status": 200,
+        "ms": 1060,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/user-attributes",
+        "status": 200,
+        "ms": 2500,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/promo-codes",
+        "status": 200,
+        "ms": 2102,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/announcements",
+        "status": 200,
+        "ms": 398,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/affiliates/invites",
+        "status": 200,
+        "ms": 1396,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/affiliates/rebates",
+        "status": 200,
+        "ms": 1066,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/affiliates/transfers",
+        "status": 200,
+        "ms": 1128,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/affiliates/users",
+        "status": 200,
+        "ms": 2155,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/cn-providers",
+        "status": 404,
+        "ms": 2177,
+        "body": "404 page not found"
+      },
+      {
+        "path": "/api/v1/admin/shop/sync-status",
+        "status": 200,
+        "ms": 3555,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"last_success_at\":null,\"last_attempt_at\":null,\"error\":\"shop_not_configured\",\"paused\":true,\"p"
+      },
+      {
+        "path": "/api/v1/admin/data-management",
+        "status": 404,
+        "ms": 1100,
+        "body": "404 page not found"
+      },
+      {
+        "path": "/api/v1/admin/backups",
+        "status": 200,
+        "ms": 1073,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[]}}"
+      },
+      {
+        "path": "/api/v1/admin/compliance",
+        "status": 200,
+        "ms": 448,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"required\":false,\"version\":\"v2026.06.10\",\"document_path_zh\":\"docs/legal/admin-compliance.zh."
+      },
+      {
+        "path": "/api/v1/admin/risk-control",
+        "status": 404,
+        "ms": 1098,
+        "body": "404 page not found"
+      },
+      {
+        "path": "/api/v1/admin/prompt-audit",
+        "status": 404,
+        "ms": 1068,
+        "body": "404 page not found"
+      },
+      {
+        "path": "/api/v1/admin/usage/cleanup-tasks",
+        "status": 200,
+        "ms": 1132,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/usage/search-users?q=a",
+        "status": 200,
+        "ms": 3212,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":3,\"email\":\"3029445478@qq.com\",\"deleted\":false},{\"id\":1,\"email\":\"admin-39bb646744@sub2a"
+      },
+      {
+        "path": "/api/v1/admin/usage/search-api-keys?q=a",
+        "status": 200,
+        "ms": 431,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[]}"
+      },
+      {
+        "path": "/api/v1/admin/groups/all",
+        "status": 200,
+        "ms": 1106,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[{\"id\":2,\"name\":\"1\",\"description\":\"1\",\"platform\":\"deepseek\",\"rate_multiplier\":1,\"is_exclusive"
+      },
+      {
+        "path": "/api/v1/admin/groups/usage-summary",
+        "status": 500,
+        "ms": 758,
+        "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}"
+      },
+      {
+        "path": "/api/v1/admin/groups/capacity-summary",
+        "status": 200,
+        "ms": 4343,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":[{\"group_id\":2,\"concurrency_used\":0,\"concurrency_max\":0,\"sessions_used\":0,\"sessions_max\":0,\"r"
+      },
+      {
+        "path": "/api/v1/admin/groups/live-capability",
+        "status": 200,
+        "ms": 2250,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"reason\":\"live attestation is only supported when Sub2API runs on macOS; Windows support is "
+      },
+      {
+        "path": "/api/v1/admin/accounts/upstream-billing-rates",
+        "status": 200,
+        "ms": 3021,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[{\"account_id\":1,\"snapshot\":{\"status\":\"unsupported\",\"last_attempt_at\":\"2026-10-30T08"
+      },
+      {
+        "path": "/api/v1/admin/channel-monitor-templates",
+        "status": 200,
+        "ms": 1345,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[{\"id\":1,\"name\":\"Claude Code 伪装\",\"provider\":\"anthropic\",\"api_mode\":\"chat_completions"
+      },
+      {
+        "path": "/api/v1/admin/channel-monitors",
+        "status": 200,
+        "ms": 1693,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"items\":[],\"total\":0,\"page\":1,\"page_size\":20,\"pages\":1}}"
+      },
+      {
+        "path": "/api/v1/admin/settings/overload-cooldown",
+        "status": 200,
+        "ms": 1060,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"enabled\":true,\"cooldown_minutes\":10}}"
+      },
+      {
+        "path": "/api/v1/admin/settings/rate-limit-429-cooldown",
+        "status": 200,
+        "ms": 1073,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"enabled\":true,\"cooldown_seconds\":5}}"
+      },
+      {
+        "path": "/api/v1/admin/settings/email-templates",
+        "status": 200,
+        "ms": 3233,
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"events\":[{\"value\":\"auth.verify_code\",\"label\":\"Email verification code\",\"description\":\"Sent "
+      }
+    ]
+  }
+}
