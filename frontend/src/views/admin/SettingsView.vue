@@ -8561,8 +8561,13 @@
             </div>
           </div>
 
+          <!-- SMTP 未配置阻断提示（I-01）：服务端说不可用就直接拦在前面，
+               不要让管理员点「保存」或「测试连接」才发现发码链路是断的。 -->
+          <SmtpNotConfiguredNotice v-if="form.email_verify_enabled && !smtpConfigured" />
+
           <!-- SMTP Settings - Only show when email verification is enabled -->
-          <div v-if="form.email_verify_enabled" class="card">
+          <div v-if="form.email_verify_enabled" class="card"
+            :class="!smtpConfigured ? 'border-amber-200 dark:border-amber-800/60' : ''">
             <div
               class="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-dark-700"
             >
@@ -9115,6 +9120,8 @@ import {
 import TotpStepUpDialog from "@/components/auth/TotpStepUpDialog.vue";
 import { affiliatesAPI, type AffiliateAdminEntry, type SimpleUser as AffiliateSimpleUser } from "@/api/admin/affiliates";
 import { extractApiErrorMessage, extractI18nErrorMessage } from "@/utils/apiError";
+import { isSmtpConfigured } from "@/utils/smtp";
+import SmtpNotConfiguredNotice from "@/components/admin/settings/SmtpNotConfiguredNotice.vue";
 import { useAppStore } from "@/stores";
 import PricingSettingsPanel from "@/components/admin/PricingSettingsPanel.vue";
 import SchedulingStrategySelect from "@/components/admin/SchedulingStrategySelect.vue";
@@ -9238,6 +9245,14 @@ const saving = ref(false);
 const testingSmtp = ref(false);
 const sendingTestEmail = ref(false);
 const smtpPasswordManuallyEdited = ref(false);
+/**
+ * 服务端判定的 SMTP 可用性（I-01 契约，只读）。
+ *
+ * 字段缺失（后端未上线 / 老版本）按不可用处理：此时发码链路会以
+ * EMAIL_NOT_CONFIGURED 失败，与其让管理员点一次才报错，不如直接在页面阻断。
+ * 本次编辑尚未保存的 host/from/密码不计入判定 —— 判定依据是「服务端当前状态」。
+ */
+const smtpConfigured = computed(() => isSmtpConfigured(form));
 const testEmailAddress = ref("");
 const registrationEmailSuffixWhitelistTags = ref<string[]>([]);
 const registrationEmailSuffixWhitelistDraft = ref("");
@@ -9942,6 +9957,8 @@ const form = reactive<SettingsForm>({
   smtp_username: "",
   smtp_password: "",
   smtp_password_configured: false,
+  // 服务端只读判定（I-01）：缺省 false = 视作未配置，展示阻断提示。
+  smtp_configured: false,
   smtp_from_email: "",
   smtp_from_name: "",
   smtp_use_tls: true,

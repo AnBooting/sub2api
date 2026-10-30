@@ -50,9 +50,16 @@
 
         <template #cell-message="{ row }">
           <div class="max-w-[280px]">
-            <!-- 缺价（模型没配价）不是普通错误：给一个明确徽标，别只丢一串后端原文 -->
+            <!-- 缺价（模型没配价）不是普通错误：给一个明确徽标，别只丢一串后端原文。
+                 这条是既有用户可见契约（已有测试锁定），保持优先级不变。 -->
             <div v-if="isMissingPriceError(row)" class="mb-1">
               <MissingPriceBadge />
+            </div>
+            <!-- F-06 的新增口径：模型不属于当前分组可路由集合（404 model_not_found）。
+                 此前它与「缺价」混在一条后端原文里，用户不知道是该换模型还是等补价。
+                 与缺价徽标互斥（缺价先判），命中后不再重复展示。 -->
+            <div v-else-if="gatewayFailureKind(row)" class="mb-1">
+              <GatewayFailureBadge :kind="gatewayFailureKind(row)!" />
             </div>
             <span
               v-if="row.message"
@@ -134,7 +141,9 @@ import EmptyState from '@/components/common/EmptyState.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import UserErrorDetailModal from '@/components/user/UserErrorDetailModal.vue'
 import MissingPriceBadge from '@/components/user/MissingPriceBadge.vue'
+import GatewayFailureBadge from '@/components/user/GatewayFailureBadge.vue'
 import { isMissingPriceError } from '@/components/user/missingPrice'
+import { classifyGatewayFailure, type GatewayFailureKind } from '@/components/user/gatewayFailure'
 import IpGeoCell from '@/components/common/IpGeoCell.vue'
 import IpGeoBatchToolbar from '@/components/common/IpGeoBatchToolbar.vue'
 import { formatDateTime } from '@/utils/format'
@@ -170,6 +179,19 @@ function onSort(key: string, order: 'asc' | 'desc') {
 }
 
 const { t } = useI18n()
+
+/**
+ * 该错误行属于 F-06 的哪种口径（命中即为「非普通错误」）。
+ *
+ * 只做分类，不判断行是否可展开/可重试；分类逻辑在 components/user/gatewayFailure.ts
+ * 里单独有测试，这里只是把结果交给徽标组件。
+ */
+function gatewayFailureKind(row: UserErrorRequest): GatewayFailureKind | null {
+  return classifyGatewayFailure({
+    status_code: row.status_code,
+    message: row.message,
+  })
+}
 
 // 列序对齐用户端用量明细:Key → 模型 → 端点 → IP → 分组 → 类型 → 平台 → 分类
 // → 结果(状态→消息)→ 时间 → UA(用量明细 UA 同在时间之后的尾部)

@@ -143,6 +143,23 @@ apiClient.interceptors.response.use(
         })
       }
 
+      // 用量统计尚未完成对账（N-02）：这是**可重试的业务态**，不是故障。
+      // 后端统一回 503 + reason=usage_stats_incomplete（用户端 /usage/dashboard/*、
+      // 管理端 /admin/dashboard/trend 与 /admin/groups/usage-summary 同一口径）。
+      // 在这里收敛成单一 code，调用方只需判一次，不必各自比对 status+message。
+      if (
+        apiData.reason === 'usage_stats_incomplete' ||
+        apiData.code === 'usage_stats_incomplete'
+      ) {
+        return Promise.reject({
+          status,
+          code: 'USAGE_STATS_INCOMPLETE',
+          reason: 'usage_stats_incomplete',
+          message: apiData.message || error.message,
+          url
+        })
+      }
+
       if (status === 423 && apiData.code === 'ADMIN_COMPLIANCE_ACK_REQUIRED') {
         try {
           window.dispatchEvent(new CustomEvent('admin-compliance-required', {

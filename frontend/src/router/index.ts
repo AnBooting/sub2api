@@ -639,6 +639,15 @@ const routes: RouteRecordRaw[] = [
     }
   },
   {
+    // 「安全审计」是侧栏里的 expandOnly 分组父项（点击只展开、不导航），
+    // 与 /admin/channels、/admin/affiliates、/admin/orders 遵循同一约定：
+    // 父项 path 也要有 router 记录，否则直接访问该 URL 会落到 404 catch-all
+    // （线上实测：/admin/security-audit 返回 404 页面，而菜单里看起来是个可去的分组）。
+    // 这里只做 redirect 兜底，不新增页面 —— 该分组本身没有独立内容。
+    path: '/admin/security-audit',
+    redirect: '/admin/risk-control'
+  },
+  {
     path: '/admin/risk-control',
     name: 'AdminRiskControl',
     component: () => import('@/views/admin/RiskControlView.vue'),

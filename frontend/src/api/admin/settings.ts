@@ -502,6 +502,11 @@ export interface SystemSettings {
   smtp_port: number;
   smtp_username: string;
   smtp_password_configured: boolean;
+  /**
+   * 服务端判定的「SMTP 是否可用」只读标记（I-01 契约）。
+   * 后端尚未上线该字段时为 undefined —— 前端按 false（不可用）降级展示阻断提示。
+   */
+  smtp_configured?: boolean;
   smtp_from_email: string;
   smtp_from_name: string;
   smtp_use_tls: boolean;
