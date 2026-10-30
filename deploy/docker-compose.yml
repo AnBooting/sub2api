@@ -151,6 +151,43 @@ services:
       - SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS=${SECURITY_URL_ALLOWLIST_UPSTREAM_HOSTS:-}
 
       # =======================================================================
+      # Security Configuration (Client IP / Forwarded Headers)
+      # =======================================================================
+      # 这两个变量决定"应用相信谁的转发头"。配错有两个相反的失败模式：
+      #   配得太松：客户端自带 X-Real-IP 就能冒充任意 IP，限流/风控被绕过。
+      #   配得太紧：所有请求被解析成 Caddy 的地址，全网用户挤进同一个限流桶。
+      #
+      # SERVER_TRUSTED_PROXIES（对应 server.trusted_proxies）
+      #   = 直接连到 Sub2API 的那一层代理的地址。不是 CDN 网段！
+      #   本项目线上拓扑 EdgeOne -> Caddy -> Sub2API，所以这里填 Caddy：
+      #     同机部署（compose 默认，Caddy 与容器同宿主机）：127.0.0.1/32,::1/128
+      #     Caddy 在 compose 网络内：                             172.18.0.0/16
+      #     绝不要填 EdgeOne 回源网段——应用看到的对端永远是 Caddy，不是 EO。
+      #   留空 = 未配置：应用退回 Gin 默认（信任 127.0.0.1 等本地链路），
+      #   且 setting_service 的兼容迁移可能把 trust_forwarded 改回 true。
+      #
+      # SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL（对应
+      # security.trust_forwarded_ip_for_api_key_acl，应用默认 true）
+      #   兼容旧部署的"直接读原始转发头"模式。开着它时，应用不看
+      #   server.trusted_proxies 也会采信客户端自带的头 —— 等于把上面那行作废。
+      #   有 CDN/反代在前面的部署必须显式设 false，让 trusted_proxies 生效。
+      #   ⚠️ 必须在【应用启动前】就设好：DB 里已有该设置的实例以 DB 为准，
+      #      改 env 需要同时在管理后台把开关关掉（见 deploy/EDGE_SECURITY.md）。
+      #
+      # ⚠️ 改错会全站 429（真实故障模式，不要在生产上试错）：
+      #   1) SERVER_TRUSTED_PROXIES 填成 EO 网段：对端是 Caddy 不受信，应用拿到
+      #      的客户端 IP 全变成 Caddy 地址 → 所有人共用一个限流桶 →
+      #      面板公开接口/登录/API Key 维度同时打满 → 全站 429。
+      #   2) 只设 false 不设 trusted_proxies：应用不信任任何转发头，同样全部
+      #      折叠成 Caddy 地址，结果同上，只是触发更慢（要等桶打满）。
+      #      这两个变量是【成对】改的，单独改任何一半都会落到上面某一种故障。
+      #   3) 反向的错误（配得太松）不会 429，而是限流静默失效，更难发现。
+      #
+      # 改动后的自检命令见 project-docs/08-runbook.md「限流绕过自检」。
+      - SERVER_TRUSTED_PROXIES=${SERVER_TRUSTED_PROXIES:-127.0.0.1/32,::1/128}
+      - SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=${SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL:-false}
+
+      # =======================================================================
       # Update Configuration (在线更新配置)
       # =======================================================================
       # Proxy for accessing GitHub (online updates + pricing data)

@@ -1,3 +1,30 @@
+# =============================================================================
+# Caddyfile —— 客户端【直连 Caddy】拓扑基线
+# =============================================================================
+# 适用拓扑：
+#
+#   客户端 ──TLS──> Caddy ──> Sub2API(:8080)
+#
+# 本文件用 {remote_host}（TCP 对端地址）写 X-Real-IP / X-Forwarded-For，
+# 这在"客户端直连 Caddy"时是正确的：对端就是真实客户端，值无法伪造。
+#
+# ⚠️ 不可与 CDN 拓扑混用：
+#   放在 CDN（EdgeOne / Cloudflare 等）后面时，{remote_host} 恒为 CDN 回源
+#   出口地址，全部用户会被折叠成同一个 IP —— 限流、风控、审计一起失真。
+#   而且不会报错，只能靠 Caddy 日志里 client_ip == remote_ip 发现。
+#
+#   CDN 后面的正确配置见【同目录 deploy/Caddyfile.edgeone】：
+#   它声明 trusted_proxies（CDN 回源网段）+ trusted_proxies_strict，
+#   并用 header_up X-Real-IP {client_ip} 覆写。
+#
+# 两个文件的关系：
+#   - 不要把 Caddyfile.edgeone 的 servers 段抄进本文件：直连部署没有 CDN 在
+#     中间，声明 trusted_proxies 反而让客户端自带的转发头获得信任。
+#   - 二选一部署，不要同时挂载。
+#
+# 信任模型与验证步骤见 deploy/EDGE_SECURITY.md。
+# =============================================================================
+
 {
 	servers {
 		max_header_size 64KB

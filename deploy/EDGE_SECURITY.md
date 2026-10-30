@@ -192,6 +192,96 @@ origin access is blocked and Caddy trusts only those TCP peers. Configure
 Sub2API `server.trusted_proxies` with the Caddy address/private subnet so the
 application accepts only Caddy's rewritten headers.
 
+### Bundled template: `deploy/Caddyfile.edgeone` (Tencent Cloud EdgeOne)
+
+`deploy/Caddyfile` is the direct-to-Caddy baseline: it derives `X-Real-IP` from
+`{remote_host}`, which behind a CDN collapses every client onto the CDN's origin
+egress address. `deploy/Caddyfile.edgeone` is the CDN variant for the
+EdgeOne -> Caddy -> Sub2API topology. **The two files are not interchangeable**;
+do not copy the `trusted_proxies` block into `deploy/Caddyfile`, and never put
+`{remote_host}` into the EdgeOne template.
+
+Three layers must hold at once — drop any one and the hardening is cosmetic:
+
+1. **Origin firewall** allows 80/443 only from EdgeOne origin ranges, everything
+   else dropped.
+2. **Caddy** trusts only those same ranges (`trusted_proxies static ...`), so
+   `{client_ip}` is derived from headers only when the TCP peer really is EdgeOne.
+3. **Sub2API** trusts only Caddy (`server.trusted_proxies`), and the compatibility
+   header takeover is off
+   (`SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=false`).
+
+Header choice, and why it differs from the generic example above:
+
+- The template puts `X-Forwarded-For` first and `EO-Connecting-IP` second.
+  EdgeOne always sends `X-Forwarded-For` toward the origin (when the client sent
+  none, EdgeOne adds it with the address of the proxy that connected to the edge
+  node, which equals `EO-Connecting-IP`). With `trusted_proxies_strict` the
+  right-to-left scan lands on the address EdgeOne itself observed, which the
+  client cannot forge.
+- `EO-Connecting-IP` is kept only as a fallback. Tencent's documentation states
+  what the header *records* but does not promise that a client-supplied value is
+  overwritten, so trusting it first would reintroduce exactly the spoofing path
+  this hardening exists to close.
+- `header_up X-Real-IP {client_ip}` / `header_up X-Forwarded-For {client_ip}`
+  **replace** the incoming values (`header_up` sets, it does not append), and
+  `EO-Connecting-IP`, `EO-LOG-UUID`, `EO-Bot-Tag`, `CDN-Loop` are stripped so
+  the application never records CDN metadata as fact.
+
+Origin ranges: copy the current list from the EdgeOne console under
+**站点详情 -> 安全防护 -> 源站防护**. The template ships RFC 5737 / RFC 3849
+placeholders (`198.51.100.0/24`, `2001:db8:beef::/48`) which **must** be
+replaced. Leaving them in place is silent: Caddy trusts no peer, `{client_ip}`
+degrades to the EdgeOne egress address, and the symptom is "all users share one
+IP" with no error anywhere. Tencent rotates these ranges roughly every 3–6
+months with 14/7/3/1-day notices and a 14-day update window; an unnoticed
+rotation breaks origin access.
+
+### Verification steps (EdgeOne topology)
+
+Run after every change to the Caddyfile, the firewall, or the application's
+trust settings. All of these are read-only.
+
+1. **Caddy parsed the config the way you think.**
+   `caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile`
+   Then confirm the running config really carries the ranges:
+   `curl -s localhost:2019/config/ | jq '.apps.http.servers | map(.trusted_proxies)'`
+   An empty or missing `trusted_proxies` means the block did not take effect.
+
+2. **The client IP Caddy derives is the real client, not EdgeOne.**
+   Hit the site from a known public address and compare Caddy's JSON log fields
+   `client_ip` and `remote_ip`:
+   ```bash
+   jq -r 'select(.request.uri != null) | [.request.remote_ip, .client_ip, .request.host, .request.uri] | @tsv' \
+     /var/log/caddy/sub2api.log | tail -20
+   ```
+   `remote_ip` must fall inside the EdgeOne origin ranges.
+   `client_ip` must be your real public address and must differ from
+   `remote_ip`. If the two are always equal and both look like EdgeOne
+   addresses, `trusted_proxies` is not active.
+
+3. **The application agrees with Caddy.**
+   ```bash
+   curl -s https://<your-domain>/api/v1/settings/public | jq '.data.version'
+   ```
+   and check the admin security settings show
+   `trust_forwarded_ip_for_api_key_acl = false`. If it still reads `true`, the
+   compatibility takeover is on and the forged-header path is open regardless of
+   what Caddy does. Remember the database value wins over the environment:
+   `SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=false` alone does not flip an
+   instance that already persisted `true`.
+
+4. **Forged headers do not move the rate limiter.**
+   Rotating `X-Real-IP` on a rate-limited endpoint must still hit the limit; the
+   five concrete commands are in `project-docs/08-runbook.md`,
+   "限流绕过自检". A run where 25 requests all return something other than 429 is
+   a failure, not a success.
+
+5. **Origin is not directly reachable.**
+   From an address outside the EdgeOne ranges, connecting to the origin IP on
+   80/443 must time out or be refused. If it answers, layer 1 is missing and
+   every other layer is bypassable by talking to the origin directly.
+
 Caddy core does not provide a general request-rate limiter; use a trusted
 CDN/WAF, a supported rate-limit module, or host firewall controls.
 

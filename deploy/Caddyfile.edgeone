@@ -1,0 +1,248 @@
+# =============================================================================
+# Caddyfile —— EdgeOne（腾讯云边缘安全加速）+ 自建源站 拓扑专用
+# =============================================================================
+# 适用拓扑：
+#
+#   客户端 ──TLS──> EdgeOne 边缘节点 ──HTTP 回源──> Caddy ──> Sub2API(:8080)
+#                        （Server: TencentEdgeOne）      （响应头 via: 1.1 Caddy）
+#
+# 与 deploy/Caddyfile 的区别（两个文件不可混用，见文件末尾「禁止混用」）：
+#   deploy/Caddyfile          = 客户端【直连】Caddy 的基线，用 {remote_host} 写
+#                               X-Real-IP / X-Forwarded-For。放在 CDN 后面时
+#                               {remote_host} 恒为 CDN 回源出口地址，会把全体
+#                               用户折叠成同一个 IP —— 限流、风控、审计全部失真。
+#   deploy/Caddyfile.edgeone  = 本文件。显式声明 EdgeOne 回源网段为 trusted_proxies，
+#                               由 Caddy 自己解析出真实客户端 IP（{client_ip}），
+#                               再【覆写】发往 Sub2API 的转发头。
+#
+# 部署前提（缺一不可，否则本文件的信任边界不成立）：
+#   1. 源站防火墙/安全组【只】放行 EdgeOne 回源网段访问 80/443，其余来源一律 DROP
+#      （否则攻击者直连源站可自带 X-Forwarded-For 冒充任意 IP）。
+#   2. 下面的 EO 回源网段与腾讯云控制台
+#      站点详情 -> 安全防护 -> 源站防护 中显示的【当前】回源 IP 网段逐条一致。
+#      该网段平均每 3–6 个月变更一次，变更前 14/7/3/1 天腾讯会通知；
+#      收到通知后必须在 14 个自然日内更新本文件并 reload Caddy。
+#   3. Sub2API 侧 server.trusted_proxies 配成本文件的 Caddy 地址/子网，
+#      并关闭兼容性直读转发头模式（SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=false），
+#      否则应用会绕过 Caddy 直接采信客户端自带的头，等于把本文件的加固作废。
+#      取值示例与「改错会全站 429」的告警见 deploy/.env.example。
+#
+# -----------------------------------------------------------------------------
+# ⚠️ 上线前必做：替换回源网段占位符
+# -----------------------------------------------------------------------------
+# 本文件里的回源网段用可搜索标记标注：搜 REPLACE_WITH_EDGEONE_ORIGIN_CIDRS
+# 就能定位到唯一需要改的那一行（在 servers.trusted_proxies 里）。
+# 当前值 198.51.100.0/24 / 2001:db8:beef::/48 是 RFC 5737 / RFC 3849 文档网段，
+# 永远不可能出现在真实流量里，所以"忘了替换"是可以被机器检测出来的。
+#
+# 获取方式（腾讯云控制台）：
+#   站点总览 -> 选中站点 -> 安全防护 -> 源站防护 -> 复制当前回源 IP 列表
+# 注意：该网段平均 3-6 个月轮换一次，变更前 14/7/3/1 天腾讯会通知，
+#       收到通知后 14 个自然日内必须更新本文件并 reload Caddy。
+#       完整流程见 project-docs/08-runbook.md「EdgeOne 回源网段怎么取」。
+#
+# 【未替换的症状】——看到这些就说明占位符还在，不要往别处查：
+#   1. Caddy 日志里所有客户端的 client_ip 相同，且等于 remote_ip
+#      （两者都是 EdgeOne 回源出口地址），用 jq 一看就能确认：
+#        jq -r '[.request.remote_ip, .client_ip] | @tsv' /var/log/caddy/sub2api.log | sort | uniq -c
+#   2. 全站开始 429：所有人被折叠进同一个限流桶，登录 20 次/分钟后
+#      任何用户（包括你自己）都会撞 429，且 Retry-After 一直存在。
+#   3. 管理后台的审计日志/风控里只有一个来源 IP。
+#   ⚠️ 这三种症状全是"静默"的：caddy validate 通过、服务正常、不报任何错。
+#      唯一的自诊断入口就是上面第 1 条的日志比对。
+# =============================================================================
+{
+	# ---------------------------------------------------------------------
+	# 全局服务器选项：所有站点共用
+	# ---------------------------------------------------------------------
+	servers {
+		max_header_size 64KB
+		timeouts {
+			read_header 10s
+			idle 2m
+		}
+
+		# -----------------------------------------------------------------
+		# 信任边界：只信任 EdgeOne 回源网段
+		# -----------------------------------------------------------------
+		# 只有 TCP 对端落在下列网段时，Caddy 才会去读转发头求 {client_ip}；
+		# 其余对端一律以 TCP 对端地址为客户端 IP（无法伪造）。
+		#
+		# 替换为控制台「源站防护」页复制的完整列表，IPv4 与 IPv6 都要抄。
+		# 整行只改地址部分，保留行尾标记以便 grep（caddy 支持行尾 # 注释，已实测）。
+		# 快速定位：grep -n REPLACE_WITH_EDGEONE_ORIGIN_CIDRS deploy/Caddyfile.edgeone
+		trusted_proxies static 198.51.100.0/24 2001:db8:beef::/48 # REPLACE_WITH_EDGEONE_ORIGIN_CIDRS
+
+		# -----------------------------------------------------------------
+		# 严格模式：从右向左解析转发头
+		# -----------------------------------------------------------------
+		# 默认（非 strict）从左向右取「第一个不受信的地址」，而最左值正是
+		# 客户端可以自己塞进去的内容，等于把伪造值当真。strict 从右向左走，
+		# 取到的是最后一跳代理（EdgeOne）实际追加/写入的那一段。
+		trusted_proxies_strict
+
+		# -----------------------------------------------------------------
+		# 用哪些头求 {client_ip}
+		# -----------------------------------------------------------------
+		# 顺序 = 取【第一个非空头】。顺序很关键，不要随手调整。
+		#
+		# 为什么是 X-Forwarded-For 在前，而不是直觉上更"官方"的 EO-Connecting-IP：
+		#
+		#   (1) 腾讯云文档（1552/87654）写明 EdgeOne 回源时"透传客户端的所有请求
+		#       头部"，EO-Connecting-IP 一节只说它"记录了与 EdgeOne 建立连接的
+		#       客户端请求 IP"，【从未承诺覆盖客户端自带值】。透传的话，
+		#       攻击者自带 EO-Connecting-IP 就能冒充任意 IP。
+		#   (2) Caddy 只看 client_ip_headers 里第一个非空头——EO 头非空就直接用，
+		#       根本不会再看 XFF。所以把可能被透传的头放第一 = 放弃校验。
+		#
+		#   实测（Caddy 2.10.2，同一客户端输入 EO=198.51.100.5(伪造) + XFF=203.0.113.66）：
+		#     EO-Connecting-IP 在前 -> {client_ip} = 198.51.100.5  ← 采信伪造值
+		#     X-Forwarded-For  在前 -> {client_ip} = 203.0.113.66  ← 取到真实值
+		#
+		#   为什么 XFF 在前是安全的：EdgeOne 回源时【必定】携带 X-Forwarded-For
+		#   （客户端没带就由 EO 按"与边缘节点建连的前序代理 IP"补上，取值等同
+		#   EO-Connecting-IP），配合上面的 trusted_proxies_strict 从右向左取，
+		#   取到的就是 EO 亲眼看到的对端地址，客户端伪造不了。
+		#
+		# ⚠️ 只有一种情况可以改成 EO-Connecting-IP 在前：你在 EO 侧实测确认了
+		#    "EO 会覆盖客户端自带的 EO-Connecting-IP"。验证命令见
+		#    project-docs/08-runbook.md「EdgeOne 回源网段怎么取 -> 头语义回归检查」。
+		#    实测方法：带伪造 EO 头打一次，看 Caddy 日志里的 client_ip 是否为伪造值。
+		client_ip_headers X-Forwarded-For EO-Connecting-IP
+	}
+
+	# EdgeOne 已终结客户端 TLS，源站侧默认只提供 HTTP 回源，不参与 ACME。
+	# 若确实需要 HTTPS 回源，删掉这行并启用下方 https:// 站点块。
+	auto_https off
+}
+
+# =============================================================================
+# 站点配置（被 http:// 与 https:// 两个入口复用）
+# =============================================================================
+(edgeone_site) {
+	# -------------------------------------------------------------------------
+	# 压缩：显式列 Content-Type，绝不使用 text/* 或 encode gzip zstd 简写，
+	# 否则 text/event-stream 会被压缩并缓冲到流结束（SSE 直接废掉）。
+	# -------------------------------------------------------------------------
+	encode {
+		zstd
+		gzip 6
+		minimum_length 256
+		match {
+			header Content-Type text/css*
+			header Content-Type text/csv*
+			header Content-Type text/html*
+			header Content-Type text/javascript*
+			header Content-Type text/markdown*
+			header Content-Type text/plain*
+			header Content-Type text/xml*
+			header Content-Type application/json*
+			header Content-Type application/javascript*
+			header Content-Type application/xml*
+			header Content-Type application/rss+xml*
+			header Content-Type image/svg+xml*
+		}
+	}
+
+	# 绝对请求体上限；SSE/长生成只受读侧限制，不设响应 WriteTimeout。
+	request_body {
+		max_size 256MB
+	}
+
+	reverse_proxy localhost:8080 {
+		health_uri /health
+		health_interval 30s
+		health_timeout 10s
+		health_status 200
+
+		lb_policy round_robin
+		lb_try_duration 5s
+		lb_try_interval 250ms
+
+		# ---------------------------------------------------------------------
+		# 关键：用 Caddy 解析出的 {client_ip} 【覆写】转发头
+		# ---------------------------------------------------------------------
+		# header_up 是「设置为」，不是「追加」：客户端自带的 X-Real-IP /
+		# X-Forwarded-For 在这里被整段丢弃，Sub2API 只会看到 Caddy 写入的地址。
+		# {client_ip} 只有在 TCP 对端属于 trusted_proxies 时才来自转发头，
+		# 否则就是直连对端地址——客户端无法影响。
+		header_up X-Real-IP {client_ip}
+		header_up X-Forwarded-For {client_ip}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Forwarded-Host {host}
+
+		# 不把 CDN 的 EO-* / CDN-Loop 头转给上游，避免上游把它们当事实记进日志。
+		header_up -EO-Connecting-IP
+		header_up -EO-LOG-UUID
+		header_up -EO-Bot-Tag
+		header_up -CDN-Loop
+
+		transport http {
+			keepalive 120s
+			keepalive_idle_conns 256
+			read_buffer 16KB
+			write_buffer 16KB
+			compression off
+		}
+
+		fail_duration 30s
+		max_fails 3
+		unhealthy_status 500 502 503 504
+	}
+
+	# flush_interval 刻意不设置：Caddy 会自动 flush text/event-stream，
+	# 并向上游传播客户端断开。设正值会增加流式延迟，Caddy 2.6.2 的 -1
+	# 会让反向代理在客户端断开后继续跑。
+
+	log {
+		output file /var/log/caddy/sub2api.log {
+			roll_size 50mb
+			roll_keep 10
+			roll_keep_for 720h
+		}
+		# json 日志里 client_ip / remote_ip 两个字段就是核查信任边界的入口：
+		# client_ip 应等于真实用户公网地址，remote_ip 应落在 EdgeOne 回源网段内。
+		# 两者相等且都像 EO 地址 = trusted_proxies 没生效（见文件头「说明」）。
+		format json
+		level INFO
+	}
+
+	handle_errors {
+		respond "{err.status_code} {err.status_text}"
+	}
+}
+
+# -----------------------------------------------------------------------------
+# 入口 1：EdgeOne -> 源站 HTTP（推荐；EO 侧回源协议选 HTTP）
+# -----------------------------------------------------------------------------
+# 域名必须与 EO 加速域名一致，否则 Caddy 走不到这个 site 块。
+http://sub2.lansn.icu {
+	import edgeone_site
+}
+
+# -----------------------------------------------------------------------------
+# 入口 2（可选）：EdgeOne -> 源站 HTTPS
+# -----------------------------------------------------------------------------
+# 启用前确认：EO 侧回源协议选 HTTPS，且源站证书能被 EO 校验通过（公开 CA 证书）。
+# 若在 EO 侧配置「忽略源站证书校验」则不推荐——会失去回源身份校验。
+# 同时把上面的 auto_https off 删掉。
+#
+# https://sub2.lansn.icu {
+# 	tls {
+# 		protocols tls1.2 tls1.3
+# 		ciphers TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384 TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256 TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256
+# 	}
+# 	import edgeone_site
+# }
+
+# =============================================================================
+# 禁止混用
+# =============================================================================
+# 1. 不要在本文件里出现 {remote_host}。CDN 后面它是 EO 出口地址，写进
+#    X-Real-IP 等于把全部用户折叠成同一个 IP。
+# 2. 不要把本文件的 trusted_proxies 段抄进 deploy/Caddyfile：直连 Caddy 的部署
+#    没有 CDN 在中间，声明 trusted_proxies 反而让客户端自带头获得信任。
+# 3. 不要用 trusted_proxies static private_ranges 图省事：私网段只有在 CDN
+#    通过同 VPC 私网回源时才成立，公网回源必须写死 EO 的公开回源网段。
+# 4. Caddy 核心不带通用请求限流；人机校验、连接数、按 IP/ASN 速率请在
+#    EdgeOne（WAF / Bot 管理 / 速率限制）上做，见 deploy/EDGE_SECURITY.md。
