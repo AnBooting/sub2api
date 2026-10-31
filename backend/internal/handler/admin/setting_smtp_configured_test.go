@@ -72,3 +72,53 @@ func TestAdminSettingsExposesSMTPConfigured(t *testing.T) {
 		})
 	}
 }
+
+func TestAdminSettingsSavePreservesSMTPConfigured(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name     string
+		settings map[string]string
+		want     bool
+	}{
+		{
+			name: "configured SMTP remains configured after unrelated save",
+			settings: map[string]string{
+				service.SettingKeySMTPHost: "smtp.example.com",
+				service.SettingKeySMTPFrom: "noreply@example.com",
+			},
+			want: true,
+		},
+		{
+			name: "incomplete SMTP remains unconfigured after unrelated save",
+			settings: map[string]string{
+				service.SettingKeySMTPHost: "smtp.example.com",
+			},
+			want: false,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h, repo := newStepUpSwitchTestHandler(t, tc.settings)
+			h.emailService = service.NewEmailService(repo, nil)
+
+			before := httptest.NewRecorder()
+			router := gin.New()
+			router.GET("/settings", h.GetSettings)
+			router.ServeHTTP(before, httptest.NewRequest(http.MethodGet, "/settings", nil))
+			require.Equal(t, http.StatusOK, before.Code, before.Body.String())
+
+			after := doUpdateSettings(t, h, map[string]any{"site_name": "SMTP consistency"}, nil)
+			require.Equal(t, http.StatusOK, after.Code, after.Body.String())
+
+			for step, rec := range map[string]*httptest.ResponseRecorder{"GET": before, "PUT": after} {
+				var body struct {
+					Data struct {
+						Configured bool `json:"smtp_configured"`
+					} `json:"data"`
+				}
+				require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body), rec.Body.String())
+				require.Equal(t, tc.want, body.Data.Configured, "%s must use the same SMTP status判据", step)
+			}
+		})
+	}
+}

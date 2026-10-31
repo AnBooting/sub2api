@@ -3,12 +3,14 @@
 package routes
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
 	ratelimitmw "github.com/Wei-Shaw/sub2api/internal/middleware"
 	servermiddleware "github.com/Wei-Shaw/sub2api/internal/server/middleware"
@@ -163,6 +165,102 @@ func TestAuthAccountRateLimitsAreLooserThanIPRateLimits(t *testing.T) {
 	require.GreaterOrEqual(t, authLowFrequencyAccountRateLimit, authLowFrequencyIPRateLimit,
 		"注册/发码：账号阈值不得低于 IP 阈值")
 	require.GreaterOrEqual(t, authPromoAccountRateLimit, authPromoIPRateLimit)
+}
+
+type accountLockProbeRepo struct {
+	service.UserRepository
+	attempts int
+}
+
+func (r *accountLockProbeRepo) GetByEmail(context.Context, string) (*service.User, error) {
+	r.attempts++
+	return nil, service.ErrUserNotFound
+}
+
+func TestAuthLoginLockedAccountHonorsGinCaseAndRejectsBypasses(t *testing.T) {
+	cases := []struct {
+		name, body string
+		want       int
+	}{
+		{"uppercase_still_locked", `{"Email":"victim@example.com","password":"wrong"}`, http.StatusTooManyRequests},
+		{"mixed_case_decoy", `{"email":"decoy@example.com","Email":"victim@example.com","password":"wrong"}`, http.StatusBadRequest},
+		{"duplicate_field", `{"email":"victim@example.com","email":"victim@example.com","password":"wrong"}`, http.StatusBadRequest},
+		{"trailing_json", `{"email":"victim@example.com","password":"wrong"} {}`, http.StatusBadRequest},
+		{"oversize", `{"email":"victim@example.com","password":"wrong","pad":"` + strings.Repeat("x", 65536) + `"}`, http.StatusRequestEntityTooLarge},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			mr := miniredis.RunT(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			t.Cleanup(func() { _ = rdb.Close() })
+			repo := &accountLockProbeRepo{}
+			authService := service.NewAuthService(nil, repo, nil, nil, &config.Config{}, nil, nil, nil, nil, nil, nil, nil, nil)
+			h := handler.NewAuthHandler(&config.Config{}, authService, nil, nil, nil, nil, nil, nil)
+			router := gin.New()
+			RegisterAuthRoutes(router.Group("/api/v1"), &handler.Handlers{Auth: h, Setting: &handler.SettingHandler{}},
+				servermiddleware.JWTAuthMiddleware(func(c *gin.Context) { c.Next() }),
+				servermiddleware.AuditLogMiddleware(func(c *gin.Context) { c.Next() }), rdb, nil, nil)
+			for i := 0; i < 5; i++ {
+				require.Equal(t, http.StatusUnauthorized, postLoginBody(router, "203.0.113.50:5000", "", loginBody("victim@example.com")).Code)
+			}
+			require.Equal(t, http.StatusTooManyRequests, postLoginBody(router, "203.0.113.50:5000", "", loginBody("victim@example.com")).Code)
+			attempts := repo.attempts
+			rec := postLoginBody(router, "203.0.113.50:5000", "", tc.body)
+			require.Equal(t, tc.want, rec.Code)
+			require.Equal(t, attempts, repo.attempts, "rejected or locked request must not reach credential service")
+		})
+	}
+}
+
+func TestAuthAccountJSONRoutesRejectInvalidAndOversizedBeforeHandler(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	router := newAccountRateLimitRouter(t, rdb)
+	cases := []struct {
+		path, body string
+		want       int
+	}{
+		{"/api/v1/auth/register", `{"email":"a@example.com","Email":"b@example.com"}`, 400},
+		{"/api/v1/auth/send-verify-code", `{"email":"a@example.com"} {}`, 400},
+		{"/api/v1/auth/login/2fa", `{"temp_token":"a","Temp_Token":"b"}`, 400},
+		{"/api/v1/auth/validate-promo-code", `{"code":"a","Code":"b"}`, 400},
+		{"/api/v1/auth/validate-promo-code", `{"code":"a","pad":"` + strings.Repeat("x", 65536) + `"}`, 413},
+	}
+	for _, tc := range cases {
+		req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+		req.Header.Set("Content-Type", "application/json")
+		req.ContentLength = -1
+		req.RemoteAddr = "203.0.113.50:5000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.Equal(t, tc.want, rec.Code, tc.path)
+	}
+}
+
+func TestAuthPromoRateLimitUsesCode(t *testing.T) {
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	router := newAccountRateLimitRouter(t, rdb)
+	for i := 0; i < authPromoAccountRateLimit; i++ {
+		body := `{"code":"same-code"}`
+		if i%2 == 1 {
+			body = `{"Code":"same-code"}`
+		}
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/validate-promo-code", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "203.0.113." + itoa(20+i) + ":5000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		require.NotEqual(t, http.StatusTooManyRequests, rec.Code, "request %d", i)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/validate-promo-code", strings.NewReader(`{"code":"same-code"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.99:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
 }
 
 func itoa(v int) string {

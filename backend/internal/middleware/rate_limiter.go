@@ -1,11 +1,14 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -15,6 +18,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/pkg/httputil"
 	ippkg "github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
@@ -140,9 +144,8 @@ func (r *RateLimiter) Allow(ctx context.Context, key string, limit int, window t
 	return result, nil
 }
 
-// maxAccountKeyBodyBytes 是提取账号维度时愿意读取的请求体上限。
-// 超限请求不参与账号维度计数（回落 IP 维度），避免为构造限流键把大 body
-// 整个读进内存。登录/注册/发码/优惠码请求体远小于该值。
+// maxAccountKeyBodyBytes 是账号认证 JSON 请求体的硬上限。
+// 超限请求必须拒绝，不能退化为没有账号维度的请求。
 const maxAccountKeyBodyBytes = 64 << 10
 
 // AccountKeyFromJSONBodyField 返回一个从 JSON 请求体指定字段取账号标识的
@@ -154,7 +157,7 @@ const maxAccountKeyBodyBytes = 64 << 10
 // 不要各自再写一套，否则攻击者可以用 victim+1@ 之类的别名绕过账号维度。
 //
 // 读取请求体后用 httputil.PrereadBody 回填，下游 handler 仍可正常绑定。
-// 请求体不是合法 JSON、字段缺失、字段不是字符串或体积超限时返回空串。
+// 非法、缺失或歧义字段会 Abort 400，超限会 Abort 413，并返回空串。
 func AccountKeyFromJSONBodyField(field string, normalize func(string) string) func(*gin.Context) string {
 	return AccountKeyFromJSONBodyFields([]string{field}, normalize)
 }
@@ -174,38 +177,121 @@ func AccountKeyFromJSONBodyFields(fields []string, normalize func(string) string
 		return nil
 	}
 	return func(c *gin.Context) string {
-		if c == nil || c.Request == nil || c.Request.Body == nil {
+		if c == nil {
 			return ""
 		}
-		if c.Request.ContentLength > maxAccountKeyBodyBytes {
-			// 不读也不回填：下游读取时仍会看到原始 Body。
-			return ""
-		}
-		body, err := httputil.ReadRequestBodyWithPrealloc(c.Request)
+		account, err := accountKeyFromStrictJSON(c, normalizedFields, normalize)
 		if err != nil {
-			return ""
-		}
-		// 无论解析是否成功都必须回填，否则下游 handler 读不到请求体。
-		c.Request.Body = httputil.NewPrereadBody(body)
-		if len(body) == 0 || len(body) > maxAccountKeyBodyBytes {
-			return ""
-		}
-		var payload map[string]any
-		if err := json.Unmarshal(body, &payload); err != nil {
-			return ""
-		}
-		for _, field := range normalizedFields {
-			raw, ok := payload[field].(string)
-			if !ok || strings.TrimSpace(raw) == "" {
-				continue
+			status := http.StatusBadRequest
+			if errors.Is(err, errAccountBodyTooLarge) {
+				status = http.StatusRequestEntityTooLarge
 			}
-			if normalize != nil {
-				raw = normalize(raw)
-			}
-			return HashAccountKey(raw)
+			c.Abort()
+			response.Error(c, status, http.StatusText(status))
+			return ""
 		}
-		return ""
+		return account
 	}
+}
+
+var errAccountBodyTooLarge = errors.New("account request body too large")
+
+// accountKeyFromStrictJSON uses the same case-insensitive field matching as Gin's
+// JSON binder, but rejects duplicate identity fields instead of accepting last-wins.
+func accountKeyFromStrictJSON(c *gin.Context, fields []string, normalize func(string) string) (string, error) {
+	if c.Request == nil || c.Request.Body == nil {
+		return "", errors.New("missing request body")
+	}
+	req := c.Request
+	if req.ContentLength > maxAccountKeyBodyBytes {
+		return "", errAccountBodyTooLarge
+	}
+	// Authentication handlers consume JSON, not compressed request bodies. Bounding
+	// the bytes read here also prevents decompression from bypassing this limit.
+	if encoding := strings.TrimSpace(req.Header.Get("Content-Encoding")); encoding != "" && !strings.EqualFold(encoding, "identity") {
+		return "", errors.New("unsupported content encoding")
+	}
+	body, err := io.ReadAll(io.LimitReader(req.Body, maxAccountKeyBodyBytes+1))
+	if len(body) > maxAccountKeyBodyBytes {
+		return "", errAccountBodyTooLarge
+	}
+	// Preserve the public extractor's replay contract even when parsing fails.
+	req.Body = httputil.NewPrereadBody(body)
+	if err != nil {
+		return "", err
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	token, err := decoder.Token()
+	if err != nil {
+		return "", err
+	}
+	if delimiter, ok := token.(json.Delim); !ok || delimiter != '{' {
+		return "", errors.New("account request must be a JSON object")
+	}
+	values := make(map[string]string, len(fields))
+	seen := make(map[string]bool, len(fields))
+	for decoder.More() {
+		keyToken, err := decoder.Token()
+		if err != nil {
+			return "", err
+		}
+		key, ok := keyToken.(string)
+		if !ok {
+			return "", errors.New("invalid JSON object key")
+		}
+		matched := ""
+		for _, field := range fields {
+			if strings.EqualFold(key, field) {
+				matched = field
+				break
+			}
+		}
+		if matched == "" {
+			var discard any
+			if err := decoder.Decode(&discard); err != nil {
+				return "", err
+			}
+			continue
+		}
+		if seen[matched] {
+			return "", errors.New("ambiguous account field")
+		}
+		seen[matched] = true
+		var value any
+		if err := decoder.Decode(&value); err != nil {
+			return "", err
+		}
+		text, ok := value.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return "", errors.New("account field must be a non-empty string")
+		}
+		values[matched] = text
+	}
+	if _, err := decoder.Token(); err != nil {
+		return "", err
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return "", errors.New("trailing JSON value")
+		}
+		return "", err
+	}
+	for _, field := range fields {
+		raw, ok := values[field]
+		if !ok {
+			continue
+		}
+		if normalize != nil {
+			raw = normalize(raw)
+		}
+		account := HashAccountKey(raw)
+		if account == "" {
+			return "", errors.New("empty normalized account")
+		}
+		return account, nil
+	}
+	return "", errors.New("missing account field")
 }
 
 // HashAccountKey 把已经归一化的账号标识做不可逆摘要，供限流键使用。
@@ -463,6 +549,9 @@ func (r *RateLimiter) LimitWithOptions(key string, limit int, window time.Durati
 	return func(c *gin.Context) {
 		if opts.FailureOnlyAccount && opts.AccountKey != nil {
 			account := strings.TrimSpace(opts.AccountKey(c))
+			if c.IsAborted() {
+				return
+			}
 			if account != "" {
 				// 只读查锁，绝不在这里 INCR：否则正常用户每次登录都会消耗额度，
 				// 攻击者只需拿受害者邮箱发几次失败就能把受害者长期锁死。
@@ -486,6 +575,9 @@ func (r *RateLimiter) LimitWithOptions(key string, limit int, window time.Durati
 		}
 
 		dimensions := rateLimitDimensions(c, key, limit, opts)
+		if c.IsAborted() {
+			return
+		}
 		for _, dimension := range dimensions {
 			result, err := r.Allow(c.Request.Context(), dimension.key, dimension.limit, window)
 			if err != nil {
@@ -523,7 +615,11 @@ type rateLimitDimension struct {
 func rateLimitDimensions(c *gin.Context, key string, limit int, opts RateLimitOptions) []rateLimitDimension {
 	dimensions := make([]rateLimitDimension, 0, 2)
 	if opts.AccountKey != nil && !opts.FailureOnlyAccount {
-		if account := strings.TrimSpace(opts.AccountKey(c)); account != "" {
+		account := strings.TrimSpace(opts.AccountKey(c))
+		if c.IsAborted() {
+			return nil
+		}
+		if account != "" {
 			accountLimit := opts.AccountLimit
 			if accountLimit <= 0 {
 				accountLimit = limit

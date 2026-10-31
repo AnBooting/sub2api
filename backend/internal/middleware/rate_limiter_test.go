@@ -605,58 +605,138 @@ func TestAccountKeyFromJSONBodyFieldAppliesNormalizer(t *testing.T) {
 }
 
 // 超大 body：不读取、不构造账号键（避免把大 body 读进内存），但请求仍可用。
-func TestAccountKeyFromJSONBodyFieldSkipsOversizedBody(t *testing.T) {
+func TestAccountKeyFromJSONBodyFieldRejectsOversizedBody(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
-	router := gin.New()
-	var got string
-	router.POST("/login", func(c *gin.Context) {
-		got = "sentinel"
-		got = AccountKeyFromJSONBodyField("email", nil)(c)
-		c.Status(http.StatusOK)
-	})
-
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
 	big := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes) + `"}`
-	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(big))
-	req.Header.Set("Content-Type", "application/json")
-	req.ContentLength = int64(len(big))
-	req.RemoteAddr = "203.0.113.50:5000"
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(big))
+	c.Request.ContentLength = int64(len(big))
+	got := AccountKeyFromJSONBodyField("email", nil)(c)
+	require.Empty(t, got)
+	require.True(t, c.IsAborted())
+	require.Equal(t, http.StatusRequestEntityTooLarge, c.Writer.Status())
+}
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Empty(t, got, "超大 body 不得用于账号维度键")
+func TestAccountKeyStrictRejectsAmbiguousTrailingAndOversizedBodies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	exact := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes-len(`{"email":"victim@example.com","pad":""}`)) + `"}`
+	require.Len(t, exact, maxAccountKeyBodyBytes)
+	oversize := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes) + `"}`
+	cases := []struct {
+		name       string
+		body       string
+		wantStatus int
+		unknownCL  bool
+	}{
+		{"mixed_case_decoy", `{"email":"decoy@example.com","Email":"victim@example.com"}`, http.StatusBadRequest, false},
+		{"duplicate_exact", `{"email":"victim@example.com","email":"victim@example.com"}`, http.StatusBadRequest, false},
+		{"trailing_object", `{"email":"victim@example.com"} {}`, http.StatusBadRequest, false},
+		{"trailing_garbage", `{"email":"victim@example.com"} x`, http.StatusBadRequest, false},
+		{"oversize_known_length", oversize, http.StatusRequestEntityTooLarge, false},
+		{"oversize_unknown_length", oversize, http.StatusRequestEntityTooLarge, true},
+	}
+	for _, failureOnly := range []bool{false, true} {
+		for _, tc := range cases {
+			t.Run(strconv.FormatBool(failureOnly)+"/"+tc.name, func(t *testing.T) {
+				called := false
+				originalRun := rateLimitRun
+				rateLimitRun = func(context.Context, *redis.Client, string, int64) (int64, bool, error) {
+					called = true
+					return 1, false, nil
+				}
+				t.Cleanup(func() { rateLimitRun = originalRun })
+				limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+				router := gin.New()
+				router.Use(limiter.LimitWithOptions("strict", 10, time.Minute, RateLimitOptions{
+					AccountKey: AccountKeyFromJSONBodyField("email", nil), FailureOnlyAccount: failureOnly,
+				}))
+				router.POST("/login", func(c *gin.Context) { t.Error("rejected request reached handler") })
+				req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(tc.body))
+				req.Header.Set("Content-Type", "application/json")
+				if tc.unknownCL {
+					req.ContentLength = -1
+				}
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				require.Equal(t, tc.wantStatus, rec.Code)
+				require.JSONEq(t, `{"code":`+strconv.Itoa(tc.wantStatus)+`,"message":"`+http.StatusText(tc.wantStatus)+`"}`, rec.Body.String())
+				require.False(t, called, "malformed requests must fail before Redis")
+			})
+		}
+	}
+}
+
+type accountBodyReadCounter struct {
+	reader io.Reader
+	read   int
+}
+
+func (r *accountBodyReadCounter) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.read += n
+	return n, err
+}
+
+func TestAccountKeyStrictBoundsBytesRead(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes) + `"}`
+	for _, tc := range []struct {
+		name          string
+		contentLength int64
+		wantRead      int
+	}{
+		{"known_length_reads_nothing", int64(len(body)), 0},
+		{"unknown_length_reads_limit_plus_one", -1, maxAccountKeyBodyBytes + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			counter := &accountBodyReadCounter{reader: strings.NewReader(body)}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/login", nil)
+			c.Request.Body = io.NopCloser(counter)
+			c.Request.ContentLength = tc.contentLength
+			require.Empty(t, AccountKeyFromJSONBodyField("email", nil)(c))
+			require.True(t, c.IsAborted())
+			require.Equal(t, http.StatusRequestEntityTooLarge, c.Writer.Status())
+			require.Equal(t, tc.wantRead, counter.read)
+		})
+	}
+}
+
+func TestAccountKeyStrictAcceptsGinFieldCaseAndExactLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	exact := `{"Email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes-len(`{"Email":"victim@example.com","pad":""}`)) + `"}`
+	require.Len(t, exact, maxAccountKeyBodyBytes)
+	for _, body := range []string{`{"EMAIL":"victim@example.com"}`, "{\"email\":\"victim@example.com\"} \n\t", exact} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
+		c.Request.ContentLength = -1
+		got := AccountKeyFromJSONBodyField("email", nil)(c)
+		require.Equal(t, HashAccountKey("victim@example.com"), got)
+		require.False(t, c.IsAborted())
+	}
 }
 
 // SkipPrivateClientIP + 取不到账号维度时，必须回落 IP 维度，不能完全不限流。
-func TestRateLimiterNeverAllowsRequestWithZeroDimensions(t *testing.T) {
+func TestRateLimiterRejectsMalformedAccountJSONBeforeAnyDimension(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-
 	originalRun := rateLimitRun
-	counts := make(map[string]int64)
-	rateLimitRun = func(ctx context.Context, client *redis.Client, key string, windowMillis int64) (int64, bool, error) {
-		counts[key]++
-		return counts[key], false, nil
+	called := false
+	rateLimitRun = func(context.Context, *redis.Client, string, int64) (int64, bool, error) {
+		called = true
+		return 1, false, nil
 	}
 	t.Cleanup(func() { rateLimitRun = originalRun })
-
 	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
 	router := gin.New()
 	router.Use(limiter.LimitWithOptions("k", 1, time.Minute, RateLimitOptions{
-		SkipPrivateClientIP: true,
-		AccountKey:          AccountKeyFromJSONBodyField("email", nil),
+		SkipPrivateClientIP: true, AccountKey: AccountKeyFromJSONBodyField("email", nil),
 	}))
-	router.POST("/t", func(c *gin.Context) { c.Status(http.StatusOK) })
-
-	// 畸形 body => 无账号维度；私网地址 => 本应跳过 IP 维度，但必须回落。
-	codes := make([]int, 0, 2)
-	for i := 0; i < 2; i++ {
-		req := httptest.NewRequest(http.MethodPost, "/t", strings.NewReader("not-json"))
-		req.Header.Set("Content-Type", "application/json")
-		req.RemoteAddr = "10.1.2.3:5000"
-		rec := httptest.NewRecorder()
-		router.ServeHTTP(rec, req)
-		codes = append(codes, rec.Code)
-	}
-	require.Equal(t, []int{200, 429}, codes, "零维度请求必须回落 IP 维度计数: %v | %v", codes, counts)
+	router.POST("/t", func(c *gin.Context) { t.Error("malformed request reached handler") })
+	req := httptest.NewRequest(http.MethodPost, "/t", strings.NewReader("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.1.2.3:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.False(t, called)
 }

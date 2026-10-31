@@ -83,6 +83,34 @@ docker compose logs -f sub2api
 
 ## 8. 限流绕过自检（转发头信任模型）
 
+### 8.1 固定网络与两步切换
+
+两个 Compose 默认固定 `sub2api-network=172.30.18.0/29`、网关 `172.30.18.1`。
+同宿主 Caddy 通过端口映射访问 Sub2API 时，应用只看到该网关，因此
+`SERVER_TRUSTED_PROXIES=172.30.18.1/32`；不要信任整个 `/29`、其他 Docker 网段或
+EdgeOne 回源段。若 Caddy 容器直连 `sub2api` 服务名，对端是 Caddy 容器而非网关，
+必须固定其 `ipv4_address` 并只信该 `/32`。固定网段冲突时，Compose subnet、gateway
+和 trusted CIDR 必须一起更换。
+
+既有实例第 1 步保持 `SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=true`，先观察
+Caddy 与应用的 client IP；第 2 步再把 env 和后台数据库设置同时改为 `false`。
+数据库已有值优先于 env。回滚第 2 步时先在后台恢复 `true`，再同步 env；需要应用
+env 变更时运行 `docker compose up -d --force-recreate sub2api`，不能使用只会复用
+旧容器 env 的 `docker compose restart`。保留源站防火墙与网关 `/32` 信任。
+
+在有 Docker 的主机上，配置后必须核对实际生效值，不能只用静态文件推断 DNAT 对端：
+
+```bash
+docker compose -f deploy/docker-compose.yml config
+docker network inspect <项目名>_sub2api-network --format '{{json .IPAM.Config}}'
+docker inspect sub2api --format '{{range $k,$v := .Config.Env}}{{println $v}}{{end}}' | grep '^SERVER_TRUSTED_PROXIES='
+```
+
+期望 IPAM 为 `172.30.18.0/29` / `172.30.18.1`，应用 env 仅含 `172.30.18.1/32`。
+没有 Docker 的环境只能做静态契约和应用层模拟，不能据此声称真实 Caddy/DNAT 链路已验证。
+
+### 8.2 限流检查
+
 改过 `SERVER_TRUSTED_PROXIES` / `SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL`、
 换过 Caddyfile、或换过 CDN 之后，**必须**跑完这 5 条。它们只读，不写业务数据。
 
@@ -169,8 +197,9 @@ curl -s "$BASE/api/v1/settings/public" | jq '.data.version'   # 顺带确认服�
 
 然后在管理后台「安全设置」确认 `trust_forwarded_ip_for_api_key_acl` 为 **false**。
 
-- 若是 `true`：应用绕过 `server.trusted_proxies` 直接采信原始转发头，
-  上面前 3 条无论结果如何都不作数 —— 加固等于没做。
+- 两种模式都先校验 `server.trusted_proxies` 中的直连对端；`true` 保留旧转发头
+  优先级和自定义头，`false` 使用 Gin 的可信代理解析链。非受信对端在两种模式下
+  都不能靠伪造头换桶，但仍应关闭兼容模式并限制源站直连以完成加固。
 - **DB 优先于 env**：数据库里已持久化 `true` 的实例，只设
   `SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=false` 不会生效，必须在后台关掉。
 

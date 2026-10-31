@@ -291,12 +291,12 @@ trusted_proxies static 198.51.100.0/24 2001:db8:beef::/48 # REPLACE_WITH_EDGEONE
 
 | 步骤 | 上什么 | 风险 |
 |---|---|---|
-| **第 1 步（可观测，不改判定）** | 账号维度限流、`/redeem` 限流、API 面收敛、N-01/N-02 错误口径、前端降级、部署脚本与文档 | 低。最坏是限流偏紧或文案变化 |
-| **第 2 步（改判定）** | `server.trusted_proxies` 生效 + `trust_forwarded_ip_for_api_key_acl=false` | **高**。Caddy/EdgeOne 配错 → 全站 429 |
+| **第 1 步（可观测，不改判定）** | 固定 `172.30.18.0/29`、网关 `172.30.18.1`，应用仅信 `172.30.18.1/32`；兼容开关显式保持 `true`；账号维度限流、`/redeem` 限流、API 面收敛、N-01/N-02 错误口径、前端降级、部署脚本与文档 | 低。观察真实 client IP，暂不改变兼容模式 |
+| **第 2 步（改判定）** | env 与后台数据库中的 `trust_forwarded_ip_for_api_key_acl` 都改为 `false`，使用 Gin 的 `server.trusted_proxies` 链 | **高**。Caddy/EdgeOne 配错 → 全站 429 |
 
-第 2 步的三个前置：① 4.1 已完成且验证过（两个不同出口 IP 得到两个不同 `client_ip`）；② 第 1 步稳定运行至少一天、无异常 429；③ 回滚就绪（把 `SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL` 改回 `true` 并重启，不需要回滚镜像）。
+第 2 步的三个前置：① 4.1 已完成且验证过（两个不同出口 IP 得到两个不同 `client_ip`）；② 第 1 步稳定运行至少一天、无异常 429；③ 回滚就绪（先在后台把持久化设置恢复为 `true`，再同步 env；需要时用 `docker compose up -d --force-recreate sub2api` 应用 env，`docker compose restart` 不会刷新 env；保留源站防火墙和网关 `/32`，不需要回滚镜像）。
 
-环境变量模板见 `deploy/.env.example`（`SERVER_TRUSTED_PROXIES=172.18.0.0/16` 是 **Caddy 容器网段**，不是 EdgeOne 网段 —— 两层信任链不要混）。
+环境变量模板见 `deploy/.env.example`：`SERVER_TRUSTED_PROXIES=172.30.18.1/32` 是同宿主 Caddy 经端口映射时的**桥接网关**，不是 EdgeOne 网段，也不信任整个 `/29`。若 Caddy 容器直连服务名，应固定其 `ipv4_address` 并只信该 `/32`；网段冲突时同步更换 Compose subnet、gateway 和 trusted CIDR。
 
 ### 4.3 🔴 发布后立刻跑两项自检
 

@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"strings"
 	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/handler"
@@ -44,6 +45,10 @@ func authAccountKey() func(*gin.Context) string {
 // 这里仍做不可逆摘要，避免把凭据原文写进 Redis 键。
 func authTOTPAccountKey() func(*gin.Context) string {
 	return middleware.AccountKeyFromJSONBodyFields([]string{"temp_token"}, nil)
+}
+
+func authPromoAccountKey() func(*gin.Context) string {
+	return middleware.AccountKeyFromJSONBodyField("code", strings.TrimSpace)
 }
 
 // RegisterAuthRoutes 注册认证相关路由
@@ -105,7 +110,7 @@ func RegisterAuthRoutes(
 		// 优惠码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）
 		auth.POST("/validate-promo-code", rateLimiter.LimitWithOptions("validate-promo", authPromoIPRateLimit, time.Minute, middleware.RateLimitOptions{
 			FailureMode:  middleware.RateLimitFailClose,
-			AccountKey:   authAccountKey(),
+			AccountKey:   authPromoAccountKey(),
 			AccountLimit: authPromoAccountRateLimit,
 		}), h.Auth.ValidatePromoCode)
 		// 邀请码验证接口添加速率限制：每分钟最多 10 次（Redis 故障时 fail-close）

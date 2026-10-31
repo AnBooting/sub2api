@@ -30,10 +30,13 @@ the application's responsibility.
 ## Trusted client IPs
 
 `security.trust_forwarded_ip_for_api_key_acl` is enabled by default for upgrade
-compatibility. While enabled, raw forwarding headers take over client-IP
-resolution for logs and security-sensitive paths. Custom headers from
-`security.forwarded_client_ip_headers` are checked in configured order before
-the built-in `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For` fallback.
+compatibility. While enabled, forwarding headers retain their legacy precedence
+for logs and security-sensitive paths, **but only when the direct TCP peer is in
+`server.trusted_proxies`**. An untrusted peer is always identified by its own
+address, so this switch no longer bypasses the trusted-peer gate. Custom headers
+from `security.forwarded_client_ip_headers` are checked in configured order
+before the built-in `CF-Connecting-IP`, `X-Real-IP`, and `X-Forwarded-For`
+fallback.
 Header names are case-insensitive, normalized when loaded, de-duplicated, and
 limited to 16 unique valid HTTP field names. Header values must contain IP
 literals; comma-separated values are supported, invalid entries are skipped,
@@ -49,31 +52,43 @@ headers are ignored completely when the switch is disabled. In that mode Gin's
 CIDR/IP addresses that connect directly to Sub2API. An explicit empty list
 trusts no forwarded client IPs.
 
-On the first upgrade to this mode, a legacy `false` value is changed to `true`
-only when `server.trusted_proxies` was not explicitly configured; explicit
-proxy policies remain in secure mode. New installations persist the configured
-custom header list during database initialization. Existing installations
-backfill a missing database value from the YAML configuration. A hidden
-migration marker prevents later administrator changes from being overwritten.
+The former first-upgrade migration that changed a stored legacy `false` value
+to `true` is disabled. Existing explicit values are retained even when
+`server.trusted_proxies` is not configured; an unsafe or incomplete deployment
+produces a warning rather than silently weakening the administrator's choice.
+New installations persist the configured custom header list during database
+initialization. Existing installations backfill a missing database value from
+the YAML configuration. A hidden migration marker prevents later administrator
+changes from being overwritten.
 If settings cannot be read or the persisted custom-header list is malformed,
 the process fails closed to trusted-proxy mode with no custom headers. If a
 migration write fails, the computed mode remains active for the current process
 and startup records a warning.
 
-Compatibility takeover accepts forwarded headers without validating the direct
-peer, including any configured custom header. Protect the origin from direct
-access while it is enabled. A CDN deployment must firewall the origin so only
-the CDN or load balancer can reach it, and that proxy must overwrite every
-trusted client-IP header rather than append an untrusted client value.
+Compatibility mode still accepts a broader set of forwarding headers than
+secure mode, including configured custom headers, so the trusted proxy list
+must contain only the exact direct proxy peers. Protect the origin from direct
+access in either mode. A CDN deployment must firewall the origin so only the
+CDN or load balancer can reach it, and that proxy must overwrite every trusted
+client-IP header rather than append an untrusted client value.
 
-Example for a proxy on the same host:
+Loopback is appropriate only when the application and proxy share a network
+namespace. For the bundled Compose topology, host Caddy reaches the container
+through a published port and the application sees the bridge gateway instead.
+Both Compose files pin `172.30.18.0/29` with gateway `172.30.18.1`; trust only
+that gateway, never the entire Docker network:
 
 ```yaml
 server:
   trusted_proxies:
-    - 127.0.0.1/32
-    - ::1/128
+    - 172.30.18.1/32
 ```
+
+If Caddy runs as a container and connects directly to the `sub2api` service
+name, the peer is Caddy's container address, not the gateway. Give Caddy a fixed
+`ipv4_address` and trust only that `/32`. If the pinned subnet conflicts with
+the host, change the Compose subnet, gateway, and application trusted CIDR
+together.
 
 ## Nginx baseline
 
@@ -237,6 +252,22 @@ IP" with no error anywhere. Tencent rotates these ranges roughly every 3–6
 months with 14/7/3/1-day notices and a 14-day update window; an unnoticed
 rotation breaks origin access.
 
+### Two-stage rollout and rollback
+
+For an existing installation, stage 1 keeps
+`SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=true` while deploying the fixed
+network and observing request logs. Stage 2 changes both the environment value
+and the persisted admin setting to `false` only after Caddy and the application
+agree on real client IPs. Changing only the environment does not override a
+persisted database value. A plain `docker compose restart` also reuses the old
+container environment; after changing `.env`, apply it with
+`docker compose up -d --force-recreate sub2api`.
+
+To roll back stage 2, first restore the admin setting to `true`, then restore
+the environment value and recreate the container if needed. Keep the origin
+firewall and trusted Caddy gateway `/32` in place during rollback. Do not treat
+`git revert` alone as a runtime rollback.
+
 ### Verification steps (EdgeOne topology)
 
 Run after every change to the Caddyfile, the firewall, or the application's
@@ -265,9 +296,10 @@ trust settings. All of these are read-only.
    curl -s https://<your-domain>/api/v1/settings/public | jq '.data.version'
    ```
    and check the admin security settings show
-   `trust_forwarded_ip_for_api_key_acl = false`. If it still reads `true`, the
-   compatibility takeover is on and the forged-header path is open regardless of
-   what Caddy does. Remember the database value wins over the environment:
+   `trust_forwarded_ip_for_api_key_acl = false`. In either mode, only trusted
+   direct peers may supply forwarding headers; `false` additionally disables
+   custom-header takeover and uses Gin's trusted-proxy chain. Remember the
+   database value wins over the environment:
    `SECURITY_TRUST_FORWARDED_IP_FOR_API_KEY_ACL=false` alone does not flip an
    instance that already persisted `true`.
 

@@ -3,14 +3,20 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	ratelimitmw "github.com/Wei-Shaw/sub2api/internal/middleware"
 	ippkg "github.com/Wei-Shaw/sub2api/internal/pkg/ip"
+	servermw "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
 )
 
@@ -76,4 +82,51 @@ func TestShouldWarnClientIPCollapse(t *testing.T) {
 		"已配置可信代理时不会坍缩")
 	require.False(t, shouldWarnClientIPCollapse("debug", false, false),
 		"非 release 模式不告警，避免本地开发噪音")
+}
+
+func TestComposeGatewayKeepsClientBucketsAndRejectsOtherPeers(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, legacy := range []bool{true, false} {
+		t.Run(fmt.Sprintf("legacy=%t", legacy), func(t *testing.T) {
+			resetTrustedProxyPolicy(t)
+			cfg := &config.Config{}
+			cfg.Server.Mode = "release"
+			cfg.Server.TrustedProxies = []string{"172.30.18.1/32"}
+			cfg.Server.TrustedProxiesConfigured = true
+			cfg.SetTrustForwardedIPForAPIKeyACL(legacy)
+			mr := miniredis.RunT(t)
+			rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+			t.Cleanup(func() { require.NoError(t, rdb.Close()) })
+			router := gin.New()
+			configureClientIPTrust(router, cfg)
+			router.Use(servermw.SessionBindingContext(cfg))
+			router.GET("/login", ratelimitmw.NewRateLimiter(rdb).Limit("auth-login", 20, time.Minute), func(c *gin.Context) {
+				c.String(http.StatusOK, ippkg.GetClientIP(c))
+			})
+
+			for i := 1; i <= 21; i++ {
+				req := httptest.NewRequest(http.MethodGet, "/login", nil)
+				req.RemoteAddr = "172.30.18.1:5000"
+				req.Header.Set("X-Real-IP", fmt.Sprintf("203.0.113.%d", i))
+				req.Header.Set("X-Forwarded-For", fmt.Sprintf("203.0.113.%d", i))
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusOK, rec.Code)
+				require.Equal(t, fmt.Sprintf("203.0.113.%d", i), rec.Body.String(),
+					"trusted Compose gateway must preserve distinct real client IPs")
+			}
+
+			for _, peer := range []string{"172.30.18.2", "172.30.18.3", "203.0.113.254"} {
+				req := httptest.NewRequest(http.MethodGet, "/login", nil)
+				req.RemoteAddr = peer + ":5000"
+				req.Header.Set("X-Real-IP", "198.51.100.99")
+				req.Header.Set("X-Forwarded-For", "198.51.100.99")
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				require.Equal(t, http.StatusOK, rec.Code)
+				require.Equal(t, peer, rec.Body.String(),
+					"only the gateway /32 may supply forwarding headers")
+			}
+		})
+	}
 }
