@@ -51,16 +51,17 @@ func TestAuthRoutesRateLimitFailCloseWhenRedisUnavailable(t *testing.T) {
 	})
 
 	router := newAuthRoutesTestRouter(rdb)
-	paths := []string{
-		"/api/v1/auth/register",
-		"/api/v1/auth/login",
-		"/api/v1/auth/login/2fa",
-		"/api/v1/auth/send-verify-code",
-		"/api/v1/auth/oauth/pending/send-verify-code",
+	cases := []struct{ path, body string }{
+		{"/api/v1/auth/register", `{"email":"a@example.com","password":"secret"}`},
+		{"/api/v1/auth/login", `{"email":"a@example.com","password":"secret"}`},
+		{"/api/v1/auth/login/2fa", `{"temp_token":"token","totp_code":"123456"}`},
+		{"/api/v1/auth/send-verify-code", `{"email":"a@example.com"}`},
+		{"/api/v1/auth/oauth/pending/send-verify-code", `{}`},
 	}
 
-	for _, path := range paths {
-		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(`{}`))
+	for _, tc := range cases {
+		path := tc.path
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(tc.body))
 		req.Header.Set("Content-Type", "application/json")
 		req.RemoteAddr = "203.0.113.10:12345"
 

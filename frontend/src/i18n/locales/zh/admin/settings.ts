@@ -1019,6 +1019,9 @@ export default {
       smtp: {
         title: 'SMTP 设置',
         description: '配置用于发送验证码的邮件服务',
+        notConfiguredTitle: 'SMTP 未配置，邮箱相关功能不可用',
+        notConfiguredHint: '服务端检测到 SMTP 参数不完整，注册验证码、找回密码、邮箱验证与测试邮件都会失败。请先填写主机、端口、发件人邮箱与密码并保存，再用「测试连接」确认。',
+        notConfiguredBadge: '未配置',
         testConnection: '测试连接',
         testing: '测试中...',
         host: 'SMTP 主机',

@@ -1,0 +1,175 @@
+{
+  "critical_regressions": {
+    "package_outcomes": {
+      "pass": 3
+    },
+    "top_level_test_outcomes": {
+      "pass": 91
+    },
+    "failed_top_level_tests": [],
+    "notable_test_durations": [],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "pass",
+        "Elapsed": 0.606
+      }
+    ]
+  },
+  "mutations": {
+    "package_outcomes": {
+      "fail": 2
+    },
+    "top_level_test_outcomes": {
+      "fail": 3
+    },
+    "failed_top_level_tests": [
+      "TestRenamedMigrationReplayRejectsMissingRequiredColumn",
+      "TestReviewLiveSettlementDiagnosticIsPrivateFromUserErrorList",
+      "TestReviewLiveObserverRecoversFromOneRedisReadFailure"
+    ],
+    "notable_test_durations": [],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "fail",
+        "Elapsed": 1.059
+      }
+    ]
+  },
+  "restored_regressions": {
+    "package_outcomes": {
+      "pass": 2
+    },
+    "top_level_test_outcomes": {
+      "pass": 3
+    },
+    "failed_top_level_tests": [],
+    "notable_test_durations": [],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "pass",
+        "Elapsed": 0.377
+      }
+    ]
+  },
+  "lifecycle_reproduction": {
+    "package_outcomes": {
+      "fail": 1
+    },
+    "top_level_test_outcomes": {
+      "fail": 1
+    },
+    "failed_top_level_tests": [
+      "TestReviewExistingLifecycleCaseMustNotUseProductionSettlementBackoff"
+    ],
+    "notable_test_durations": [
+      {
+        "Test": "TestReviewExistingLifecycleCaseMustNotUseProductionSettlementBackoff",
+        "Action": "fail",
+        "Elapsed": 0.01
+      }
+    ],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "fail",
+        "Elapsed": 0.369
+      }
+    ]
+  },
+  "lifecycle_test_clock_overlay": {
+    "package_outcomes": {
+      "pass": 1
+    },
+    "top_level_test_outcomes": {
+      "pass": 1
+    },
+    "failed_top_level_tests": [],
+    "notable_test_durations": [
+      {
+        "Test": "TestReviewExistingLifecycleCaseMustNotUseProductionSettlementBackoff",
+        "Action": "pass",
+        "Elapsed": 0.01
+      }
+    ],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "pass",
+        "Elapsed": 0.395
+      }
+    ]
+  },
+  "pr13_full_unit": {
+    "package_outcomes": {
+      "pass": 61,
+      "skip": 52,
+      "fail": 1
+    },
+    "top_level_test_outcomes": {
+      "pass": 10550,
+      "skip": 17
+    },
+    "failed_top_level_tests": [],
+    "notable_test_durations": [
+      {
+        "Test": "TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize",
+        "Action": "pass",
+        "Elapsed": 455.17
+      }
+    ],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "fail",
+        "Elapsed": 602.735
+      }
+    ]
+  },
+  "pr11_full_unit": {
+    "package_outcomes": {
+      "pass": 62,
+      "skip": 52
+    },
+    "top_level_test_outcomes": {
+      "pass": 12873,
+      "skip": 18
+    },
+    "failed_top_level_tests": [],
+    "notable_test_durations": [
+      {
+        "Test": "TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize",
+        "Action": "pass",
+        "Elapsed": 0.01
+      }
+    ],
+    "service_result": [
+      {
+        "Package": "github.com/Wei-Shaw/sub2api/internal/service",
+        "Action": "pass",
+        "Elapsed": 218.246
+      }
+    ]
+  },
+  "frontend": {
+    "files_passed": 427,
+    "tests_passed": 3416,
+    "typecheck_exit": 0,
+    "build_exit": 0
+  },
+  "scope": {
+    "date": "2026-10-28",
+    "timezone": "Asia/Singapore",
+    "repository": "AnBooting/sub2api",
+    "pr11_head": "b3cfa54af867e731b2d526f2682a2ce51078b697",
+    "pr12_head": "ed3029b71d27c96fa3db11d80d361461e6530407",
+    "pr13_head": "24dd8af2e3378d2104405cb71d4ad80538f8d966",
+    "postgres_integration_run": false,
+    "pr11_merge_commit": "35803be54009ef6f6633447ad00cd04754c2fc37",
+    "pr11_merged_at_singapore": "2026-10-28 22:11:22",
+    "pr11_build_exit": 0,
+    "pr11_unit_exit": 0
+  }
+}

@@ -2,12 +2,14 @@ package handler
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"sync"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler/dto"
+	ratelimitmw "github.com/Wei-Shaw/sub2api/internal/middleware"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
@@ -251,9 +253,16 @@ func (h *AuthHandler) Login(c *gin.Context) {
 
 	token, user, err := h.authService.Login(c.Request.Context(), req.Email, req.Password)
 	if err != nil {
+		// 账号维度只统计失败：凭据错误时递增，其它错误（如账号禁用）不计入，
+		// 避免被用来把合法用户锁在门外。
+		if errors.Is(err, service.ErrInvalidCredentials) {
+			ratelimitmw.RecordAccountOutcome(c, true)
+		}
 		response.ErrorFrom(c, err)
 		return
 	}
+	// 登录成功即清零失败计数：攻击者无法用发送失败请求的方式维持锁定。
+	ratelimitmw.RecordAccountOutcome(c, false)
 	_ = token // token 由 authService.Login 返回但此处由 respondWithTokenPair 重新生成
 
 	if err := h.ensureBackendModeAllowsUser(c.Request.Context(), user); err != nil {

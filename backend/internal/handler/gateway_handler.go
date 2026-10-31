@@ -2538,13 +2538,26 @@ func extractQuotaResetSeconds(err error) int {
 	return int(math.Ceil(secs))
 }
 
+// modelPricingUnavailableMessage 是缺价拒绝（503 pricing_unavailable）的稳定文案。
+//
+// 刻意不拼具体模型名：model 会随请求变化，而这条文案同时出现在日志聚合与客户端展示里，
+// 拼进去会让同一类错误的文案不可聚合；模型名已在请求日志与 ops 缺价明细中记录。
+//
+// 刻意不写 "please retry later"：缺价是定价配置缺失，重试不会自愈（与 503
+// billing_service_error 那种瞬时不可用不同），承诺重试会误导客户端做无意义退避。
+const modelPricingUnavailableMessage = "Model pricing is not configured for this request. Contact the service operator to enable this model."
+
 func billingErrorDetails(err error) (status int, code, message string, retryAfter int) {
 	if errors.Is(err, service.ErrModelPricingUnavailable) {
-		msg := pkgerrors.Message(err)
-		if msg == "" {
-			msg = "Model pricing is unavailable. Please retry later."
-		}
-		return http.StatusServiceUnavailable, "pricing_unavailable", msg, 0
+		// N-01：ErrModelPricingUnavailable 是裸 errors.New，pkgerrors.Message 会落到
+		// FromError 的 UnknownMessage 兜底分支返回 "internal error"，导致线上响应变成
+		// {"type":"pricing_unavailable","message":"internal error"}——类型与文案自相矛盾，
+		// 终端 SDK 只能显示 "internal error"，用户无法知道是"模型未配置价格"。
+		//
+		// 文案必须由本层给出稳定、可读、可行动的说明（与其它 gateway 错误一样用英文）：
+		// 缺价是**服务端定价配置**问题，客户端重试不会自愈，因此不承诺 retry。
+		// 红线不变：仍是 503 + type=pricing_unavailable，不改 404、不放行。
+		return http.StatusServiceUnavailable, "pricing_unavailable", modelPricingUnavailableMessage, 0
 	}
 	if errors.Is(err, service.ErrBillingServiceUnavailable) {
 		msg := pkgerrors.Message(err)

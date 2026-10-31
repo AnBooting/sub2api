@@ -7,7 +7,6 @@ import { apiClient } from '../client'
 import type {
   DashboardStats,
   PaymentOrder,
-  PaymentChannel,
   SubscriptionPlan,
   ProviderInstance
 } from '@/types/payment'
@@ -125,27 +124,10 @@ export const adminPaymentAPI = {
     return apiClient.post<RefundResult>(`/admin/payment/orders/${id}/refund/query`)
   },
 
-  // ==================== Channels ====================
-
-  /** Get all payment channels */
-  getChannels() {
-    return apiClient.get<PaymentChannel[]>('/admin/payment/channels')
-  },
-
-  /** Create a payment channel */
-  createChannel(data: Partial<PaymentChannel>) {
-    return apiClient.post<PaymentChannel>('/admin/payment/channels', data)
-  },
-
-  /** Update a payment channel */
-  updateChannel(id: number, data: Partial<PaymentChannel>) {
-    return apiClient.put<PaymentChannel>(`/admin/payment/channels/${id}`, data)
-  },
-
-  /** Delete a payment channel */
-  deleteChannel(id: number) {
-    return apiClient.delete(`/admin/payment/channels/${id}`)
-  },
+  // 注：曾有一组 /admin/payment/channels 的 CRUD（getChannels/createChannel/
+  // updateChannel/deleteChannel），但**后端从来没有注册过这些路由**
+  // （backend/internal/server/routes/payment.go 只有 dashboard/config/orders/
+  // plans/providers），前端也没有任何调用方 —— 属于纯死代码，已移除。
 
   // ==================== Subscription Plans ====================
 

@@ -845,8 +845,16 @@ func ProvideOpsIngressRejectAggregator(opsRepo OpsRepository, opsService *OpsSer
 }
 
 // ProvideSettingService wires SettingService with group reader and proxy repo.
-func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config) *SettingService {
+//
+// buildInfo is the same handler.BuildInfo that feeds the public-settings handler,
+// so /api/v1/settings/public and the HTML-inlined window.__APP_CONFIG__.version
+// read one fact source. Before this, the HTML copy relied on a second ldflags
+// variable that only the Dockerfiles set, so every other build path
+// (backend/Makefile, deploy/Makefile, goreleaser) silently produced an empty
+// inlined version while the API reported the correct one.
+func ProvideSettingService(settingRepo SettingRepository, groupRepo GroupRepository, proxyRepo ProxyRepository, cfg *config.Config, buildInfo BuildInfo) *SettingService {
 	svc := NewSettingService(settingRepo, cfg)
+	svc.SetVersion(buildInfo.Version)
 	svc.SetDefaultSubscriptionGroupReader(groupRepo)
 	svc.SetProxyRepository(proxyRepo)
 	if err := svc.LoadForwardedClientIPSettings(context.Background()); err != nil {

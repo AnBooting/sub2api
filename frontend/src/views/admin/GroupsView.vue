@@ -344,6 +344,14 @@
 
           <template #cell-usage="{ row }">
             <div v-if="usageLoading" class="text-xs text-gray-400">—</div>
+            <div
+              v-else-if="usageIncomplete"
+              class="text-xs text-amber-700 dark:text-amber-400"
+              data-testid="group-usage-incomplete"
+              :title="t('usageStatsIncomplete.description')"
+            >
+              {{ t("usageStatsIncomplete.short") }}
+            </div>
             <div v-else class="space-y-0.5 text-xs">
               <div class="text-gray-500 dark:text-gray-400">
                 <span class="text-gray-400 dark:text-gray-500">{{
@@ -4641,6 +4649,7 @@ import type { ChannelModelPricing } from "@/api/admin/channels";
 import { VueDraggable } from "vue-draggable-plus";
 import { createStableObjectKeyResolver } from "@/utils/stableObjectKey";
 import { extractApiErrorMessage } from "@/utils/apiError";
+import { isUsageStatsIncomplete } from "@/utils/usageStatsAvailability";
 import { useKeyedDebouncedSearch } from "@/composables/useKeyedDebouncedSearch";
 import { getPersistedPageSize } from "@/composables/usePersistedPageSize";
 import {
@@ -5119,6 +5128,9 @@ type GroupUsageSummary = {
 
 const usageMap = ref<Map<number, GroupUsageSummary>>(new Map());
 const usageLoading = ref(false);
+// N-02：/admin/groups/usage-summary 返回 503 + usage_stats_incomplete 时，
+// 用量列整列改为「统计不完整」，不能显示成 0（否则看起来像「这些分组今天没花钱」）。
+const usageIncomplete = ref(false);
 const capacityMap = ref<
   Map<
     number,
@@ -6031,8 +6043,16 @@ const loadUsageSummary = async () => {
       });
     }
     usageMap.value = map;
+    usageIncomplete.value = false;
   } catch (error) {
+    if (isUsageStatsIncomplete(error)) {
+      // 可重试的业务态，不是故障：不污染 console error 基线。
+      usageIncomplete.value = true;
+      usageMap.value = new Map();
+      return;
+    }
     console.error("Error loading group usage summary:", error);
+    usageIncomplete.value = false;
   } finally {
     usageLoading.value = false;
   }

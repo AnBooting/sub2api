@@ -2,13 +2,19 @@ package middleware
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	ippkg "github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 
+	"github.com/alicebob/miniredis/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/require"
@@ -223,4 +229,514 @@ func TestRateLimiterSuccessAndLimit(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	router.ServeHTTP(recorder, req)
 	require.Equal(t, http.StatusTooManyRequests, recorder.Code)
+}
+
+// ---- 账号维度（失败计数模式）：主防线，且不得变成 account lockout DoS ----
+
+// newFailureModeTestLimiter 使用 miniredis：失败计数与锁定断言需要真实的
+// GET/INCR/PEXPIRE/DEL 语义，不能用不可达地址（那样每个调用都报错）。
+func newFailureModeTestLimiter(t *testing.T) *RateLimiter {
+	t.Helper()
+	mr := miniredis.RunT(t)
+	rdb := redis.NewClient(&redis.Options{Addr: mr.Addr()})
+	t.Cleanup(func() { _ = rdb.Close() })
+	return NewRateLimiter(rdb)
+}
+
+func newAccountFailureTestRouter(t *testing.T, limiter *RateLimiter, handler gin.HandlerFunc) *gin.Engine {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(limiter.LimitWithOptions("auth-login", 100, time.Minute, RateLimitOptions{
+		FailureMode:        RateLimitFailClose,
+		AccountKey:         AccountKeyFromJSONBodyField("email", nil),
+		FailureOnlyAccount: true,
+	}))
+	router.POST("/login", handler)
+	return router
+}
+
+func postAccountLogin(router *gin.Engine, email, outcome string) *httptest.ResponseRecorder {
+	body := `{"email":"` + email + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.50:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	_ = outcome
+	return rec
+}
+
+// 关键验收：走**真实中间件**的请求不按次数消耗账号额度——只有 handler 判定失败
+// 才记账。这是 account lockout DoS 的防线：若中间件"查一次就算一次"，正常用户
+// 反复打开登录页就会把自己锁死。
+func TestAccountFailureLockIsFailureOnlyAndSelfHealing(t *testing.T) {
+	limiter := newFailureModeTestLimiter(t)
+	ctx := context.Background()
+	account := HashAccountKey("victim@example.com")
+
+	// handler 不记账（例如请求体校验失败、既不是凭据错误也不是成功登录）：
+	// 这类请求绝不能消耗账号额度。
+	router := newAccountFailureTestRouter(t, limiter, func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	for i := 0; i < 20; i++ {
+		rec := postAccountLogin(router, "victim@example.com", "")
+		require.Equal(t, http.StatusOK, rec.Code, "第 %d 次请求必须放行（中间件不得计数）", i+1)
+	}
+
+	count, err := limiter.AccountFailureCount(ctx, "auth-login", account)
+	require.NoError(t, err)
+	require.Zero(t, count, "中间件不得按请求次数递增账号桶")
+
+	// 只读查锁同样不产生计数。
+	for i := 0; i < 20; i++ {
+		locked, _, lockErr := limiter.AccountFailureLock(ctx, "auth-login", account)
+		require.NoError(t, lockErr)
+		require.False(t, locked)
+	}
+	count, err = limiter.AccountFailureCount(ctx, "auth-login", account)
+	require.NoError(t, err)
+	require.Zero(t, count, "只读查锁不得产生计数")
+}
+
+func TestAccountFailureLockThresholdAndReset(t *testing.T) {
+	limiter := newFailureModeTestLimiter(t)
+
+	ctx := context.Background()
+	account := HashAccountKey("victim@example.com")
+
+	for i := 0; i < accountFailureLockThreshold; i++ {
+		locked, _, err := limiter.AccountFailureLock(ctx, "auth-login", account)
+		require.NoError(t, err)
+		require.False(t, locked, "第 %d 次失败之前不应锁定", i+1)
+		require.NoError(t, limiter.RecordAccountFailure(ctx, "auth-login", account))
+	}
+
+	locked, retryAfter, err := limiter.AccountFailureLock(ctx, "auth-login", account)
+	require.NoError(t, err)
+	require.True(t, locked, "达到阈值必须锁定")
+	require.Greater(t, retryAfter, time.Duration(0))
+	require.LessOrEqual(t, retryAfter, accountFailureShortWindow)
+
+	// 成功登录清零，攻击者无法维持锁定。
+	require.NoError(t, limiter.ResetAccountFailure(ctx, "auth-login", account))
+	locked, _, err = limiter.AccountFailureLock(ctx, "auth-login", account)
+	require.NoError(t, err)
+	require.False(t, locked)
+}
+
+func TestAccountFailureLockTiersEscalate(t *testing.T) {
+	limiter := newFailureModeTestLimiter(t)
+
+	ctx := context.Background()
+	account := HashAccountKey("victim2@example.com")
+
+	require.Equal(t, accountFailureShortWindow, accountFailureTierWindow(accountFailureLockThreshold))
+	require.Equal(t, accountFailureMediumWindow, accountFailureTierWindow(accountFailureMediumTier))
+	require.Equal(t, accountFailureLongWindow, accountFailureTierWindow(accountFailureLongTier))
+
+	for i := 0; i < accountFailureLongTier; i++ {
+		require.NoError(t, limiter.RecordAccountFailure(ctx, "auth-login", account))
+	}
+	// 达到最高档后剩余 TTL 应接近长窗口
+	_, retryAfter, err := limiter.AccountFailureLock(ctx, "auth-login", account)
+	require.NoError(t, err)
+	require.Greater(t, retryAfter, accountFailureMediumWindow)
+}
+
+// 中间件只在锁定时拦截，且拦的是 429（不是 401，避免误导为密码错误）。
+func TestAccountFailureMiddlewareAbortsWith429(t *testing.T) {
+	limiter := newFailureModeTestLimiter(t)
+
+	account := HashAccountKey("victim3@example.com")
+	for i := 0; i < accountFailureLockThreshold; i++ {
+		require.NoError(t, limiter.RecordAccountFailure(context.Background(), "auth-login", account))
+	}
+
+	router := newAccountFailureTestRouter(t, limiter, func(c *gin.Context) { c.Status(http.StatusOK) })
+	rec := postAccountLogin(router, "victim3@example.com", "")
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	require.NotEmpty(t, rec.Header().Get("Retry-After"))
+}
+
+// 未锁定时，中间件把记账闭包交给 handler；handler 记 1 次失败后计数 +1。
+func TestAccountFailureOutcomeIsRecordedThroughContext(t *testing.T) {
+	limiter := newFailureModeTestLimiter(t)
+
+	router := newAccountFailureTestRouter(t, limiter, func(c *gin.Context) {
+		_, ok := AccountFailureScopeFromContext(c)
+		require.True(t, ok, "中间件必须把账号作用域交给 handler")
+		RecordAccountOutcome(c, true)
+		c.Status(http.StatusUnauthorized)
+	})
+
+	rec := postAccountLogin(router, "victim4@example.com", "")
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+
+	count, err := limiter.AccountFailureCount(context.Background(), "auth-login", HashAccountKey("victim4@example.com"))
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
+}
+
+// 不同邮箱互不干扰。
+func TestAccountFailureCountersAreIsolatedPerAccount(t *testing.T) {
+	limiter := newFailureModeTestLimiter(t)
+
+	ctx := context.Background()
+	for i := 0; i < accountFailureLockThreshold; i++ {
+		require.NoError(t, limiter.RecordAccountFailure(ctx, "auth-login", HashAccountKey("a@example.com")))
+	}
+	locked, _, err := limiter.AccountFailureLock(ctx, "auth-login", HashAccountKey("a@example.com"))
+	require.NoError(t, err)
+	require.True(t, locked)
+
+	locked, _, err = limiter.AccountFailureLock(ctx, "auth-login", HashAccountKey("b@example.com"))
+	require.NoError(t, err)
+	require.False(t, locked, "其它账号不得受影响")
+}
+
+// 账号键只暴露 sha256 前缀，不得把邮箱明文写进 Redis 键。
+func TestAccountKeyFromJSONBodyFieldHashesEmail(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	router := gin.New()
+	var got string
+	router.POST("/login", func(c *gin.Context) {
+		got = AccountKeyFromJSONBodyField("email", nil)(c)
+		c.Status(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"Victim@Example.com"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.50:5000"
+	router.ServeHTTP(httptest.NewRecorder(), req)
+
+	require.Len(t, got, 16)
+	require.NotContains(t, strings.ToLower(got), "victim")
+	require.NotContains(t, got, "@")
+
+	// 大小写归一：同一账号的不同写法必须落在同一个桶。
+	sum := sha256.Sum256([]byte("victim@example.com"))
+	require.Equal(t, hex.EncodeToString(sum[:])[:16], got)
+	require.Equal(t, got, HashAccountKey("victim@example.com"))
+}
+
+// 请求体非法/字段缺失/字段非字符串时不做账号维度计数，且仍要回填请求体。
+func TestAccountKeyFromJSONBodyFieldRejectsNonStringOrMissing(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cases := []string{
+		"",
+		"not-json",
+		"{}",
+		`{"email":123}`,
+		`{"email":null}`,
+		`{"other":"a@example.com"}`,
+	}
+	for _, body := range cases {
+		router := gin.New()
+		router.POST("/login", func(c *gin.Context) {
+			require.Empty(t, AccountKeyFromJSONBodyField("email", nil)(c), "body=%q", body)
+			raw, err := io.ReadAll(c.Request.Body)
+			require.NoError(t, err)
+			require.Equal(t, body, string(raw), "请求体必须被回填")
+			c.Status(http.StatusOK)
+		})
+		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "203.0.113.50:5000"
+		router.ServeHTTP(httptest.NewRecorder(), req)
+	}
+}
+
+// 读取账号键不得吞掉请求体，下游 handler 必须还能正常绑定。
+func TestRateLimiterAccountKeyPreservesRequestBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalRun := rateLimitRun
+	rateLimitRun = func(ctx context.Context, client *redis.Client, key string, windowMillis int64) (int64, bool, error) {
+		return 1, false, nil
+	}
+	t.Cleanup(func() { rateLimitRun = originalRun })
+
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	router := gin.New()
+	router.Use(limiter.LimitWithOptions("auth-login", 10, time.Minute, RateLimitOptions{
+		AccountKey: AccountKeyFromJSONBodyField("email", nil),
+	}))
+	router.POST("/login", func(c *gin.Context) {
+		var payload struct {
+			Email    string `json:"email"`
+			Password string `json:"password"`
+		}
+		if err := c.ShouldBindJSON(&payload); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"email": payload.Email, "password": payload.Password})
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"a@example.com","password":"secret"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "203.0.113.50:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.JSONEq(t, `{"email":"a@example.com","password":"secret"}`, rec.Body.String())
+}
+
+// SkipPrivateClientIP：非公网客户端地址不参与 IP 维度计数，但账号维度仍然生效。
+func TestRateLimiterSkipPrivateClientIP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalRun := rateLimitRun
+	counts := make(map[string]int64)
+	rateLimitRun = func(ctx context.Context, client *redis.Client, key string, windowMillis int64) (int64, bool, error) {
+		counts[key]++
+		return counts[key], false, nil
+	}
+	t.Cleanup(func() { rateLimitRun = originalRun })
+
+	send := func(router *gin.Engine, remoteAddr, email string) int {
+		req := httptest.NewRequest(http.MethodPost, "/t", strings.NewReader("{\"email\":\""+email+"\"}"))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = remoteAddr
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		return rec.Code
+	}
+
+	// 账号维度可用时：私网地址不再单独开桶（避免整条反代链路坍缩），
+	// 由账号维度承担计数，因此不同账号共享同一私网出口不会被误伤。
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	withAccount := gin.New()
+	withAccount.Use(limiter.LimitWithOptions("k", 1, time.Minute, RateLimitOptions{
+		SkipPrivateClientIP: true,
+		AccountKey:          AccountKeyFromJSONBodyField("email", nil),
+	}))
+	withAccount.POST("/t", func(c *gin.Context) { c.Status(http.StatusOK) })
+
+	require.Equal(t, http.StatusOK, send(withAccount, "10.1.2.3:5000", "a@example.com"))
+	require.Equal(t, http.StatusOK, send(withAccount, "10.1.2.3:5000", "b@example.com"),
+		"私网出口下不同账号必须各自独立计数")
+	require.Equal(t, http.StatusTooManyRequests, send(withAccount, "10.1.2.3:5000", "a@example.com"),
+		"同一账号第二次必须被账号维度拦下")
+	for key := range counts {
+		require.NotContains(t, key, "10.1.2.3", "私网地址不应单独产生 IP 维度计数: %v", counts)
+	}
+
+	// 公网地址：即使账号维度可用，IP 维度仍要计数（次防线保留）。
+	clear(counts)
+	require.Equal(t, http.StatusOK, send(withAccount, "203.0.113.9:5000", "c@example.com"))
+	require.Equal(t, http.StatusTooManyRequests, send(withAccount, "203.0.113.9:5000", "d@example.com"),
+		"公网地址仍按 IP 计数（次防线）")
+}
+
+// 不受信对端轮换 X-Real-IP 时，IP 维度必须落在同一个桶（回归 F-01）。
+func TestRateLimiterIgnoresForwardedIPFromUntrustedPeer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	originalRun := rateLimitRun
+	counts := make(map[string]int64)
+	rateLimitRun = func(ctx context.Context, client *redis.Client, key string, windowMillis int64) (int64, bool, error) {
+		counts[key]++
+		return counts[key], false, nil
+	}
+	t.Cleanup(func() { rateLimitRun = originalRun })
+
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		ippkg.SetForwardedIPSettings(c, true, nil)
+		c.Next()
+	})
+	router.Use(limiter.LimitWithOptions("auth-login", 3, time.Minute, RateLimitOptions{
+		FailureMode: RateLimitFailClose,
+	}))
+	router.POST("/login", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"ok": true}) })
+
+	codes := make([]int, 0, 5)
+	for i := 0; i < 5; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "203.0.113.50:5000"
+		req.Header.Set("X-Real-IP", "198.51.100."+strconv.Itoa(10+i))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		codes = append(codes, rec.Code)
+	}
+	require.Equal(t, []int{200, 200, 200, 429, 429}, codes,
+		"轮换 X-Real-IP 不得改变 IP 维度分桶: %v", codes)
+	require.Len(t, counts, 1, "所有请求必须落在同一个桶: %v", counts)
+}
+
+// 归一化钩子：别名/点号变体必须落在同一个桶，否则账号维度可被 aliasing 绕过。
+func TestAccountKeyFromJSONBodyFieldAppliesNormalizer(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	normalizer := func(email string) string {
+		local, domain, ok := strings.Cut(email, "@")
+		if !ok {
+			return email
+		}
+		if idx := strings.IndexByte(local, '+'); idx > 0 {
+			local = local[:idx]
+		}
+		return local + "@" + domain
+	}
+	router := gin.New()
+	router.POST("/login", func(c *gin.Context) {
+		key := AccountKeyFromJSONBodyField("email", normalizer)(c)
+		c.String(http.StatusOK, key)
+	})
+
+	keys := make(map[string]struct{})
+	for _, email := range []string{"victim@example.com", "victim+1@example.com", "victim+2@example.com"} {
+		req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(`{"email":"`+email+`"}`))
+		req.Header.Set("Content-Type", "application/json")
+		req.RemoteAddr = "203.0.113.50:5000"
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		keys[rec.Body.String()] = struct{}{}
+	}
+	require.Len(t, keys, 1, "别名变体必须归一到一个账号桶: %v", keys)
+}
+
+// 超大 body：不读取、不构造账号键（避免把大 body 读进内存），但请求仍可用。
+func TestAccountKeyFromJSONBodyFieldRejectsOversizedBody(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	c, _ := gin.CreateTestContext(httptest.NewRecorder())
+	big := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes) + `"}`
+	c.Request = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(big))
+	c.Request.ContentLength = int64(len(big))
+	got := AccountKeyFromJSONBodyField("email", nil)(c)
+	require.Empty(t, got)
+	require.True(t, c.IsAborted())
+	require.Equal(t, http.StatusRequestEntityTooLarge, c.Writer.Status())
+}
+
+func TestAccountKeyStrictRejectsAmbiguousTrailingAndOversizedBodies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	exact := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes-len(`{"email":"victim@example.com","pad":""}`)) + `"}`
+	require.Len(t, exact, maxAccountKeyBodyBytes)
+	oversize := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes) + `"}`
+	cases := []struct {
+		name       string
+		body       string
+		wantStatus int
+		unknownCL  bool
+	}{
+		{"mixed_case_decoy", `{"email":"decoy@example.com","Email":"victim@example.com"}`, http.StatusBadRequest, false},
+		{"duplicate_exact", `{"email":"victim@example.com","email":"victim@example.com"}`, http.StatusBadRequest, false},
+		{"trailing_object", `{"email":"victim@example.com"} {}`, http.StatusBadRequest, false},
+		{"trailing_garbage", `{"email":"victim@example.com"} x`, http.StatusBadRequest, false},
+		{"oversize_known_length", oversize, http.StatusRequestEntityTooLarge, false},
+		{"oversize_unknown_length", oversize, http.StatusRequestEntityTooLarge, true},
+	}
+	for _, failureOnly := range []bool{false, true} {
+		for _, tc := range cases {
+			t.Run(strconv.FormatBool(failureOnly)+"/"+tc.name, func(t *testing.T) {
+				called := false
+				originalRun := rateLimitRun
+				rateLimitRun = func(context.Context, *redis.Client, string, int64) (int64, bool, error) {
+					called = true
+					return 1, false, nil
+				}
+				t.Cleanup(func() { rateLimitRun = originalRun })
+				limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+				router := gin.New()
+				router.Use(limiter.LimitWithOptions("strict", 10, time.Minute, RateLimitOptions{
+					AccountKey: AccountKeyFromJSONBodyField("email", nil), FailureOnlyAccount: failureOnly,
+				}))
+				router.POST("/login", func(c *gin.Context) { t.Error("rejected request reached handler") })
+				req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(tc.body))
+				req.Header.Set("Content-Type", "application/json")
+				if tc.unknownCL {
+					req.ContentLength = -1
+				}
+				rec := httptest.NewRecorder()
+				router.ServeHTTP(rec, req)
+				require.Equal(t, tc.wantStatus, rec.Code)
+				require.JSONEq(t, `{"code":`+strconv.Itoa(tc.wantStatus)+`,"message":"`+http.StatusText(tc.wantStatus)+`"}`, rec.Body.String())
+				require.False(t, called, "malformed requests must fail before Redis")
+			})
+		}
+	}
+}
+
+type accountBodyReadCounter struct {
+	reader io.Reader
+	read   int
+}
+
+func (r *accountBodyReadCounter) Read(p []byte) (int, error) {
+	n, err := r.reader.Read(p)
+	r.read += n
+	return n, err
+}
+
+func TestAccountKeyStrictBoundsBytesRead(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	body := `{"email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes) + `"}`
+	for _, tc := range []struct {
+		name          string
+		contentLength int64
+		wantRead      int
+	}{
+		{"known_length_reads_nothing", int64(len(body)), 0},
+		{"unknown_length_reads_limit_plus_one", -1, maxAccountKeyBodyBytes + 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			counter := &accountBodyReadCounter{reader: strings.NewReader(body)}
+			c, _ := gin.CreateTestContext(httptest.NewRecorder())
+			c.Request = httptest.NewRequest(http.MethodPost, "/login", nil)
+			c.Request.Body = io.NopCloser(counter)
+			c.Request.ContentLength = tc.contentLength
+			require.Empty(t, AccountKeyFromJSONBodyField("email", nil)(c))
+			require.True(t, c.IsAborted())
+			require.Equal(t, http.StatusRequestEntityTooLarge, c.Writer.Status())
+			require.Equal(t, tc.wantRead, counter.read)
+		})
+	}
+}
+
+func TestAccountKeyStrictAcceptsGinFieldCaseAndExactLimit(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	exact := `{"Email":"victim@example.com","pad":"` + strings.Repeat("x", maxAccountKeyBodyBytes-len(`{"Email":"victim@example.com","pad":""}`)) + `"}`
+	require.Len(t, exact, maxAccountKeyBodyBytes)
+	for _, body := range []string{`{"EMAIL":"victim@example.com"}`, "{\"email\":\"victim@example.com\"} \n\t", exact} {
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(body))
+		c.Request.ContentLength = -1
+		got := AccountKeyFromJSONBodyField("email", nil)(c)
+		require.Equal(t, HashAccountKey("victim@example.com"), got)
+		require.False(t, c.IsAborted())
+	}
+}
+
+// SkipPrivateClientIP + 取不到账号维度时，必须回落 IP 维度，不能完全不限流。
+func TestRateLimiterRejectsMalformedAccountJSONBeforeAnyDimension(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	originalRun := rateLimitRun
+	called := false
+	rateLimitRun = func(context.Context, *redis.Client, string, int64) (int64, bool, error) {
+		called = true
+		return 1, false, nil
+	}
+	t.Cleanup(func() { rateLimitRun = originalRun })
+	limiter := NewRateLimiter(redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	router := gin.New()
+	router.Use(limiter.LimitWithOptions("k", 1, time.Minute, RateLimitOptions{
+		SkipPrivateClientIP: true, AccountKey: AccountKeyFromJSONBodyField("email", nil),
+	}))
+	router.POST("/t", func(c *gin.Context) { t.Error("malformed request reached handler") })
+	req := httptest.NewRequest(http.MethodPost, "/t", strings.NewReader("not-json"))
+	req.Header.Set("Content-Type", "application/json")
+	req.RemoteAddr = "10.1.2.3:5000"
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.False(t, called)
 }

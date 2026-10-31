@@ -394,9 +394,16 @@ func (h *UsageHandler) GetByID(c *gin.Context) {
 		return
 	}
 
-	// 验证所有权
+	// 验证所有权（F-07）。
+	//
+	// 越权访问必须与"记录不存在"**同码同体**，一律按 USAGE_LOG_NOT_FOUND 处理：
+	// 此前返回 403 "Not authorized to access this record"，而 /usage/999999 返回
+	// 404 USAGE_LOG_NOT_FOUND，两者的差异构成存在性 oracle——任何登录用户都能据此
+	// 枚举全站 usage_log 的 id（线上已实测复现）。
+	//
+	// 这里刻意不区分"不存在"与"不属于你"：调用方无从判断 id 是否真实存在。
 	if record.UserID != subject.UserID {
-		response.Forbidden(c, "Not authorized to access this record")
+		response.ErrorFrom(c, service.ErrUsageLogNotFound)
 		return
 	}
 
@@ -475,6 +482,10 @@ func (h *UsageHandler) DashboardTrend(c *gin.Context) {
 
 	trend, err := h.usageService.GetUsageTrendWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
 	if err != nil {
+		// N-02：与管理端同一契约（503 + usage_stats_incomplete），不得静默返回空数组。
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -503,6 +514,10 @@ func (h *UsageHandler) DashboardModels(c *gin.Context) {
 
 	stats, err := h.usageService.GetModelStatsWithFiltersBySource(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters, usagestats.ModelSourceRequested)
 	if err != nil {
+		// N-02：与管理端同一契约（503 + usage_stats_incomplete），不得静默返回空数组。
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.ErrorFrom(c, err)
 		return
 	}
@@ -546,9 +561,17 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 		"granularity":  granularity,
 	}
 
+	// N-02：本节任一图区块的统计未就绪时，整包按同一契约（503 + usage_stats_incomplete）
+	// 返回——这是**有意为之**：用户端没有 dashboard_snapshot_v2 那层区块级降级能力
+	// （unavailable_sections），若改成"跳过失败区块、其余照发"，trend/models 缺失会
+	// 被前端读成"当天没有用量"，比明确报错更具误导性。
+	// 因此这里如实描述为：**整体失败**，不与其他区块部分共存。
 	if includeTrend {
 		trend, err := h.usageService.GetUsageTrendWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, granularity, parsed.Filters)
 		if err != nil {
+			if respondUsageStatsIncomplete(c, err) {
+				return
+			}
 			response.ErrorFrom(c, err)
 			return
 		}
@@ -557,6 +580,9 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 	if includeModels {
 		models, err := h.usageService.GetModelStatsWithFiltersBySource(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters, usagestats.ModelSourceRequested)
 		if err != nil {
+			if respondUsageStatsIncomplete(c, err) {
+				return
+			}
 			response.ErrorFrom(c, err)
 			return
 		}
@@ -565,6 +591,9 @@ func (h *UsageHandler) DashboardSnapshotV2(c *gin.Context) {
 	if includeGroups {
 		groups, err := h.usageService.GetGroupStatsWithFilters(c.Request.Context(), parsed.StartTime, parsed.EndTime, parsed.Filters)
 		if err != nil {
+			if respondUsageStatsIncomplete(c, err) {
+				return
+			}
 			response.ErrorFrom(c, err)
 			return
 		}

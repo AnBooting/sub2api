@@ -133,7 +133,13 @@ func RegisterUserRoutes(
 		// 卡密兑换
 		redeem := authenticated.Group("/redeem")
 		{
-			redeem.POST("", h.Redeem.Redeem)
+			// 兑换是「猜码」入口：兑换码是不需要任何凭据就能验证的资产，
+			// 只靠全局面板限流（默认 240 RPM/用户）仍可在分钟级枚举成千上万个码，
+			// 且「码存在/不存在」的响应可区分（线上实测 25 次无效码全 404、0 次 429），
+			// 构成可判定的 oracle。这里叠加专门的一层：按登录用户 ID 限速 5/min
+			// （fail-close），并按该用户自己的失败次数 10 次/10 分钟收紧。
+			// 语义与取舍见 middleware.PanelRateLimiter.RedeemGuard 的注释。
+			redeem.POST("", panelRateLimiter.RedeemGuard(), h.Redeem.Redeem)
 			redeem.GET("/history", h.Redeem.GetHistory)
 		}
 

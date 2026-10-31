@@ -6,6 +6,10 @@
 # Stage 3: Final minimal image
 # =============================================================================
 
+# Declared before the first FROM so the frontend stage can stamp it into the
+# bundle (VITE_APP_VERSION) as well as the backend ldflags.
+ARG VERSION=
+
 ARG NODE_IMAGE=node:24-alpine
 ARG GOLANG_IMAGE=golang:1.27.3-alpine
 ARG ALPINE_IMAGE=alpine:3.20
@@ -16,6 +20,12 @@ ARG GOSUMDB=sum.golang.google.cn
 # Stage 1: Frontend Builder
 # -----------------------------------------------------------------------------
 FROM ${NODE_IMAGE} AS frontend-builder
+
+# Re-declared (a global ARG is not visible inside a stage without this).
+# Build fingerprint only; the UI version comes from the backend-injected
+# window.__APP_CONFIG__.version (see backend/internal/service/setting_public.go).
+ARG VERSION=
+ENV VITE_APP_VERSION=${VERSION}
 
 WORKDIR /app/frontend
 ENV NODE_OPTIONS=--max-old-space-size=1536
@@ -43,6 +53,7 @@ RUN pnpm run build
 FROM ${GOLANG_IMAGE} AS backend-builder
 
 # Build arguments for version info (set by CI)
+# VERSION is the global ARG declared before the first FROM; re-declared here.
 ARG VERSION=
 ARG COMMIT=docker
 ARG DATE
@@ -69,8 +80,15 @@ COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
+#
+# Exactly ONE version variable: main.Version. The HTML-inlined
+# window.__APP_CONFIG__.version reads the same value through
+# handler.BuildInfo -> service.BuildInfo -> SettingService.SetVersion.
+# Do not add a second -X for the service layer (old design; every build path
+# that forgot it produced an empty inline version while the API looked fine).
 RUN VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
+    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="0.0.0-unknown"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=linux go build \
     -tags embed \

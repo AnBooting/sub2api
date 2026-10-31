@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
@@ -98,6 +99,16 @@ func (h *SettingHandler) SetStepUpDeps(totpService *service.TotpService, userSer
 	h.userService = userService
 }
 
+// smtpConfigured 是 GET/PUT 共用的只读派生状态判据。
+// 两条响应都必须调用它，不能依赖 dto.SystemSettings 的 bool 零值。
+func (h *SettingHandler) smtpConfigured(ctx context.Context) bool {
+	if h.emailService == nil {
+		return false
+	}
+	configured, _ := h.emailService.IsConfigured(ctx)
+	return configured
+}
+
 // GetSettings 获取所有系统设置
 // GET /api/v1/admin/settings
 func (h *SettingHandler) GetSettings(c *gin.Context) {
@@ -132,6 +143,10 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 	}
 	passkeyConfigured, passkeyRPID, passkeyRPOrigins := h.settingService.PasskeyConfiguration()
 
+	// I-01：只读派生字段，回答"现在能否真的发信"。与发码路径共用 EmailService.IsConfigured，
+	// 保证"设置页显示可用"与"发码真的成功"是同一份判据，不会各说各话。
+	smtpConfigured := h.smtpConfigured(c.Request.Context())
+
 	payload := dto.SystemSettings{
 		RegistrationEnabled:                                    settings.RegistrationEnabled,
 		EmailVerifyEnabled:                                     settings.EmailVerifyEnabled,
@@ -161,6 +176,7 @@ func (h *SettingHandler) GetSettings(c *gin.Context) {
 		SMTPFrom:                                               settings.SMTPFrom,
 		SMTPFromName:                                           settings.SMTPFromName,
 		SMTPUseTLS:                                             settings.SMTPUseTLS,
+		SMTPConfigured:                                         smtpConfigured,
 		TurnstileEnabled:                                       settings.TurnstileEnabled,
 		TurnstileSiteKey:                                       settings.TurnstileSiteKey,
 		TurnstileSecretKeyConfigured:                           settings.TurnstileSecretKeyConfigured,

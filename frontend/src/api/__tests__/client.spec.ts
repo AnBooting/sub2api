@@ -306,6 +306,53 @@ describe('API Client', () => {
 
       window.removeEventListener('admin-compliance-required', listener)
     })
+
+    it('把「统计未就绪」收敛成单一 code，供各页面统一降级（N-02）', async () => {
+      // 后端契约：503 + reason=usage_stats_incomplete（非故障、可重试）。
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 503,
+          data: {
+            code: 503,
+            reason: 'usage_stats_incomplete',
+            message: 'Usage statistics for the requested range are still being reconciled; please retry later',
+          },
+        },
+        config: { url: '/usage/dashboard/trend', headers: {} },
+        code: 'ERR_BAD_RESPONSE',
+      })
+      apiClient.defaults.adapter = adapter
+
+      await expect(apiClient.get('/usage/dashboard/trend')).rejects.toEqual(
+        expect.objectContaining({
+          status: 503,
+          code: 'USAGE_STATS_INCOMPLETE',
+          reason: 'usage_stats_incomplete',
+        })
+      )
+    })
+
+    it('不把普通 503 误判成统计未就绪', async () => {
+      const adapter = vi.fn().mockRejectedValue({
+        response: {
+          status: 503,
+          data: { code: 503, message: 'database is unavailable' },
+        },
+        config: { url: '/usage/dashboard/trend', headers: {} },
+        code: 'ERR_BAD_RESPONSE',
+      })
+      apiClient.defaults.adapter = adapter
+
+      const err = await apiClient.get('/usage/dashboard/trend').then(
+        () => null,
+        (e) => e as { status: number; code?: unknown; message?: string }
+      )
+      expect(err?.status).toBe(503)
+      expect(err?.message).toBe('database is unavailable')
+      // 没有 reason 时不得带上统一 code
+      expect(err?.code).not.toBe('USAGE_STATS_INCOMPLETE')
+    })
+
   })
 
   // --- 401 Token 刷新 ---

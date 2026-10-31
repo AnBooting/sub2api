@@ -1025,6 +1025,9 @@ export default {
       smtp: {
         title: 'SMTP Settings',
         description: 'Configure email sending for verification codes',
+        notConfiguredTitle: 'SMTP is not configured — email features are unavailable',
+        notConfiguredHint: 'The server reports incomplete SMTP settings, so verification codes, password reset, email verification and test emails will all fail. Fill in host, port, from email and password, save, then use "Test Connection" to confirm.',
+        notConfiguredBadge: 'Not configured',
         testConnection: 'Test Connection',
         testing: 'Testing...',
         host: 'SMTP Host',
