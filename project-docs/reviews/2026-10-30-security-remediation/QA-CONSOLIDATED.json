@@ -493,7 +493,7 @@
         {
           "id": 3,
           "user_id": 3,
-          "key": "sk-eac0202f405a1e9b496596ad20ca9039e56be2f5ac53c005a5ddea16ad6bf75c",
+          "key": "sk-REDACTED-BY-HANDOFF",
           "name": "probe-g3",
           "group_id": 3,
           "group_chain_revision": 0,
@@ -586,7 +586,7 @@
         {
           "id": 2,
           "user_id": 3,
-          "key": "sk-6e03f73930cf3e2033300e2a279f87e266228d19670988a31780089ad0f5fbd6",
+          "key": "sk-REDACTED-BY-HANDOFF",
           "name": "probe-7255",
           "group_id": null,
           "group_chain_revision": 0,
@@ -1911,7 +1911,7 @@
         "ms": 1088,
         "code": 0,
         "msg": "success",
-        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":2,\"user_id\":3,\"key\":\"sk-6e03f73930cf3e2033300e2a279f87e266228d19670988a31780089ad0f5fbd6\",\"name\":\"probe-7255\",\"group_id\":null,\"group_chain_revision\":0,\"group"
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":2,\"user_id\":3,\"key\":\"sk-REDACTED-BY-HANDOFF\",\"name\":\"probe-7255\",\"group_id\":null,\"group_chain_revision\":0,\"group"
       },
       {
         "step": "user->usage/1 (user1)",
@@ -2080,19 +2080,19 @@
         "step": "create",
         "status": 200,
         "ms": 1068,
-        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-1365759278f66a3d5eb68560d9db264e4dbc44ce282772ad9e62c36e059b0537\",\"name\":\"qa-crud-1793363086214\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"group_"
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-REDACTED-BY-HANDOFF\",\"name\":\"qa-crud-1793363086214\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"group_"
       },
       {
         "step": "get",
         "status": 200,
         "ms": 447,
-        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-1365759278f66a3d5eb68560d9db264e4dbc44ce282772ad9e62c36e059b0537\",\"name\":\"qa-crud-1793363086214\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"group_"
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-REDACTED-BY-HANDOFF\",\"name\":\"qa-crud-1793363086214\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"group_"
       },
       {
         "step": "update_name",
         "status": 200,
         "ms": 695,
-        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-1365759278f66a3d5eb68560d9db264e4dbc44ce282772ad9e62c36e059b0537\",\"name\":\"qa-crud-1793363086214-r\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"grou"
+        "body": "{\"code\":0,\"message\":\"success\",\"data\":{\"id\":8,\"user_id\":3,\"key\":\"sk-REDACTED-BY-HANDOFF\",\"name\":\"qa-crud-1793363086214-r\",\"group_id\":3,\"group_chain_revision\":0,\"groups\":[{\"grou"
       },
       {
         "step": "ha_groups",
@@ -2370,7 +2370,7 @@
         "id": 6,
         "name": "qa-live-1793362208901",
         "group_id": 3,
-        "key": "sk-beaa5081bf91642695761fc39aaee19a9de3e805d7469564e77f8c5b9c7bd7ff"
+        "key": "sk-REDACTED-BY-HANDOFF"
       },
       "single": {
         "status": 200,

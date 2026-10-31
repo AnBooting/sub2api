@@ -148,7 +148,7 @@ pwsh -File tools\verify-deployed-build.ps1 -BaseUrl https://sub2.lansn.icu
 
 ### D-5 F-05 / F-04 字段收敛 —— 有明确输入，可直接开工
 
-`FIELD-INVENTORY.md` 已备好白名单与硬约束，`NEXT-ROUND-HANDOFF.md` §2 是可执行的开工清单。两条**必须遵守**：
+`FIELD-INVENTORY.md` 已备好白名单与硬约束，`HANDOFF-COMPLETE.md` §3.1 是可执行的开工清单。两条**必须遵守**：
 1. **不要裁 `dto.Group` 本体** —— 它被 6 处内嵌复用（`APIKey`/`AccountGroup`/`RedeemCode`/`UsageLog`/`UserSubscription`/`Account.groups[]`），裁了会连带影响订阅进度条、用量表分组列、批量生图入口；应新增独立用户面 mapper，只给 `GetAvailableGroups`（`api_key_handler.go:500`）用。
 2. **白名单以 `FIELD-INVENTORY.md` §2.5 的 15 个必需字段为准**。注意 2026-10-31 复核纠正了初版的一处误判：`long_context_pricing_enabled`/`image_rate_independent`/`video_rate_independent` 由 `/model-plaza` 的自有白名单下发，`claude_code_only`/`allow_messages_dispatch` 来自 `dto.APIKey.Group`，**都不在 `/groups/available` 的必需集里**；保留它们无害，但不要因为"别的地方也在读"就把它们当成该响应的必需字段。真正的必需集是：`id/name/description/platform/rate_multiplier/subscription_type/status/peak_rate_enabled/peak_start/peak_end/peak_rate_multiplier/deepseek_pricing_state/allow_live/audio_realtime_price_per_min/allow_high_availability`。
 

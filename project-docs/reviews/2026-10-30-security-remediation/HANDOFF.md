@@ -57,7 +57,7 @@ F-06 的 `refinePricingRejection` 只用**一行调用**就把缺价 `ErrModelPr
 
 1. **F-06 单独 PR**：路由集合判定与缺价判定严格分离；mandatory 回归 = 5 种缺价形态 ×（503 + 上游零调用 + ledger 零命令）；附 reviewer 的失败 fixture。
 2. **I-01 后半**：SMTP 未配置时 `SendVerifyCodeAsync` 返回 `EMAIL_NOT_CONFIGURED`。
-3. **F-05 / F-04 字段收敛**：开工看 `NEXT-ROUND-HANDOFF.md` §2，字段依据看 `FIELD-INVENTORY.md` §2.5（新增用户面 mapper，**不要裁 `dto.Group` 本体**，它被 6 处内嵌复用）。
+3. **F-05 / F-04 字段收敛**：开工看 `HANDOFF-COMPLETE.md` §3.1，字段依据看 `FIELD-INVENTORY.md` §2.5（新增用户面 mapper，**不要裁 `dto.Group` 本体**，它被 6 处内嵌复用）。
 4. **N-03 空 messages**、**I-02 setup/status**、**R-01 Retry-After**、**P3-01 分页参数校验**、**O-01 PUT /user 冷路径**。
 5. **PR #7 前端视觉重设计**：独立 rebase 到 `develop` 后单开一轮（本轮未纳入）。
 
@@ -94,9 +94,10 @@ F-06 的 `refinePricingRejection` 只用**一行调用**就把缺价 `ErrModelPr
 | `EVIDENCE.md` | 线上实测证据（含 F-02 更正、新增发现 N-01/N-02/N-03/R-01/O-01/D-01..D-03） |
 | `VERIFICATION.md` | 验证记录（命令、退出码、通过数、变异验证、既有失败口径） |
 | `FIELD-INVENTORY.md` | **字段消费清单与收敛交付说明**（F-05/F-04 的唯一实施依据：字段表 + 白名单 + 硬约束 + 实施步骤 + 验收 + 回滚） |
-| `NEXT-ROUND-HANDOFF.md` | **下一轮交接（压缩版）**：F-05/F-04/F-06/I-01b/N-03/I-02/R-01/P3-01/O-01 每项的改哪里、必过的测试、已知可接受失败、工作纪律 |
+| `HANDOFF-COMPLETE.md` | **单份自包含交接文档**（给接手同事）：本轮结论 + 验收状态 + 9 项待办（含 F-05/F-04 的白名单与实施代码片段、F-06 红线回归、每项必过的测试）+ 5 条人工事项 + 工作纪律 |
 | `E2E-REPORT.md` | 17 页基线 E2E、改动清单、方法论、未完成项 |
 | `REVIEW-FINAL-VERDICT.md` | 独立审查最终裁决（6 条必答、6 点变异、红线合规结论） |
-| `QA-FINAL-REPORT.json` / `QA-CONSOLIDATED.json` | 线上功能矩阵与受控探测的原始结论（含扣费一致性、幂等、限流） |
+| `QA-FINAL-REPORT.json` / `QA-CONSOLIDATED.json` | 线上功能矩阵与受控探测的原始结论（含扣费一致性、幂等、限流）；API Key 已脱敏 |
+| `WORKSPACE-CLEANUP.md` | 工作区与 Git 清理记录（隔离目录、dangling commit 清单） |
 
 > 线上截图与逐请求 JSON 留痕在 `.deployprobe/`（未纳入版本控制，可复现）；本目录只保留结论性文档。
