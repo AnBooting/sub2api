@@ -170,7 +170,16 @@ for i := range groups {
 
 做法：
 
-1. 新增 `ChannelMonitorV2PublicConfig{ RefreshIntervalSeconds int `json:"refresh_interval_seconds"` }`。
+1. 在 `service/channel_monitor_v2.go` 新增（字段名与 JSON tag 必须与前端一致）：
+
+   ```go
+   // ChannelMonitorV2PublicConfig 是用户域 snapshot 下发的 config 白名单。
+   // 管理端 /config 仍返回完整 ChannelMonitorV2Config。
+   type ChannelMonitorV2PublicConfig struct {
+       RefreshIntervalSeconds int `json:"refresh_interval_seconds"`
+   }
+   ```
+
 2. 新增 `ChannelMonitorV2PublicSnapshot`（`Config` 用上面的类型，`Coverage/Metrics/Health/Trend` 复用现有类型）+ `SnapshotPublic()`。
 3. 用户域入口 `channel_monitor_v2_handler.go:93` `Snapshot`（内部调 `:102` 的私有 `snapshot(c, false)`）改调 `SnapshotPublic`；`admin=true` 仍走 `Snapshot`。
 4. 删 `redactChannelMonitorV2PublicConfig`（`service:621`）与 `redactChannelMonitorV2Snapshot`（`:606`）里的 config 那一行；**metric 脱敏（`:637`）保留不动**。
