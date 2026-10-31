@@ -6,9 +6,11 @@
 > |---|---|
 > | 项目 | Sub2API 二开（Go 1.27.3 + Vue 3 + Ent + PostgreSQL + Redis） |
 > | 分支 | `fix/security-remediation-20261030`（base `develop` @ `f9d8bc855`） |
-> | PR | https://github.com/AnBooting/sub2api/pull/18 —— 11 提交，100 文件，+15073/−116 |
+> | PR | https://github.com/AnBooting/sub2api/pull/18 （base `develop`，OPEN） |
+> | 改动规模 | 代码 77 文件 +5392/−115（`backend`/`frontend`/`deploy`/`tools`）；其余为本轮文档 |
 > | 线上 | https://sub2.lansn.icu/ （部署在 `develop` HEAD `f9d8bc855`，**本 PR 尚未上线**） |
 > | 轮次 | 2026-10-30 ~ 10-31 |
+> | 本文件位置 | `project-docs/23-handoff-security-remediation-2026-10-30.md` |
 
 ---
 
@@ -350,35 +352,55 @@ git fetch origin
 git switch -c review/pr18 origin/fix/security-remediation-20261030
 ```
 
-**方式 B（无 PR 权限／想逐提交看）**
+**方式 B（只取代码，不要文档）**
+
+```powershell
+git fetch origin
+git diff develop...origin/fix/security-remediation-20261030 -- backend frontend deploy tools |
+  git apply --3way -
+```
+
+**方式 C（没有仓库访问权限时）**
+
+让有权限的人导出补丁再发给你：
+
+```powershell
+# 在 F:\sub2 下执行，产物可直接发给同事
+git diff develop...fix/security-remediation-20261030 -- backend frontend deploy tools > PR18-code.diff
+git format-patch develop..fix/security-remediation-20261030 --output-directory PR18-commits
+```
+
+应用时：
 
 ```powershell
 git checkout develop
-git am -3 <PR18 各提交的 .patch>     # 按时间顺序
+git am -3 PR18-commits\*.patch          # 逐提交（推荐，便于复查）
 # 或只要最终状态：
-git apply --3way <PR18 合并 diff>
+git apply --3way PR18-code.diff
 ```
 
 > 补丁基于 `develop` 的 `f9d8bc855`。若 `develop` 已前进，用 `git am -3` 做三方合并。
+> `.diff` / `.patch` 属临时交接产物，**不要提交进仓库**（会被 `.gitignore` 之外的东西漏掉，手工删掉即可）。
 
 ---
 
 ## 7. 附录：需要更细证据时查哪里
 
-全部在 `project-docs/reviews/2026-10-30-security-remediation/`：
+**本文件位置**：`project-docs/23-handoff-security-remediation-2026-10-30.md`（仓库根为 `F:\sub2`）。
+
+同轮次的其余文档都在 `project-docs/reviews/2026-10-30-security-remediation/`：
 
 | 文件 | 用途 |
 |---|---|
-| `FIELD-INVENTORY.md` | F-05/F-04 的逐字段证据表（每个字段的 `文件:行号` 读取点）、复核方法、完整验收与回滚 |
-| `ACTION-ITEMS.md` | 人工事项全文（EdgeOne 网段怎么取、5 条限流自检、数据清理清单） |
-| `VERIFICATION.md` | 验证记录：命令、退出码、通过数、变异验证逐条 |
-| `REVIEW-FINAL-VERDICT.md` | 独立审查裁决（6 条必答、6 点变异、红线合规结论） |
-| `EVIDENCE.md` | 线上实测证据（含 F-02 阈值更正、7 条新发现） |
-| `PLAN.md` | 本轮整改计划与两步上线顺序 |
-| `E2E-REPORT.md` | 17 页 E2E 基线与改动清单 |
-| `HANDOFF.md` | 本轮交付小结与三条教训 |
-| `WORKSPACE-CLEANUP.md` | 工作区与 Git 清理记录 |
-| `QA-FINAL-REPORT.json` / `QA-CONSOLIDATED.json` | 线上功能矩阵与受控探测原始结论（API Key 已脱敏） |
-| `HANDOFF-COMPLETE.md` | **本文件** |
+| [FIELD-INVENTORY.md](reviews/2026-10-30-security-remediation/FIELD-INVENTORY.md) | F-05/F-04 的逐字段证据表（每个字段的 `文件:行号` 读取点）、复核方法、完整验收与回滚 |
+| [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md) | 人工事项全文（EdgeOne 网段怎么取、5 条限流自检、数据清理清单） |
+| [VERIFICATION.md](reviews/2026-10-30-security-remediation/VERIFICATION.md) | 验证记录：命令、退出码、通过数、变异验证逐条 |
+| [REVIEW-FINAL-VERDICT.md](reviews/2026-10-30-security-remediation/REVIEW-FINAL-VERDICT.md) | 独立审查裁决（6 条必答、6 点变异、红线合规结论） |
+| [EVIDENCE.md](reviews/2026-10-30-security-remediation/EVIDENCE.md) | 线上实测证据（含 F-02 阈值更正、7 条新发现） |
+| [PLAN.md](reviews/2026-10-30-security-remediation/PLAN.md) | 本轮整改计划与两步上线顺序 |
+| [E2E-REPORT.md](reviews/2026-10-30-security-remediation/E2E-REPORT.md) | 17 页 E2E 基线与改动清单 |
+| [HANDOFF.md](reviews/2026-10-30-security-remediation/HANDOFF.md) | 本轮交付小结与三条教训 |
+| [WORKSPACE-CLEANUP.md](reviews/2026-10-30-security-remediation/WORKSPACE-CLEANUP.md) | 工作区与 Git 清理记录 |
+| [QA-FINAL-REPORT.json](reviews/2026-10-30-security-remediation/QA-FINAL-REPORT.json) / [QA-CONSOLIDATED.json](reviews/2026-10-30-security-remediation/QA-CONSOLIDATED.json) | 线上功能矩阵与受控探测原始结论（API Key 已脱敏） |
 
-项目规则与真实命令：仓库根 `AGENTS.md`。部署与运维：`project-docs/08-runbook.md`（§8 限流自检、§9 EdgeOne 网段）。
+项目规则与真实命令：[AGENTS.md](../AGENTS.md)。部署与运维：[08-runbook.md](08-runbook.md)（§8 限流自检、§9 EdgeOne 网段）。文档总览：[00-overview.md](00-overview.md)。
