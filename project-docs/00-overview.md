@@ -71,6 +71,7 @@
 | [architecture/README.md](architecture/README.md) | 架构侦察索引（含架构图） |
 | [22-repository-status-2026-10-19.md](22-repository-status-2026-10-19.md) | 仓库状态与全量审计执行记录（2026-10-19） |
 | [23-handoff-security-remediation-2026-10-30.md](23-handoff-security-remediation-2026-10-30.md) | **安全整改交接（单份自包含）**：本轮结论、验收状态、9 项待办与人工事项；接手同事的开工入口 |
+| [reviews/2026-11-01-pr18-review/](reviews/2026-11-01-pr18-review/) | PR #18 复审原始证据、三项修复与变异/集成验收记录 |
 
 > **两份手册随 PR #8 一起进入 develop**，在 PR #8 合入之前，上面指向它们的两条链接在 develop 上暂时不可达（文件本身在 PR #8 的分支上）。`23-*` 交接文档随 PR #18 进入 develop。
 
