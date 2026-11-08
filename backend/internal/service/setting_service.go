@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/logger"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/xai"
 	"golang.org/x/sync/singleflight"
 	"sync"
@@ -351,11 +352,16 @@ func (s *SettingService) LoadForwardedClientIPSettings(ctx context.Context) erro
 	}
 	if values[settingKeyForwardedClientIPModeV2] != "true" {
 		updates[settingKeyForwardedClientIPModeV2] = "true"
-		// Before this migration, new installations persisted false by default.
-		// Restore compatibility only when no trusted-proxy policy was configured.
+		// 兼容性回退已停用（安全修复）：过去这里会在「旧数据为 false + 未配
+		// server.trusted_proxies」时把 api_key_acl_trust_forwarded_ip 强制改回
+		// true。该行为会静默覆盖运维显式关闭转发头信任的加固意图，让客户端可以
+		// 通过伪造转发头冒充任意 IP。
+		//
+		// 现在只留下可见告警，绝不改写已存在的显式取值：未显式配置的部署按原先
+		// 的默认值运行，需要转发头语义的环境必须显式配置（后台开关或
+		// server.trusted_proxies），由运维自己承担信任边界的判断。
 		if headersErr == nil && hasStoredValue && !enabled && !s.cfg.Server.TrustedProxiesConfigured {
-			enabled = true
-			updates[SettingKeyAPIKeyACLTrustForwardedIP] = "true"
+			logger.LegacyPrintf("service.setting", "[ForwardedClientIP] legacy compatibility fallback is disabled: api_key_acl_trust_forwarded_ip is explicitly %q and server.trusted_proxies is not configured; keeping the stored value. Configure server.trusted_proxies (or enable the setting) explicitly if forwarded headers must be trusted.", storedValue)
 		}
 	}
 	if len(updates) > 0 {

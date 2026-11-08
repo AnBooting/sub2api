@@ -1183,6 +1183,28 @@ export default {
   },
 
   // Missing price notice: the backend never lets an unpriced model through.
+  // Stats not ready (N-02): a retryable business state, not a failure — never render it red or empty.
+  usageStatsIncomplete: {
+    title: 'Statistics are incomplete — this chart is hidden for now',
+    description: 'Historical usage for the selected range is still being reconciled in the background and will recover automatically. Other verified statistics remain available in the meantime.',
+    // Short label for narrow table cells.
+    short: 'Stats incomplete',
+  },
+
+  // The two non-ordinary gateway failure modes (F-06): switch model vs wait for pricing.
+  gatewayFailure: {
+    pricingUnavailable: {
+      badge: 'No pricing',
+      tooltip: 'This model is routable in the group but has no configured price, so it is not served (503 pricing_unavailable). Retrying will not help; pricing must be configured.',
+      retryable: 'Not retryable: waiting for pricing',
+    },
+    modelNotFound: {
+      badge: 'Model unavailable',
+      tooltip: 'This model is not routable in the current group (404 model_not_found). Pick another model or group; retrying will not help.',
+      retryable: 'Not retryable: change model or group',
+    },
+  },
+
   missingPrice: {
     title: 'Models without a configured price are not served',
     description:

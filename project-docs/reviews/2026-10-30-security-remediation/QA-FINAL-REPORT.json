@@ -1,0 +1,447 @@
+{
+  "task": "task-5 线上功能矩阵回归 + F-02/并发探测",
+  "target": "https://sub2.lansn.icu",
+  "version": "f9d8bc855",
+  "accounts": {
+    "user": "3029445478@qq.com (uid=3)",
+    "admin": "admin-39bb646744@sub2api.local (uid=1)"
+  },
+  "artifacts": "F:\\sub2\\.deployprobe\\qa\\CONSOLIDATED.json (24 份原始 json, 160638 bytes)",
+  "matrix": {
+    "user": [
+      [
+        "GET /api/v1/auth/me",
+        200,
+        "id/email/username/role/balance/concurrency/status"
+      ],
+      [
+        "GET /api/v1/user/profile",
+        200,
+        "同上 + identities/auth_bindings"
+      ],
+      [
+        "PUT /api/v1/user",
+        200,
+        "username 改后回滚, reverted=true (一次 522 见 O-01)"
+      ],
+      [
+        "POST /api/v1/auth/refresh",
+        200,
+        "rotates access+refresh; 旧 refresh 复用 401"
+      ],
+      [
+        "POST /api/v1/auth/logout",
+        200,
+        "refresh 立即失效 401; 已发 access 仍有效 (见 P3)"
+      ],
+      [
+        "GET /api/v1/keys",
+        200,
+        "items/total/page/page_size/pages"
+      ],
+      [
+        "POST/PUT/GET/DELETE /api/v1/keys/:id",
+        200,
+        "create→rename→ha-groups→delete 全通"
+      ],
+      [
+        "GET /api/v1/usage",
+        200,
+        "items + pricing_snapshot(v2)"
+      ],
+      [
+        "GET /api/v1/usage/stats",
+        200,
+        "total_requests/tokens/cost/endpoints"
+      ],
+      [
+        "GET /api/v1/usage/:id",
+        200,
+        "本人记录; 他人记录 403"
+      ],
+      [
+        "GET /api/v1/usage/dashboard/{stats,trend,models,snapshot-v2}",
+        200,
+        "trend/models 当前空数组 []"
+      ],
+      [
+        "POST /api/v1/usage/dashboard/api-keys-usage",
+        200,
+        "stats{keyId:{total_actual_cost}}"
+      ],
+      [
+        "GET /api/v1/usage/errors",
+        403,
+        "Error requests view is disabled (功能开关)"
+      ],
+      [
+        "GET /api/v1/groups/available",
+        200,
+        "3 个分组"
+      ],
+      [
+        "GET /api/v1/groups/rates",
+        200,
+        "空对象 {} (无专属倍率)"
+      ],
+      [
+        "GET /api/v1/model-plaza",
+        200,
+        "groups[3] + models[]"
+      ],
+      [
+        "GET /api/v1/channels/available",
+        200,
+        "RelayFor"
+      ],
+      [
+        "GET /api/v1/channel-monitors",
+        200,
+        "items []"
+      ],
+      [
+        "GET /api/v1/channel-monitors/1/status",
+        404,
+        "CHANNEL_MONITOR_NOT_FOUND (无此监控)"
+      ],
+      [
+        "GET /api/v1/channel-monitor-v2/{snapshot,matrix,models,dimensions}",
+        200,
+        "coverage_complete=true"
+      ],
+      [
+        "GET /api/v1/subscriptions{,/active,/progress,/summary}",
+        200,
+        "全空 (无订阅)"
+      ],
+      [
+        "GET /api/v1/videos/tasks",
+        200,
+        "items [] next_cursor (空属预期)"
+      ],
+      [
+        "GET /api/v1/redeem/history",
+        200,
+        "1 条历史"
+      ],
+      [
+        "GET /api/v1/announcements",
+        200,
+        "[]"
+      ],
+      [
+        "GET /api/v1/user/platform-quotas",
+        200,
+        "platform_quotas []"
+      ],
+      [
+        "GET /api/v1/user/aff",
+        200,
+        "aff_code/aff_count/rebate 20%"
+      ],
+      [
+        "GET /api/v1/user/totp/status",
+        200,
+        "enabled=false feature_enabled=false"
+      ],
+      [
+        "GET /videos (无 /api/v1)",
+        404,
+        "网关媒体路由,预期"
+      ]
+    ],
+    "admin": [
+      [
+        "GET /api/v1/admin/users",
+        200,
+        "9 个用户, page_size 钳制 20"
+      ],
+      [
+        "GET /api/v1/admin/users/3",
+        200,
+        "含 balance 105.009236"
+      ],
+      [
+        "GET /api/v1/admin/users/3/api-keys",
+        200,
+        "items[]"
+      ],
+      [
+        "GET /api/v1/admin/accounts",
+        200,
+        "1 个 (rf/relayfor.xyz)"
+      ],
+      [
+        "GET /api/v1/admin/groups",
+        200,
+        "含 platform/rate_multiplier"
+      ],
+      [
+        "GET /api/v1/admin/groups/all",
+        200,
+        "全量"
+      ],
+      [
+        "GET /api/v1/admin/groups/capacity-summary",
+        200,
+        "正常"
+      ],
+      [
+        "GET /api/v1/admin/groups/live-capability",
+        200,
+        "正常"
+      ],
+      [
+        "GET /api/v1/admin/groups/usage-summary",
+        500,
+        "**N-02 第二处: Failed to get group usage summary**"
+      ],
+      [
+        "GET /api/v1/admin/channels",
+        200,
+        "RelayFor + model_pricing"
+      ],
+      [
+        "GET /api/v1/admin/settings",
+        200,
+        "只读, 敏感项以 *_configured 布尔"
+      ],
+      [
+        "GET /api/v1/admin/dashboard/stats",
+        200,
+        "stats_stale=true"
+      ],
+      [
+        "GET /api/v1/admin/dashboard/snapshot-v2",
+        200,
+        "unavailable_sections=[trend,models]"
+      ],
+      [
+        "GET /api/v1/admin/dashboard/trend",
+        500,
+        "**N-02: Failed to get usage trend** (无过滤参数时)"
+      ],
+      [
+        "GET /api/v1/admin/dashboard/trend?user_id=3",
+        200,
+        "带过滤走原始路径正常"
+      ],
+      [
+        "GET /api/v1/admin/dashboard/{models,groups,realtime,api-keys-trend,users-trend,users-ranking,user-breakdown}",
+        200,
+        "全部正常"
+      ],
+      [
+        "GET /api/v1/admin/redeem-codes",
+        200,
+        "3 条历史"
+      ],
+      [
+        "GET /api/v1/admin/redeem-codes/stats",
+        200,
+        "implemented:false (桩)"
+      ],
+      [
+        "GET /api/v1/admin/usage",
+        200,
+        "16 条"
+      ],
+      [
+        "GET /api/v1/admin/usage/stats",
+        200,
+        "正常"
+      ],
+      [
+        "GET /api/v1/admin/payment/orders",
+        200,
+        "items []"
+      ],
+      [
+        "GET /api/v1/admin/channel-monitor-v2/{config,snapshot,matrix,models,dimensions,errors,users}",
+        200,
+        "全部正常"
+      ],
+      [
+        "GET /api/v1/admin/audit-logs",
+        200,
+        "1825 条, page_size 钳制 20"
+      ]
+    ],
+    "gateway": [
+      [
+        "GET /v1/models",
+        200,
+        "3 模型: deepseek-v4.1-flash/gpt-6-astra/gpt-6.1-sol"
+      ],
+      [
+        "GET /v1/sub2api/billing",
+        200,
+        "billing_scope=token, effective_rate_multiplier=1"
+      ],
+      [
+        "GET /v1/usage",
+        200,
+        "balance/daily_usage/isValid"
+      ],
+      [
+        "POST /v1/chat/completions (deepseek-v4.1-flash)",
+        200,
+        "实扣费 0.000045"
+      ],
+      [
+        "POST /v1/chat/completions (gpt-6-astra)",
+        200,
+        "prompt 4388 tokens"
+      ],
+      [
+        "POST /v1/chat/completions stream:true",
+        200,
+        "SSE 正常"
+      ],
+      [
+        "POST /v1/chat/completions (未定价模型)",
+        503,
+        "**N-01: type=pricing_unavailable 但 message=\"internal error\"**"
+      ],
+      [
+        "POST /v1/chat/completions messages:[]",
+        200,
+        "**N-03: 空 messages 被接受并计费**"
+      ]
+    ]
+  },
+  "billing": {
+    "single": {
+      "delta": -0.000073,
+      "returned_usage": {
+        "prompt": 41,
+        "completion": 16
+      },
+      "recomputed": 0.000073,
+      "match": true
+    },
+    "concurrency10": {
+      "calls": 10,
+      "status": "10/10 200",
+      "balance_before": 105.009163,
+      "balance_after": 105.008659,
+      "delta": -0.000504,
+      "usage_requests_delta": 10,
+      "usage_cost_delta": 0.000504,
+      "recomputed_from_returned_usage": 0.000504,
+      "match": "精确相等 (余额|Δ| = usage 记录 Δ = 按返回 token 独立复算值 = 0.000504)",
+      "note": "11 条 key 记录中含 1 条单请求基线，扣除后 10 条与 10 次并发一一对应"
+    }
+  },
+  "f02": {
+    "threshold": "redeemMaxFailedAttempts=30, 窗口 10min",
+    "measured": "前 29 次无效码 404, 第 30 次起 429 REDEEM_RATE_LIMITED",
+    "sample25": "25 次全 404 / 0 次 429 (25 < 30 阈值, 不代表无限流)",
+    "windowBehaviour": "实测 300s 后自动放行; 复测第二轮第 23 次即 429 (窗口内累计计数, 不因成功兑换清零)",
+    "idempotency": {
+      "setup": "管理员生成 0.01 余额码 (id=5), 5 并发兑换",
+      "result": "1×200 + 4×409 REDEEM_CODE_USED",
+      "balance_delta": "+0.01 (只加一次)",
+      "history": "只落 1 条 used 记录"
+    },
+    "rateLimit429Contract": "**R-01: 缺 Retry-After 头**（该 429 由 service 层自造，不走 middleware 的 abortRateLimit）"
+  },
+  "boundary": {
+    "userTokenToAdmin": "14 个 /admin/* 端点全部 403 FORBIDDEN 'Admin access required'",
+    "jwtAsRelayKey": "用户 JWT / 管理员 JWT / refresh_token 打 /v1/models 与 /v1/chat/completions 全部 401 INVALID_API_KEY",
+    "noAuth": "/v1/models 401 API_KEY_REQUIRED; /api/v1/keys 401 UNAUTHORIZED",
+    "crossTenant": {
+      "GET /keys/1 (admin 的)": "404 API key not found (不泄露存在性)",
+      "GET /usage/1 (uid1 的)": "403 Not authorized to access this record",
+      "GET /keys/9": "404 (路径不同 message 措辞不同: 'api key not found'+reason, 见 P3)"
+    }
+  },
+  "fivexx": [
+    {
+      "endpoint": "GET /api/v1/admin/dashboard/trend",
+      "status": 500,
+      "body": "{\"code\":500,\"message\":\"Failed to get usage trend\"}",
+      "cause": "ErrUsageStatsIncomplete 被 handler 直接映射 500",
+      "severity": "N-02"
+    },
+    {
+      "endpoint": "GET /api/v1/admin/groups/usage-summary",
+      "status": 500,
+      "body": "{\"code\":500,\"message\":\"Failed to get group usage summary\"}",
+      "cause": "同源",
+      "severity": "N-02"
+    }
+  ],
+  "paramFuzz": {
+    "total": 283,
+    "status200": 253,
+    "status400": 30,
+    "status5xx": 0,
+    "endpoints": 27
+  },
+  "frontendBackend404": [
+    [
+      "/admin/dashboard/users-usage",
+      "api/admin/dashboard.ts:303 POST",
+      "GET 404 正常, POST 200",
+      "非缺陷"
+    ],
+    [
+      "/admin/dashboard/api-keys-usage",
+      "api/admin/dashboard.ts:328 POST",
+      "GET 404 正常, POST 200",
+      "非缺陷"
+    ],
+    [
+      "/admin/scheduled-test-plans",
+      "仅 POST 创建; 列表走 /admin/accounts/:id/...",
+      "列表不触发",
+      "非缺陷"
+    ],
+    [
+      "/admin/openai/accounts/1",
+      "实际子路径 /quota 等",
+      "不触发裸路径",
+      "非缺陷"
+    ],
+    [
+      "/admin/redeem",
+      "router 页面路径",
+      "否",
+      "非缺陷"
+    ],
+    [
+      "/admin/security-audit",
+      "AppSidebar.vue:836 菜单项, router 无路由",
+      "点击白屏",
+      "**P2 前端真缺陷**"
+    ],
+    [
+      "/admin/payment/channels",
+      "api/admin/payment.ts:131 getChannels()",
+      "无调用方",
+      "P3 死代码"
+    ]
+  ],
+  "cleanup": {
+    "keys_deleted": [
+      "qa-regress-1793360101509 (id=5)",
+      "qa-live-1793362208901 (id=6)",
+      "qa-empty-1793363040612 (id=7)",
+      "qa-crud-1793363086214 (id=8)",
+      "qa-n01n03 (id=9)"
+    ],
+    "keys_remaining": [
+      "probe-g3 (id=3, 攻击者遗留, 未动)",
+      "probe-7255 (id=2, 攻击者遗留, 未动)"
+    ],
+    "redeem_deleted": [
+      "id=5 (0.01, 我方创建)"
+    ],
+    "redeem_remaining": [
+      "id=1 (999), id=2 (-6), id=3 (100) 均为历史遗留, 未动"
+    ],
+    "profile": "username 改回 yd, 校验 reverted=true",
+    "users_untouched": "uid 1..9 全部未改（仅读取）"
+  }
+}

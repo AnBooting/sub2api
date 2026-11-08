@@ -1,0 +1,12 @@
+--- a/backend/internal/service/openai_live_lifecycle_test.go
++++ b/backend/internal/service/openai_live_lifecycle_test.go
+@@ -506,6 +506,9 @@
+ // store 报错时不能静默退出，必须按 record.ExpiresAt 兜底 finalize（写 usage log +
+ // 释放租约）。
+ func TestObserveLiveCallStoreOutageFallsBackToExpiryFinalize(t *testing.T) {
++	settlementClock := liveSettlementRetryInterval
++	liveSettlementRetryInterval = func(int) time.Duration { return time.Millisecond }
++	t.Cleanup(func() { liveSettlementRetryInterval = settlementClock })
+ 	restore := liveObserverStoreRetryInterval
+ 	liveObserverStoreRetryInterval = time.Millisecond
+ 	t.Cleanup(func() { liveObserverStoreRetryInterval = restore })

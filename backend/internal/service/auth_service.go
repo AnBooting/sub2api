@@ -1401,12 +1401,36 @@ func randomHexString(byteLength int) (string, error) {
 	return hex.EncodeToString(buf), nil
 }
 
+// isReservedEmail 判定邮箱是否落在本平台保留/合成的地址空间。
+//
+// 保留空间包含两类：
+//   - 第三方 Connect 的合成邮箱后缀（RFC 保留域名 .invalid），防止本地账号与
+//     第三方登录建出的账号发生碰撞；
+//   - 本平台自用的运维域 sub2api.local（F-03）：setup 生成的初始管理员即在此域，
+//     整域保留以阻止外部注册与管理员同形的地址。
+//
+// 注册（RegisterWithVerification）、发码（SendVerifyCode / SendVerifyCodeAsync）、
+// 待定 OAuth 发码（SendPendingOAuthVerifyCode）、OAuth 合成邮箱与邮箱解绑/绑定
+// 等链路统一走本函数，保证"不可注册"与"不可发码"口径一致。
 func isReservedEmail(email string) bool {
 	normalized := strings.ToLower(strings.TrimSpace(email))
 	return strings.HasSuffix(normalized, LinuxDoConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, OIDCConnectSyntheticEmailDomain) ||
 		strings.HasSuffix(normalized, WeChatConnectSyntheticEmailDomain) ||
-		strings.HasSuffix(normalized, DingTalkConnectSyntheticEmailDomain)
+		strings.HasSuffix(normalized, DingTalkConnectSyntheticEmailDomain) ||
+		isSub2APIInternalEmail(normalized)
+}
+
+// isSub2APIInternalEmail 判定（已归一化为小写去空格的）邮箱是否属于本平台运维域。
+//
+// 只按 @sub2api.local 这个**完整的域名后缀**判定：'@' 前的标签不接受，
+// 因此 someone@notsub2api.local、someone@sub2api.local.example.com 都不算保留域。
+func isSub2APIInternalEmail(normalizedEmail string) bool {
+	at := strings.LastIndex(normalizedEmail, "@")
+	if at < 0 {
+		return false
+	}
+	return normalizedEmail[at:] == Sub2APIInternalEmailDomain
 }
 
 // GenerateToken 生成JWT access token

@@ -1186,7 +1186,29 @@ export default {
     selectDateRange: '选择日期范围'
   },
 
+  // 统计未就绪（N-02）：可重试的业务态，不是故障，不能画成红色错误或空图表。
+  usageStatsIncomplete: {
+    title: '统计不完整，暂不显示该图表',
+    description: '所选区间的历史用量仍在后台对账中，完成后会自动恢复。这期间其他已确认完整的统计仍可正常查看。',
+    // 表格单元格里的短文案（列宽有限）。
+    short: '统计不完整',
+  },
+
   // 缺价提示：后端口径是「缺价不放行」
+  // 网关失败的两种非普通错误口径（F-06）：换模型 vs 等补价，处置完全不同。
+  gatewayFailure: {
+    pricingUnavailable: {
+      badge: '缺价已拦截',
+      tooltip: '该模型属于本分组的可路由集合，但没有配置价格，平台不放行（503 pricing_unavailable）。重试无用，需要运维补价。',
+      retryable: '不可重试：需等待平台补价',
+    },
+    modelNotFound: {
+      badge: '模型不可用',
+      tooltip: '该模型不属于当前分组的可路由集合（404 model_not_found）。换一个模型或分组即可，重试无用。',
+      retryable: '不可重试：请更换模型或分组',
+    },
+  },
+
   missingPrice: {
     title: '模型没有配置价格时不会被放行',
     description:

@@ -10,6 +10,7 @@ import (
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
 	"github.com/Wei-Shaw/sub2api/internal/handler"
+	ippkg "github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/websearch"
 	middleware2 "github.com/Wei-Shaw/sub2api/internal/server/middleware"
 	"github.com/Wei-Shaw/sub2api/internal/service"
@@ -49,7 +50,7 @@ func ProvideRouter(
 
 	r := gin.New()
 	r.Use(middleware2.Recovery())
-	configureTrustedProxies(r, cfg.Server)
+	configureClientIPTrust(r, cfg)
 
 	// Wire up websearch Manager builder so it initializes on startup and rebuilds on config save.
 	settingService.SetWebSearchManagerBuilder(context.Background(), func(cfg *service.WebSearchEmulationConfig, proxyURLs map[int64]string) {
@@ -90,6 +91,31 @@ func ProvideRouter(
 	return SetupRouter(r, handlers, jwtAuth, optionalJWTAuth, adminAuth, apiKeyAuth, auditLog, stepUpAuth, apiKeyService, subscriptionService, opsService, settingService, compositeResolver, cfg, redisClient)
 }
 
+// configureClientIPTrust 是客户端 IP 信任策略的唯一启动期接线点：
+//   - gin 的 server.trusted_proxies 链（GetTrustedClientIP / secure 模式）；
+//   - pkg/ip 的受信直连对端策略（legacy 兼容模式下决定是否采信转发头）。
+//
+// 两处必须使用同一份配置，否则“关闭兼容开关”与“兼容开关开启”两条路径会各自
+// 信任不同的对端集合，出现安全或误拦不一致。
+func configureClientIPTrust(r *gin.Engine, cfg *config.Config) {
+	if r == nil || cfg == nil {
+		return
+	}
+	configureTrustedProxies(r, cfg.Server)
+	if shouldWarnClientIPCollapse(cfg.Server.Mode, cfg.TrustForwardedIPForAPIKeyACL(), cfg.Server.TrustedProxiesConfigured) {
+		log.Printf("Warning: server.trusted_proxies is not configured while security.trust_forwarded_ip_for_api_key_acl is false; " +
+			"all requests will be attributed to the reverse-proxy address and collapse into a single rate-limit bucket. " +
+			"Configure server.trusted_proxies (or SERVER_TRUSTED_PROXIES) with the proxy CIDRs that connect directly to Sub2API.")
+	}
+}
+
+// shouldWarnClientIPCollapse 判断是否需要就“全站 IP 坍缩”给出启动告警。
+// 仅在 release 模式、未显式配置可信代理、且不采信原始转发头时告警：
+// 此时 secure 路径只能拿到反代地址，按 IP 的限流与风控会对所有用户共用一个桶。
+func shouldWarnClientIPCollapse(mode string, trustForwardedIP bool, trustedProxiesConfigured bool) bool {
+	return mode == "release" && !trustedProxiesConfigured && !trustForwardedIP
+}
+
 func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
 	if cfg.TrustedProxiesConfigured {
 		if err := r.SetTrustedProxies(cfg.TrustedProxies); err != nil {
@@ -106,6 +132,14 @@ func configureTrustedProxies(r *gin.Engine, cfg config.ServerConfig) {
 		if cfg.Mode == "release" {
 			log.Printf("Warning: server.trusted_proxies is not configured; disabling the forwarded-IP compatibility switch will use direct peer addresses only")
 		}
+	}
+	// 同一份配置必须同时决定「兼容模式是否采信转发头」的受信对端集合。
+	// 必须在 error 时显式报错：这份策略配错会让所有请求坍缩成同一个身份，
+	// 限流与审计一起静默失效，不能只打一行 Warning。
+	if err := ippkg.SetTrustedProxyPolicy(cfg.TrustedProxies, cfg.TrustedProxiesConfigured); err != nil {
+		log.Printf("ERROR: failed to apply trusted-proxy policy to forwarded-IP resolution (trusted_proxies=%v configured=%t): %v; "+
+			"falling back to loopback-only, so every non-local peer will be attributed to its own TCP address", cfg.TrustedProxies, cfg.TrustedProxiesConfigured, err)
+		_ = ippkg.SetTrustedProxyPolicy(nil, false)
 	}
 }
 

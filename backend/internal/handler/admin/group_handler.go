@@ -987,6 +987,10 @@ func (h *GroupHandler) GetUsageSummary(c *gin.Context) {
 
 	results, err := h.dashboardService.GetGroupUsageSummary(c.Request.Context(), todayStart)
 	if err != nil {
+		// N-02：与 /admin/dashboard/trend 同一根因与同一口径。
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get group usage summary")
 		return
 	}

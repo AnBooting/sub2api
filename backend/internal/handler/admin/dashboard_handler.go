@@ -81,6 +81,10 @@ func parseOptionalBoolDashboardFilter(c *gin.Context, name string) (*bool, error
 func (h *DashboardHandler) GetStats(c *gin.Context) {
 	stats, err := h.dashboardService.GetDashboardStats(c.Request.Context())
 	if err != nil {
+		// N-02：同一业务态统一口径（其余真实故障仍是 500）。
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get dashboard statistics")
 		return
 	}
@@ -226,6 +230,11 @@ func (h *DashboardHandler) GetUsageTrend(c *gin.Context) {
 
 	trend, hit, err := h.getUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, userID, apiKeyID, accountID, groupID, model, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch)
 	if err != nil {
+		// N-02：历史统计未完成对账是预期业务态，走 503 + usage_stats_incomplete，
+		// 与 snapshot-v2 的 degraded 口径一致；只有真实故障才是 500。
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get usage trend")
 		return
 	}
@@ -318,6 +327,9 @@ func (h *DashboardHandler) GetModelStats(c *gin.Context) {
 
 	stats, hit, err := h.getModelStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, modelSource, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch)
 	if err != nil {
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get model statistics")
 		return
 	}
@@ -400,6 +412,9 @@ func (h *DashboardHandler) GetGroupStats(c *gin.Context) {
 
 	stats, hit, err := h.getGroupStatsCached(c.Request.Context(), startTime, endTime, userID, apiKeyID, accountID, groupID, requestType, stream, nativeCompactionV2, billingType, upstreamModelMismatch)
 	if err != nil {
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get group statistics")
 		return
 	}
@@ -426,6 +441,9 @@ func (h *DashboardHandler) GetAPIKeyUsageTrend(c *gin.Context) {
 
 	trend, hit, err := h.getAPIKeyUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit)
 	if err != nil {
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get API key usage trend")
 		return
 	}
@@ -457,6 +475,9 @@ func (h *DashboardHandler) GetUserUsageTrend(c *gin.Context) {
 	}
 	trend, hit, err := h.getUserUsageTrendCached(c.Request.Context(), startTime, endTime, granularity, limit, metric)
 	if err != nil {
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, "Failed to get user usage trend")
 		return
 	}
@@ -514,6 +535,10 @@ func (h *DashboardHandler) GetUserSpendingRanking(c *gin.Context) {
 
 	ranking, err := h.dashboardService.GetUserSpendingRanking(c.Request.Context(), startTime, endTime, limit)
 	if err != nil {
+		// 注意：这里刻意**不**接 respondUsageStatsIncomplete。
+		// GetUserSpendingRanking 走 usageRepo.GetUserSpendingRanking，该路径没有
+		// usage_stats_completeness 守卫，err 不可能为 ErrUsageStatsIncomplete；
+		// 接上只会让人误以为本接口具备"统计未就绪"降级能力。
 		response.Error(c, 500, "Failed to get user spending ranking")
 		return
 	}
@@ -565,6 +590,7 @@ func (h *DashboardHandler) GetBatchUsersUsage(c *gin.Context) {
 
 	stats, err := h.dashboardService.GetBatchUserUsageStats(c.Request.Context(), userIDs, time.Time{}, time.Time{})
 	if err != nil {
+		// 同上：批量统计不经 completeness 守卫，err 不会是 ErrUsageStatsIncomplete。
 		response.Error(c, 500, "Failed to get user usage stats")
 		return
 	}
@@ -609,6 +635,7 @@ func (h *DashboardHandler) GetBatchAPIKeysUsage(c *gin.Context) {
 
 	stats, err := h.dashboardService.GetBatchAPIKeyUsageStats(c.Request.Context(), apiKeyIDs, time.Time{}, time.Time{})
 	if err != nil {
+		// 同上：批量统计不经 completeness 守卫，err 不会是 ErrUsageStatsIncomplete。
 		response.Error(c, 500, "Failed to get API key usage stats")
 		return
 	}
@@ -700,6 +727,7 @@ func (h *DashboardHandler) GetUserBreakdown(c *gin.Context) {
 		c.Request.Context(), startTime, endTime, dim, limit,
 	)
 	if err != nil {
+		// 同上：明细查询不经 completeness 守卫，err 不会是 ErrUsageStatsIncomplete。
 		response.Error(c, 500, "Failed to get user breakdown stats")
 		return
 	}

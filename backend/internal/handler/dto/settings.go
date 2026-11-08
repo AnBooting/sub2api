@@ -57,6 +57,10 @@ type SystemSettings struct {
 	SMTPFrom               string `json:"smtp_from_email"`
 	SMTPFromName           string `json:"smtp_from_name"`
 	SMTPUseTLS             bool   `json:"smtp_use_tls"`
+	// SMTPConfigured 是只读派生字段（I-01）：由 EmailService.IsConfigured 计算，
+	// 表示"现在能否真的发信"（host + from 齐全）。前端据此在邮件区块给出阻断式提示，
+	// 避免运维以为配好了、实际发码全部失败。请求体里传该字段无效果（更新时被忽略）。
+	SMTPConfigured bool `json:"smtp_configured"`
 
 	TurnstileEnabled                       bool     `json:"turnstile_enabled"`
 	TurnstileSiteKey                       string   `json:"turnstile_site_key"`

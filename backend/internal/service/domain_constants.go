@@ -214,6 +214,15 @@ const WeChatConnectSyntheticEmailDomain = "@wechat-connect.invalid"
 // DingTalkConnectSyntheticEmailDomain 是 DingTalk Connect 用户的合成邮箱后缀（RFC 保留域名）。
 const DingTalkConnectSyntheticEmailDomain = "@dingtalk-connect.invalid"
 
+// Sub2APIInternalEmailDomain 是本平台自用的运维保留域（F-03）。
+//
+// setup 自动创建的初始管理员邮箱形如 admin-<12 hex>@sub2api.local
+// （internal/setup/setup.go generateAdminEmail），这是"由系统生成、永不收信"的
+// 内部标识。若允许外部注册同域地址（例如 admin@sub2api.local），攻击者就能拿到
+// 与管理员同形的账号名，并让发码/注册链路向一个不可能收信的地域承诺投递。
+// 因此整域保留：注册、发码、OAuth 合成邮箱三条链路统一由 isReservedEmail 拦截。
+const Sub2APIInternalEmailDomain = "@sub2api.local"
+
 // Setting keys
 const (
 	// 注册设置

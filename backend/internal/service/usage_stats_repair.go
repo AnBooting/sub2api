@@ -24,6 +24,21 @@ var ErrUsageRepairLostLease = errors.New("usage statistics repair claim has expi
 // Callers must not publish a successful watermark or substitute a zero total.
 var ErrUsageStatsIncomplete = errors.New("usage statistics unavailable: incomplete history requires reconciliation")
 
+// UsageStatsIncompleteReason 是 ErrUsageStatsIncomplete 在 HTTP 层的稳定业务码。
+//
+// 这是**唯一事实源**：handler（用户端）与 handler/admin（管理端）两处错误映射都必须
+// 引用这里的常量，禁止各自写字面量，否则两端文案/码值会漂移，前端无法用同一字段降级。
+//
+// 契约：HTTP 503（可重试的非故障态）+ reason=usage_stats_incomplete + 可读 message。
+// 不能用 500：把预期业务态报成服务端故障会污染告警，也让前端无法区分
+// "没有数据"与"数据不可信"。也不能静默返回空数组：那会被读成"当天没有用量"。
+const (
+	// UsageStatsIncompleteReason 见上方契约说明。
+	UsageStatsIncompleteReason = "usage_stats_incomplete"
+	// UsageStatsIncompleteMessage 面向使用者的可读文案（管理端与用户端共用一句）。
+	UsageStatsIncompleteMessage = "Usage statistics for the requested range are still being reconciled; please retry later"
+)
+
 // UsageRepairDayClaim 是一次脏日领取快照。
 // Owner/Fence 是本次领取的独占凭证：Ack/Fail 必须携带并命中，
 // 防止旧 worker 在租期过期或其他 worker 重领后越权修改状态。

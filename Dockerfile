@@ -7,6 +7,10 @@
 # Stage 3: Final minimal image
 # =============================================================================
 
+# VERSION is declared before the first FROM so the frontend stage can stamp it
+# into the bundle (VITE_APP_VERSION) as well as the backend ldflags.
+ARG VERSION=
+
 ARG NODE_IMAGE=node:24-alpine
 ARG GOLANG_IMAGE=golang:1.27.3-alpine
 ARG ALPINE_IMAGE=alpine:3.21
@@ -22,6 +26,12 @@ ARG NPM_CONFIG_REGISTRY=
 # it on the native host arch instead of under QEMU emulation for the target.
 FROM --platform=${BUILDPLATFORM} ${NODE_IMAGE} AS frontend-builder
 ARG NPM_CONFIG_REGISTRY
+# Re-declared (a global ARG is not visible inside a stage without this).
+# Exposed as VITE_APP_VERSION so the Vite build can stamp it into the bundle;
+# this is a build fingerprint only — the version shown in the UI comes from the
+# backend-injected window.__APP_CONFIG__.version (see setting_public.go).
+ARG VERSION=
+ENV VITE_APP_VERSION=${VERSION}
 
 WORKDIR /app/frontend
 
@@ -53,6 +63,8 @@ RUN pnpm run build
 FROM --platform=${BUILDPLATFORM} ${GOLANG_IMAGE} AS backend-builder
 
 # Build arguments for version info (set by CI)
+# VERSION is the global ARG declared before the first FROM; re-declared here so
+# this stage can use it.
 ARG VERSION=
 ARG COMMIT=docker
 ARG DATE
@@ -85,10 +97,19 @@ COPY --from=frontend-builder /app/backend/internal/web/dist ./internal/web/dist
 
 # Build the binary (BuildType=release for CI builds, embed frontend)
 # Version precedence: build arg VERSION > exact git tag > cmd/server/VERSION
+#
+# Exactly ONE version variable: main.Version. Everything downstream reads it —
+# the CLI banner, /api/v1/settings/public, and (via handler.BuildInfo ->
+# service.BuildInfo -> SettingService.SetVersion) the HTML-inlined
+# window.__APP_CONFIG__.version. Do not add a second -X for the service layer:
+# that was the old design, and every build path that forgot it (backend/Makefile,
+# deploy/Makefile, both goreleaser configs) silently produced an empty inline
+# version while /api/v1/settings/public looked correct.
 RUN --mount=type=cache,id=sub2api-gomod,target=/go/pkg/mod \
     --mount=type=cache,id=sub2api-gobuild,target=/root/.cache/go-build \
     VERSION_VALUE="${VERSION}" && \
     if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="$(./scripts/resolve-version.sh)"; fi && \
+    if [ -z "${VERSION_VALUE}" ]; then VERSION_VALUE="0.0.0-unknown"; fi && \
     DATE_VALUE="${DATE:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}" && \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build \
     -tags embed \

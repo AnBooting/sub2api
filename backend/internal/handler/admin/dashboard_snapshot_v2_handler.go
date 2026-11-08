@@ -154,6 +154,11 @@ func (h *DashboardHandler) GetSnapshotV2(c *gin.Context) {
 		)
 	})
 	if err != nil {
+		// N-02：snapshot-v2 内部已把 ErrUsageStatsIncomplete 转成 degraded 区块，
+		// 这里兜住其余仍以该 sentinel 冒出的路径（例如仅请求 stats 区块时），保持同一口径。
+		if respondUsageStatsIncomplete(c, err) {
+			return
+		}
 		response.Error(c, 500, err.Error())
 		return
 	}

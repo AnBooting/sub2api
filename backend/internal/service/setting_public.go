@@ -14,6 +14,27 @@ import (
 	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 )
 
+// injectedVersion 返回内联到 window.__APP_CONFIG__.version 的版本号。
+//
+// 单一事实源：只读 s.version，由 SetVersion 注入
+// （ProvideSettingService 把 handler.BuildInfo.Version 喂进来）。
+// /api/v1/settings/public 的 version 也来自同一个 BuildInfo，两处同源。
+//
+// 历史坑（已修复，勿回退）：这里曾回落到一个构建期专用变量
+// serviceBuildVersion，靠 Dockerfile 额外传一处 -X 才非空。结果是"两个
+// ldflags 变量必须永远同步"——只要有一条构建路径漏传（backend/Makefile、
+// deploy/Makefile、两个 goreleaser 配置都只有 -X main.Version），HTML 里的
+// version 就恒为空，而 /api/v1/settings/public 却正常，症状极难发现。
+//
+// 刻意不伪造兜底值（例如拿 VCS 修订号拼一个假版本）：版本号缺失本身就是
+// 需要被发现的部署缺陷，tools/verify-deployed-build.ps1 会把它判成 DRIFT。
+func (s *SettingService) injectedVersion() string {
+	if s == nil {
+		return ""
+	}
+	return strings.TrimSpace(s.version)
+}
+
 func normalizeLoginAgreementMode(raw string) string {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "checkbox":
@@ -713,7 +734,7 @@ func (s *SettingService) GetPublicSettingsForInjection(ctx context.Context) (any
 		BackendModeEnabled:                  settings.BackendModeEnabled,
 		PaymentEnabled:                      settings.PaymentEnabled,
 		PaymentBalanceDisabled:              settings.PaymentBalanceDisabled,
-		Version:                             s.version,
+		Version:                             s.injectedVersion(),
 		ServerTimezone:                      timezone.Name(),
 		ServerUTCOffset:                     timezone.UTCOffset(),
 		BalanceLowNotifyEnabled:             settings.BalanceLowNotifyEnabled,

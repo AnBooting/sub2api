@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Wei-Shaw/sub2api/internal/config"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/ip"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"github.com/tidwall/gjson"
@@ -174,6 +175,11 @@ func TestLogCodexCLIOnlyDetection_RejectedIncludesRequestDetails(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	logSink, restore := captureStructuredLog(t)
 	defer restore()
+
+	// 转发头只有在「直连对端是受信代理」时才被采信（F-01 信任方向修复）。
+	// 这里显式声明 Docker 桥接网段为受信代理，以贴近真实反代拓扑。
+	require.NoError(t, ip.SetTrustedProxyPolicy([]string{"172.18.0.0/16"}, true))
+	t.Cleanup(func() { require.NoError(t, ip.SetTrustedProxyPolicy(nil, false)) })
 
 	rec := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(rec)

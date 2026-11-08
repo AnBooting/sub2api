@@ -173,3 +173,6 @@ issues/
 
 # Local read-only analysis checkout; never commit or run it
 ARTEX/
+
+# online probing artefacts (reproducible, not tracked)
+.deployprobe/

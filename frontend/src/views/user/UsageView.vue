@@ -24,7 +24,9 @@
         </div>
 
         <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <UsageStatsIncompleteNotice v-if="modelStatsIncomplete" />
           <ModelDistributionChart
+            v-else
             v-model:metric="modelDistributionMetric"
             :model-stats="requestedModelStats"
             :loading="modelStatsLoading"
@@ -35,7 +37,11 @@
             :start-date="startDate"
             :end-date="endDate"
           />
+          <!-- 分组分布与趋势同源（snapshot-v2），统计未就绪时同样整块降级，
+               否则会画出一张「所有分组都是 0」的空图。 -->
+          <UsageStatsIncompleteNotice v-if="trendIncomplete" />
           <GroupDistributionChart
+            v-else
             v-model:metric="groupDistributionMetric"
             :group-stats="groupStats"
             :loading="chartsLoading"
@@ -62,7 +68,8 @@
             :start-date="startDate"
             :end-date="endDate"
           />
-          <TokenUsageTrend :trend-data="trendData" :loading="chartsLoading" />
+          <UsageStatsIncompleteNotice v-if="trendIncomplete" />
+          <TokenUsageTrend v-else :trend-data="trendData" :loading="chartsLoading" />
         </div>
       </div>
 
@@ -236,6 +243,8 @@ import ModelDistributionChart from '@/components/charts/ModelDistributionChart.v
 import GroupDistributionChart from '@/components/charts/GroupDistributionChart.vue'
 import EndpointDistributionChart from '@/components/charts/EndpointDistributionChart.vue'
 import TokenUsageTrend from '@/components/charts/TokenUsageTrend.vue'
+import UsageStatsIncompleteNotice from '@/components/common/UsageStatsIncompleteNotice.vue'
+import { isUsageStatsIncomplete } from '@/utils/usageStatsAvailability'
 import Icon from '@/components/icons/Icon.vue'
 import UserErrorRequestsTable from '@/components/user/UserErrorRequestsTable.vue'
 import { getPersistedPageSize } from '@/composables/usePersistedPageSize'
@@ -275,6 +284,10 @@ const endpointPathStats = ref<EndpointStat[]>([])
 const loading = ref(false)
 const chartsLoading = ref(false)
 const modelStatsLoading = ref(false)
+// N-02：统计未就绪（503 + usage_stats_incomplete）时，对应图表整块换成提示，
+// 既不画空线也不显示 0（否则用户会以为「今天没用量」）。
+const modelStatsIncomplete = ref(false)
+const trendIncomplete = ref(false)
 const endpointStatsLoading = ref(false)
 const exporting = ref(false)
 const errorRows = ref<UserErrorRequest[]>([])
@@ -497,11 +510,19 @@ const loadModelStats = async () => {
       model_source: 'requested',
     })
     if (seq !== modelStatsReqSeq) return
+    modelStatsIncomplete.value = false
     requestedModelStats.value = response.models || []
     refreshModelOptions(response.models || [])
   } catch (error) {
     if (seq !== modelStatsReqSeq) return
+    if (isUsageStatsIncomplete(error)) {
+      // 业务态：不写 console.error，避免污染 console error 基线。
+      modelStatsIncomplete.value = true
+      requestedModelStats.value = []
+      return
+    }
     console.error('Failed to load model stats:', error)
+    modelStatsIncomplete.value = false
     requestedModelStats.value = []
   } finally {
     if (seq === modelStatsReqSeq) modelStatsLoading.value = false
@@ -520,11 +541,19 @@ const loadChartData = async () => {
       include_group_stats: true,
     })
     if (seq !== chartReqSeq) return
+    trendIncomplete.value = false
     trendData.value = snapshot.trend || []
     groupStats.value = snapshot.groups || []
   } catch (error) {
     if (seq !== chartReqSeq) return
+    if (isUsageStatsIncomplete(error)) {
+      trendIncomplete.value = true
+      trendData.value = []
+      groupStats.value = []
+      return
+    }
     console.error('Failed to load chart data:', error)
+    trendIncomplete.value = false
     trendData.value = []
     groupStats.value = []
   } finally {
