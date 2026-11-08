@@ -64,13 +64,15 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { VueDraggable } from 'vue-draggable-plus'
-import type { Group } from '@/types'
+import type { UserFacingGroup } from '@/types'
+// Embedded/admin groups may omit the HA flag, which this component does not read.
+type DisplayGroup = Omit<UserFacingGroup, 'allow_high_availability'>
 import GroupBadge from '@/components/common/GroupBadge.vue'
 import GroupLiveBadge from '@/components/user/GroupLiveBadge.vue'
 import GroupPricingStateBadge from '@/components/user/GroupPricingStateBadge.vue'
 import { applyDraggedOrder, moveChainItem } from './groupChainOrder'
 
-const props = withDefaults(defineProps<{ modelValue: number[]; groups: Group[]; userRates?: Record<number, number>; disabled?: boolean }>(), { userRates: () => ({}), disabled: false })
+const props = withDefaults(defineProps<{ modelValue: number[]; groups: DisplayGroup[]; userRates?: Record<number, number>; disabled?: boolean }>(), { userRates: () => ({}), disabled: false })
 const emit = defineEmits<{ 'update:modelValue': [ids: number[]] }>()
 const { t } = useI18n()
 
@@ -91,7 +93,7 @@ watch(
 
 const availableGroups = computed(() => props.groups.filter((g) => g.status !== 'inactive' && !localIds.value.includes(g.id)))
 const groupById = (id: number) => props.groups.find((g) => g.id === id)
-const badgeProps = (group: Group) => ({ name: group.name, platform: group.platform, subscriptionType: group.subscription_type, rateMultiplier: group.rate_multiplier, userRateMultiplier: props.userRates[group.id], peakRateEnabled: group.peak_rate_enabled, peakStart: group.peak_start, peakEnd: group.peak_end, peakRateMultiplier: group.peak_rate_multiplier })
+const badgeProps = (group: DisplayGroup) => ({ name: group.name, platform: group.platform, subscriptionType: group.subscription_type, rateMultiplier: group.rate_multiplier, userRateMultiplier: props.userRates[group.id], peakRateEnabled: group.peak_rate_enabled, peakStart: group.peak_start, peakEnd: group.peak_end, peakRateMultiplier: group.peak_rate_multiplier })
 
 const add = (event: Event) => {
   const input = event.target as HTMLSelectElement

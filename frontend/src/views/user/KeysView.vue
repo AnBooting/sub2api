@@ -1247,7 +1247,7 @@ import { normalGroupIds, normalGroupEntries, replaceNormalGroups, isGroupChainCo
 	import EndpointPopover from '@/components/keys/EndpointPopover.vue'
 	import GroupBadge from '@/components/common/GroupBadge.vue'
 	import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
-	import type { ApiKey, Group, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
+	import type { ApiKey, UserFacingGroup, PublicSettings, SubscriptionType, GroupPlatform, UpdateApiKeyRequest } from '@/types'
 import type { Column } from '@/components/common/types'
 import type { BatchApiKeyUsageStats } from '@/api/usage'
 import { formatDateTime } from '@/utils/format'
@@ -1396,7 +1396,7 @@ const handleBulkUpdated = (succeededIds: number[]) => {
   loadApiKeys()
 }
 
-const groups = ref<Group[]>([])
+const groups = ref<UserFacingGroup[]>([])
 const loading = ref(false)
 const submitting = ref(false)
 const now = ref(new Date())

@@ -160,7 +160,9 @@ import BaseDialog from '@/components/common/BaseDialog.vue'
 import Select from '@/components/common/Select.vue'
 import GroupChainEditor from './GroupChainEditor.vue'
 import { normalGroupEntries, isGroupChainConflict } from '@/utils/keyGroupChain'
-import type { ApiKey, Group, UpdateApiKeyRequest } from '@/types'
+import type { ApiKey, UserFacingGroup, UpdateApiKeyRequest } from '@/types'
+// Embedded/admin groups may omit the HA flag, which this component does not read.
+type DisplayGroup = Omit<UserFacingGroup, 'allow_high_availability'>
 
 type SelectedKey = Pick<ApiKey, 'id' | 'name'>
 type LimitField = 'quota' | 'rate_limit_5h' | 'rate_limit_1d' | 'rate_limit_7d'
@@ -170,7 +172,7 @@ type EditableField = LimitField | IPField | 'group_id' | 'status' | 'expires_at'
 const props = withDefaults(defineProps<{
   show: boolean
   selectedKeys: SelectedKey[]
-  groups: Group[]
+  groups: DisplayGroup[]
   userRates?: Record<number, number>
 }>(), { userRates: () => ({}) })
 const emit = defineEmits<{

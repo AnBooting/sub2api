@@ -495,9 +495,11 @@ func (h *APIKeyHandler) GetAvailableGroups(c *gin.Context) {
 		return
 	}
 
-	out := make([]dto.Group, 0, len(groups))
+	lang := c.GetHeader("Accept-Language")
+	out := make([]dto.UserFacingGroup, 0, len(groups))
 	for i := range groups {
-		out = append(out, *dto.GroupFromService(&groups[i]).Localized(c.GetHeader("Accept-Language")))
+		g := &groups[i]
+		out = append(out, *dto.UserFacingGroupFromService(g).Localized(g.I18n, lang))
 	}
 	response.Success(c, out)
 }

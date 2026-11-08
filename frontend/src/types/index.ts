@@ -602,6 +602,31 @@ export interface GroupLocaleText {
 export type GroupI18n = Record<string, GroupLocaleText>
 
 // 用户侧接口返回的 name / description 已由后端按请求语言（Accept-Language）选好
+/** Public /groups/available response. Embedded/admin Group responses keep their full shape. */
+export interface UserFacingGroup {
+  id: number
+  name: string
+  description: string | null
+  platform: GroupPlatform
+  rate_multiplier: number
+  subscription_type: SubscriptionType
+  status: 'active' | 'inactive'
+  peak_rate_enabled: boolean
+  peak_start: string
+  peak_end: string
+  peak_rate_multiplier: number
+  deepseek_pricing_state?: {
+    state: string
+    label: string
+    timezone: string
+    multiplier: number
+    next_switch_at: string | null
+  }
+  allow_live: boolean
+  audio_realtime_price_per_min: number | null
+  allow_high_availability: boolean
+}
+
 export interface Group {
   scheduling_strategy?: GroupSchedulingStrategy
   effective_scheduling_strategy?: SchedulingStrategy
