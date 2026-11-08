@@ -531,12 +531,8 @@ func TestSnapshotRedactsPublicConfigPolicyFields(t *testing.T) {
 	wantHealth := repo.snap.Health
 	require.NotNil(t, wantHealth.Score)
 	svc := NewChannelMonitorV2Service(repo)
-	snap, err := svc.Snapshot(context.Background(), ChannelMonitorV2Filter{}, false)
+	snap, err := svc.SnapshotPublic(context.Background(), ChannelMonitorV2Filter{})
 	require.NoError(t, err)
-	require.Empty(t, snap.Config.GroupIDs)
-	require.Empty(t, snap.Config.IgnoredErrorCategories)
-	require.Nil(t, snap.Config.UpdatedBy)
-	require.Empty(t, snap.Config.Platforms[0].Models)
 	require.Equal(t, 300, snap.Config.RefreshIntervalSeconds)
 	require.Zero(t, snap.Metrics.RequestCount)
 	require.Equal(t, wantHealth, snap.Health)

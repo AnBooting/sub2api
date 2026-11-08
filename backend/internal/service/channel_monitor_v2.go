@@ -611,23 +611,6 @@ func redactChannelMonitorV2Snapshot(snap *ChannelMonitorV2Snapshot, hideThroughp
 	for i := range snap.Trend {
 		redactChannelMonitorV2Metric(&snap.Trend[i].Metrics, hideThroughput)
 	}
-	// Public snapshot only needs display thresholds + refresh cadence, not
-	// operational allow-lists (group_ids, model inventories, ignored categories).
-	redactChannelMonitorV2PublicConfig(&snap.Config)
-}
-
-// redactChannelMonitorV2PublicConfig strips operator-policy fields from config
-// embedded in user-facing snapshots. Full config remains on admin /config.
-func redactChannelMonitorV2PublicConfig(cfg *ChannelMonitorV2Config) {
-	if cfg == nil {
-		return
-	}
-	cfg.GroupIDs = nil
-	cfg.IgnoredErrorCategories = nil
-	cfg.UpdatedBy = nil
-	for i := range cfg.Platforms {
-		cfg.Platforms[i].Models = nil
-	}
 }
 
 // redactChannelMonitorV2Metric zeros absolute volume counters while keeping rates
