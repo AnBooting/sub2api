@@ -89,11 +89,15 @@
 | #13 | feat(product): 补齐 PRD 功能的用户/管理端可见性、单位口径与站内帮助页 | **MERGED（2026-10-29）** | 品牌额度标签、站内帮助页、以及本目录下的**两份手册**都在这个 PR 里；已包含上游 0.2.17 同步。**2026-10-21 复审第 5 项已修**：用户侧视频任务只给稳定错误码 + 可公开文案，内部诊断留在管理端 |
 | #14 | build: move the Go toolchain to 1.27.3 | **MERGED（2026-10-21）** | go 指令 + 三个 workflow 的版本断言 + **三个 Dockerfile**（含根 Dockerfile）一起升到 1.27.3，解除 `backend-security` 的标准库公告 GO-2026-6809；新增契约测试把 go.mod 与所有构建入口的版本绑在一起。合并顺序上最先合 |
 | #18 | fix(security): 转发头信任反转、限流账号维度与部署可验证性整改 | **MERGED（2026-11-08）** | 合并提交 `4a0064318`，进入 `develop`。含 PR #18 复审的三项修复（Compose 固定网络与网关信任、认证身份严格解析、SMTP GET/PUT 一致），见 [reviews/2026-11-01-pr18-review/](reviews/2026-11-01-pr18-review/)。**代码已合入但线上仍运行 `f9d8bc855`，尚未部署** |
-| #19 | fix(security): 收敛用户响应字段并阻止 SMTP 未配置时发码 | **OPEN** | 作者 Akanyi，head `dev/security-public-contracts-smtp-20261108` @ `849c14a7b`，base `develop` @ `4a0064318`。对应交接文档 §3.1（F-05 用户面分组字段收敛、F-04 监控快照 config 白名单）与 I-01 后半（SMTP 未配置时拒绝发码）。**本轮由新成员只读评审中，尚未裁决** |
+| #19 | fix(security): 收敛用户响应字段并阻止 SMTP 未配置时发码 | **MERGED（2026-11-08）** | 作者 Akanyi，合并提交 `4965ca5e9`。对应交接文档 §3.1（F-05 用户面分组字段收敛、F-04 监控快照 config 白名单）与 I-01 后半（SMTP 未配置时拒绝发码）。评审结论 Approve / 0 Critical / 0 Required，证据见 [reviews/2026-11-08-pr19-review/](reviews/2026-11-08-pr19-review/) |
+| #20 | docs(reviews): correct PR status after #18 merge and record PR19 review | **MERGED（2026-11-08）** | 状态文档订正 + PR #19 评审证据入库。做法是**直接快进推入 develop**（`4a0064318..7c2848bed`，项目规则允许直接推集成分支），GitHub 随即自动把 #20 标为 MERGED —— 不是通过 PR 页面合并 |
+| #21 | fix(auth): localize SMTP-not-configured message and close PR19 review nits | **OPEN** | 评审方（非 #19 作者）收口 #19 的 5 条 Nit：`EMAIL_NOT_CONFIGURED` 的 zh/en 映射与可行动提示、两处过时注释/测试名、`IsConfigured` reason 口径、异步用例空转断言。已指派 reviewer `Akanyi`。**等审后由用户授权合并** | 作者 Akanyi，head `dev/security-public-contracts-smtp-20261108` @ `849c14a7b`，base `develop` @ `4a0064318`。对应交接文档 §3.1（F-05 用户面分组字段收敛、F-04 监控快照 config 白名单）与 I-01 后半（SMTP 未配置时拒绝发码）。**本轮由新成员只读评审中，尚未裁决** |
 | #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮 PR 改动了同样的界面文件；分支 `feat/frontend-fluent-redesign-clean` **完整保留**，重做前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
 | #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
 
-**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）**。四条旧 PR 与 #18 均已进入 `develop`，当前 `origin/develop` = `4a0064318`。迁移文件在 #11/#12/#13 之间逐字一致，243–250 未复活。
+**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）**；#20（文档/证据）以直接快进入 develop 的方式完成。当前 `origin/develop` = `4965ca5e9`。迁移文件在 #11/#12/#13 之间逐字一致，243–250 未复活。
 
-**当前唯一的开放 PR 是 #19**（评审中）。**部署仍未发生**：线上 `https://sub2.lansn.icu/` 运行 `f9d8bc855`（PR #18 之前的基线），#18 及 #19 的代码都尚未上线；上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
+**PR 编号沿革（避免后来人疑惑）**：PR 编号由 GitHub 按仓库自增分配，**不可选、不可复用**（关闭未合并的 PR 也永久占号）。因此 #20 是文档/证据 PR（已合入），#21 才是 Nit 收口 PR；两者顺序不代表重要性，只代表创建时间。
+
+**当前开放 PR 只有 #21**（Nit 收口，等 `Akanyi` 审）。**部署仍未发生**：线上 `https://sub2.lansn.icu/` 运行 `f9d8bc855`（PR #18 之前的基线），#18/#19/#21 的代码都尚未上线；上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
