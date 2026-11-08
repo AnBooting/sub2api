@@ -5,10 +5,10 @@
 > | 项 | 值 |
 > |---|---|
 > | 项目 | Sub2API 二开（Go 1.27.3 + Vue 3 + Ent + PostgreSQL + Redis） |
-> | 分支 | `fix/security-remediation-20261030`（base `develop` @ `f9d8bc855`） |
-> | PR | https://github.com/AnBooting/sub2api/pull/18 （base `develop`，OPEN） |
+> | 分支 | `fix/security-remediation-20261030`（base `develop` @ `f9d8bc855`）—— **已合并，本地分支已删除** |
+> | PR | https://github.com/AnBooting/sub2api/pull/18 （base `develop`，**MERGED 2026-11-08**，合并提交 `4a0064318`） |
 > | 改动规模 | 代码 77 文件 +5392/−115（`backend`/`frontend`/`deploy`/`tools`）；其余为本轮文档 |
-> | 线上 | https://sub2.lansn.icu/ （部署在 `develop` HEAD `f9d8bc855`，**本 PR 尚未上线**） |
+> | 线上 | https://sub2.lansn.icu/ （部署在 `develop` HEAD `f9d8bc855`，**合入的代码尚未部署**：#18/#19 都不在线上） |
 > | 轮次 | 2026-10-30 ~ 10-31 |
 > | 本文件位置 | `project-docs/23-handoff-security-remediation-2026-10-30.md` |
 
@@ -31,8 +31,9 @@
 | D-03 | CDN 拓扑下 IP 坍缩 → `deploy/Caddyfile.edgeone` + compose 变量 + runbook | ✅ |
 | P3-02 | `/admin/security-audit` 缺 redirect、`/admin/payment/channels` 死代码 | ✅ |
 | **F-06** | 未知模型 404 细分 | ❌ **尝试后整体回退**（一行改动就能破坏"缺价不得放行"红线，见 §3.2） |
-| **F-05/F-04** | 分组字段收敛 / 监控配置用户域收敛 | ⬜ **未做，见 §3.1** |
-| N-03 / I-01b / I-02 / R-01 / P3-01 / O-01 | 见 §3.3–§3.8 | ⬜ 未做 |
+| **F-05/F-04** | 分组字段收敛 / 监控配置用户域收敛 | 🟡 **PR #19 评审中**（2026-11-08，head `849c14a7b`），实现见 §3.1 |
+| I-01b | SMTP 未配置时后端拒绝发码（I-01 后半） | 🟡 **PR #19 评审中** |
+| N-03 / I-02 / R-01 / P3-01 / O-01 | 见 §3.3–§3.8 | ⬜ 未做 |
 
 **一个已澄清的误判**：用户曾反馈"前端好像没部署上去"。实测结论是**前端确实已部署**（`/api/v1/settings/public` 的 version 为 `0.2.17-fork.f9d8bc855`，产物级比对通过）。看起来"没变"的两个真实原因：① PR #7 前端视觉重设计（`feat/frontend-fluent-redesign-clean`）从未合并，线上仍是上游 Teal 主题；② 本地 `backend/internal/web/dist/` 曾被内嵌为 10-21 的陈旧产物，本地构建出的二进制因此带旧前端。
 
