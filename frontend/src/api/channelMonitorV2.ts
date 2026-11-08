@@ -144,8 +144,12 @@ export const MONITOR_ERROR_CATEGORIES = [
 
 export type MonitorErrorCategory = (typeof MONITOR_ERROR_CATEGORIES)[number]
 
+export interface MonitorPublicConfig {
+  refresh_interval_seconds: number
+}
+
 export interface MonitorSnapshot {
-  config: MonitorConfig
+  config: MonitorPublicConfig
   coverage: MonitorCoverage
   metrics: MonitorMetric
   health: MonitorHealth

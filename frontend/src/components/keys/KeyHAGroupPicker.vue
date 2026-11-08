@@ -32,9 +32,11 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { Group } from '@/types'
+import type { UserFacingGroup } from '@/types'
 
-const props = withDefaults(defineProps<{ modelValue: number[]; groups: Group[]; disabled?: boolean }>(), { disabled: false })
+type HAGroup = Pick<UserFacingGroup, 'id' | 'name' | 'rate_multiplier' | 'status'> & { allow_high_availability?: boolean }
+
+const props = withDefaults(defineProps<{ modelValue: number[]; groups: HAGroup[]; disabled?: boolean }>(), { disabled: false })
 const emit = defineEmits<{ 'update:modelValue': [ids: number[]] }>()
 const { t } = useI18n()
 

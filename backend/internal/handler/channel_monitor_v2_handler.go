@@ -107,6 +107,15 @@ func (h *ChannelMonitorV2Handler) snapshot(c *gin.Context, admin bool) {
 	if !h.scopeFilter(c, &filter, admin) {
 		return
 	}
+	if !admin {
+		result, err := h.service.SnapshotPublic(c.Request.Context(), filter)
+		if err != nil {
+			response.ErrorFrom(c, err)
+			return
+		}
+		response.Success(c, result)
+		return
+	}
 	result, err := h.service.Snapshot(c.Request.Context(), filter, admin)
 	if err != nil {
 		response.ErrorFrom(c, err)

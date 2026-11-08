@@ -16,13 +16,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import type { ApiKey, Group } from '@/types'
+import type { ApiKey, UserFacingGroup } from '@/types'
+// Embedded/admin groups may omit the HA flag, which this component does not read.
+type DisplayGroup = Omit<UserFacingGroup, 'allow_high_availability'>
 import { normalGroupIds } from '@/utils/keyGroupChain'
 import GroupBadge from '@/components/common/GroupBadge.vue'
-const props = withDefaults(defineProps<{ apiKey: ApiKey; groups: Group[]; userRates?: Record<number, number> }>(), { userRates: () => ({}) })
+const props = withDefaults(defineProps<{ apiKey: ApiKey; groups: DisplayGroup[]; userRates?: Record<number, number> }>(), { userRates: () => ({}) })
 const { t } = useI18n()
 const ids = computed(() => normalGroupIds(props.apiKey))
 const ha = computed(() => (props.apiKey.groups ?? []).filter((e) => e.role === 'ha').slice().sort((a, b) => a.position - b.position))
 const findGroup = (id: number) => props.groups.find((g) => g.id === id) ?? (props.apiKey.group?.id === id ? props.apiKey.group : undefined)
-const badgeProps = (g: Group) => ({ name: g.name, platform: g.platform, subscriptionType: g.subscription_type, rateMultiplier: g.rate_multiplier, userRateMultiplier: props.userRates[g.id], peakRateEnabled: g.peak_rate_enabled, peakStart: g.peak_start, peakEnd: g.peak_end, peakRateMultiplier: g.peak_rate_multiplier })
+const badgeProps = (g: DisplayGroup) => ({ name: g.name, platform: g.platform, subscriptionType: g.subscription_type, rateMultiplier: g.rate_multiplier, userRateMultiplier: props.userRates[g.id], peakRateEnabled: g.peak_rate_enabled, peakStart: g.peak_start, peakEnd: g.peak_end, peakRateMultiplier: g.peak_rate_multiplier })
 </script>
