@@ -98,9 +98,9 @@ BREAKING CHANGE: 说明（可选页脚）
 
 ### 5.1 提 PR 前
 
-1. 分支已 rebase/快进到最新 `develop`，本地门禁（§9）全过。
+1. 分支已 rebase/快进到最新 `develop`，本地门禁（§9）全过——直接跑 `pwsh -File tools/pre-push-check.ps1 -Mode full`。
 2. `gh` 在本目录**没有默认仓库**，涉及 PR 的命令**一律显式传** `--repo AnBooting/sub2api`，否则会解析到上游同名 PR。
-3. PR 正文用四段模板（Why / What Changed / Testing / Risk & Rollback），测试结果贴**实际命令与退出码**。
+3. PR 正文用仓库自带的 [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)（四段：Why / What Changed / Testing / Risk & Rollback + 自检清单），测试结果贴**实际命令与退出码**。
 
 ```powershell
 gh pr create --repo AnBooting/sub2api --base develop `
@@ -170,6 +170,14 @@ git push origin deploy-2026-11-09
 
 > 本仓库 **Actions 现状**：工作流定义（CI / Security Scan / Release / CLA）齐全且都写了 `push`+`pull_request` 触发，但**最近一次运行是 2026-10-22**；2026-11-08 的推送与 PR 都没有产生任何 run（PR 的 `statusCheckRollup` 为空）。原因需 admin 在仓库 Settings/Billing 侧确认。**因此合并判断不能等 CI，必须本机验证。**
 
+**一条命令跑完**（脚本把下面各项串起来，输出逐项 PASS/FAIL，并以退出码汇总）：
+
+```powershell
+pwsh -File tools/pre-push-check.ps1 -Scope docs                 # 只查空白/行尾/敏感文件
+pwsh -File tools/pre-push-check.ps1 -Scope backend -Mode quick   # 后端编译
+pwsh -File tools/pre-push-check.ps1 -Mode full                   # 合并前全量
+```
+
 | 门 | 命令 | 通过标准 |
 |---|---|---|
 | 后端编译 | `cd backend; go build -o bin/server.exe ./cmd/server` | 退出码 0 |
@@ -213,8 +221,10 @@ Windows 清理顺序：**先删 `node_modules`**（长路径会拦住 `worktree 
 ## 13. 本地钩子（可选，建议）
 
 - `pre-commit`：`gofmt`、`git diff --check`、敏感文件名扫描。
-- `pre-push`：按 §9 选择受影响的门禁。
+- `pre-push`：直接调 §9 的脚本，例如 `pwsh -File tools/pre-push-check.ps1 -Scope docs`。
 - `--no-verify` 只作显式例外，并在 PR/提交说明里注明原因。
+
+> 脚本与本文 §9 是同一份门禁清单的两个入口：改门禁时**两处同步**，不要只改一边。
 
 ## 14. 平台机制与权限现状
 
@@ -260,7 +270,8 @@ Clash 端口变化时同步修改。
 | 开分支 | `git switch -c fix/<主题>-<日期> develop` |
 | 看将要提交什么 | `git status --short; git diff --cached --stat` |
 | 检查空白/CRLF | `git diff --check` |
-| 提 PR | `gh pr create --repo AnBooting/sub2api --base develop ...` |
+| 合并前门禁 | `pwsh -File tools/pre-push-check.ps1 -Mode full` |
+| 提 PR | `gh pr create --repo AnBooting/sub2api --base develop ...`（正文用 `.github/PULL_REQUEST_TEMPLATE.md`） |
 | 合并 PR | `gh pr merge <N> --repo AnBooting/sub2api --merge` |
 | 回滚共享提交 | `git revert <sha>`（合并提交加 `-m 1`） |
 | 找回提交 | `git reflog` |

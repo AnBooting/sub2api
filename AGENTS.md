@@ -73,7 +73,7 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 | 服务 | `backend/internal/service/` | 业务逻辑；`wire.go` 是依赖装配 |
 | 仓储 | `backend/internal/repository/` | 数据访问；`wire.go` 装配 |
 | 模型 | `backend/ent/schema/` | Ent schema，改后必须 `go generate ./ent` |
-| 迁移 | `backend/migrations/` | 顺序编号 SQL，**当前最新 258**，新增从 **259** 起（0.2.17 同步时本 fork 的 243–250 因与上游 243–245 撞号，一次性重编号到 251–258，映射表见 `project-docs/上游同步说明.md`） |
+| 迁移 | `backend/migrations/` | 顺序编号 SQL，**当前最新 260**（`259_live_settlements.sql`、`260_usage_stats_repair.sql`），新增从 **261** 起；0.2.17 同步时本 fork 的 243–250 因与上游 243–245 撞号，一次性重编号到 251–258（映射表见 `project-docs/上游同步说明.md`） |
 | 前端 | `frontend/src/` | Vue 3 + Pinia + vue-i18n + Tailwind |
 
 ## 特殊边界
@@ -86,13 +86,15 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 - **定价口径**：以项目 ADR 与 PRD 的业务规则为准；界面说明、后端计费、测试三者必须一致。
 - **`.gitignore` 陷阱**：`docs/*` 与 `AGENTS.md` 被忽略；项目文档放 `project-docs/`。
 
-## CI（GitHub Actions，2026-10-21 起真正生效）
+## CI（GitHub Actions：定义齐全，但实测已停摆）
 
-本 fork 之前在 GitHub 上**从未跑过 CI**（仓库里 0 个 check），自 0.2.17 同步起工作流正常触发，共四个作业：
+工作流定义齐全，`push` 与 `pull_request` 都会触发，共四个作业：
 - `test` = `make test-unit` + `make test-integration`；`frontend` = 前端 typecheck + 测试 + 构建
 - `golangci-lint`（v2.14.0；本机同版本在 `F:\tools\golangci-lint\golangci-lint-2.14.0-windows-amd64\golangci-lint.exe`，在 `backend/` 目录下跑）
 - `frontend-security` = `pnpm audit` + `.github/audit-exceptions.yml` 例外校验
 - `backend-security` = `govulncheck`
+
+**实测现状（2026-11-09）**：最近一次 Actions 运行是 **2026-10-22**；2026-11-08 的 push/PR 都没有产生 run，PR 的 `statusCheckRollup` 为空。**因此不能把 CI 当合并门禁**：合并结论以本机 `pwsh -File tools/pre-push-check.ps1 -Mode full` 的实际输出 + PR 模板中贴的结果 + 独立评审记录为准。Actions 为什么停需要 admin 在仓库 Settings/Billing 侧确认（本账号只有 maintain）。
 
 **Go 工具链版本**：`backend/go.mod` 的 go 指令、三个 workflow 里的版本断言、两个 Dockerfile 必须与本机 Go 保持一致（当前 1.27.3，本机 `F:\tools\go1.27.3`）。`backend-security` 跑 `govulncheck`，**Go 标准库公告会直接让它红**（例如 1.27.2 的 GO-2026-6809，1.27.3 修复）——这类红灯不是业务代码问题，升级工具链与 go 指令即可解除，但 workflow 里的 `grep -q` 断言和 Dockerfile 要一起改。
 
@@ -134,3 +136,7 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 | skill `git-workflow-and-versioning` | Git 流程 |
 | skill `webapp-testing` | Playwright 端到端验证 |
 | `project-docs/` | 项目文档（先读 00-overview） |
+| `project-docs/04-git-workflow.md` | Git 流程主文档：分支/提交/PR/合并/撤销/门禁/红线 |
+| `tools/pre-push-check.ps1` | 本地合并门禁：-Scope docs/backend/frontend/all，-Mode quick/full；CI 停摆时它就是门禁 |
+| `.github/PULL_REQUEST_TEMPLATE.md` | PR 四段模板 + 自检清单（含 --repo、迁移编号、i18n、变异验证） |
+| `tools/verify-deployed-build.ps1` | 线上后端版本/前端构建与本地 HEAD 比对 |

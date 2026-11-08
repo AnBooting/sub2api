@@ -1,7 +1,7 @@
 # Sub2API 二开项目 — 总览
 
 > 状态：**安全整改已全部合入 develop，尚未部署上线**
-> 最后更新：2026-11-08（PR 状态用 `gh pr list --repo AnBooting/sub2api` 实测）
+> 最后更新：2026-11-09（PR 状态用 `gh pr list --repo AnBooting/sub2api` 实测；工作区与 Git 流程已按 04-git-workflow.md 收口）
 
 ## 1. 项目定位
 
@@ -59,7 +59,7 @@
 |---|---|
 | [01-baseline.md](01-baseline.md) | 基线取证：版本、依赖、构建要求 |
 | [03-dev-environment.md](03-dev-environment.md) | 开发环境与常用命令 |
-| [04-git-workflow.md](04-git-workflow.md) | Git 分支模型与操作规范 |
+| [04-git-workflow.md](04-git-workflow.md) | Git 分支模型、提交/PR/合并、撤销恢复、行尾属性、本地门禁（配套 `tools/pre-push-check.ps1` 与 `.github/PULL_REQUEST_TEMPLATE.md`） |
 | [05-deploy-docker.md](05-deploy-docker.md) | Docker 部署手册 |
 | [08-runbook.md](08-runbook.md) | 运维手册 |
 | [11-collaboration-norms.md](11-collaboration-norms.md) | 协作规范与质量门 |
