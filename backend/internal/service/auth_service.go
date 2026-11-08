@@ -327,9 +327,9 @@ func (s *AuthService) SendVerifyCode(ctx context.Context, email string, locale .
 		return err
 	}
 
-	// 发送验证码
-	if s.emailService == nil {
-		return errors.New("email service not configured")
+	// 在读写验证码缓存前检查发送必需配置，避免未配置时消耗验证码冷却期。
+	if configured, _ := s.emailService.IsConfigured(ctx); !configured {
+		return ErrEmailNotConfigured
 	}
 
 	// 获取网站名称
@@ -366,6 +366,11 @@ func (s *AuthService) SendVerifyCodeAsync(ctx context.Context, email string, loc
 	}
 	if err := s.validateRegistrationEmailQuota(ctx, email); err != nil {
 		return nil, err
+	}
+
+	// 入队成功不代表能够发信，必须先同步检查 SMTP 必需配置。
+	if configured, _ := s.emailService.IsConfigured(ctx); !configured {
+		return nil, ErrEmailNotConfigured
 	}
 
 	// 检查邮件队列服务是否配置
