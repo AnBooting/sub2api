@@ -96,8 +96,20 @@
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
 | #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
 
-**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）**；#20（文档/证据）以直接快进入 develop 的方式完成。当前 `origin/develop` = `4965ca5e9`。迁移文件在 #11/#12/#13 之间逐字一致，243–250 未复活。
+**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）**；#20（文档/证据）以直接快进入 develop 的方式完成。当前 `origin/develop` = `376d7b8f1`（含 #20 文档、04-git-workflow 重写与本地门禁工具）。迁移文件在 #11/#12/#13 之间逐字一致，243–250 未复活。
 
 **PR 编号沿革（避免后来人疑惑）**：PR 编号由 GitHub 按仓库自增分配，**不可选、不可复用**（关闭未合并的 PR 也永久占号）。因此 #20 是文档/证据 PR（已合入），#21 才是 Nit 收口 PR；两者顺序不代表重要性，只代表创建时间。
 
 **当前开放 PR 只有 #21**（Nit 收口，等 `Akanyi` 审）。**部署仍未发生**：线上 `https://sub2.lansn.icu/` 运行 `f9d8bc855`（PR #18 之前的基线），#18/#19/#21 的代码都尚未上线；上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
+
+## 8. 工作区与本地门禁（2026-11-09 收口）
+
+| 项 | 现状 |
+|---|---|
+| 工作区 | `F:\sub2` 在 `develop` @ `376d7b8f1`，与 `origin/develop` 一致；无残留 worktree；未跟踪文件只有用户自己的 `9F91A156…jpg` 与 `state-verification-report-2026-11-08.md` |
+| 本地分支 | `develop`、`main`（镜像，落后 138 属正常）、`fix/pr19-review-nits-20261108`（PR #21 OPEN，合并后删） |
+| 远端分支 | 已删除 6 个已合入 PR 的分支；保留 `backup/develop-merged-20261021`、`feat/frontend-fluent-redesign-clean`（PR #7 未合入，按计划保留）与 `chore/go-toolchain-1.27.3`（未合入） |
+| 合并门禁 | CI 实测停摆（最近 run 2026-10-22）；以 `pwsh -File tools/pre-push-check.ps1 -Mode full` + PR 模板贴出的结果为准 |
+| 新任务入口 | 先读 [04-git-workflow.md](04-git-workflow.md)；提 PR 用 [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)；合并前跑门禁脚本 |
+
+> 复用约定：门禁清单以 `04-git-workflow.md` §9 为单一事实源，`tools/pre-push-check.ps1` 是它的可执行入口；两者修改要同步。
