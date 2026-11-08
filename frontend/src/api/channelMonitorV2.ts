@@ -198,7 +198,7 @@ export interface MonitorErrorRow {
     message?: string
     count: number
   }>
-  /** true when category is in config.ignored_error_categories */
+  /** 由服务端按已配置的忽略分类标记，用户端响应不再下发该配置本身 */
   ignored?: boolean
 }
 export interface MonitorUserRow {
