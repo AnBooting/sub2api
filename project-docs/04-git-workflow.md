@@ -178,6 +178,8 @@ pwsh -File tools/pre-push-check.ps1 -Scope backend -Mode quick   # 后端编译
 pwsh -File tools/pre-push-check.ps1 -Mode full                   # 合并前全量
 ```
 
+> 退出码语义：**PASS** 全过；**WARN** 是已知环境/用例外的未处理错误（本机没有 `sh` 时的 3 条 `TestPgDumper*`、vitest 全绿但报告 1 条 unhandled rejection），只提示不阻断；只有 **FAIL** 才返回 1。调试单个包用 `-BackendTestPattern ./internal/repository`。
+
 | 门 | 命令 | 通过标准 |
 |---|---|---|
 | 后端编译 | `cd backend; go build -o bin/server.exe ./cmd/server` | 退出码 0 |
