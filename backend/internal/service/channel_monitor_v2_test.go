@@ -508,7 +508,7 @@ func TestErrorsForViewerStripsDetailsAndCountsForNonAdmin(t *testing.T) {
 	require.Contains(t, adminList.Items[0].Details[0].Message, "gateway timeout")
 }
 
-func TestSnapshotRedactsPublicConfigPolicyFields(t *testing.T) {
+func TestSnapshotPublicExposesOnlyRefreshIntervalConfig(t *testing.T) {
 	updatedBy := int64(9)
 	repo := &channelMonitorV2RepoStub{
 		config: ChannelMonitorV2Config{Enabled: true},

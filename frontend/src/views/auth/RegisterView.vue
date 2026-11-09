@@ -1109,6 +1109,10 @@ async function handleRegister(): Promise<void> {
 }
 
 function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
+  // 与 EmailVerifyView 保持一致：SMTP 未配置导致的 503 应给出可行动的本地化提示。
+  if (extractApiErrorCode(error) === 'EMAIL_NOT_CONFIGURED') {
+    return t('auth.emailServiceNotConfigured')
+  }
   if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
     return t('auth.emailDomainRegistrationLimit')
   }

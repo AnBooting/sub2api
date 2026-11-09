@@ -185,8 +185,11 @@ func (s *EmailService) GetSMTPConfig(ctx context.Context) (*SMTPConfig, error) {
 
 // 邮件配置缺失的原因码（IsConfigured 的第二个返回值）。
 //
-// 这些是**稳定**的机器可读标识：管理端设置页与发码错误路径都用它给出可行动的提示
-// （"去填 smtp_host"而不是泛化的 "email service not configured"）。
+// 这些是**稳定**的机器可读标识，用于区分「缺 smtp_host」与「缺 smtp_from」。
+//
+// 当前消费情况：管理端设置页只看配置结果（smtp_configured），发码路径按未配置统一拒绝
+// 并返回 EMAIL_NOT_CONFIGURED；原因码暂未进入响应文案，只在需要更细诊断时使用。
+// 若要给出"去填 smtp_host"这类分流提示，应在这里统一实现，不要在发码与设置页各写一套判定。
 const (
 	EmailConfigReasonHostMissing = "smtp_host_missing"
 	EmailConfigReasonFromMissing = "smtp_from_missing"

@@ -783,6 +783,11 @@ function buildEmailSuffixNotAllowedMessage(): string {
 }
 
 function buildRegistrationErrorMessage(error: unknown, fallback: string): string {
+  // I-01b：后端在 SMTP 未配置时以 EMAIL_NOT_CONFIGURED 拒绝发码，这里给出可行动的本地化提示，
+  // 而不是把 "email service not configured" 这种内部状态原样丢给用户。
+  if (extractApiErrorCode(error) === 'EMAIL_NOT_CONFIGURED') {
+    return t('auth.emailServiceNotConfigured')
+  }
   if (extractApiErrorCode(error) === 'EMAIL_DOMAIN_REGISTRATION_LIMIT') {
     return t('auth.emailDomainRegistrationLimit')
   }

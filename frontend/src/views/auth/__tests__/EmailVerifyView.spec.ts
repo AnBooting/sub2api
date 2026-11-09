@@ -67,6 +67,9 @@ vi.mock('vue-i18n', () => ({
       if (key === 'auth.emailDomainRegistrationLimit') {
         return '该邮箱域名无法注册新账户。请使用主流邮箱注册；如需使用企业邮箱，请联系客服添加域名白名单。'
       }
+      if (key === 'auth.emailServiceNotConfigured') {
+        return '站点的邮件服务尚未配置，暂时无法发送验证码。请联系站点管理员配置 SMTP 后再试。'
+      }
       return key
     },
     locale: { value: 'en' },
@@ -343,6 +346,44 @@ describe('EmailVerifyView', () => {
       expect.objectContaining({ email: 'first@custom.example' })
     )
     expect(showErrorMock).not.toHaveBeenCalled()
+  })
+
+  it('shows the localized SMTP-not-configured message when sending a verification code is rejected', async () => {
+    getPublicSettingsMock.mockResolvedValue({
+      turnstile_enabled: false,
+      turnstile_site_key: '',
+      site_name: 'Sub2API',
+      registration_email_suffix_whitelist: [],
+      registration_email_domain_quota_enabled: false,
+    })
+    sendVerifyCodeMock.mockRejectedValueOnce({
+      reason: 'EMAIL_NOT_CONFIGURED',
+      message: 'email service not configured',
+    })
+    sessionStorage.setItem(
+      'register_data',
+      JSON.stringify({
+        email: 'user@example.com',
+        password: 'secret-123',
+      })
+    )
+
+    mount(EmailVerifyView, {
+      global: {
+        stubs: {
+          AuthLayout: { template: '<div><slot /><slot name="footer" /></div>' },
+          Icon: true,
+          TurnstileWidget: true,
+          transition: false,
+        },
+      },
+    })
+
+    await flushPromises()
+
+    expect(showErrorMock).toHaveBeenLastCalledWith(
+      '站点的邮件服务尚未配置，暂时无法发送验证码。请联系站点管理员配置 SMTP 后再试。'
+    )
   })
 
   it('shows the localized domain quota message when sending a verification code is rejected', async () => {
