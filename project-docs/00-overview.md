@@ -75,7 +75,7 @@
 | [reviews/2026-11-01-pr18-review/](reviews/2026-11-01-pr18-review/) | PR #18 复审原始证据、三项修复与变异/集成验收记录 |
 | [reviews/2026-11-08-pr19-review/](reviews/2026-11-08-pr19-review/) | PR #19 评审：F-05/F-04 公共契约、I-01b SMTP 拒绝发码的发现与 Lead 汇总裁决 |
 
-> **两份手册随 PR #8 一起进入 develop**，在 PR #8 合入之前，上面指向它们的两条链接在 develop 上暂时不可达（文件本身在 PR #8 的分支上）。`23-*` 交接文档随 PR #18 进入 develop。
+> 交接与核实文档按轮次累加：`23-*` 来自安全整改，`24-*` 是状态快照的核实报告；两份使用手册（用户 / 管理员）也在本目录下。
 
 ---
 
@@ -99,13 +99,13 @@
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
 | #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
 
-**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）→ #21（11-09）**；#20（文档/证据）以直接快进入 develop 的方式完成。当前 `origin/develop` = `32ed7e6ee`（#21 合并提交），本地 `develop` 已快进对齐。#21 是纯代码/文案收口，未新增迁移，迁移文件在 #11/#12/#13 之间仍逐字一致，243–250 未复活。
+**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）→ #21（11-09）**；#20（文档/证据）以直接快进入 develop 的方式完成。`origin/develop` 已含 #21 的合并提交 `32ed7e6ee`，本地 `develop` 与远端同点，此后只追加文档提交。#21 是纯代码/文案收口，未新增迁移，迁移文件在 #11/#12/#13 之间仍逐字一致，243–250 未复活。
 
 **PR 编号沿革（避免后来人疑惑）**：PR 编号由 GitHub 按仓库自增分配，**不可选、不可复用**（关闭未合并的 PR 也永久占号）。因此 #20 是文档/证据 PR（已合入），#21 才是 Nit 收口 PR；两者顺序不代表重要性，只代表创建时间。
 
 **当前没有开放 PR**（#21 已于 2026-11-09T10:50:38Z 合入）。**部署仍未发生**（2026-11-10 用 `tools/verify-deployed-build.ps1` 实测）：
 线上 `https://sub2.lansn.icu/` 的 `/api/v1/settings/public` 返回值里的 version 是 `0.2.17-fork.f9d8bc855`，
-与本地 HEAD `32ed7e6ee` 不一致，脚本报 `[DRIFT]` 并以**退出码 1** 结束——即 #18/#19/#21 的代码都还没上线，线上仍是 PR #18 之前的基线。
+与本地 `develop` 顶端不一致（探测时 HEAD 为 `32ed7e6ee`），脚本报 `[DRIFT]` 并以**退出码 1** 结束——即 #18/#19/#21 的代码都还没上线，线上仍是 PR #18 之前的基线。
 同一次探测还确认：线上首页 HTML 内联的 `__APP_CONFIG__.version` 是**空串**（已知缺陷 D-02，修复在 `setting_public.go` + `Dockerfile`，需下次构建才生效）。
 上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
 
@@ -113,10 +113,11 @@
 
 | 项 | 现状 |
 |---|---|
-| 工作区 | `F:\sub2` 在 `develop` @ `32ed7e6ee`，与 `origin/develop` 一致（0 领先 / 0 落后）；无残留 worktree；未跟踪文件只剩用户自己的截图 `9F91A156…jpg`（另见下方"本地杂物"） |
+| 工作区 | `F:\sub2` 在 `develop`，与 `origin/develop` 同步（无领先/落后提交）；无残留 worktree；`git status --porcelain` 输出为**空**——两份本地杂物（见下两行）已写进 `.git/info/exclude`，文件仍在磁盘、不入库 |
 | 本地分支 | 只剩 `develop` 与 `main`（镜像 = `origin/main` @ `ca8c14efc`）；#21 的 `fix/pr19-review-nits-20261108` 已删 |
 | 远端分支 | 只剩 `develop`、`main` 与三个刻意保留的分支：`backup/develop-merged-20261021`（合并前备份，含 2 个仅此处可达的提交）、`feat/frontend-fluent-redesign-clean`（PR #7 关闭未合入，是那套视觉改造的唯一副本）、`chore/go-toolchain-1.27.3`（含 1 个未合入的 docs 提交）。**删这三个分支前先确认内容已并入他处** |
-| 本地杂物 | `project-skills/sub2api-dev-deploy/manifest.json` 是技能生成器写的元数据（`generatedAt`/`fileCount`，仓库里其他技能都没跟这种文件），用 `.git/info/exclude` 本地忽略，不进历史 |
+| 标签 | 本地 **69** 个、`origin` **0** 个。其中 3 个取证锚（`baseline-fork-2026-10-09`、`baseline-upstream-v0.2.15`、`baseline-v0.2.15`）、1 个 `prepush/pr12-pr13-merged`（#12/#13 的 squash 提交在本地**唯一**的引用，删掉就只剩 reflog）、65 个 `v0.x` 版本号。是否推到远端需单独授权：推上去等于给 fork 定了一张版本清单 |
+| 本地杂物 | ① `9F91A156…jpg`（4.1 MB，用户放在仓库根的截图，非交付物）；② `project-skills/sub2api-dev-deploy/manifest.json`（技能生成器写的元数据，含 `generatedAt`/`fileCount`，仓库其他技能都没有这种文件）。两者都在 `.git/info/exclude` 里：不进历史，也不污染 `git status`；真要入库用 `git add -f <路径>` |
 | 合并门禁 | CI 实测停摆（最近 run 2026-10-22）；以 `pwsh -File tools/pre-push-check.ps1 -Mode full` + PR 模板贴出的结果为准 |
 | 新任务入口 | 先读 [04-git-workflow.md](04-git-workflow.md)；提 PR 用 [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)；合并前跑门禁脚本 |
 
