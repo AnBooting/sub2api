@@ -95,7 +95,7 @@
 | #19 | fix(security): 收敛用户响应字段并阻止 SMTP 未配置时发码 | **MERGED（2026-11-08）** | 作者 Akanyi，合并提交 `4965ca5e9`。对应交接文档 §3.1（F-05 用户面分组字段收敛、F-04 监控快照 config 白名单）与 I-01 后半（SMTP 未配置时拒绝发码）。评审结论 Approve / 0 Critical / 0 Required，证据见 [reviews/2026-11-08-pr19-review/](reviews/2026-11-08-pr19-review/) |
 | #20 | docs(reviews): correct PR status after #18 merge and record PR19 review | **MERGED（2026-11-08）** | 状态文档订正 + PR #19 评审证据入库。做法是**直接快进推入 develop**（`4a0064318..7c2848bed`，项目规则允许直接推集成分支），GitHub 随即自动把 #20 标为 MERGED —— 不是通过 PR 页面合并 |
 | #21 | fix(auth): localize SMTP-not-configured message and close PR19 review nits | **MERGED（2026-11-09）** | 评审方（非 #19 作者）收口 #19 的 5 条 Nit：`EMAIL_NOT_CONFIGURED` 的 zh/en 映射与可行动提示、两处过时注释/测试名、`IsConfigured` reason 口径、异步用例空转断言。作者 `yylovehhy`，**由 `Akanyi` 合并**，合并提交 `32ed7e6ee`（`--merge` 保留合并提交，base `develop` @ `29a0f0125`）；共 9 文件 +63/−6，**不含迁移**。合并后分支 `fix/pr19-review-nits-20261108` 已本地与远端双删 |
-| #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮 PR 改动了同样的界面文件；分支 `feat/frontend-fluent-redesign-clean` **完整保留**，重做前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
+| #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮 PR 改动了同样的界面文件。分支 `feat/frontend-fluent-redesign-clean` 已于 2026-11-10 归档为标签 `archive/feat-fluent-redesign`（指向 `d52241fdb`，含 5 个提交）后从远端删除，**提交一个没丢**：`git switch -c feat/frontend-fluent-redesign-clean archive/feat-fluent-redesign` 即可恢复工作分支。重做前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
 | #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
 
@@ -114,9 +114,11 @@
 | 项 | 现状 |
 |---|---|
 | 工作区 | `F:\sub2` 在 `develop`，与 `origin/develop` 同步（无领先/落后提交）；无残留 worktree；`git status --porcelain` 输出为**空**——两份本地杂物（见下两行）已写进 `.git/info/exclude`，文件仍在磁盘、不入库 |
-| 本地分支 | 只剩 `develop` 与 `main`（镜像 = `origin/main` @ `ca8c14efc`）；#21 的 `fix/pr19-review-nits-20261108` 已删 |
-| 远端分支 | 只剩 `develop`、`main` 与三个刻意保留的分支：`backup/develop-merged-20261021`（合并前备份，含 2 个仅此处可达的提交）、`feat/frontend-fluent-redesign-clean`（PR #7 关闭未合入，是那套视觉改造的唯一副本）、`chore/go-toolchain-1.27.3`（含 1 个未合入的 docs 提交）。**删这三个分支前先确认内容已并入他处** |
-| 标签 | 本地 **69** 个、`origin` **0** 个。其中 3 个取证锚（`baseline-fork-2026-10-09`、`baseline-upstream-v0.2.15`、`baseline-v0.2.15`）、1 个 `prepush/pr12-pr13-merged`（#12/#13 的 squash 提交在本地**唯一**的引用，删掉就只剩 reflog）、65 个 `v0.x` 版本号。是否推到远端需单独授权：推上去等于给 fork 定了一张版本清单 |
+| 本地分支 | 只剩 `develop` 与 `main`（镜像：与 `develop` 同一提交，只做快进，不在 `main` 上提交）；#21 的 `fix/pr19-review-nits-20261108` 已删 |
+| 远端分支 | 只剩 `develop` 与 `main`（2026-11-10 清理完成）。原有三个「有内容但不在 develop 上」的分支——`feat/frontend-fluent-redesign-clean`（PR #7 关闭未合入，5 个提交）、`chore/go-toolchain-1.27.3`（1 个未合入的 docs 提交）、`backup/develop-merged-20261021`（合并前快照，2 个提交）——**先打注释标签再删**，提交无丢失（见下行「标签」与「恢复已删分支」） |
+| 恢复已删分支 | 需要哪个就从标签拉回来：`git switch -c feat/frontend-fluent-redesign-clean archive/feat-fluent-redesign`（chore/backup 同理换成对应 `archive/*`），再 `git push -u origin <分支名>`。标签是注释标签，`git show <tag>` 能看到当初的归档说明 |
+| 标签 | 本地 **69** 个、`origin` 现在 **7** 个（都经（2026-11-10）显式授权推送）：3 个取证锚 `baseline-fork-2026-10-09` / `baseline-upstream-v0.2.15` / `baseline-v0.2.15`、`prepush/pr12-pr13-merged`（#12/#13 的 squash 提交在本地**唯一**的引用）、3 个归档 `archive/feat-fluent-redesign` / `archive/chore-go-toolchain-1.27.3` / `archive/backup-develop-merged-20261021`。其余 **62** 个 `v0.x` 刻意不推：那是上游/基线的版本号命名空间，推到 fork 会让人误以为 fork 发布过这些版本 |
+| main 同步 | 2026-11-10 把 `origin/main` 从 `ca8c14efc` 快进到 `develop` 顶（当时落后 **287** 个提交，`develop..main` = 0，纯快进、无合并提交）。规矩不变：`main` 永不直接提交，只从 `develop` 快进 |
 | 本地杂物 | ① `9F91A156…jpg`（4.1 MB，用户放在仓库根的截图，非交付物）；② `project-skills/sub2api-dev-deploy/manifest.json`（技能生成器写的元数据，含 `generatedAt`/`fileCount`，仓库其他技能都没有这种文件）。两者都在 `.git/info/exclude` 里：不进历史，也不污染 `git status`；真要入库用 `git add -f <路径>` |
 | 合并门禁 | CI 实测停摆（最近 run 2026-10-22）；以 `pwsh -File tools/pre-push-check.ps1 -Mode full` + PR 模板贴出的结果为准 |
 | 新任务入口 | 先读 [04-git-workflow.md](04-git-workflow.md)；提 PR 用 [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)；合并前跑门禁脚本 |
