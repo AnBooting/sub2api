@@ -108,6 +108,14 @@
 与本地 `develop` 顶端不一致（探测时 HEAD 为 `32ed7e6ee`），脚本报 `[DRIFT]` 并以**退出码 1** 结束——即 #18/#19/#21 的代码都还没上线，线上仍是 PR #18 之前的基线。
 同一次探测还确认：线上首页 HTML 内联的 `__APP_CONFIG__.version` 是**空串**（已知缺陷 D-02，修复在 `setting_public.go` + `Dockerfile`，需下次构建才生效）。
 上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
+**发布归属（2026-11-10 明确）**：服务器 SSH 接入、`docker-compose.local.yml`/`.env` 所在目录、镜像 tag 规则、DB 备份路径都不在本会话手里，
+因此**本轮不做部署**，生产发布留给同事执行。代价要写在明面上：同事上线之前，`https://sub2.lansn.icu/` 仍在跑那个 10-29 的二进制，
+**F-01（伪造 `X-Real-IP` 绕过 IP 限流，P0）等缺陷在生产上继续暴露**——「已合入 develop」不等于「线上已修复」，任何文档都不许把两者混写。
+
+同事的发布依据：流程/自检/回滚见 [05-deploy-docker.md §4](05-deploy-docker.md#L85)；上线动作必须按 [23-handoff §4](23-handoff-security-remediation-2026-10-30.md#L275) 的
+**4.1 填 EdgeOne 回源网段 → 4.2 两步上线**（第 2 步才改 `trust_forwarded_ip_for_api_key_acl` 判定，配错会全站 429）**→ 4.3 发布后两项自检**，不要一次全上。
+迁移 `259_live_settlements.sql` / `260_usage_stats_repair.sql` 由启动时的 ent migrator 自动执行，**执行前先 `pg_dump`**；
+发布后跑 `tools/verify-deployed-build.ps1`，强判据**退出码 0** 且内联 version 非空才算成功。
 
 ## 8. 工作区与本地门禁（2026-11-10 收口）
 
