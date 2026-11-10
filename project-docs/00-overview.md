@@ -1,7 +1,7 @@
 # Sub2API 二开项目 — 总览
 
-> 状态：**安全整改已全部合入 develop，尚未部署上线**
-> 最后更新：2026-11-09（PR 状态用 `gh pr list --repo AnBooting/sub2api` 实测；工作区与 Git 流程已按 04-git-workflow.md 收口）
+> 状态：**安全整改已全部合入 develop（#18 / #19 / #21），尚未部署上线**
+> 最后更新：2026-11-10（PR 状态用 `gh pr list/view --repo AnBooting/sub2api` + `git fetch origin` + `tools/verify-deployed-build.ps1` 实测；工作区与 Git 流程已按 04-git-workflow.md 收口）
 
 ## 1. 项目定位
 
@@ -71,6 +71,7 @@
 | [architecture/README.md](architecture/README.md) | 架构侦察索引（含架构图） |
 | [22-repository-status-2026-10-19.md](22-repository-status-2026-10-19.md) | 仓库状态与全量审计执行记录（2026-10-19） |
 | [23-handoff-security-remediation-2026-10-30.md](23-handoff-security-remediation-2026-10-30.md) | **安全整改交接（单份自包含）**：本轮结论、验收状态、9 项待办与人工事项；接手同事的开工入口 |
+| [24-state-verification-2026-11-08.md](24-state-verification-2026-11-08.md) | 对 `22-*` 状态快照的逐条实证核实：6 条断言中 5 条一致、1 条快照过时；每条附命令与原始输出 |
 | [reviews/2026-11-01-pr18-review/](reviews/2026-11-01-pr18-review/) | PR #18 复审原始证据、三项修复与变异/集成验收记录 |
 | [reviews/2026-11-08-pr19-review/](reviews/2026-11-08-pr19-review/) | PR #19 评审：F-05/F-04 公共契约、I-01b SMTP 拒绝发码的发现与 Lead 汇总裁决 |
 
@@ -78,9 +79,11 @@
 
 ---
 
-## 7. 当前 PR 状态（2026-11-08 用 `gh pr list --repo AnBooting/sub2api` 实测）
+## 7. 当前 PR 状态（2026-11-10 用 `gh pr list --repo AnBooting/sub2api` 实测）
 
-> **读文档前先看这张表**：下面标 **OPEN** 的都**尚未合入 develop**，文档里不要把它们写成"已上线"。
+> **读文档前先看这张表**：**当前没有 OPEN PR**（`gh pr list --state open` 返回 `[]`）。
+> 标 **MERGED** 的都已进入 `develop`，但**不等于已上线**——上线状态单看 §7 末尾那条部署结论；
+> 标 **CLOSED（未合入）** 的是关掉的历史行，任何文档都不得把它们写成"已上线"。
 
 | PR | 标题 | 状态 | 说明 |
 |---|---|---|---|
@@ -91,24 +94,29 @@
 | #18 | fix(security): 转发头信任反转、限流账号维度与部署可验证性整改 | **MERGED（2026-11-08）** | 合并提交 `4a0064318`，进入 `develop`。含 PR #18 复审的三项修复（Compose 固定网络与网关信任、认证身份严格解析、SMTP GET/PUT 一致），见 [reviews/2026-11-01-pr18-review/](reviews/2026-11-01-pr18-review/)。**代码已合入但线上仍运行 `f9d8bc855`，尚未部署** |
 | #19 | fix(security): 收敛用户响应字段并阻止 SMTP 未配置时发码 | **MERGED（2026-11-08）** | 作者 Akanyi，合并提交 `4965ca5e9`。对应交接文档 §3.1（F-05 用户面分组字段收敛、F-04 监控快照 config 白名单）与 I-01 后半（SMTP 未配置时拒绝发码）。评审结论 Approve / 0 Critical / 0 Required，证据见 [reviews/2026-11-08-pr19-review/](reviews/2026-11-08-pr19-review/) |
 | #20 | docs(reviews): correct PR status after #18 merge and record PR19 review | **MERGED（2026-11-08）** | 状态文档订正 + PR #19 评审证据入库。做法是**直接快进推入 develop**（`4a0064318..7c2848bed`，项目规则允许直接推集成分支），GitHub 随即自动把 #20 标为 MERGED —— 不是通过 PR 页面合并 |
-| #21 | fix(auth): localize SMTP-not-configured message and close PR19 review nits | **OPEN** | 评审方（非 #19 作者）收口 #19 的 5 条 Nit：`EMAIL_NOT_CONFIGURED` 的 zh/en 映射与可行动提示、两处过时注释/测试名、`IsConfigured` reason 口径、异步用例空转断言。已指派 reviewer `Akanyi`。**等审后由用户授权合并** | 作者 Akanyi，head `dev/security-public-contracts-smtp-20261108` @ `849c14a7b`，base `develop` @ `4a0064318`。对应交接文档 §3.1（F-05 用户面分组字段收敛、F-04 监控快照 config 白名单）与 I-01 后半（SMTP 未配置时拒绝发码）。**本轮由新成员只读评审中，尚未裁决** |
+| #21 | fix(auth): localize SMTP-not-configured message and close PR19 review nits | **MERGED（2026-11-09）** | 评审方（非 #19 作者）收口 #19 的 5 条 Nit：`EMAIL_NOT_CONFIGURED` 的 zh/en 映射与可行动提示、两处过时注释/测试名、`IsConfigured` reason 口径、异步用例空转断言。作者 `yylovehhy`，**由 `Akanyi` 合并**，合并提交 `32ed7e6ee`（`--merge` 保留合并提交，base `develop` @ `29a0f0125`）；共 9 文件 +63/−6，**不含迁移**。合并后分支 `fix/pr19-review-nits-20261108` 已本地与远端双删 |
 | #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮 PR 改动了同样的界面文件；分支 `feat/frontend-fluent-redesign-clean` **完整保留**，重做前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
 | #1–#4 | 基线、CNY 计费与节假日、视频异步锁价、PRD 交付 | **MERGED** | 已进入 develop |
 
-**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）**；#20（文档/证据）以直接快进入 develop 的方式完成。当前 `origin/develop` = `376d7b8f1`（含 #20 文档、04-git-workflow 重写与本地门禁工具）。迁移文件在 #11/#12/#13 之间逐字一致，243–250 未复活。
+**合并顺序（已完成）**：**#14（10-21）→ #11（10-28）→ #12（10-29）→ #13（10-29）→ #18（11-08）→ #19（11-08）→ #21（11-09）**；#20（文档/证据）以直接快进入 develop 的方式完成。当前 `origin/develop` = `32ed7e6ee`（#21 合并提交），本地 `develop` 已快进对齐。#21 是纯代码/文案收口，未新增迁移，迁移文件在 #11/#12/#13 之间仍逐字一致，243–250 未复活。
 
 **PR 编号沿革（避免后来人疑惑）**：PR 编号由 GitHub 按仓库自增分配，**不可选、不可复用**（关闭未合并的 PR 也永久占号）。因此 #20 是文档/证据 PR（已合入），#21 才是 Nit 收口 PR；两者顺序不代表重要性，只代表创建时间。
 
-**当前开放 PR 只有 #21**（Nit 收口，等 `Akanyi` 审）。**部署仍未发生**：线上 `https://sub2.lansn.icu/` 运行 `f9d8bc855`（PR #18 之前的基线），#18/#19/#21 的代码都尚未上线；上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
+**当前没有开放 PR**（#21 已于 2026-11-09T10:50:38Z 合入）。**部署仍未发生**（2026-11-10 用 `tools/verify-deployed-build.ps1` 实测）：
+线上 `https://sub2.lansn.icu/` 的 `/api/v1/settings/public` 返回值里的 version 是 `0.2.17-fork.f9d8bc855`，
+与本地 HEAD `32ed7e6ee` 不一致，脚本报 `[DRIFT]` 并以**退出码 1** 结束——即 #18/#19/#21 的代码都还没上线，线上仍是 PR #18 之前的基线。
+同一次探测还确认：线上首页 HTML 内联的 `__APP_CONFIG__.version` 是**空串**（已知缺陷 D-02，修复在 `setting_public.go` + `Dockerfile`，需下次构建才生效）。
+上线前的人工事项见 [23-handoff](23-handoff-security-remediation-2026-10-30.md) §4 与 [ACTION-ITEMS.md](reviews/2026-10-30-security-remediation/ACTION-ITEMS.md)。
 
-## 8. 工作区与本地门禁（2026-11-09 收口）
+## 8. 工作区与本地门禁（2026-11-10 收口）
 
 | 项 | 现状 |
 |---|---|
-| 工作区 | `F:\sub2` 在 `develop` @ `376d7b8f1`，与 `origin/develop` 一致；无残留 worktree；未跟踪文件只有用户自己的 `9F91A156…jpg` 与 `state-verification-report-2026-11-08.md` |
-| 本地分支 | `develop`、`main`（镜像，落后 138 属正常）、`fix/pr19-review-nits-20261108`（PR #21 OPEN，合并后删） |
-| 远端分支 | 已删除 6 个已合入 PR 的分支；保留 `backup/develop-merged-20261021`、`feat/frontend-fluent-redesign-clean`（PR #7 未合入，按计划保留）与 `chore/go-toolchain-1.27.3`（未合入） |
+| 工作区 | `F:\sub2` 在 `develop` @ `32ed7e6ee`，与 `origin/develop` 一致（0 领先 / 0 落后）；无残留 worktree；未跟踪文件只剩用户自己的截图 `9F91A156…jpg`（另见下方"本地杂物"） |
+| 本地分支 | 只剩 `develop` 与 `main`（镜像 = `origin/main` @ `ca8c14efc`）；#21 的 `fix/pr19-review-nits-20261108` 已删 |
+| 远端分支 | 只剩 `develop`、`main` 与三个刻意保留的分支：`backup/develop-merged-20261021`（合并前备份，含 2 个仅此处可达的提交）、`feat/frontend-fluent-redesign-clean`（PR #7 关闭未合入，是那套视觉改造的唯一副本）、`chore/go-toolchain-1.27.3`（含 1 个未合入的 docs 提交）。**删这三个分支前先确认内容已并入他处** |
+| 本地杂物 | `project-skills/sub2api-dev-deploy/manifest.json` 是技能生成器写的元数据（`generatedAt`/`fileCount`，仓库里其他技能都没跟这种文件），用 `.git/info/exclude` 本地忽略，不进历史 |
 | 合并门禁 | CI 实测停摆（最近 run 2026-10-22）；以 `pwsh -File tools/pre-push-check.ps1 -Mode full` + PR 模板贴出的结果为准 |
 | 新任务入口 | 先读 [04-git-workflow.md](04-git-workflow.md)；提 PR 用 [`.github/PULL_REQUEST_TEMPLATE.md`](../.github/PULL_REQUEST_TEMPLATE.md)；合并前跑门禁脚本 |
 

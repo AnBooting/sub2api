@@ -6,9 +6,9 @@
 > |---|---|
 > | 项目 | Sub2API 二开（Go 1.27.3 + Vue 3 + Ent + PostgreSQL + Redis） |
 > | 分支 | `fix/security-remediation-20261030`（base `develop` @ `f9d8bc855`）—— **已合并，本地分支已删除** |
-> | PR | https://github.com/AnBooting/sub2api/pull/18 （base `develop`，**MERGED 2026-11-08**，合并提交 `4a0064318`）；Nit 收口见 [PR #21](https://github.com/AnBooting/sub2api/pull/21)（**OPEN**，等 `Akanyi` 审） |
+> | PR | https://github.com/AnBooting/sub2api/pull/18 （base `develop`，**MERGED 2026-11-08**，合并提交 `4a0064318`）；Nit 收口见 [PR #21](https://github.com/AnBooting/sub2api/pull/21)（**MERGED 2026-11-09T10:50:38Z**，由 `Akanyi` 合并，合并提交 `32ed7e6ee`，分支已删） |
 > | 改动规模 | 代码 77 文件 +5392/−115（`backend`/`frontend`/`deploy`/`tools`）；其余为本轮文档 |
-> | 线上 | https://sub2.lansn.icu/ （部署在 `develop` HEAD `f9d8bc855`，**合入的代码尚未部署**：#18/#19/#21 都不在线上） |
+> | 线上 | https://sub2.lansn.icu/ （部署在 `develop` HEAD `f9d8bc855`，**合入的代码尚未部署**：#18/#19/#21 都不在线上。2026-11-10 用 `tools/verify-deployed-build.ps1` 复核：线上 version `0.2.17-fork.f9d8bc855` ↔ 本地 HEAD `32ed7e6ee`，报 `[DRIFT]`、退出码 1） |
 > | 轮次 | 2026-10-30 ~ 10-31 |
 > | 本文件位置 | `project-docs/23-handoff-security-remediation-2026-10-30.md` |
 
