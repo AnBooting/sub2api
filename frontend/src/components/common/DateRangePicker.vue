@@ -329,6 +329,14 @@ onUnmounted(() => {
   @apply focus:border-signal focus:outline-none;
   @apply hover:border-ink-faint;
   @apply cursor-pointer;
+  /* 它是个按钮，触屏上必须到 44px；桌面 38px 够用 */
+  min-height: var(--touch-min);
+}
+
+@media (min-width: 768px) {
+  .date-picker-trigger {
+    min-height: 0;
+  }
 }
 
 .date-picker-trigger-open {
@@ -360,9 +368,17 @@ onUnmounted(() => {
 }
 
 .date-picker-preset {
-  @apply min-h-[36px] rounded-sm px-3 py-1.5 text-xs font-medium text-ink-soft;
+  /* 快捷区间是常用操作，触屏上要够 44px；桌面可收紧到 36px */
+  @apply rounded-sm px-3 py-1.5 text-xs font-medium text-ink-soft;
   @apply hover:bg-paper-inset hover:text-ink;
   @apply transition-colors duration-150;
+  min-height: var(--touch-min);
+}
+
+@media (min-width: 768px) {
+  .date-picker-preset {
+    min-height: 2.25rem;
+  }
 }
 
 .date-picker-preset-active {

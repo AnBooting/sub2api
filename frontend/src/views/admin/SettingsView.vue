@@ -6689,7 +6689,7 @@
 
                 <button
                   type="button"
-                  class="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                  class="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                   @click="addEndpoint"
                 >
                   <svg
@@ -6995,7 +6995,7 @@
               <!-- Add button -->
               <button
                 type="button"
-                class="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-3 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-3 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addMenuItem"
               >
                 <svg
@@ -13446,7 +13446,8 @@ watch(
 }
 
 .settings-tab {
-  @apply relative flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-b-transparent px-3 text-sm font-medium text-ink-soft outline-none transition-colors duration-150;
+  /* h-10（40px）在触屏上偏小：移动端升到 44px，桌面保持紧凑 */
+  @apply relative flex h-11 shrink-0 items-center gap-1.5 whitespace-nowrap border-b-2 border-b-transparent px-3 text-sm font-medium text-ink-soft outline-none transition-colors duration-150;
 }
 
 .settings-tab:hover {
@@ -13479,5 +13480,4 @@ watch(
   @apply whitespace-nowrap leading-none;
 }
 </style>
-
 

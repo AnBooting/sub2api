@@ -218,6 +218,11 @@ export default {
     queryFailed: '查询失败',
     queryFailedRetry: '查询失败，请稍后重试',
     noDailyUsage: '暂无按日用量数据',
+    // 空态：写成邀请，不是"没有数据"
+    emptyTitle: '把 Key 贴进上面的输入框',
+    emptyDescription: '查询后这里会画出这一把 Key 的额度环、余额、今日与累计用量，以及按日、按模型的明细账。Key 只在浏览器里发出请求，服务端不留。',
+    showKey: '显示 Key',
+    hideKey: '隐藏 Key',
   },
 
   // Setup Wizard

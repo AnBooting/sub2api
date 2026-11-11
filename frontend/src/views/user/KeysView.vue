@@ -48,6 +48,17 @@
    </template>
 
    <template #actions>
+   <!-- 图签：与其它列表页同构（衬线标题 + 引导段 + 右侧计数读数）。
+        此前这一页完全没有页面标题，视觉与读屏上都少了「这是哪一页」的锚点。 -->
+   <div class="title-block">
+   <div class="min-w-0">
+   <h1 class="title-block-title">{{ t('keys.title') }}</h1>
+   <p class="lead mt-1 hidden sm:block">{{ t('keys.description') }}</p>
+   </div>
+   <div class="title-block-meta">
+   <span>{{ pagination.total }} {{ t('common.total') }}</span>
+   </div>
+   </div>
    <div class="flex justify-end gap-3">
    <button
    @click="loadApiKeys"

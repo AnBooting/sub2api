@@ -304,12 +304,15 @@
     min-height: 2.25rem;
   }
 
-  /* 移动端：所有按钮达到触控下限 */
+  /* 移动端：所有按钮达到触控下限
+   * min-width 一起给 —— 纯图标按钮若只写 .btn（漏了 .btn-icon）会只有 34px 宽。
+   * 文字按钮本身比 44px 宽，不受影响。 */
   @media (max-width: 767px) {
     .btn,
     .btn-sm,
     .btn-icon {
       min-height: var(--touch-min);
+      min-width: var(--touch-min);
     }
     .btn-sm {
       @apply px-3 text-xs;
@@ -328,15 +331,17 @@
     @apply focus:border-signal focus:outline-none;
     @apply disabled:cursor-not-allowed disabled:bg-paper-inset disabled:text-ink-faint;
     border-radius: var(--radius-cut);
-    min-height: 2.25rem;
+    /* 移动端输入框本身也是触控目标，必须到 44px */
+    min-height: var(--touch-min);
     /* 16px：避免 iOS 聚焦缩放 */
     font-size: 16px;
   }
 
+  /* 桌面用鼠标，可以收紧；移动端保持 44px */
   @media (min-width: 768px) {
     .input {
-      font-size: 0.875rem;
       min-height: 2.25rem;
+      font-size: 0.875rem;
     }
   }
 
@@ -671,6 +676,20 @@
     }
     .sidebar-section-title {
       @apply text-[0.6875rem];
+    }
+    /* 品牌区也是触控目标：logo 与站名合成一个 44px 高的点击带 */
+    .sidebar-header {
+      min-height: var(--touch-min);
+    }
+    .sidebar-brand-title {
+      display: inline-flex;
+      align-items: center;
+      min-height: var(--touch-min);
+    }
+    .sidebar-logo {
+      width: var(--touch-min);
+      min-width: var(--touch-min);
+      height: var(--touch-min);
     }
   }
 

@@ -28,7 +28,8 @@
               role="tab"
               :aria-selected="activeView === view.value"
               :class="[
-                'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                'px-3 py-1.5 text-sm font-medium transition-colors',
+                'min-h-[44px] rounded-[var(--radius-cut)] sm:min-h-0',
                 activeView === view.value
                   ? 'bg-primary-600 text-on-signal'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-200 dark:hover:bg-dark-600'

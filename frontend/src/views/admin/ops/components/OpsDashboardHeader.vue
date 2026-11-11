@@ -955,7 +955,7 @@ function handleToolbarRefresh() {
         <button
           v-if="!props.fullscreen"
           type="button"
-          class="flex h-8 items-center gap-1.5 rounded-lg bg-blue-100 px-3 text-xs font-bold text-blue-700 transition-colors hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-blue-900/50"
+          class="btn btn-secondary h-8 px-3 text-xs font-medium"
           :title="t('admin.ops.alertRules.title')"
           @click="emit('openAlertRules')"
         >

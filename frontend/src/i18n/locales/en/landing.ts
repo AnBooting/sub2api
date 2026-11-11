@@ -218,6 +218,11 @@ export default {
     queryFailed: 'Query failed',
     queryFailedRetry: 'Query failed, please try again later',
     noDailyUsage: 'No daily usage data',
+    // Empty state written as an invitation, not "no data"
+    emptyTitle: 'Paste your Key into the field above',
+    emptyDescription: 'Once queried, this page draws the quota rings, balance, today and lifetime totals, plus the daily and per-model ledger for this Key. The Key only makes a request from your browser; nothing is stored.',
+    showKey: 'Show Key',
+    hideKey: 'Hide Key',
   },
 
   // Setup Wizard

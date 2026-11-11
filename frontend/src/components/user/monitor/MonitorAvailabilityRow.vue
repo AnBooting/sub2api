@@ -44,6 +44,7 @@ const displayValue = computed(() => {
 
 const colorStyle = computed(() => {
   const colour = hslForPct(props.value)
-  return colour ? { color: colour } : { color: 'rgb(156 163 175)' }
+  // 空值/未知：用语义淡墨令牌，不再写死 Tailwind 灰 400
+  return colour ? { color: colour } : { color: 'rgb(var(--ink-faint))' }
 })
 </script>

@@ -6,6 +6,7 @@
       mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
     ]"
     :aria-hidden="sidebarVisibleToAssistiveTech ? undefined : true"
+    :inert="sidebarVisibleToAssistiveTech ? undefined : true"
   >
     <!-- 图签：品牌 + 版本 -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">
@@ -1091,8 +1092,21 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .sidebar-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 2.25rem;
   min-width: 2.25rem;
+}
+
+/* 移动端：品牌 logo 是触控入口，撑到 44×44 */
+@media (max-width: 1023px) {
+  .sidebar-logo {
+    flex-basis: var(--touch-min);
+    min-width: var(--touch-min);
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
 }
 
 .sidebar-header-collapsed {
@@ -1159,14 +1173,14 @@ onBeforeUnmount(() => {
   right: 0.75rem;
   top: 50%;
   height: 1px;
-  background: rgb(229 231 235);
+  background: rgb(var(--rule-strong));
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 0.18s ease;
 }
 
 .dark .sidebar-section-title::after {
-  background: rgb(55 65 81);
+  background: rgb(var(--rule-strong));
 }
 
 .sidebar-section-title-text-collapsed {

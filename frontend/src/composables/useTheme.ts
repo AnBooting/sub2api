@@ -9,8 +9,11 @@ import { ref } from 'vue'
  */
 
 const STORAGE_KEY = 'theme'
-const PAPER_LIGHT = '#fafbfc'
-const PAPER_DARK = '#0d1218'
+// 必须与 design-system.css 的 --paper 一致（暖石灰 / 暖褐墨夜）。
+// 早期这里是 v1 冷石墨值（#fafbfc/#0d1218），色相与暖纸相反 ——
+// 手机浏览器栏会在暖纸顶上裂出一条冷色，正是本文件要防的那种破裂感。
+const PAPER_LIGHT = '#fbf9f6'
+const PAPER_DARK = '#12100e'
 
 export const isDarkTheme = ref(false)
 

@@ -1,30 +1,32 @@
 <template>
-  <div class="relative flex min-h-screen flex-col bg-gray-50 dark:bg-dark-950">
-    <!-- Header (same pattern as HomeView) -->
-    <header class="relative z-20 px-6 py-4">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between">
-        <router-link to="/home" class="flex items-center gap-3">
-          <div class="h-10 w-10 overflow-hidden rounded-xl">
-            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
-          </div>
-          <span class="text-lg font-semibold tracking-tight text-gray-900 dark:text-on-signal">{{ siteName }}</span>
+  <div class="flex min-h-screen flex-col bg-paper text-ink">
+    <!-- 页头：与首页同一张纸 -->
+    <header class="border-b border-rule">
+      <nav class="mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-3 px-gutter py-3">
+        <router-link to="/" class="flex min-h-11 min-w-0 items-center gap-2.5 sm:min-h-0">
+          <img :src="siteLogo || '/logo.svg'" alt="" class="h-8 w-8 shrink-0 object-contain" />
+          <span class="brand-name min-w-0 truncate">{{ siteName }}</span>
         </router-link>
-        <div class="flex items-center gap-3">
+
+        <div class="flex min-w-0 shrink items-center gap-1">
           <LocaleSwitcher />
           <a
             v-if="docUrl"
             :href="docUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-on-signal"
+            class="btn btn-ghost btn-icon"
             :title="t('home.viewDocs')"
+            :aria-label="t('home.viewDocs')"
           >
             <Icon name="book" size="md" />
           </a>
           <button
-            @click="toggleTheme"
-            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-on-signal"
+            type="button"
+            class="btn btn-ghost btn-icon"
             :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
+            :aria-label="isDark ? t('home.switchToLight') : t('home.switchToDark')"
+            @click="toggleTheme"
           >
             <Icon v-if="isDark" name="sun" size="md" />
             <Icon v-else name="moon" size="md" />
@@ -33,382 +35,345 @@
       </nav>
     </header>
 
-    <!-- Main Content -->
-    <main class="flex-1 w-full max-w-5xl mx-auto px-6 py-12">
-      <!-- Hero -->
-      <div class="text-center mb-12">
-        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight mb-3 text-gray-900 dark:text-on-signal">
-          {{ t('keyUsage.title') }}
-        </h1>
-        <p class="text-gray-500 dark:text-dark-400 text-base max-w-md mx-auto">
-          {{ t('keyUsage.subtitle') }}
-        </p>
+    <main class="mx-auto w-full min-w-0 max-w-5xl flex-1 px-gutter py-8 sm:py-10">
+      <!-- 图签：标题 + 右侧读数 -->
+      <div class="title-block">
+        <div class="min-w-0">
+          <h1 class="title-block-title">{{ t('keyUsage.title') }}</h1>
+          <p class="mt-1.5 max-w-measure text-sm leading-[1.65] text-ink-soft">
+            {{ t('keyUsage.subtitle') }}
+          </p>
+        </div>
+        <dl v-if="showResults && resultData" class="title-block-meta">
+          <div class="flex items-center gap-1.5">
+            <dt>{{ t('keyUsage.dateRange') }}</dt>
+            <dd class="text-ink">{{ currentRangeLabel }}</dd>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <dt>UTC</dt>
+            <dd class="text-ink">{{ browserTimezone }}</dd>
+          </div>
+        </dl>
       </div>
 
-      <!-- Input Section -->
-      <div class="max-w-xl mx-auto mb-14">
-        <div class="flex gap-3">
-          <div class="flex-1 relative">
-            <div class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-500">
-              <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-            </div>
+      <!-- 查询：一个输入、一个动作 -->
+      <section class="panel mb-5 min-w-0 p-4 sm:p-5">
+        <form class="flex min-w-0 flex-col gap-2 sm:flex-row" @submit.prevent="queryKey">
+          <div class="relative min-w-0 flex-1">
+            <span class="pointer-events-none absolute inset-y-0 left-0 flex w-10 items-center justify-center text-ink-faint">
+              <Icon name="lock" size="md" />
+            </span>
             <input
               v-model="apiKey"
               :type="keyVisible ? 'text' : 'password'"
               :placeholder="t('keyUsage.placeholder')"
-              class="input-ring w-full h-12 pl-12 pr-12 rounded-xl border border-gray-200 bg-white text-sm text-gray-900 placeholder:text-gray-400 transition-all dark:border-dark-700 dark:bg-dark-900 dark:text-on-signal dark:placeholder:text-dark-500"
-              @keydown.enter="queryKey"
+              :aria-label="t('keyUsage.placeholder')"
+              autocomplete="off"
+              spellcheck="false"
+              class="input pl-10 pr-12"
+              @keydown.enter.prevent="queryKey"
             />
             <button
+              type="button"
+              class="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-faint transition-colors hover:text-ink"
+              :aria-label="keyVisible ? t('keyUsage.hideKey') : t('keyUsage.showKey')"
               @click="keyVisible = !keyVisible"
-              class="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 dark:text-dark-500 dark:hover:text-on-signal transition-colors"
             >
-              <svg v-if="!keyVisible" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/>
-                <line x1="1" y1="1" x2="23" y2="23"/>
-              </svg>
-              <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-              </svg>
+              <Icon :name="keyVisible ? 'eyeOff' : 'eye'" size="md" />
             </button>
           </div>
-          <button
-            @click="queryKey"
-            :disabled="isQuerying"
-            class="h-12 px-7 rounded-xl bg-primary-500 hover:bg-primary-600 text-on-signal font-medium text-sm transition-all flex items-center gap-2 whitespace-nowrap disabled:opacity-60"
-          >
-            <svg v-if="isQuerying" class="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-              <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" opacity="0.25"/>
-              <path d="M12 2a10 10 0 0 1 10 10" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
-            </svg>
-            <svg v-else class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-            </svg>
+          <button type="submit" :disabled="isQuerying" class="btn btn-primary shrink-0">
+            <Icon v-if="isQuerying" name="refresh" size="sm" class="animate-spin" />
+            <Icon v-else name="search" size="sm" />
             {{ isQuerying ? t('keyUsage.querying') : t('keyUsage.query') }}
           </button>
-        </div>
-        <p class="text-xs text-gray-400 dark:text-dark-500 mt-3 text-center">
+        </form>
+
+        <p class="mt-2 text-xs leading-relaxed text-ink-faint">
           {{ t('keyUsage.privacyNote') }}
         </p>
 
-        <!-- Date Range Picker -->
-        <div v-if="showDatePicker" class="mt-4">
-          <div class="flex flex-wrap items-center gap-2 justify-center">
-            <span class="text-xs text-gray-500 dark:text-dark-400">{{ t('keyUsage.dateRange') }}</span>
-            <button
-              v-for="range in dateRanges"
-              :key="range.key"
-              @click="setDateRange(range.key)"
-              class="text-xs px-3 py-1.5 rounded-lg border transition-all"
-              :class="currentRange === range.key
-                ? 'bg-primary-500 text-on-signal border-primary-500'
-                : 'border-gray-200 bg-white text-gray-700 dark:border-dark-700 dark:bg-dark-900 dark:text-dark-200 hover:border-primary-300 dark:hover:border-dark-600'"
-            >{{ range.label }}</button>
-            <div v-if="currentRange === 'custom'" class="flex items-center gap-2 ml-1">
-              <input
-                v-model="customStartDate"
-                type="date"
-                class="input-ring text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-900 dark:border-dark-700 dark:bg-dark-900 dark:text-on-signal"
-              />
-              <span class="text-xs text-gray-400">-</span>
-              <input
-                v-model="customEndDate"
-                type="date"
-                class="input-ring text-xs px-2 py-1.5 rounded-lg border border-gray-200 bg-white text-gray-900 dark:border-dark-700 dark:bg-dark-900 dark:text-on-signal"
-              />
-              <button
-                @click="queryKey"
-                class="text-xs px-3 py-1.5 rounded-lg bg-primary-500 text-on-signal hover:bg-primary-600"
-              >{{ t('keyUsage.apply') }}</button>
-            </div>
+        <!-- 统计范围 -->
+        <div v-if="showDatePicker" class="mt-3 flex min-w-0 flex-wrap items-center gap-2 border-t border-rule pt-3">
+          <span class="stat-label">{{ t('keyUsage.dateRange') }}</span>
+          <button
+            v-for="range in dateRanges"
+            :key="range.key"
+            type="button"
+            class="btn btn-sm"
+            :class="currentRange === range.key ? 'btn-primary' : 'btn-secondary'"
+            @click="setDateRange(range.key)"
+          >
+            {{ range.label }}
+          </button>
+          <div v-if="currentRange === 'custom'" class="flex min-w-0 flex-wrap items-center gap-2">
+            <input v-model="customStartDate" type="date" class="input w-auto min-w-0" />
+            <span class="text-xs text-ink-faint">–</span>
+            <input v-model="customEndDate" type="date" class="input w-auto min-w-0" />
+            <button type="button" class="btn btn-sm btn-secondary" @click="queryKey">
+              {{ t('keyUsage.apply') }}
+            </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Results Container -->
-      <div v-if="showResults">
-        <!-- Loading Skeleton -->
-        <div v-if="showLoading" class="space-y-6">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div class="rounded-2xl border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
-              <div class="skeleton h-5 w-24 mb-6"></div>
-              <div class="flex justify-center"><div class="skeleton w-44 h-44 rounded-full"></div></div>
-            </div>
-            <div class="rounded-2xl border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
-              <div class="skeleton h-5 w-24 mb-6"></div>
-              <div class="flex justify-center"><div class="skeleton w-44 h-44 rounded-full"></div></div>
+      <!-- 尚未查询：空态写成邀请 -->
+      <section v-if="!showResults" class="panel min-w-0">
+        <div class="empty-state">
+          <Icon name="key" size="lg" class="empty-state-icon" />
+          <p class="empty-state-title">{{ t('keyUsage.emptyTitle') }}</p>
+          <p class="empty-state-description">{{ t('keyUsage.emptyDescription') }}</p>
+        </div>
+      </section>
+
+      <div v-else class="min-w-0 space-y-5">
+        <!-- 载入 -->
+        <div v-if="showLoading" class="min-w-0 space-y-5">
+          <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div v-for="n in 4" :key="n" class="panel p-4">
+              <div class="skeleton h-3 w-16"></div>
+              <div class="mx-auto mt-4 aspect-square w-full max-w-[10.5rem] max-h-[10.5rem] rounded-full skeleton"></div>
             </div>
           </div>
-          <div class="rounded-2xl border border-gray-200 bg-white p-8 dark:border-dark-700 dark:bg-dark-900">
-            <div class="skeleton h-5 w-32 mb-6"></div>
-            <div class="space-y-4">
-              <div class="skeleton h-4 w-full"></div>
-              <div class="skeleton h-4 w-3/4"></div>
-              <div class="skeleton h-4 w-5/6"></div>
-              <div class="skeleton h-4 w-2/3"></div>
+          <div class="panel p-4 sm:p-5">
+            <div class="skeleton h-3 w-24"></div>
+            <div class="mt-4 space-y-3">
+              <div class="skeleton h-3 w-full"></div>
+              <div class="skeleton h-3 w-3/4"></div>
+              <div class="skeleton h-3 w-5/6"></div>
             </div>
           </div>
         </div>
 
-        <!-- Result Content -->
-        <div v-else-if="resultData" class="space-y-6">
-          <!-- Status Badge -->
-          <div v-if="statusInfo" class="fade-up flex items-center justify-center mb-2">
-            <div class="inline-flex items-center gap-2 px-5 py-2.5 rounded-full border border-gray-200 bg-white/90 dark:border-dark-700 dark:bg-dark-900/90">
-              <span
-                class="w-2.5 h-2.5 rounded-full pulse-dot"
-                :class="statusInfo.isActive ? 'bg-emerald-500' : 'bg-rose-500'"
-              ></span>
-              <span class="text-sm font-medium text-gray-900 dark:text-on-signal">{{ statusInfo.label }}</span>
-              <span class="text-xs text-gray-400 dark:text-dark-500">|</span>
-              <span class="text-xs text-gray-500 dark:text-dark-400">{{ statusInfo.statusText }}</span>
-            </div>
+        <template v-else-if="resultData">
+          <!-- 状态：一行读数，不戴胶囊 -->
+          <div v-if="statusInfo" class="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
+            <span
+              class="inline-block h-2 w-2 shrink-0 translate-y-[-1px] rounded-full"
+              :class="statusInfo.isActive ? 'bg-success-500' : 'bg-danger-500'"
+              aria-hidden="true"
+            ></span>
+            <span class="text-sm font-medium text-ink">{{ statusInfo.label }}</span>
+            <span class="text-ink-faint" aria-hidden="true">·</span>
+            <span class="text-sm text-ink-soft">{{ statusInfo.statusText }}</span>
           </div>
 
-          <!-- Ring Cards Grid -->
+          <!-- 用量环：单一信号色圆环 + 轨道底色 -->
           <div v-if="ringItems.length > 0" :class="ringGridClass">
-            <div
+            <figure
               v-for="(ring, i) in ringItems"
               :key="i"
-              class="fade-up rounded-2xl border border-gray-200 bg-white/90 p-8 transition-all duration-300 dark:border-dark-700 dark:bg-dark-900/90"
-              :class="`fade-up-delay-${Math.min(i + 1, 4)}`"
+              class="panel m-0 min-w-0 p-4"
             >
-              <div class="flex items-center justify-between mb-6">
-                <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">
-                  {{ ring.title }}
-                </h3>
-                <!-- Clock icon -->
-                <svg v-if="ring.iconType === 'clock'" class="w-5 h-5 text-gray-400 dark:text-dark-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-                </svg>
-                <!-- Calendar icon -->
-                <svg v-else-if="ring.iconType === 'calendar'" class="w-5 h-5 text-gray-400 dark:text-dark-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                </svg>
-                <!-- Dollar icon -->
-                <svg v-else class="w-5 h-5 text-gray-400 dark:text-dark-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
-                </svg>
-              </div>
-              <div class="flex justify-center">
-                <div class="relative">
-                  <svg class="w-44 h-44" viewBox="0 0 160 160">
-                    <circle cx="80" cy="80" r="68" fill="none" :stroke="ringTrackColor" stroke-width="10"/>
+              <figcaption class="flex min-w-0 items-baseline justify-between gap-2">
+                <span class="min-w-0 break-words text-[0.8125rem] font-medium text-ink">{{ ring.title }}</span>
+                <Icon
+                  :name="ring.iconType === 'clock' ? 'clock' : ring.iconType === 'calendar' ? 'calendar' : 'dollar'"
+                  size="sm"
+                  class="shrink-0 text-ink-faint"
+                />
+              </figcaption>
+
+              <div class="mt-3 flex justify-center">
+                <div class="relative w-full max-w-[10.5rem]">
+                  <svg viewBox="0 0 160 160" class="h-auto w-full -rotate-90" aria-hidden="true">
+                    <circle class="ring-track" cx="80" cy="80" r="68" fill="none" stroke-width="10" />
+                    <!-- 钱包余额没有「额度」可比，画满环会读成用光了，所以只画轨道 -->
                     <circle
-                      class="progress-ring"
+                      v-if="!ring.isBalance"
+                      class="ring-progress"
                       cx="80" cy="80" r="68" fill="none"
-                      :stroke="`url(#ring-grad-${i})`"
                       stroke-width="10" stroke-linecap="round"
                       :stroke-dasharray="CIRCUMFERENCE.toFixed(2)"
                       :stroke-dashoffset="getRingOffset(ring)"
                     />
-                    <defs>
-                      <linearGradient :id="`ring-grad-${i}`" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" :stop-color="RING_GRADIENTS[i % 4].from"/>
-                        <stop offset="100%" :stop-color="RING_GRADIENTS[i % 4].to"/>
-                      </linearGradient>
-                    </defs>
                   </svg>
-                  <div class="absolute inset-0 flex flex-col items-center justify-center">
+
+                  <div class="absolute inset-0 flex flex-col items-center justify-center px-2 text-center">
                     <template v-if="ring.isBalance">
-                      <span class="text-2xl font-bold tabular-nums" :style="{ color: RING_GRADIENTS[i % 4].from }">
+                      <span class="font-read text-[1.0625rem] font-semibold tabular-nums text-ink">
                         {{ ring.amount }}
                       </span>
+                      <span class="stat-label mt-1">{{ t('keyUsage.walletBalance') }}</span>
                     </template>
                     <template v-else>
-                      <span class="text-3xl font-bold tabular-nums text-gray-900 dark:text-on-signal">
-                        {{ displayPcts[i] ?? 0 }}%
-                      </span>
-                      <span class="text-xs text-gray-500 dark:text-dark-400 mt-0.5">{{ t('keyUsage.used') }}</span>
+                      <!-- 第一环是全页唯一的衬线大读数；其余用等宽无衬线，避免同屏衬线泛滥 -->
                       <span
-                        class="text-sm font-semibold mt-1 tabular-nums"
-                        :style="{ color: RING_GRADIENTS[i % 4].from }"
-                      >{{ ring.amount }}</span>
-                      <p v-if="ring.resetAt && formatResetTime(ring.resetAt)" class="text-xs text-gray-400 dark:text-gray-500 mt-0.5 tabular-nums">
-                        ⟳ {{ formatResetTime(ring.resetAt) }}
-                      </p>
+                        :class="i === 0
+                          ? 'readout-display ring-readout'
+                          : 'font-read text-[1.25rem] font-semibold tabular-nums text-ink'"
+                      >{{ ring.pct }}%</span>
+                      <span class="stat-label mt-1">{{ t('keyUsage.used') }}</span>
                     </template>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <!-- 用量写在环下面：环心的宽度不够放 "已用 / 上限"，塞进去会压出圆环 -->
+              <p
+                v-if="!ring.isBalance"
+                class="mt-2 break-words text-center font-read text-[0.75rem] tabular-nums text-ink-soft"
+              >
+                {{ ring.amount }}
+              </p>
+
+              <p
+                v-if="ring.resetAt && formatResetTime(ring.resetAt)"
+                class="mt-2 text-center font-read text-[0.6875rem] tabular-nums text-ink-faint"
+              >
+                ⟳ {{ formatResetTime(ring.resetAt) }}
+              </p>
+            </figure>
           </div>
 
-          <!-- Detail Card -->
-          <div
-            v-if="detailRows.length > 0"
-            class="fade-up fade-up-delay-3 rounded-2xl border border-gray-200 bg-white/90 overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
-          >
-            <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
-              <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.detailInfo') }}</h3>
+          <!-- 详细信息 -->
+          <section v-if="detailRows.length > 0" class="panel min-w-0 overflow-hidden">
+            <div class="panel-header">
+              <h2 class="text-[0.8125rem] font-medium text-ink">{{ t('keyUsage.detailInfo') }}</h2>
             </div>
-            <div class="divide-y divide-gray-100 dark:divide-dark-800">
+            <dl class="min-w-0 divide-y divide-rule">
               <div
                 v-for="(row, i) in detailRows"
                 :key="i"
-                class="px-8 py-4 flex items-center justify-between"
+                class="flex min-w-0 items-center justify-between gap-3 px-4 py-2.5 sm:px-5"
               >
-                <div class="flex items-center gap-3">
-                  <div class="w-8 h-8 rounded-lg flex items-center justify-center" :class="row.iconBg">
+                <dt class="flex min-w-0 items-center gap-2.5">
+                  <span class="flex h-6 w-6 shrink-0 items-center justify-center" :class="row.iconBg">
                     <svg
-                      class="w-4 h-4"
+                      class="h-3.5 w-3.5"
                       :class="row.iconColor"
                       viewBox="0 0 24 24" fill="none" stroke="currentColor"
                       stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                       v-html="sanitizeSvg(row.iconSvg)"
                     ></svg>
-                  </div>
-                  <span class="text-sm text-gray-700 dark:text-dark-200">{{ row.label }}</span>
-                </div>
-                <span class="text-sm font-semibold tabular-nums" :class="row.valueClass || 'text-gray-900 dark:text-on-signal'">
+                  </span>
+                  <span class="min-w-0 break-words text-sm text-ink-soft">{{ row.label }}</span>
+                </dt>
+                <dd class="shrink-0 font-read text-sm tabular-nums" :class="row.valueClass || 'text-ink'">
                   {{ row.value }}
-                </span>
+                </dd>
               </div>
-            </div>
-          </div>
+            </dl>
+          </section>
 
-          <!-- Usage Stats Card -->
-          <div
-            v-if="usageStatCells.length > 0"
-            class="fade-up fade-up-delay-3 rounded-2xl border border-gray-200 bg-white/90 overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
-          >
-            <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
-              <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.tokenStats') }}</h3>
+          <!-- Token 统计 -->
+          <section v-if="usageStatCells.length > 0" class="panel min-w-0 overflow-hidden">
+            <div class="panel-header">
+              <h2 class="text-[0.8125rem] font-medium text-ink">{{ t('keyUsage.tokenStats') }}</h2>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-px bg-gray-100 dark:bg-dark-800">
-              <div
-                v-for="(cell, i) in usageStatCells"
-                :key="i"
-                class="bg-white px-6 py-4 dark:bg-dark-900"
-              >
-                <div class="text-xs text-gray-500 dark:text-dark-400 mb-1">{{ cell.label }}</div>
-                <div class="text-sm font-semibold tabular-nums text-gray-900 dark:text-on-signal">{{ cell.value }}</div>
+            <dl class="grid grid-cols-2 gap-px bg-rule sm:grid-cols-3 lg:grid-cols-4">
+              <div v-for="(cell, i) in usageStatCells" :key="i" class="min-w-0 bg-surface px-4 py-3">
+                <dt class="stat-label">{{ cell.label }}</dt>
+                <dd class="mt-0.5 break-words font-read text-sm tabular-nums text-ink">{{ cell.value }}</dd>
               </div>
-            </div>
-          </div>
+            </dl>
+          </section>
 
-          <!-- Daily Usage Table -->
-          <div
-            v-if="showDailyUsage"
-            class="fade-up fade-up-delay-4 rounded-2xl border border-gray-200 bg-white/90 overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
-          >
-            <div class="flex flex-col gap-3 px-8 py-5 border-b border-gray-200 dark:border-dark-700 sm:flex-row sm:items-center sm:justify-between">
-              <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.dailyDetail') }}</h3>
-              <div class="inline-flex rounded-lg border border-gray-200 bg-white p-0.5 dark:border-dark-700 dark:bg-dark-950">
+          <!-- 按日明细 -->
+          <section v-if="showDailyUsage" class="panel min-w-0 overflow-hidden">
+            <div class="panel-header flex-wrap">
+              <h2 class="text-[0.8125rem] font-medium text-ink">{{ t('keyUsage.dailyDetail') }}</h2>
+              <div class="flex items-center gap-1">
                 <button
                   v-for="option in dailyUsageOptions"
                   :key="option.value"
+                  type="button"
+                  class="btn btn-sm"
+                  :class="dailyUsageDays === option.value ? 'btn-primary' : 'btn-secondary'"
                   @click="setDailyUsageDays(option.value)"
-                  class="min-w-12 rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-                  :class="dailyUsageDays === option.value
-                    ? 'bg-primary-500 text-on-signal'
-                    : 'text-gray-600 hover:bg-gray-100 dark:text-dark-300 dark:hover:bg-dark-800'"
                 >
                   {{ option.label }}
                 </button>
               </div>
             </div>
-            <div v-if="dailyUsageRows.length > 0" class="overflow-x-auto">
-              <table class="w-full">
-                <thead>
-                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-950">
-                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.date') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.requests') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.inputTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.outputTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cacheReadTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cacheWriteTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cost') }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="row in dailyUsageRows"
-                    :key="row.date"
-                    class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
-                  >
-                    <td class="px-4 py-3 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-on-signal">{{ row.date }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.requests) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.input_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.output_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.cache_read_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(row.cache_write_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right font-medium text-gray-900 dark:text-on-signal">{{ usd(row.actual_cost != null ? row.actual_cost : row.cost) }}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            <div v-else class="px-8 py-8 text-center text-sm text-gray-500 dark:text-dark-400">
-              {{ t('keyUsage.noDailyUsage') }}
-            </div>
-          </div>
 
-          <!-- Model Stats Table -->
-          <div
-            v-if="modelStats.length > 0"
-            class="fade-up fade-up-delay-4 rounded-2xl border border-gray-200 bg-white/90 overflow-hidden dark:border-dark-700 dark:bg-dark-900/90"
-          >
-            <div class="px-8 py-5 border-b border-gray-200 dark:border-dark-700">
-              <h3 class="text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.modelStats') }}</h3>
-            </div>
-            <div class="overflow-x-auto">
-              <table class="w-full">
+            <div v-if="dailyUsageRows.length > 0" class="w-full min-w-0 overflow-x-auto">
+              <table class="table">
                 <thead>
-                  <tr class="border-b border-gray-200 bg-gray-50 dark:border-dark-700 dark:bg-dark-950">
-                    <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.model') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.requests') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.inputTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.outputTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cacheCreationTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cacheReadTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.totalTokens') }}</th>
-                    <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-dark-400">{{ t('keyUsage.cost') }}</th>
+                  <tr>
+                    <th scope="col">{{ t('keyUsage.date') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.requests') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.inputTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.outputTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.cacheReadTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.cacheWriteTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.cost') }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr
-                    v-for="(m, i) in modelStats"
-                    :key="i"
-                    class="border-b border-gray-100 last:border-b-0 dark:border-dark-800"
-                  >
-                    <td class="px-4 py-3 text-sm font-medium whitespace-nowrap text-gray-900 dark:text-on-signal">{{ m.model || '-' }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(m.requests) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(m.input_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(m.output_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(m.cache_creation_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(m.cache_read_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right text-gray-700 dark:text-dark-200">{{ fmtNum(m.total_tokens) }}</td>
-                    <td class="px-4 py-3 text-sm tabular-nums text-right font-medium text-gray-900 dark:text-on-signal">{{ usd(m.actual_cost != null ? m.actual_cost : m.cost) }}</td>
+                  <tr v-for="row in dailyUsageRows" :key="row.date">
+                    <td class="whitespace-nowrap font-medium text-ink">{{ row.date }}</td>
+                    <td class="num">{{ fmtNum(row.requests) }}</td>
+                    <td class="num">{{ fmtNum(row.input_tokens) }}</td>
+                    <td class="num">{{ fmtNum(row.output_tokens) }}</td>
+                    <td class="num">{{ fmtNum(row.cache_read_tokens) }}</td>
+                    <td class="num">{{ fmtNum(row.cache_write_tokens) }}</td>
+                    <td class="num text-ink">{{ usd(row.actual_cost != null ? row.actual_cost : row.cost) }}</td>
                   </tr>
                 </tbody>
               </table>
             </div>
-          </div>
-        </div>
+            <div v-else class="empty-state">
+              <p class="empty-state-description">{{ t('keyUsage.noDailyUsage') }}</p>
+            </div>
+          </section>
+
+          <!-- 模型用量 -->
+          <section v-if="modelStats.length > 0" class="panel min-w-0 overflow-hidden">
+            <div class="panel-header">
+              <h2 class="text-[0.8125rem] font-medium text-ink">{{ t('keyUsage.modelStats') }}</h2>
+            </div>
+            <div class="w-full min-w-0 overflow-x-auto">
+              <table class="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{{ t('keyUsage.model') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.requests') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.inputTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.outputTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.cacheCreationTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.cacheReadTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.totalTokens') }}</th>
+                    <th scope="col" class="num">{{ t('keyUsage.cost') }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="(m, i) in modelStats" :key="i">
+                    <td class="whitespace-nowrap font-medium text-ink">{{ m.model || '-' }}</td>
+                    <td class="num">{{ fmtNum(m.requests) }}</td>
+                    <td class="num">{{ fmtNum(m.input_tokens) }}</td>
+                    <td class="num">{{ fmtNum(m.output_tokens) }}</td>
+                    <td class="num">{{ fmtNum(m.cache_creation_tokens) }}</td>
+                    <td class="num">{{ fmtNum(m.cache_read_tokens) }}</td>
+                    <td class="num">{{ fmtNum(m.total_tokens) }}</td>
+                    <td class="num text-ink">{{ usd(m.actual_cost != null ? m.actual_cost : m.cost) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
+        </template>
       </div>
     </main>
 
-    <!-- Footer (same pattern as HomeView) -->
-    <footer class="relative z-10 border-t border-gray-200/50 px-6 py-8 dark:border-dark-800/50">
-      <div class="mx-auto flex max-w-6xl flex-col items-center justify-center gap-4 text-center sm:flex-row sm:text-left">
-        <p class="text-sm text-gray-500 dark:text-dark-400">
+    <footer class="border-t border-rule">
+      <div class="mx-auto flex max-w-6xl flex-col gap-2 px-gutter py-4 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between">
+        <p class="[overflow-wrap:anywhere]">
           &copy; {{ currentYear }} {{ siteName }}. {{ t('home.footer.allRightsReserved') }}
         </p>
-        <div class="flex items-center gap-4">
+        <div class="flex flex-wrap items-center gap-x-4">
           <a
             v-if="docUrl"
             :href="docUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-on-signal"
+            class="inline-flex min-h-11 items-center hover:text-ink sm:min-h-0"
           >{{ t('home.docs') }}</a>
           <a
             :href="githubUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-on-signal"
+            class="inline-flex min-h-11 items-center hover:text-ink sm:min-h-0"
           >GitHub</a>
         </div>
       </div>
@@ -428,7 +393,7 @@ import { buildGatewayUrl } from '@/api/client'
 import { formatDateLocalInput } from '@/utils/format'
 import { sanitizeUrl } from '@/utils/url'
 import { sanitizeSvg } from '@/utils/sanitize'
-import { isDarkTheme, toggleTheme as toggleThemeState } from '@/composables/useTheme'
+import { isDarkTheme, toggleTheme as toggleThemeState, initTheme as applyStoredTheme } from '@/composables/useTheme'
 
 const { t, locale } = useI18n()
 const appStore = useAppStore()
@@ -448,6 +413,12 @@ const isDark = isDarkTheme
 const toggleTheme = () => toggleThemeState()
 
 const currentYear = computed(() => new Date().getFullYear())
+
+// 图签右侧读数：当前统计范围与浏览器时区（后端按它切日）
+const currentRangeLabel = computed(
+  () => dateRanges.value.find((range) => range.key === currentRange.value)?.label || '',
+)
+const browserTimezone = computed(() => getBrowserTimezone())
 
 // ==================== Key Query State ====================
 
@@ -526,18 +497,11 @@ function setDailyUsageDays(days: 7 | 30 | 90) {
 
 // ==================== Ring Animation ====================
 
+// 用量环只表达「消耗了多少」：单一信号色 + 轨道底色即可，不需要四色渐变。
+// 环的颜色由 .ring-track / .ring-progress 从令牌取，脚本里不出现任何色值。
 const CIRCUMFERENCE = 2 * Math.PI * 68
-const RING_GRADIENTS = [
-  { from: '#14b8a6', to: '#5eead4' },
-  { from: '#6366F1', to: '#A5B4FC' },
-  { from: '#10B981', to: '#6EE7B7' },
-  { from: '#F59E0B', to: '#FCD34D' },
-]
 
 const ringAnimated = ref(false)
-const displayPcts = ref<number[]>([])
-
-const ringTrackColor = computed(() => isDark.value ? '#222222' : '#F0F0EE')
 
 interface RingItem {
   title: string
@@ -554,28 +518,13 @@ function getRingOffset(ring: RingItem): number {
   return CIRCUMFERENCE - (Math.min(ring.pct, 100) / 100) * CIRCUMFERENCE
 }
 
-function triggerRingAnimation(items: RingItem[]) {
+/** 环只在数据到达后画一次：先归零再放开，让 stroke-dashoffset 从满轨道走过去。 */
+function triggerRingAnimation(_items: RingItem[]) {
   ringAnimated.value = false
-  displayPcts.value = items.map(() => 0)
-
   nextTick(() => {
     requestAnimationFrame(() => {
       setTimeout(() => {
         ringAnimated.value = true
-
-        // Animate percentage numbers
-        const duration = 1000
-        const startTime = performance.now()
-        const targets = items.map(item => item.isBalance ? 0 : item.pct)
-
-        function tick() {
-          const elapsed = performance.now() - startTime
-          const p = Math.min(elapsed / duration, 1)
-          const ease = 1 - Math.pow(1 - p, 3)
-          displayPcts.value = targets.map(target => Math.round(ease * target))
-          if (p < 1) requestAnimationFrame(tick)
-        }
-        requestAnimationFrame(tick)
       }, 50)
     })
   })
@@ -656,11 +605,10 @@ const ringItems = computed<RingItem[]>(() => {
   return items
 })
 
+// 窄屏两列：环是小读数，一列会把页面拉得过长；四列在 320 下每个环只剩 60px。
 const ringGridClass = computed(() => {
-  const len = ringItems.value.length
-  if (len === 1) return 'grid grid-cols-1 max-w-md mx-auto gap-6'
-  if (len === 2) return 'grid grid-cols-1 md:grid-cols-2 gap-6'
-  return 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'
+  if (ringItems.value.length === 1) return 'grid grid-cols-1 mx-auto max-w-md gap-3'
+  return 'grid grid-cols-2 gap-3 lg:grid-cols-4'
 })
 
 interface DetailRow {
@@ -909,12 +857,10 @@ async function queryKey() {
 
 // ==================== Lifecycle ====================
 
+// 主题只走 composables/useTheme：它同时改根节点 class、theme-color 与存储。
+// 早期这里自己往根节点加 dark 类，会留下「深色纸 + 浅色系统栏」的裂缝。
 function initTheme() {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-    isDark.value = true
-    document.documentElement.classList.add('dark')
-  }
+  applyStoredTheme()
 }
 
 function formatResetTime(resetAt: string | null | undefined): string {
@@ -941,66 +887,41 @@ onUnmounted(() => {
   if (resetTimer) clearInterval(resetTimer)
 })
 </script>
-
 <style scoped>
-/* Input focus ring */
-.input-ring {
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-.input-ring:focus {
-  box-shadow: 0 0 0 3px rgba(20, 184, 166, 0.2);
-  border-color: #14b8a6;
-  outline: none;
+/* v2「暖纸上的编辑体」：本页只有两处需要自定义 —— 环的描边色与一次划线进场的动效。
+ * 所有色值都取自设计令牌，文件里不出现任何色字面量。 */
+
+/* 品牌名：与首页同一处衬线（本页唯一的衬线除了环心大读数） */
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: var(--track-display);
+  color: rgb(var(--ink));
 }
 
-/* Ring animation */
-.progress-ring {
-  transition: stroke-dashoffset 1.2s cubic-bezier(0.4, 0, 0.2, 1);
-  transform: rotate(-90deg);
-  transform-origin: 50% 50%;
+/* 用量环：单一信号色。轨道用比痕量线更轻的一档，让"已用 / 未用"靠明度分开。 */
+.ring-track {
+  stroke: rgb(var(--rule) / 0.85);
 }
 
-/* Skeleton loading */
-@keyframes shimmer-kv {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-.skeleton {
-  background: linear-gradient(90deg, #e5e7eb 25%, #f3f4f6 50%, #e5e7eb 75%);
-  background-size: 200% 100%;
-  animation: shimmer-kv 1.8s ease-in-out infinite;
-  border-radius: 8px;
-}
-:global(.dark) .skeleton {
-  background: linear-gradient(90deg, #334155 25%, #1e293b 50%, #334155 75%);
-  background-size: 200% 100%;
+.ring-progress {
+  stroke: rgb(var(--signal));
+  transition: stroke-dashoffset var(--motion-trace) var(--ease-settle);
 }
 
-/* Fade up animation */
-@keyframes fade-up-kv {
-  from { opacity: 0; transform: translateY(16px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.fade-up {
-  animation: fade-up-kv 0.5s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-.fade-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
-.fade-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
-.fade-up-delay-3 { animation-delay: 0.3s; opacity: 0; }
-.fade-up-delay-4 { animation-delay: 0.4s; opacity: 0; }
-
-/* Pulse dot */
-@keyframes pulse-dot-kv {
-  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 currentColor; }
-  50% { opacity: 0.6; box-shadow: 0 0 8px 2px currentColor; }
-}
-.pulse-dot {
-  animation: pulse-dot-kv 2s ease-in-out infinite;
+/* 环心大读数：字号由 .readout-display 给，这里只收到环的尺度内 */
+.ring-readout {
+  font-size: clamp(1.25rem, 1rem + 1vw, 1.75rem);
 }
 
-/* Tabular nums */
-.tabular-nums {
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+/* 页面进入：内容从 8px 落下一次，不做逐卡错峰 */
+@keyframes kv-settle {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-progress { transition: none; }
 }
 </style>

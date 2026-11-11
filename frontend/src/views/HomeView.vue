@@ -880,7 +880,11 @@ onMounted(() => {
 .home-foot-link {
   display: inline-flex;
   align-items: center;
+  /* 页脚链接的触控面：高度够 44 但「GitHub」本身只有 38px 宽，
+   * 补一点水平内边距把命中区撑到 44×44（桌面端在下面的 media query 里收回）。 */
   min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding-inline: 0.25rem;
 }
 
 @media (min-width: 1024px) {

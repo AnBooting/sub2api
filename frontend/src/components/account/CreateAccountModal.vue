@@ -1061,7 +1061,7 @@
 
             <div
               v-if="!geminiAIStudioOAuthEnabled"
-              class="pointer-events-none absolute right-0 top-full z-50 mt-2 w-80 border border-rule-strong bg-surface px-3 py-2 text-xs text-ink-soft opacity-0 shadow-float transition-opacity group-hover:opacity-100 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200"
+              class="pointer-events-none absolute right-0 top-full z-50 mt-2 w-80 border border-rule-strong bg-surface px-3 py-2 text-xs text-ink-soft opacity-0 shadow-float transition-opacity group-hover:opacity-100 dark:border-warning-700 dark:bg-warning-950/60 dark:text-warning-200"
             >
               {{ t('admin.accounts.oauth.gemini.aiStudioNotConfiguredTip') }}
             </div>

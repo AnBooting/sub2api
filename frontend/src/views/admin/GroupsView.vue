@@ -1950,7 +1950,7 @@
                           <Icon
                             name="arrowRight"
                             size="sm"
-                            class="transition-transform group-hover:translate-x-1"
+                            class="transition-colors group-hover:text-signal"
                           />
                         </div>
                         <div>
@@ -3762,7 +3762,7 @@
                           <Icon
                             name="arrowRight"
                             size="sm"
-                            class="transition-transform group-hover:translate-x-1"
+                            class="transition-colors group-hover:text-signal"
                           />
                         </div>
                         <div>

@@ -13,7 +13,7 @@
         >
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="source === 'requested'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -23,7 +23,7 @@
           </button>
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="source === 'upstream'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -33,7 +33,7 @@
           </button>
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="source === 'mapping'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -48,7 +48,7 @@
         >
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="metric === 'tokens'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -58,7 +58,7 @@
           </button>
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="metric === 'actual_cost'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
               : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -70,7 +70,7 @@
         <div v-if="enableRankingView" class="inline-flex rounded-lg bg-gray-100 p-1 dark:bg-dark-800">
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="
               activeView === 'model_distribution'
                 ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
@@ -82,7 +82,7 @@
           </button>
           <button
             type="button"
-            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+            class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="
               activeView === 'spending_ranking'
                 ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'

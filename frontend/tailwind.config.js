@@ -35,8 +35,12 @@ const COLORS = {
   warning: palette('ochre'),
   danger: palette('oxide'),
 
-  // 分类（归属/类型）
+  // 分类（归属/类型）：默认 azure，另有四个同明度的分类色相供区分平台
   accent: palette('azure'),
+  'tax-blue': palette('tax-blue'),
+  'tax-plum': palette('tax-plum'),
+  'tax-sage': palette('tax-sage'),
+  'tax-clay': palette('tax-clay'),
   // 图表第 6 序列专用
   lilac: palette('lilac'),
 

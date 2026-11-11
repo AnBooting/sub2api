@@ -12,9 +12,11 @@
         </button>
 
         <div class="min-w-0">
-          <h1 class="truncate text-[0.9375rem] font-semibold text-ink sm:text-base">
+          <!-- 用 div 而不是 h1：页面正文已有唯一的 h1（图签标题），
+               吸顶栏这里是重复的同一句话，再给 h1 会让读屏读出两个同名一级标题。 -->
+          <div class="truncate text-[0.9375rem] font-semibold text-ink sm:text-base">
             {{ pageTitle }}
-          </h1>
+          </div>
           <p
             v-if="pageDescription"
             class="hidden truncate text-xs text-ink-soft sm:block"
@@ -73,7 +75,7 @@
           </span>
           <div
             class="pointer-events-none absolute right-0 top-full z-50 mt-1.5 hidden w-56 border border-rule-strong bg-surface p-3 text-xs group-hover:block"
-            style="border-radius: var(--radius-cut); box-shadow: 0 18px 40px -24px rgb(0 0 0 / 0.45)"
+            style="border-radius: var(--radius-cut); box-shadow: 0 18px 40px -24px rgb(58 53 48 / 0.42)"
           >
             <div class="flex items-center justify-between gap-3">
               <span class="text-ink-soft">{{ balanceAvailableText }}</span>
@@ -94,7 +96,7 @@
         <div v-if="user" class="relative" ref="dropdownRef">
           <button
             @click="toggleDropdown"
-            class="flex items-center gap-2 p-1 transition-colors hover:bg-paper-inset"
+            class="flex min-h-[44px] min-w-[44px] items-center gap-2 p-1 transition-colors hover:bg-paper-inset sm:min-h-0 sm:min-w-0"
             style="border-radius: var(--radius-cut)"
             :aria-label="t('common.userMenu')"
             :aria-expanded="dropdownOpen"

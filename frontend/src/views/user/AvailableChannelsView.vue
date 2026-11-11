@@ -1,6 +1,14 @@
 <template>
   <AppLayout>
     <TablePageLayout>
+      <template #actions>
+        <!-- 图签：这一页此前没有页面标题，补上与其它列表页同构的锚点 -->
+        <div class="title-block">
+          <div class="min-w-0">
+            <h1 class="title-block-title">{{ t('nav.availableChannels') }}</h1>
+          </div>
+        </div>
+      </template>
       <template #filters>
         <!-- 缺价口径：模型没配价时平台不放行（后端 503 pricing_unavailable） -->
         <MissingPriceNotice class="mb-3" />

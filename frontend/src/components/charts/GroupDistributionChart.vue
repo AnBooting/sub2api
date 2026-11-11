@@ -10,7 +10,7 @@
       >
         <button
           type="button"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
           :class="metric === 'tokens'
             ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
@@ -20,7 +20,7 @@
         </button>
         <button
           type="button"
-          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors"
+          class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
           :class="metric === 'actual_cost'
             ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
             : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
