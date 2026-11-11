@@ -13,8 +13,10 @@
 
         <div class="min-w-0">
           <!-- 用 div 而不是 h1：页面正文已有唯一的 h1（图签标题），
-               吸顶栏这里是重复的同一句话，再给 h1 会让读屏读出两个同名一级标题。 -->
-          <div class="truncate text-[0.9375rem] font-semibold text-ink sm:text-base">
+               吸顶栏这里是重复的同一句话，再给 h1 会让读屏读出两个同名一级标题。
+               移动端直接不显示 —— 图签标题就在正下方 16px 处，
+               同一句话连排两遍既挤占首屏，也削弱了衬线标题该有的分量。 -->
+          <div class="hidden truncate text-[0.9375rem] font-semibold text-ink sm:block sm:text-base">
             {{ pageTitle }}
           </div>
           <p
@@ -23,6 +25,10 @@
           >
             {{ pageDescription }}
           </p>
+          <!-- 移动端吸顶栏只留站名，位置固定，不随页面变动 -->
+          <div class="truncate font-display text-[0.9375rem] font-medium text-ink sm:hidden">
+            {{ siteName }}
+          </div>
         </div>
       </div>
 
@@ -230,6 +236,8 @@ const user = computed(() => authStore.user)
 const dropdownOpen = ref(false)
 const dropdownRef = ref<HTMLElement | null>(null)
 const contactInfo = computed(() => appStore.contactInfo)
+/** 移动端吸顶栏显示站名（与侧栏品牌同名），桌面显示当前页标题 */
+const siteName = computed(() => appStore.siteName)
 const docUrl = computed(() => sanitizeUrl(appStore.docUrl))
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 const avatarUrl = computed(() => user.value?.avatar_url?.trim() || '')
