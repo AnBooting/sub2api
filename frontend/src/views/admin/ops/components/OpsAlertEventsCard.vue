@@ -343,16 +343,16 @@ function severityBadgeClass(severity: string | undefined): string {
   if (s === 'p0' || s === 'critical') return 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300'
   if (s === 'p1' || s === 'warning') return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300'
   if (s === 'p2' || s === 'info') return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
-  if (s === 'p3') return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
-  return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300'
+  if (s === 'p3') return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-ink-soft'
+  return 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-ink-soft'
 }
 
 function statusBadgeClass(status: string | undefined): string {
   const s = String(status || '').trim().toLowerCase()
   if (s === 'firing') return 'bg-danger-50 text-danger-700 ring-danger-600/20 dark:bg-danger-900/30 dark:text-danger-300 dark:ring-danger-500/30'
   if (s === 'resolved') return 'bg-success-50 text-success-700 ring-success-600/20 dark:bg-success-900/30 dark:text-success-300 dark:ring-success-500/30'
-  if (s === 'manual_resolved') return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-gray-900/30 dark:text-gray-300 dark:ring-gray-500/30'
-  return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-gray-900/30 dark:text-gray-300 dark:ring-gray-500/30'
+  if (s === 'manual_resolved') return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-dark-900/30 dark:text-ink-soft dark:ring-dark-500/30'
+  return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-dark-900/30 dark:text-ink-soft dark:ring-dark-500/30'
 }
 
 function formatStatusLabel(status: string | undefined): string {
@@ -381,7 +381,7 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
         <Select :model-value="status" :options="statusOptions" class="w-[110px]" @change="status = String($event || '')" />
         <Select :model-value="emailSent" :options="emailSentOptions" class="w-[110px]" @change="emailSent = String($event || '')" />
         <button
-          class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+          class="flex items-center gap-1.5 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-bold text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-dark-700 dark:text-ink-soft dark:hover:bg-dark-600"
           :disabled="loading"
           @click="loadFirstPage"
         >
@@ -401,7 +401,7 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
       {{ t('admin.ops.alertEvents.loading') }}
     </div>
 
-    <div v-else-if="empty" class="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-gray-400">
+    <div v-else-if="empty" class="rounded-xl border border-dashed border-gray-200 p-8 text-center text-sm text-gray-500 dark:border-dark-700 dark:text-ink-soft">
       {{ t('admin.ops.alertEvents.empty') }}
     </div>
 
@@ -506,7 +506,7 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
               <td class="whitespace-nowrap px-4 py-3 text-xs text-ink-soft">
                 <span class="font-mono">#{{ row.rule_id }}</span>
               </td>
-              <td class="min-w-[260px] px-4 py-3 text-xs text-gray-700 dark:text-gray-200">
+              <td class="min-w-[260px] px-4 py-3 text-xs text-gray-700 dark:text-ink">
                 <div class="font-semibold truncate max-w-[360px]">{{ row.title || '-' }}</div>
                 <div v-if="row.description" class="mt-0.5 line-clamp-2 text-[11px] text-ink-faint">
                   {{ row.description }}
@@ -628,14 +628,14 @@ const empty = computed(() => events.value.length === 0 && !loading.value)
               <div class="mt-1 flex flex-wrap items-center gap-2">
                 <div class="font-mono text-sm font-bold text-ink">#{{ selected.rule_id }}</div>
                 <a
-                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
+                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-ink dark:ring-dark-700 dark:hover:bg-dark-700"
                   :href="`/admin/ops?open_alert_rules=1&alert_rule_id=${selected.rule_id}`"
                 >
                   <Icon name="externalLink" size="xs" />
                   {{ t('admin.ops.alertEvents.detail.viewRule') }}
                 </a>
                 <a
-                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-gray-200 dark:ring-dark-700 dark:hover:bg-dark-700"
+                  class="inline-flex items-center gap-1 rounded-md bg-white px-2 py-1 text-[11px] font-bold text-gray-700 ring-1 ring-gray-200 hover:bg-gray-50 dark:bg-dark-800 dark:text-ink dark:ring-dark-700 dark:hover:bg-dark-700"
                   :href="`/admin/ops?platform=${encodeURIComponent(getDimensionString(selected,'platform')||'')}&group_id=${selected.dimensions?.group_id || ''}&error_type=request&open_error_details=1`"
                 >
                   <Icon name="externalLink" size="xs" />

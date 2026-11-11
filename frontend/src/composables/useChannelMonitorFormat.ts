@@ -33,7 +33,7 @@ import {
   CHECK_MODE_QUOTA_PROBE,
 } from '@/constants/channelMonitor'
 
-const NEUTRAL_BADGE = 'bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-gray-300'
+const NEUTRAL_BADGE = 'bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-ink-soft'
 
 /** Availability HSL hue multiplier: 0%=red(0) / 50%=yellow(60) / 100%=green(120). */
 const HSL_HUE_PER_PERCENT = 1.2
@@ -105,7 +105,7 @@ export function useChannelMonitorFormat() {
       case PROVIDER_GEMINI:
         return 'bg-primary-100 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300'
       case PROVIDER_GROK:
-        return 'bg-gray-100 text-gray-700 dark:bg-gray-500/15 dark:text-gray-300'
+        return 'bg-gray-100 text-gray-700 dark:bg-dark-500/15 dark:text-ink-soft'
       // 配色与 utils/platformColors.ts 的平台色对齐：antigravity=purple /
       // kimi=pink / zhipu=indigo / deepseek=teal。
       case PROVIDER_ANTIGRAVITY:
@@ -151,47 +151,47 @@ export function useChannelMonitorFormat() {
       case PROVIDER_OPENAI:
         return active
           ? 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-300 dark:border-success-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-success-300 hover:text-success-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-success-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-success-300 hover:text-success-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-success-500/50'
       case PROVIDER_ANTHROPIC:
         return active
           ? 'border-warning-500 bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-300 dark:border-warning-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-warning-300 hover:text-warning-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-warning-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-warning-300 hover:text-warning-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-warning-500/50'
       case PROVIDER_GEMINI:
         return active
           ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300 dark:border-primary-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-primary-500/50'
       case PROVIDER_GROK:
         return active
-          ? 'border-gray-500 bg-gray-50 text-gray-800 dark:bg-gray-500/15 dark:text-gray-200 dark:border-gray-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-gray-500/50'
+          ? 'border-gray-500 bg-gray-50 text-gray-800 dark:bg-dark-500/15 dark:text-ink dark:border-dark-400'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-dark-500/50'
       case PROVIDER_ANTIGRAVITY:
         return active
           ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300 dark:border-primary-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-primary-500/50'
       case PROVIDER_KIMI:
         return active
           ? 'border-danger-500 bg-danger-50 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300 dark:border-danger-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-danger-300 hover:text-danger-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-danger-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-danger-300 hover:text-danger-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-danger-500/50'
       case PROVIDER_ZHIPU:
         return active
           ? 'border-primary-500 bg-primary-50 text-primary-700 dark:bg-primary-500/15 dark:text-primary-300 dark:border-primary-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-primary-300 hover:text-primary-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-primary-500/50'
       case PROVIDER_DEEPSEEK:
         return active
           ? 'border-success-500 bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-300 dark:border-success-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-success-300 hover:text-success-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-success-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-success-300 hover:text-success-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-success-500/50'
       case PROVIDER_MINIMAX:
         return active
           ? 'border-danger-500 bg-danger-50 text-danger-700 dark:bg-danger-500/15 dark:text-danger-300 dark:border-danger-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-danger-300 hover:text-danger-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-danger-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-danger-300 hover:text-danger-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-danger-500/50'
       case PROVIDER_OPENCODE_GO:
         return active
           ? 'border-warning-500 bg-warning-50 text-warning-800 dark:bg-warning-500/15 dark:text-warning-300 dark:border-warning-400'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-warning-300 hover:text-warning-700 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-warning-500/50'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-warning-300 hover:text-warning-700 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-warning-500/50'
       default:
         return active
-          ? 'border-gray-400 bg-gray-50 text-gray-700 dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200'
-          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-400'
+          ? 'border-gray-400 bg-gray-50 text-gray-700 dark:border-dark-500 dark:bg-dark-700 dark:text-ink'
+          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-700 dark:bg-dark-800 dark:text-ink-soft'
     }
   }
 
@@ -263,7 +263,7 @@ export function providerGradient(provider: string): string {
     case PROVIDER_GEMINI:
       return 'from-primary-50 to-primary-100 dark:from-primary-500/10 dark:to-primary-500/20'
     case PROVIDER_GROK:
-      return 'from-gray-50 to-gray-200 dark:from-gray-500/10 dark:to-gray-500/20'
+      return 'from-gray-50 to-gray-200 dark:from-dark-500/10 dark:to-dark-500/20'
     case PROVIDER_ANTIGRAVITY:
       return 'from-primary-50 to-primary-100 dark:from-primary-500/10 dark:to-primary-500/20'
     case PROVIDER_KIMI:

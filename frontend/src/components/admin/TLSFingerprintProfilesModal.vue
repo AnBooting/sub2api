@@ -38,19 +38,19 @@
         <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="sticky top-0 bg-gray-50 dark:bg-dark-700">
             <tr>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.tlsFingerprintProfiles.columns.name') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.tlsFingerprintProfiles.columns.description') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.tlsFingerprintProfiles.columns.grease') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.tlsFingerprintProfiles.columns.alpn') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.tlsFingerprintProfiles.columns.actions') }}
               </th>
             </tr>
@@ -64,7 +64,7 @@
                 <div v-if="profile.description" class="text-sm text-ink-faint max-w-xs truncate">
                   {{ profile.description }}
                 </div>
-                <div v-else class="text-xs text-gray-400 dark:text-gray-600">—</div>
+                <div v-else class="text-xs text-gray-400 dark:text-dark-600">—</div>
               </td>
               <td class="px-3 py-2">
                 <Icon
@@ -86,7 +86,7 @@
                     +{{ profile.alpn_protocols.length - 3 }}
                   </span>
                 </div>
-                <div v-else class="text-xs text-gray-400 dark:text-gray-600">—</div>
+                <div v-else class="text-xs text-gray-400 dark:text-dark-600">—</div>
               </td>
               <td class="px-3 py-2">
                 <div class="flex items-center gap-1">

@@ -366,10 +366,10 @@ const geminiPresetMappings = [
 ]
 
 const grokPresetMappings = [
-  { label: 'Grok 4.7', from: 'grok-4.7', to: 'grok-4.7', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-300' },
-  { label: 'Grok 4.6', from: 'grok-4.6', to: 'grok-4.6', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-300' },
-  { label: 'Grok 4.5', from: 'grok-4.5', to: 'grok-4.5', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-300' },
-  { label: 'Grok 4.3', from: 'grok-4.3', to: 'grok-4.3', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800/50 dark:text-gray-300' },
+  { label: 'Grok 4.7', from: 'grok-4.7', to: 'grok-4.7', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-800/50 dark:text-ink-soft' },
+  { label: 'Grok 4.6', from: 'grok-4.6', to: 'grok-4.6', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-800/50 dark:text-ink-soft' },
+  { label: 'Grok 4.5', from: 'grok-4.5', to: 'grok-4.5', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-800/50 dark:text-ink-soft' },
+  { label: 'Grok 4.3', from: 'grok-4.3', to: 'grok-4.3', color: 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-800/50 dark:text-ink-soft' },
   { label: 'Grok Latest', from: 'grok-latest', to: 'grok-4.5', color: 'bg-success-100 text-success-700 hover:bg-success-200 dark:bg-success-900/30 dark:text-success-400' },
   { label: '4.5 Latest', from: 'grok-4.5-latest', to: 'grok-4.5', color: 'bg-success-100 text-success-700 hover:bg-success-200 dark:bg-success-900/30 dark:text-success-400' },
   { label: 'Build 0.1', from: 'grok-build', to: 'grok-build-0.1', color: 'bg-primary-100 text-primary-700 hover:bg-primary-200 dark:bg-primary-900/30 dark:text-primary-400' },

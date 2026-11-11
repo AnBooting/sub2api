@@ -167,7 +167,7 @@
                 :checked="draft.group_ids.includes(group.id)"
                 @change="toggleGroup(group.id)"
               />
-              <span class="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-100">{{ group.name }}</span>
+              <span class="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-ink">{{ group.name }}</span>
               <small class="shrink-0 text-xs text-gray-400">{{ platformLabel(group.platform) }} · #{{ group.id }}</small>
             </label>
           </div>
@@ -195,7 +195,7 @@
                 :checked="isCategoryIgnored(category)"
                 @change="toggleIgnoredCategory(category)"
               />
-              <span class="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-100">
+              <span class="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-ink">
                 {{ categoryLabel(category) }}
               </span>
               <small class="shrink-0 font-mono text-[10px] text-gray-400">{{ category }}</small>
@@ -265,7 +265,7 @@
           </template>
         </div>
         <div class="border border-rule bg-paper-inset px-4 py-3 text-xs text-ink-soft">
-          <p class="font-medium text-gray-800 dark:text-gray-100">{{ t('channelMonitorV2.settings.userContractTitle') }}</p>
+          <p class="font-medium text-gray-800 dark:text-ink">{{ t('channelMonitorV2.settings.userContractTitle') }}</p>
           <ul class="mt-1.5 list-disc space-y-0.5 pl-4">
             <li>{{ t('channelMonitorV2.settings.userContract.health') }}</li>
             <li>{{ t('channelMonitorV2.settings.userContract.trend') }}</li>

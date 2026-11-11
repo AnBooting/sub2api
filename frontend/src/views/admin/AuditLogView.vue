@@ -113,7 +113,7 @@
 
           <template #cell-action="{ row }">
             <div class="min-w-0 max-w-xs">
-              <div class="truncate font-mono text-sm text-gray-800 dark:text-gray-200" :title="row.action">
+              <div class="truncate font-mono text-sm text-gray-800 dark:text-ink" :title="row.action">
                 {{ row.action }}
               </div>
               <div class="mt-0.5 truncate font-mono text-xs text-gray-400" :title="`${row.method} ${row.path}`">
@@ -199,7 +199,7 @@
           </div>
 
           <div class="mt-3 flex items-center gap-2 border border-rule bg-surface px-3 py-2">
-            <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">
+            <span class="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-gray-700 dark:bg-dark-700 dark:text-ink">
               {{ detail.method }}
             </span>
             <span class="break-all font-mono text-xs text-ink-soft">{{ detail.path }}</span>
@@ -257,7 +257,7 @@
           <h4 class="mb-1.5 font-read text-[0.6875rem] font-medium text-ink-faint">
             {{ t('admin.audit.detail.userAgent') }}
           </h4>
-          <div class="break-all rounded-xl bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">
+          <div class="break-all rounded-xl bg-gray-50 p-3 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-ink-soft">
             {{ detail.user_agent || '—' }}
           </div>
         </section>
@@ -267,7 +267,7 @@
           <h4 class="mb-1.5 font-read text-[0.6875rem] font-medium text-ink-faint">
             {{ t('admin.audit.detail.requestBody') }}
           </h4>
-          <pre class="max-h-72 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ prettyBody(detail.request_body) }}</pre>
+          <pre class="max-h-72 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-ink-soft">{{ prettyBody(detail.request_body) }}</pre>
         </section>
 
         <!-- Extra -->
@@ -275,7 +275,7 @@
           <h4 class="mb-1.5 font-read text-[0.6875rem] font-medium text-ink-faint">
             {{ t('admin.audit.detail.extra') }}
           </h4>
-          <pre class="max-h-48 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-gray-400">{{ JSON.stringify(detail.extra, null, 2) }}</pre>
+          <pre class="max-h-48 overflow-auto rounded-xl bg-gray-50 p-4 font-mono text-xs leading-relaxed text-gray-600 dark:bg-dark-900 dark:text-ink-soft">{{ JSON.stringify(detail.extra, null, 2) }}</pre>
         </section>
       </div>
     </BaseDialog>

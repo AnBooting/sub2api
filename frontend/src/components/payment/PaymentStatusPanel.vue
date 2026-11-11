@@ -13,15 +13,15 @@
           <div v-if="paidOrder" class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.orderId') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">#{{ paidOrder.id }}</span>
               </div>
               <div v-if="paidOrder.out_trade_no" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.orderNo') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">{{ paidOrder.out_trade_no }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.amount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">
                   {{ creditedAmountSymbol }}{{ paidOrder.amount.toFixed(2) }}
                   <span v-if="(paidOrder.bonus_amount ?? 0) > 0" class="ml-1 text-xs font-normal text-warning-600 dark:text-warning-400">
@@ -30,7 +30,7 @@
                 </span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.payAmount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">{{ formatGatewayAmount(paidOrder.pay_amount, paidOrder.currency) }}</span>
               </div>
             </div>
@@ -45,12 +45,12 @@
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
           <div class="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700">
-            <svg class="h-8 w-8 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <svg class="h-8 w-8 text-gray-400 dark:text-ink-faint" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-on-signal">{{ t('payment.qr.cancelled') }}</p>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.cancelledDesc') }}</p>
+          <p class="text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.cancelledDesc') }}</p>
           <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
         </div>
       </div>
@@ -66,7 +66,7 @@
             </svg>
           </div>
           <p class="text-lg font-bold text-gray-900 dark:text-on-signal">{{ t('payment.qr.expired') }}</p>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.expiredDesc') }}</p>
+          <p class="text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.expiredDesc') }}</p>
           <button class="btn btn-primary" @click="handleDone">{{ t('common.confirm') }}</button>
         </div>
       </div>
@@ -89,7 +89,7 @@
             <p class="text-lg font-semibold text-gray-900 dark:text-on-signal">
               {{ deepLinkState === 'backgrounded' ? t('payment.qr.alipayContinueInApp') : t('payment.qr.alipayOpening') }}
             </p>
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.alipayWaitingHint') }}</p>
+            <p class="text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.alipayWaitingHint') }}</p>
             <button
               v-if="deepLinkState === 'backgrounded'"
               data-test="reopen-alipay"
@@ -102,9 +102,9 @@
           </div>
         </div>
         <div class="card p-4 text-center">
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.expiresIn') }}</p>
+          <p class="text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.expiresIn') }}</p>
           <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-on-signal">{{ countdownDisplay }}</p>
-          <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
+          <p class="mt-1 text-xs text-gray-400 dark:text-ink-faint">{{ t('payment.qr.waitingPayment') }}</p>
         </div>
       </template>
       <template v-else>
@@ -112,21 +112,21 @@
           <div class="flex flex-col items-center space-y-4">
             <div class="text-center">
               <p class="text-lg font-semibold text-gray-900 dark:text-on-signal">{{ t('payment.qr.alipayFallbackTitle') }}</p>
-              <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.alipayFallbackHint') }}</p>
+              <p class="mt-1 text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.alipayFallbackHint') }}</p>
             </div>
             <div class="w-full space-y-2 border-y border-gray-100 py-3 text-sm dark:border-dark-600">
               <div class="flex items-start justify-between gap-4">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.payAmount') }}</span>
                 <span class="font-semibold text-gray-900 dark:text-on-signal">{{ displayPaymentAmount }}</span>
               </div>
               <div class="flex items-start justify-between gap-4">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderNo') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.orderNo') }}</span>
                 <span class="max-w-[70%] break-all text-right font-mono text-xs text-gray-900 dark:text-on-signal">
                   {{ displayOrderNumber }}
                 </span>
               </div>
               <div class="flex items-start justify-between gap-4">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.qr.expiresIn') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.qr.expiresIn') }}</span>
                 <span class="font-semibold tabular-nums text-gray-900 dark:text-on-signal">{{ countdownDisplay }}</span>
               </div>
             </div>
@@ -138,7 +138,7 @@
                 </span>
               </div>
             </div>
-            <p class="text-center text-sm leading-6 text-gray-600 dark:text-gray-300">
+            <p class="text-center text-sm leading-6 text-gray-600 dark:text-ink-soft">
               {{ t('payment.qr.alipaySaveAndScanHint') }}
             </p>
             <div class="grid w-full gap-2 sm:grid-cols-2">
@@ -181,16 +181,16 @@
               </span>
             </div>
           </div>
-          <p v-if="scanHint" class="text-center text-sm text-gray-500 dark:text-gray-400">{{ scanHint }}</p>
+          <p v-if="scanHint" class="text-center text-sm text-gray-500 dark:text-ink-soft">{{ scanHint }}</p>
           <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
             {{ t('payment.qr.openPayWindow') }}
           </button>
         </div>
       </div>
       <div class="card p-4 text-center">
-        <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.expiresIn') }}</p>
+        <p class="text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.expiresIn') }}</p>
         <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-on-signal">{{ countdownDisplay }}</p>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
+        <p class="mt-1 text-xs text-gray-400 dark:text-ink-faint">{{ t('payment.qr.waitingPayment') }}</p>
       </div>
       <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
         {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}
@@ -202,7 +202,7 @@
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
           <div class="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('payment.qr.payInNewWindowHint') }}</p>
+          <p class="text-sm text-gray-500 dark:text-ink-soft">{{ t('payment.qr.payInNewWindowHint') }}</p>
           <button v-if="payUrl" class="btn btn-secondary text-sm" @click="reopenPopup">
             {{ t('payment.qr.openPayWindow') }}
           </button>
@@ -210,7 +210,7 @@
       </div>
       <div class="card p-4 text-center">
         <p class="mt-1 text-2xl font-bold tabular-nums text-gray-900 dark:text-on-signal">{{ countdownDisplay }}</p>
-        <p class="mt-1 text-xs text-gray-400 dark:text-gray-500">{{ t('payment.qr.waitingPayment') }}</p>
+        <p class="mt-1 text-xs text-gray-400 dark:text-ink-faint">{{ t('payment.qr.waitingPayment') }}</p>
       </div>
       <button class="btn btn-secondary w-full" :disabled="cancelling" @click="handleCancel">
         {{ cancelling ? t('common.processing') : t('payment.qr.cancelOrder') }}

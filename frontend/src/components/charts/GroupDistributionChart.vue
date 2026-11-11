@@ -13,7 +13,7 @@
           class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
           :class="metric === 'tokens'
             ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
           @click="emit('update:metric', 'tokens')"
         >
           {{ t('admin.dashboard.metricTokens') }}
@@ -23,7 +23,7 @@
           class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
           :class="metric === 'actual_cost'
             ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-            : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+            : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
           @click="emit('update:metric', 'actual_cost')"
         >
           {{ t('admin.dashboard.metricActualCost') }}
@@ -40,7 +40,7 @@
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
           <thead>
-            <tr class="text-gray-500 dark:text-gray-400">
+            <tr class="text-gray-500 dark:text-ink-soft">
               <th class="pb-2 text-left">{{ t('admin.dashboard.group') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
@@ -67,10 +67,10 @@
                     {{ group.group_name || t('admin.dashboard.noGroup') }}
                   </span>
                 </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                <td class="py-1.5 text-right text-gray-600 dark:text-ink-soft">
                   {{ formatNumber(group.requests) }}
                 </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                <td class="py-1.5 text-right text-gray-600 dark:text-ink-soft">
                   {{ formatTokens(group.total_tokens) }}
                 </td>
                 <td class="py-1.5 text-right text-success-600 dark:text-success-400">
@@ -79,7 +79,7 @@
                 <td v-if="showAccountCost" class="py-1.5 text-right text-warning-500 dark:text-warning-400">
                   ${{ formatCost(group.account_cost) }}
                 </td>
-                <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
+                <td class="py-1.5 text-right text-gray-400 dark:text-ink-faint">
                   {{ formatCustomerCredit(formatCost(group.cost)) }}
                 </td>
               </tr>
@@ -100,7 +100,7 @@
     </div>
     <div
       v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-ink-soft"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>

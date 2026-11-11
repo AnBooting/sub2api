@@ -12,7 +12,7 @@
               class="px-3 py-1.5 text-xs font-medium transition-colors first:rounded-l-lg last:rounded-r-lg"
               :class="days === d
                 ? 'bg-primary-600 text-on-signal'
-                : 'text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700'"
+                : 'text-gray-600 hover:bg-gray-100 dark:text-ink-soft dark:hover:bg-dark-700'"
               @click="days = d"
             >
               {{ d }}{{ t('payment.admin.daySuffix') }}
@@ -102,9 +102,9 @@ function methodColor(type: string): string {
 
 function rankClass(idx: number): string {
   if (idx === 0) return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
-  if (idx === 1) return 'bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+  if (idx === 1) return 'bg-gray-200 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'
   if (idx === 2) return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
-  return 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-gray-400'
+  return 'bg-gray-100 text-gray-500 dark:bg-dark-700 dark:text-ink-soft'
 }
 
 function sortedAmounts(amounts: CurrencyAmounts): [string, number][] {

@@ -18,15 +18,15 @@
           <div class="w-full border border-rule bg-paper-inset p-4">
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.orderId') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">#{{ orderId }}</span>
               </div>
               <div v-if="amount > 0" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.amount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">{{ creditedAmountSymbol }}{{ amount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.payAmount') }}</span>
                 <span class="font-medium text-gray-900 dark:text-on-signal">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</span>
               </div>
             </div>

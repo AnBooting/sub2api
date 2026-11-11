@@ -1,6 +1,6 @@
 <template>
   <div>
-    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-ink-soft">
       {{ t('payment.paymentMethod') }}
     </label>
     <div

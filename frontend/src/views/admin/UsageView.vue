@@ -75,7 +75,7 @@
             class="-mb-px inline-flex items-center gap-1.5 border-b-2 px-3 py-3 text-sm font-medium transition-colors sm:px-4"
             :class="activeTab === tab.key
               ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-              : 'border-transparent text-ink-faint hover:border-gray-300 hover:text-gray-700 dark:text-gray-400 dark:hover:border-dark-500 dark:hover:text-gray-200'"
+              : 'border-transparent text-ink-faint hover:border-gray-300 hover:text-gray-700 dark:text-ink-soft dark:hover:border-dark-500 dark:hover:text-ink'"
             @click="switchTab(tab.key)"
           >
             <Icon :name="tab.icon" size="sm" />
@@ -106,7 +106,7 @@
                   :key="col.key"
                   :data-testid="`usage-column-toggle-${col.key}`"
                   @click="toggleCurrentColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-ink-soft dark:hover:bg-dark-700"
                 >
                   <span>{{ col.label }}</span>
                   <Icon

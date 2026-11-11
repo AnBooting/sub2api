@@ -525,7 +525,7 @@
               'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
               openCodeAccountMode === 'zen'
                 ? accentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
             ]"
           >
             <div
@@ -548,7 +548,7 @@
               'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
               openCodeAccountMode === 'go'
                 ? accentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
             ]"
           >
             <div
@@ -580,7 +580,7 @@
               'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
               accountMode === mode
                 ? accentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
             ]"
           >
             <div
@@ -608,7 +608,7 @@
               'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
               accountMode === 'payg'
                 ? accentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
             ]"
           >
             <div
@@ -635,7 +635,7 @@
               'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
               accountMode === 'coding'
                 ? accentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
             ]"
           >
             <div
@@ -669,7 +669,7 @@
               'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
               apiProtocol === opt.value
                 ? accentActiveClass
-                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
             ]"
           >
             <div
@@ -971,7 +971,7 @@
             <button
               type="button"
               @click="showAdvancedOAuth = !showAdvancedOAuth"
-              class="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+              class="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:text-ink-soft dark:hover:text-ink"
             >
               <svg
                 :class="['h-4 w-4 transition-transform', showAdvancedOAuth ? 'rotate-90' : '']"
@@ -2687,7 +2687,7 @@
                     type="button"
                     :disabled="index === 0"
                     @click="moveTempUnschedRule(index, -1)"
-                    class="rounded p-1 text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-gray-200"
+                    class="rounded p-1 text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-ink"
                   >
                     <Icon name="chevronUp" size="sm" :stroke-width="2" />
                   </button>
@@ -2695,7 +2695,7 @@
                     type="button"
                     :disabled="index === tempUnschedRules.length - 1"
                     @click="moveTempUnschedRule(index, 1)"
-                    class="rounded p-1 text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-gray-200"
+                    class="rounded p-1 text-gray-400 transition-colors hover:text-gray-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:text-ink"
                   >
                     <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -2752,7 +2752,7 @@
                         'flex items-center gap-3 border border-rule border-l-2 p-3 text-left transition-colors duration-150',
                         rule.scope === option.value
                           ? accentActiveClass
-                          : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-gray-600'
+                          : 'border-gray-200 hover:border-gray-400 dark:border-dark-600 dark:hover:border-dark-600'
                       ]"
                     >
                       <span
@@ -3624,7 +3624,7 @@
                 :checked="openAIEndpointCapabilities.includes(option.value)"
                 @change="toggleOpenAIEndpointCapability(option.value, $event)"
               />
-              <span class="text-gray-700 dark:text-gray-200">{{ option.label }}</span>
+              <span class="text-gray-700 dark:text-ink">{{ option.label }}</span>
             </label>
           </div>
           <p class="input-hint">{{ t('admin.accounts.openai.endpointCapabilitiesDesc') }}</p>
@@ -3705,17 +3705,17 @@
           </label>
           <div class="group relative">
             <span
-              class="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-paper-inset text-xs text-ink-faint hover:bg-rule-strong dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500"
+              class="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-paper-inset text-xs text-ink-faint hover:bg-rule-strong dark:bg-dark-600 dark:text-ink-soft dark:hover:bg-dark-500"
             >
               ?
             </span>
             <!-- Tooltip（向下显示避免被弹窗裁剪） -->
             <div
-              class="pointer-events-none absolute left-0 top-full z-[100] mt-1.5 w-72 rounded bg-gray-900 px-3 py-2 text-xs text-on-signal opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
+              class="pointer-events-none absolute left-0 top-full z-[100] mt-1.5 w-72 rounded bg-gray-900 px-3 py-2 text-xs text-on-signal opacity-0 transition-opacity group-hover:opacity-100 dark:bg-dark-700"
             >
               {{ t('admin.accounts.mixedSchedulingTooltip') }}
               <div
-                class="absolute bottom-full left-3 border-4 border-transparent border-b-gray-900 dark:border-b-gray-700"
+                class="absolute bottom-full left-3 border-4 border-transparent border-b-gray-900 dark:border-b-dark-700"
               ></div>
             </div>
           </div>
@@ -3733,16 +3733,16 @@
           </label>
           <div class="group relative">
             <span
-              class="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-paper-inset text-xs text-ink-faint hover:bg-rule-strong dark:bg-dark-600 dark:text-gray-400 dark:hover:bg-dark-500"
+              class="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-paper-inset text-xs text-ink-faint hover:bg-rule-strong dark:bg-dark-600 dark:text-ink-soft dark:hover:bg-dark-500"
             >
               ?
             </span>
             <div
-              class="pointer-events-none absolute left-0 top-full z-[100] mt-1.5 w-72 rounded bg-gray-900 px-3 py-2 text-xs text-on-signal opacity-0 transition-opacity group-hover:opacity-100 dark:bg-gray-700"
+              class="pointer-events-none absolute left-0 top-full z-[100] mt-1.5 w-72 rounded bg-gray-900 px-3 py-2 text-xs text-on-signal opacity-0 transition-opacity group-hover:opacity-100 dark:bg-dark-700"
             >
               {{ t('admin.accounts.allowOveragesTooltip') }}
               <div
-                class="absolute bottom-full left-3 border-4 border-transparent border-b-gray-900 dark:border-b-gray-700"
+                class="absolute bottom-full left-3 border-4 border-transparent border-b-gray-900 dark:border-b-dark-700"
               ></div>
             </div>
           </div>

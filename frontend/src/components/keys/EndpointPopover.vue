@@ -99,7 +99,7 @@ onBeforeUnmount(() => {
    </div>
 
    <code
-   class="cursor-pointer font-mono text-ink-soft decoration-gray-400 decoration-dashed underline-offset-2 hover:text-primary-600 hover:underline focus:text-primary-600 focus:underline focus:outline-none dark:decoration-gray-500 dark:hover:text-primary-400 dark:focus:text-primary-400"
+   class="cursor-pointer font-mono text-ink-soft decoration-gray-400 decoration-dashed underline-offset-2 hover:text-primary-600 hover:underline focus:text-primary-600 focus:underline focus:outline-none dark:decoration-dark-500 dark:hover:text-primary-400 dark:focus:text-primary-400"
    role="button"
    tabindex="0"
    @click="copy(item.endpoint)"

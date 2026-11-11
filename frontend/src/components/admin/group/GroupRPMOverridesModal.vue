@@ -131,7 +131,7 @@
                           'inline-flex rounded-full px-2 py-0.5 text-xs font-medium',
                           entry.user_status === 'active'
                             ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400'
-                            : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-gray-400'
+                            : 'bg-gray-100 text-gray-600 dark:bg-dark-600 dark:text-ink-soft'
                         ]"
                       >
                         {{ entry.user_status }}

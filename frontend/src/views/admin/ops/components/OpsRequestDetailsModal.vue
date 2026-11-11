@@ -232,7 +232,7 @@ function accountLabel(row: OpsRequestDetail): string {
                     <span class="rounded-full px-2 py-1 text-[10px] font-bold" :class="kindBadgeClass(row.kind)">
                       {{ row.kind === 'error' ? t('admin.ops.requestDetails.kind.error') : t('admin.ops.requestDetails.kind.success') }}
                     </span>
-                    <span class="text-xs font-medium text-gray-700 dark:text-gray-200">{{ (row.platform || 'unknown').toUpperCase() }}</span>
+                    <span class="text-xs font-medium text-gray-700 dark:text-ink">{{ (row.platform || 'unknown').toUpperCase() }}</span>
                     <span class="ml-auto text-[11px] text-ink-faint">{{ formatDateTime(row.created_at) }}</span>
                   </div>
                   <div class="break-all text-xs text-ink-soft">{{ row.model || '-' }}</div>
@@ -244,11 +244,11 @@ function accountLabel(row: OpsRequestDetail): string {
                     <span>{{ row.status_code ?? '-' }}</span>
                   </div>
                   <div v-if="row.request_id" class="flex items-center gap-2">
-                    <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-gray-700 dark:text-gray-200" :title="row.request_id">
+                    <span class="min-w-0 flex-1 truncate font-mono text-[11px] text-gray-700 dark:text-ink" :title="row.request_id">
                       {{ row.request_id }}
                     </span>
                     <button
-                      class="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+                      class="shrink-0 rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-ink-soft dark:hover:bg-dark-600"
                       @click="handleCopyRequestId(row.request_id)"
                     >
                       {{ t('admin.ops.requestDetails.copy') }}
@@ -305,7 +305,7 @@ function accountLabel(row: OpsRequestDetail): string {
                       {{ row.kind === 'error' ? t('admin.ops.requestDetails.kind.error') : t('admin.ops.requestDetails.kind.success') }}
                     </span>
                   </td>
-                  <td class="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700 dark:text-gray-200">
+                  <td class="whitespace-nowrap px-4 py-3 text-xs font-medium text-gray-700 dark:text-ink">
                     {{ (row.platform || 'unknown').toUpperCase() }}
                   </td>
                   <td class="max-w-[240px] truncate px-4 py-3 text-xs text-ink-soft" :title="row.model || ''">
@@ -322,11 +322,11 @@ function accountLabel(row: OpsRequestDetail): string {
                   </td>
                   <td class="px-4 py-3">
                     <div v-if="row.request_id" class="flex items-center gap-2">
-                      <span class="max-w-[220px] truncate font-mono text-[11px] text-gray-700 dark:text-gray-200" :title="row.request_id">
+                      <span class="max-w-[220px] truncate font-mono text-[11px] text-gray-700 dark:text-ink" :title="row.request_id">
                         {{ row.request_id }}
                       </span>
                       <button
-                        class="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-gray-300 dark:hover:bg-dark-600"
+                        class="rounded-md bg-gray-100 px-2 py-1 text-[10px] font-bold text-gray-600 hover:bg-gray-200 dark:bg-dark-700 dark:text-ink-soft dark:hover:bg-dark-600"
                         @click="handleCopyRequestId(row.request_id)"
                       >
                         {{ t('admin.ops.requestDetails.copy') }}

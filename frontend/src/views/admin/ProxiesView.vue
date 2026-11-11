@@ -174,7 +174,7 @@
           <template #cell-auth="{ row }">
             <div v-if="row.username || row.password" class="flex items-center gap-1.5">
               <div class="flex flex-col text-xs">
-                <span v-if="row.username" class="text-gray-700 dark:text-gray-200">{{ row.username }}</span>
+                <span v-if="row.username" class="text-gray-700 dark:text-ink">{{ row.username }}</span>
                 <span v-if="row.password" class="font-mono text-ink-faint">
                   {{ visiblePasswordIds.has(row.id) ? row.password : '••••••' }}
                 </span>
@@ -182,7 +182,7 @@
               <button
                 v-if="row.password"
                 type="button"
-                class="ml-1 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                class="ml-1 rounded p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-ink-soft"
                 @click.stop="visiblePasswordIds.has(row.id) ? visiblePasswordIds.delete(row.id) : visiblePasswordIds.add(row.id)"
               >
                 <Icon :name="visiblePasswordIds.has(row.id) ? 'eyeOff' : 'eye'" size="sm" />
@@ -199,7 +199,7 @@
                 :alt="row.country || row.country_code"
                 class="h-4 w-6 rounded-sm"
               />
-              <span v-if="formatLocation(row)" class="text-sm text-gray-700 dark:text-gray-200">
+              <span v-if="formatLocation(row)" class="text-sm text-gray-700 dark:text-ink">
                 {{ formatLocation(row) }}
               </span>
               <span v-else class="text-sm text-gray-400">-</span>
@@ -217,7 +217,7 @@
             </button>
             <span
               v-else
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
             >
               {{ t('admin.groups.accountsCount', { count: 0 }) }}
             </span>
@@ -255,7 +255,7 @@
           <template #cell-expiry="{ row }">
             <span v-if="!row.expires_at" class="text-sm text-gray-400">{{ t('admin.proxies.neverExpires') }}</span>
             <div v-else class="flex flex-col text-xs">
-              <span class="text-gray-700 dark:text-gray-200">{{ formatDateTime(row.expires_at) }}</span>
+              <span class="text-gray-700 dark:text-ink">{{ formatDateTime(row.expires_at) }}</span>
               <span :class="expiryBadgeClass(row)">{{ expiryLabel(row) }}</span>
             </div>
           </template>
@@ -393,7 +393,7 @@
               '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
               createMode === 'standard'
                 ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-ink-faint hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                : 'border-transparent text-ink-faint hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink-soft'
             ]"
           >
             <Icon name="plus" size="sm" class="mr-1.5 inline" />
@@ -406,7 +406,7 @@
               '-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors',
               createMode === 'batch'
                 ? 'border-primary-500 text-primary-600 dark:text-primary-400'
-                : 'border-transparent text-ink-faint hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300'
+                : 'border-transparent text-ink-faint hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink-soft'
             ]"
           >
             <svg
@@ -493,7 +493,7 @@
             />
             <button
               type="button"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-ink-soft"
               @click="createPasswordVisible = !createPasswordVisible"
             >
               <Icon :name="createPasswordVisible ? 'eyeOff' : 'eye'" size="md" />
@@ -722,7 +722,7 @@
             />
             <button
               type="button"
-              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-ink-soft"
               @click="editPasswordVisible = !editPasswordVisible"
             >
               <Icon :name="editPasswordVisible ? 'eyeOff' : 'eye'" size="md" />
@@ -861,7 +861,7 @@
               <div class="text-sm text-ink-faint">
                 {{ qualityReportProxy?.name || '-' }}
               </div>
-              <div class="mt-1 text-sm text-gray-700 dark:text-gray-200">
+              <div class="mt-1 text-sm text-gray-700 dark:text-ink">
                 {{ qualityReport.summary }}
               </div>
             </div>

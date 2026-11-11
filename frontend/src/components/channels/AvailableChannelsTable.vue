@@ -26,7 +26,7 @@
         <tr>
           <td colspan="5" class="py-12 text-center">
             <Icon name="inbox" size="xl" class="mx-auto mb-3 h-12 w-12 text-gray-400" />
-            <p class="text-sm text-gray-500 dark:text-gray-400">{{ emptyLabel }}</p>
+            <p class="text-sm text-gray-500 dark:text-ink-soft">{{ emptyLabel }}</p>
           </td>
         </tr>
       </tbody>
@@ -57,7 +57,7 @@
           <td
             v-if="secIdx === 0"
             :rowspan="channel.platforms.length"
-            class="px-4 py-3 align-middle text-xs text-gray-500 dark:text-gray-400"
+            class="px-4 py-3 align-middle text-xs text-gray-500 dark:text-ink-soft"
           >
             <template v-if="channel.description">{{ channel.description }}</template>
             <span v-else class="text-gray-400">-</span>
@@ -182,7 +182,7 @@
       </div>
       <div v-else-if="rows.length === 0" data-testid="mobile-empty" class="py-12 text-center">
         <Icon name="inbox" size="xl" class="mx-auto mb-3 h-12 w-12 text-gray-400" />
-        <p class="text-sm text-gray-500 dark:text-gray-400">{{ emptyLabel }}</p>
+        <p class="text-sm text-gray-500 dark:text-ink-soft">{{ emptyLabel }}</p>
       </div>
       <section
         v-else
@@ -194,7 +194,7 @@
           <h3 class="break-words text-sm font-semibold text-gray-900 dark:text-on-signal">
             {{ channel.name }}
           </h3>
-          <p class="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-gray-400">
+          <p class="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-ink-soft">
             {{ channel.description || '-' }}
           </p>
         </header>
@@ -217,7 +217,7 @@
 
             <dl class="mt-3 space-y-3">
               <div class="min-w-0">
-                <dt class="mb-1.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                <dt class="mb-1.5 text-[11px] font-medium text-gray-500 dark:text-ink-soft">
                   {{ columns.groups }}
                 </dt>
                 <dd class="flex min-w-0 flex-col gap-2">
@@ -296,7 +296,7 @@
               </div>
 
               <div class="min-w-0">
-                <dt class="mb-1.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                <dt class="mb-1.5 text-[11px] font-medium text-gray-500 dark:text-ink-soft">
                   {{ columns.supportedModels }}
                 </dt>
                 <dd class="flex min-w-0 flex-wrap gap-1">

@@ -3,7 +3,7 @@
 
 .markdown-body {
   @apply text-[0.9375rem] leading-[1.7];
-  @apply text-gray-700 dark:text-gray-300;
+  @apply text-gray-700 dark:text-ink-soft;
   max-width: var(--measure);
 }
 
@@ -53,7 +53,7 @@
 }
 
 .markdown-body blockquote {
-  @apply relative my-5 border-l-2 border-primary-500 bg-gray-50 py-2.5 pl-4 pr-3 text-gray-700 dark:border-primary-400 dark:bg-dark-900/40 dark:text-gray-300;
+  @apply relative my-5 border-l-2 border-primary-500 bg-gray-50 py-2.5 pl-4 pr-3 text-gray-700 dark:border-primary-400 dark:bg-dark-900/40 dark:text-ink-soft;
 }
 
 .markdown-body code {
@@ -67,7 +67,7 @@
 }
 
 .markdown-body pre code {
-  @apply bg-transparent p-0 text-[0.8125rem] text-gray-800 dark:text-gray-200;
+  @apply bg-transparent p-0 text-[0.8125rem] text-gray-800 dark:text-ink;
 }
 
 .markdown-body hr {
@@ -113,5 +113,5 @@
 }
 
 .markdown-body em {
-  @apply italic text-gray-600 dark:text-gray-400;
+  @apply italic text-gray-600 dark:text-ink-soft;
 }

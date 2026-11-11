@@ -1043,7 +1043,7 @@
    <input
    v-model="groupSearchQuery"
    type="text"
-   class="w-full rounded-lg border border-rule bg-paper-inset py-1.5 pl-8 pr-3 text-sm text-ink placeholder-gray-400 outline-none focus:border-primary-300 focus:ring-1 focus:ring-primary-300 dark:border-dark-600 dark:placeholder-gray-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
+   class="w-full rounded-lg border border-rule bg-paper-inset py-1.5 pl-8 pr-3 text-sm text-ink placeholder-gray-400 outline-none focus:border-primary-300 focus:ring-1 focus:ring-primary-300 dark:border-dark-600 dark:placeholder-dark-500 dark:focus:border-primary-600 dark:focus:ring-primary-600"
    :placeholder="t('keys.searchGroup')"
    @click.stop
    />

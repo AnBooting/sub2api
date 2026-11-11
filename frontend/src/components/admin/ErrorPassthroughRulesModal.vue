@@ -38,25 +38,25 @@
         <table class="min-w-full divide-y divide-gray-200 dark:divide-dark-700">
           <thead class="sticky top-0 bg-gray-50 dark:bg-dark-700">
             <tr>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.priority') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.name') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.conditions') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.platforms') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.behavior') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.status') }}
               </th>
-              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-gray-400">
+              <th class="px-3 py-2 text-left font-read text-[0.6875rem] font-medium text-ink-faint dark:text-ink-soft">
                 {{ t('admin.errorPassthrough.columns.actions') }}
               </th>
             </tr>
@@ -64,7 +64,7 @@
           <tbody class="divide-y divide-gray-200 bg-white dark:divide-dark-700 dark:bg-dark-800">
             <tr v-for="rule in rules" :key="rule.id" class="hover:bg-gray-50 dark:hover:bg-dark-700">
               <td class="whitespace-nowrap px-3 py-2">
-                <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-xs font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300">
+                <span class="inline-flex h-5 w-5 items-center justify-center rounded bg-gray-100 text-xs font-medium text-gray-700 dark:bg-dark-600 dark:text-ink-soft">
                   {{ rule.priority }}
                 </span>
               </td>

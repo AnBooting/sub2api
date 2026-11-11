@@ -16,7 +16,7 @@
             class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="source === 'requested'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+              : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
             @click="emit('update:source', 'requested')"
           >
             {{ t('usage.requestedModel') }}
@@ -26,7 +26,7 @@
             class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="source === 'upstream'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+              : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
             @click="emit('update:source', 'upstream')"
           >
             {{ t('usage.upstreamModel') }}
@@ -36,7 +36,7 @@
             class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="source === 'mapping'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+              : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
             @click="emit('update:source', 'mapping')"
           >
             {{ t('usage.mapping') }}
@@ -51,7 +51,7 @@
             class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="metric === 'tokens'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+              : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
             @click="emit('update:metric', 'tokens')"
           >
             {{ t('admin.dashboard.metricTokens') }}
@@ -61,7 +61,7 @@
             class="rounded-md px-2.5 py-1 text-xs font-medium transition-colors min-h-[44px] sm:min-h-0"
             :class="metric === 'actual_cost'
               ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-              : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'"
+              : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'"
             @click="emit('update:metric', 'actual_cost')"
           >
             {{ t('admin.dashboard.metricActualCost') }}
@@ -74,7 +74,7 @@
             :class="
               activeView === 'model_distribution'
                 ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'
             "
             @click="activeView = 'model_distribution'"
           >
@@ -86,7 +86,7 @@
             :class="
               activeView === 'spending_ranking'
                 ? 'bg-white text-gray-900 dark:bg-dark-700 dark:text-on-signal'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink'
             "
             @click="activeView = 'spending_ranking'"
           >
@@ -109,7 +109,7 @@
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
           <thead>
-            <tr class="text-gray-500 dark:text-gray-400">
+            <tr class="text-gray-500 dark:text-ink-soft">
               <th class="pb-2 text-left">{{ t('admin.dashboard.model') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.requests') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.tokens') }}</th>
@@ -136,10 +136,10 @@
                     {{ model.model }}
                   </span>
                 </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                <td class="py-1.5 text-right text-gray-600 dark:text-ink-soft">
                   {{ formatNumber(model.requests) }}
                 </td>
-                <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+                <td class="py-1.5 text-right text-gray-600 dark:text-ink-soft">
                   {{ formatTokens(model.total_tokens) }}
                 </td>
                 <td class="py-1.5 text-right text-success-600 dark:text-success-400">
@@ -148,7 +148,7 @@
                 <td v-if="showAccountCost" class="py-1.5 text-right text-warning-500 dark:text-warning-400">
                   ${{ formatCost(model.account_cost) }}
                 </td>
-                <td class="py-1.5 text-right text-gray-400 dark:text-gray-500">
+                <td class="py-1.5 text-right text-gray-400 dark:text-ink-faint">
                   {{ formatCustomerCredit(formatCost(model.cost)) }}
                 </td>
               </tr>
@@ -168,7 +168,7 @@
     </div>
     <div
       v-else-if="activeView === 'model_distribution'"
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-ink-soft"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
@@ -178,7 +178,7 @@
     </div>
     <div
       v-else-if="rankingError"
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-ink-soft"
     >
       {{ t('admin.dashboard.failedToLoad') }}
     </div>
@@ -189,7 +189,7 @@
       <div class="max-h-48 w-full min-w-0 flex-1 overflow-auto">
         <table class="w-full text-xs">
           <thead>
-            <tr class="text-gray-500 dark:text-gray-400">
+            <tr class="text-gray-500 dark:text-ink-soft">
               <th class="pb-2 text-left">{{ t('admin.dashboard.spendingRankingUser') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingRequests') }}</th>
               <th class="pb-2 text-right">{{ t('admin.dashboard.spendingRankingTokens') }}</th>
@@ -208,7 +208,7 @@
             >
               <td class="py-1.5">
                 <div class="flex min-w-0 items-center gap-2">
-                  <span class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-gray-400">
+                  <span class="shrink-0 text-[11px] font-semibold text-gray-500 dark:text-ink-soft">
                     {{ item.isOther ? 'Σ' : `#${index + 1}` }}
                   </span>
                   <span
@@ -219,10 +219,10 @@
                   </span>
                 </div>
               </td>
-              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+              <td class="py-1.5 text-right text-gray-600 dark:text-ink-soft">
                 {{ formatNumber(item.requests) }}
               </td>
-              <td class="py-1.5 text-right text-gray-600 dark:text-gray-400">
+              <td class="py-1.5 text-right text-gray-600 dark:text-ink-soft">
                 {{ formatTokens(item.tokens) }}
               </td>
               <td class="py-1.5 text-right text-success-600 dark:text-success-400">
@@ -235,7 +235,7 @@
     </div>
     <div
       v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-ink-soft"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>

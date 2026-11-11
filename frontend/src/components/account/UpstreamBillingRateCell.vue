@@ -4,7 +4,7 @@
       <template #trigger>
         <span
           class="cursor-help border-b border-dotted border-gray-300 text-sm font-medium dark:border-dark-600"
-          :class="hasEffectiveRate ? 'font-mono text-gray-800 dark:text-gray-200' : statusClass || 'text-ink-faint'"
+          :class="hasEffectiveRate ? 'font-mono text-gray-800 dark:text-ink' : statusClass || 'text-ink-faint'"
           data-testid="upstream-billing-rate"
         >
           {{ primaryValue }}

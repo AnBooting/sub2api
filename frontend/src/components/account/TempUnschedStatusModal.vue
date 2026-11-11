@@ -24,7 +24,7 @@
         </svg>
       </div>
 
-      <div v-else-if="!isActive" class="rounded-lg border border-gray-200 p-4 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400">
+      <div v-else-if="!isActive" class="rounded-lg border border-gray-200 p-4 text-sm text-gray-500 dark:border-dark-600 dark:text-ink-soft">
         {{ t('admin.accounts.tempUnschedulable.notActive') }}
       </div>
 
@@ -97,7 +97,7 @@
           <p class="text-xs text-ink-faint">
             {{ t('admin.accounts.tempUnschedulable.errorMessage') }}
           </p>
-          <div class="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-dark-700 dark:text-gray-300">
+          <div class="mt-2 rounded bg-gray-50 p-2 text-xs text-gray-700 dark:bg-dark-700 dark:text-ink-soft">
             {{ state?.error_message || '-' }}
           </div>
         </div>

@@ -115,7 +115,7 @@ const titleText = computed(() => ariaLabel.value)
 
 const rankClass = computed(() => {
   if (rankNum.value === 1) return 'text-warning-600 dark:text-warning-400'
-  if (rankNum.value === 2) return 'text-gray-500 dark:text-gray-300'
+  if (rankNum.value === 2) return 'text-gray-500 dark:text-ink-soft'
   if (rankNum.value === 3) return 'text-warning-800 dark:text-warning-600'
   return ''
 })

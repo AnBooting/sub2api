@@ -91,7 +91,7 @@
                   v-for="col in toggleableColumns"
                   :key="col.key"
                   @click="toggleColumn(col.key)"
-                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="flex w-full items-center justify-between px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-ink-soft dark:hover:bg-dark-700"
                 >
                   <span>{{ col.label }}</span>
                   <Icon
@@ -158,7 +158,7 @@
                     : value === 'antigravity'
                       ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
                       : value === 'grok'
-                        ? 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                        ? 'bg-gray-200 text-gray-800 dark:bg-dark-700 dark:text-ink'
                         : value === 'kimi'
                           ? 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-400'
                           : value === 'zhipu'
@@ -185,7 +185,7 @@
                   'inline-block rounded-full px-2 py-0.5 text-xs font-medium',
                   row.subscription_type === 'subscription'
                     ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-                    : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+                    : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft',
                 ]"
               >
                 {{
@@ -236,7 +236,7 @@
                       row.daily_limit_usd &&
                       (row.weekly_limit_usd || row.monthly_limit_usd)
                     "
-                    class="mx-1 text-gray-300 dark:text-gray-600"
+                    class="mx-1 text-gray-300 dark:text-dark-600"
                     >·</span
                   >
                   <span v-if="row.weekly_limit_usd" class="whitespace-nowrap"
@@ -246,7 +246,7 @@
                   >
                   <span
                     v-if="row.weekly_limit_usd && row.monthly_limit_usd"
-                    class="mx-1 text-gray-300 dark:text-gray-600"
+                    class="mx-1 text-gray-300 dark:text-dark-600"
                     >·</span
                   >
                   <span v-if="row.monthly_limit_usd" class="whitespace-nowrap"
@@ -307,7 +307,7 @@
                   >{{ row.active_account_count || 0 }}</span
                 >
                 <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
                   >{{ t("admin.groups.accountsUnit") }}</span
                 >
               </div>
@@ -320,7 +320,7 @@
                   >{{ row.rate_limited_account_count }}</span
                 >
                 <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
                   >{{ t("admin.groups.accountsUnit") }}</span
                 >
               </div>
@@ -333,7 +333,7 @@
                   >{{ row.account_count || 0 }}</span
                 >
                 <span
-                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+                  class="ml-1 inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
                   >{{ t("admin.groups.accountsUnit") }}</span
                 >
               </div>
@@ -567,13 +567,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.copyAccounts.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -709,7 +709,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="mb-2 text-xs font-medium">
                     {{ t("admin.groups.exclusiveTooltip.title") }}
@@ -717,7 +717,7 @@
                   <p class="mb-2 text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.exclusiveTooltip.description") }}
                   </p>
-                  <div class="rounded bg-gray-800 p-2 dark:bg-gray-700">
+                  <div class="rounded bg-gray-800 p-2 dark:bg-dark-700">
                     <p class="text-xs leading-relaxed text-gray-300">
                       <span
                         class="inline-flex items-center gap-1 text-primary-400"
@@ -729,7 +729,7 @@
                   </div>
                   <!-- Arrow -->
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -853,7 +853,7 @@
                 </button>
                 <button
                   type="button"
-                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-ink-soft dark:hover:bg-dark-700"
                   @click="invertModelAllowlistSelection(createModelAllowlistState)"
                 >
                   {{ t("admin.groups.modelAllowlist.invertSelection") }}
@@ -894,7 +894,7 @@
                 <button
                   type="button"
                   :disabled="index === 0"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveCreateModelAllowlistItem(index, index - 1)"
                 >
                   <Icon name="arrowUp" size="sm" />
@@ -902,7 +902,7 @@
                 <button
                   type="button"
                   :disabled="index === createModelAllowlistState.items.length - 1"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveCreateModelAllowlistItem(index, index + 1)"
                 >
                   <Icon name="arrowDown" size="sm" />
@@ -915,7 +915,7 @@
                   v-model="createAllowlistCustomEntry"
                   type="text"
                   :placeholder="t('admin.groups.modelAllowlist.customPlaceholder')"
-                  class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200"
+                  class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-ink"
                   @keydown.enter.prevent="submitCreateAllowlistCustomEntry"
                 />
                 <button
@@ -1021,7 +1021,7 @@
           <p class="mt-3 text-xs text-ink-faint">
             {{ t(imagePricingI18nKey(createForm.platform, "modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-dark-800 dark:text-ink-soft">
             <div class="mb-1 font-medium">
               {{ t(imagePricingI18nKey(createForm.platform, "finalPricePreview")) }}
             </div>
@@ -1082,7 +1082,7 @@
           </div>
           <p
             v-else-if="createForm.platform !== 'gemini'"
-            class="mt-4 border-t border-dashed border-gray-200 pt-4 text-xs text-ink-faint dark:border-dark-700 dark:text-gray-400"
+            class="mt-4 border-t border-dashed border-gray-200 pt-4 text-xs text-ink-faint dark:border-dark-700 dark:text-ink-soft"
           >
             {{ t("admin.groups.imagePricing.batchGeminiOnlyHint") }}
           </p>
@@ -1316,7 +1316,7 @@
           <p class="mt-3 text-xs text-ink-faint">
             {{ t(videoPricingI18nKey("modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-dark-800 dark:text-ink-soft">
             <div class="mb-1 font-medium">
               {{ t(videoPricingI18nKey("finalPricePreview")) }}
             </div>
@@ -1446,13 +1446,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.supportedScopes.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -1519,13 +1519,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.mcpXml.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -1561,13 +1561,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.claudeCode.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -1623,7 +1623,7 @@
               {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
             </p>
             <div
-              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-ink-soft"
             >
               {{
                 t("admin.groups.webSearchPricing.finalPricePreview", {
@@ -1985,7 +1985,7 @@
                   <button
                     type="button"
                     @click="addCreateMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-ink-faint transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-ink-faint transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -2083,13 +2083,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.modelRouting.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -2345,13 +2345,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.copyAccounts.tooltipEdit") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -2500,7 +2500,7 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="mb-2 text-xs font-medium">
                     {{ t("admin.groups.exclusiveTooltip.title") }}
@@ -2508,7 +2508,7 @@
                   <p class="mb-2 text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.exclusiveTooltip.description") }}
                   </p>
-                  <div class="rounded bg-gray-800 p-2 dark:bg-gray-700">
+                  <div class="rounded bg-gray-800 p-2 dark:bg-dark-700">
                     <p class="text-xs leading-relaxed text-gray-300">
                       <span
                         class="inline-flex items-center gap-1 text-primary-400"
@@ -2520,7 +2520,7 @@
                   </div>
                   <!-- Arrow -->
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -2649,7 +2649,7 @@
                 </button>
                 <button
                   type="button"
-                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+                  class="rounded px-2 py-1 font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:text-ink-soft dark:hover:bg-dark-700"
                   @click="invertModelAllowlistSelection(editModelAllowlistState)"
                 >
                   {{ t("admin.groups.modelAllowlist.invertSelection") }}
@@ -2690,7 +2690,7 @@
                 <button
                   type="button"
                   :disabled="index === 0"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveEditModelAllowlistItem(index, index - 1)"
                 >
                   <Icon name="arrowUp" size="sm" />
@@ -2698,7 +2698,7 @@
                 <button
                   type="button"
                   :disabled="index === editModelAllowlistState.items.length - 1"
-                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-gray-200"
+                  class="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-dark-600 dark:hover:text-ink"
                   @click="moveEditModelAllowlistItem(index, index + 1)"
                 >
                   <Icon name="arrowDown" size="sm" />
@@ -2711,7 +2711,7 @@
                   v-model="editAllowlistCustomEntry"
                   type="text"
                   :placeholder="t('admin.groups.modelAllowlist.customPlaceholder')"
-                  class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-gray-200"
+                  class="min-w-0 flex-1 rounded border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-700 focus:border-primary-500 focus:outline-none dark:border-dark-500 dark:bg-dark-700 dark:text-ink"
                   @keydown.enter.prevent="submitEditAllowlistCustomEntry"
                 />
                 <button
@@ -2817,7 +2817,7 @@
           <p class="mt-3 text-xs text-ink-faint">
             {{ t(imagePricingI18nKey(editForm.platform, "modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-dark-800 dark:text-ink-soft">
             <div class="mb-1 font-medium">
               {{ t(imagePricingI18nKey(editForm.platform, "finalPricePreview")) }}
             </div>
@@ -2878,7 +2878,7 @@
           </div>
           <p
             v-else-if="editForm.platform !== 'gemini'"
-            class="mt-4 border-t border-dashed border-gray-200 pt-4 text-xs text-ink-faint dark:border-dark-700 dark:text-gray-400"
+            class="mt-4 border-t border-dashed border-gray-200 pt-4 text-xs text-ink-faint dark:border-dark-700 dark:text-ink-soft"
           >
             {{ t("admin.groups.imagePricing.batchGeminiOnlyHint") }}
           </p>
@@ -3112,7 +3112,7 @@
           <p class="mt-3 text-xs text-ink-faint">
             {{ t(videoPricingI18nKey("modeHint")) }}
           </p>
-          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+          <div class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-700 dark:bg-dark-800 dark:text-ink-soft">
             <div class="mb-1 font-medium">
               {{ t(videoPricingI18nKey("finalPricePreview")) }}
             </div>
@@ -3249,13 +3249,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.supportedScopes.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -3322,13 +3322,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.mcpXml.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -3364,13 +3364,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-72 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.claudeCode.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -3426,7 +3426,7 @@
               {{ t("admin.groups.webSearchPricing.pricePerCallHint") }}
             </p>
             <div
-              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+              class="mt-2 rounded-lg bg-gray-50 p-3 text-xs text-gray-600 dark:bg-dark-700 dark:text-ink-soft"
             >
               {{
                 t("admin.groups.webSearchPricing.finalPricePreview", {
@@ -3797,7 +3797,7 @@
                   <button
                     type="button"
                     @click="addEditMessagesDispatchMapping"
-                    class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-ink-faint transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-400 dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
+                    class="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-gray-300 bg-white py-3 text-sm font-medium text-ink-faint transition-all hover:border-primary-300 hover:bg-primary-50/50 hover:text-primary-600 dark:border-dark-600 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-primary-800 dark:hover:bg-primary-900/20 dark:hover:text-primary-400"
                   >
                     <Icon name="plus" size="sm" />
                     {{ t("admin.groups.openaiMessages.addExactMapping") }}
@@ -3895,13 +3895,13 @@
                 class="pointer-events-none absolute bottom-full left-0 z-50 mb-2 w-80 opacity-0 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100"
               >
                 <div
-                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-gray-800"
+                  class="rounded-lg bg-gray-900 p-3 text-on-signal dark:bg-dark-800"
                 >
                   <p class="text-xs leading-relaxed text-gray-300">
                     {{ t("admin.groups.modelRouting.tooltip") }}
                   </p>
                   <div
-                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-gray-800"
+                    class="absolute -bottom-1.5 left-3 h-3 w-3 rotate-45 bg-gray-900 dark:bg-dark-800"
                   ></div>
                 </div>
               </div>
@@ -4156,7 +4156,7 @@
                         : group.platform === 'antigravity'
                           ? 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
                           : group.platform === 'grok'
-                            ? 'bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-100'
+                            ? 'bg-gray-200 text-gray-800 dark:bg-dark-700 dark:text-ink'
                             : group.platform === 'kimi'
                               ? 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-400'
                               : group.platform === 'zhipu'
@@ -4269,7 +4269,7 @@
             </div>
             <div v-else class="overflow-x-auto">
               <table class="min-w-full divide-y divide-gray-200 text-sm dark:divide-dark-600">
-                <thead class="bg-gray-50 text-left text-xs font-medium tracking-wide text-ink-faint dark:bg-dark-800 dark:text-gray-400">
+                <thead class="bg-gray-50 text-left text-xs font-medium tracking-wide text-ink-faint dark:bg-dark-800 dark:text-ink-soft">
                   <tr>
                     <th class="px-3 py-2">
                       {{ t("admin.groups.compositeRoutes.publicModel") }}
@@ -4365,7 +4365,7 @@
               <button
                 v-if="compositeRouteEditingId"
                 type="button"
-                class="text-xs font-medium text-ink-faint hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                class="text-xs font-medium text-ink-faint hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink"
                 @click="resetCompositeRouteForm"
               >
                 {{ t("common.cancel") }}

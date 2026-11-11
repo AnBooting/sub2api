@@ -9,6 +9,19 @@ function palette(family) {
   return Object.fromEntries(steps.map((step) => [step, withVar(`${family}-${step}`)]))
 }
 
+// Foreground status shades adapt to the theme; solid controls keep dark fills
+// so their light labels stay readable in either theme and every pointer state.
+function statusPalette(family) {
+  return {
+    ...palette(family),
+    solid: {
+      DEFAULT: withVar(`${family}-solid`),
+      hover: withVar(`${family}-solid-hover`),
+      active: withVar(`${family}-solid-active`)
+    }
+  }
+}
+
 /**
  * 封闭调色板：覆盖 theme.colors（不是 extend），Tailwind 默认 22 个色族不注册。
  * 写了 bg-emerald-500 之类不会生效 —— 审查会抓出来，逼着用语义令牌。
@@ -31,9 +44,9 @@ const COLORS = {
   cobalt: palette('cobalt'),
 
   // 状态
-  success: palette('moss'),
-  warning: palette('ochre'),
-  danger: palette('oxide'),
+  success: statusPalette('moss'),
+  warning: statusPalette('ochre'),
+  danger: statusPalette('oxide'),
 
   // 分类（归属/类型）：默认 azure，另有四个同明度的分类色相供区分平台
   accent: palette('azure'),

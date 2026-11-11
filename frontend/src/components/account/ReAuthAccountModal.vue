@@ -86,7 +86,7 @@
                 ? 'bg-primary-500 text-on-signal'
                 : geminiOAuthType === 'code_assist'
                   ? 'bg-primary-500 text-on-signal'
-                  : 'bg-warning-500 text-on-signal'
+                  : 'bg-warning-solid text-on-signal'
             ]"
           >
             <Icon v-if="geminiOAuthType === 'google_one'" name="user" size="sm" />

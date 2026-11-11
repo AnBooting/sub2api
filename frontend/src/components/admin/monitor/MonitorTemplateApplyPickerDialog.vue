@@ -28,7 +28,7 @@
         </button>
         <button
           type="button"
-          class="text-gray-500 hover:underline dark:text-gray-400"
+          class="text-gray-500 hover:underline dark:text-ink-soft"
           @click="selectNone"
         >
           {{ t('admin.channelMonitor.template.selectNone') }}
@@ -59,7 +59,7 @@
           <span v-if="m.provider === 'openai'" class="text-xs text-gray-400">{{ m.api_mode }}</span>
           <span
             v-if="!m.enabled"
-            class="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-gray-400"
+            class="ml-auto rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-500 dark:bg-dark-700 dark:text-ink-soft"
           >
             {{ t('admin.channelMonitor.onlyDisabled').replace(/^仅|^Only /, '') }}
           </span>

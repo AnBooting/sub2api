@@ -55,13 +55,13 @@
         </div>
 
         <div class="p-3">
-          <div v-if="!model.pricing" class="text-gray-500 dark:text-gray-400">
+          <div v-if="!model.pricing" class="text-gray-500 dark:text-ink-soft">
             {{ noPricingLabel }}
           </div>
 
-          <div v-else class="space-y-2 text-gray-700 dark:text-gray-300">
+          <div v-else class="space-y-2 text-gray-700 dark:text-ink-soft">
             <div class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t(prefixKey('billingMode')) }}</span>
+              <span class="text-gray-500 dark:text-ink-soft">{{ t(prefixKey('billingMode')) }}</span>
               <span>{{ billingModeLabel }}</span>
             </div>
 
@@ -148,7 +148,7 @@
               class="mt-2 border-t pt-2"
               :class="[popoverBorderClass]"
             >
-              <div class="mb-1 font-medium text-gray-600 dark:text-gray-400">
+              <div class="mb-1 font-medium text-gray-600 dark:text-ink-soft">
                 {{ t(prefixKey('intervals')) }}
               </div>
               <div class="space-y-1">
@@ -157,7 +157,7 @@
                   :key="idx"
                   class="flex justify-between text-[11px]"
                 >
-                  <span class="text-gray-500 dark:text-gray-400">
+                  <span class="text-gray-500 dark:text-ink-soft">
                     <template v-if="iv.tier_label">{{ iv.tier_label }}</template>
                     <template v-else>{{ formatRange(iv.min_tokens, iv.max_tokens) }}</template>
                   </span>
@@ -228,7 +228,7 @@ const popoverBorderClass = computed(() =>
 const popoverHeaderClass = computed(() =>
   effectivePlatform.value
     ? platformBadgeLightClass(effectivePlatform.value)
-    : 'bg-gray-50 text-gray-700 dark:bg-dark-700/60 dark:text-gray-300',
+    : 'bg-gray-50 text-gray-700 dark:bg-dark-700/60 dark:text-ink-soft',
 )
 
 function prefixKey(k: string): string {

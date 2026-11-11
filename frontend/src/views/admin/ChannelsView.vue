@@ -117,7 +117,7 @@
 
           <template #cell-group_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
             >
               {{ (row.group_ids || []).length }}
               {{ t('admin.channels.groupsUnit', 'groups') }}
@@ -126,7 +126,7 @@
 
           <template #cell-pricing_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
             >
               {{ (row.model_pricing || []).length }}
               {{ t('admin.channels.pricingUnit', 'pricing rules') }}
@@ -553,7 +553,7 @@
                   <input
                     v-model="rule.name"
                     :placeholder="t('admin.channels.form.ruleName')"
-                    class="bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none dark:text-gray-300"
+                    class="bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none dark:text-ink-soft"
                   />
                   <button type="button" @click="removeAccountStatsRule(sIdx, ruleIndex)" class="text-xs text-danger-500 hover:text-danger-700">
                     {{ t('common.delete') }}
@@ -1923,6 +1923,6 @@ onUnmounted(() => {
 }
 
 .channel-tab-inactive {
-  @apply border-transparent text-ink-faint hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300;
+  @apply border-transparent text-ink-faint hover:text-gray-700 hover:border-gray-300 dark:text-ink-soft dark:hover:text-ink-soft;
 }
 </style>

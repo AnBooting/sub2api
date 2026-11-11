@@ -13,7 +13,7 @@
         class="whitespace-nowrap rounded px-2 py-1 text-xs font-medium"
         :class="state.configured
           ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300'
-          : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'"
+          : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'"
       >
         {{ state.configured ? t('admin.accounts.ollamaCloud.configured') : t('admin.accounts.ollamaCloud.notConfigured') }}
       </span>

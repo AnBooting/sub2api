@@ -76,7 +76,7 @@
         class="flex min-h-56 flex-col items-center justify-center border border-dashed border-gray-300 px-6 text-center dark:border-dark-600"
       >
         <Icon name="cube" size="xl" class="text-gray-400" />
-        <p class="mt-3 font-medium text-gray-800 dark:text-gray-200">
+        <p class="mt-3 font-medium text-gray-800 dark:text-ink">
           {{ t("admin.plugins.empty") }}
         </p>
         <p class="mt-1 max-w-lg text-sm text-ink-faint">
@@ -153,19 +153,19 @@
                 <dt class="text-ink-faint">
                   {{ t("admin.plugins.currentVersion") }}
                 </dt>
-                <dd class="font-mono text-gray-800 dark:text-gray-200">
+                <dd class="font-mono text-gray-800 dark:text-ink">
                   {{ plugin.compatibility.current_sub2api_version }}
                 </dd>
                 <dt class="text-ink-faint">
                   {{ t("admin.plugins.requiredVersion") }}
                 </dt>
-                <dd class="font-mono text-gray-800 dark:text-gray-200">
+                <dd class="font-mono text-gray-800 dark:text-ink">
                   {{ plugin.compatibility.required_sub2api_version }}
                 </dd>
                 <dt class="text-ink-faint">
                   {{ t("admin.plugins.recommendedVersion") }}
                 </dt>
-                <dd class="font-mono text-gray-800 dark:text-gray-200">
+                <dd class="font-mono text-gray-800 dark:text-ink">
                   {{ plugin.compatibility.recommended_sub2api_version || "-" }}
                 </dd>
               </dl>
@@ -181,7 +181,7 @@
                   :class="
                     plugin.runtime_healthy
                       ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300'
-                      : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
+                      : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'
                   "
                 >
                   {{
@@ -191,7 +191,7 @@
                   }}
                 </span>
                 <span
-                  class="rounded bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                  class="rounded bg-gray-100 px-2 py-0.5 text-gray-600 dark:bg-dark-700 dark:text-ink-soft"
                 >
                   {{ t("admin.plugins.signature") }}:
                   {{ t(`admin.plugins.${plugin.signature_status}`) }}
@@ -307,7 +307,7 @@
             class="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center"
           >
             <Icon name="exclamationTriangle" size="xl" class="text-warning-500" />
-            <p class="mt-3 font-medium text-gray-800 dark:text-gray-200">
+            <p class="mt-3 font-medium text-gray-800 dark:text-ink">
               {{ t("admin.plugins.uiUnavailable") }}
             </p>
             <p class="mt-1 max-w-xl text-sm text-ink-faint">{{ uiError }}</p>
@@ -709,7 +709,7 @@ function stateClass(state: PluginInstallation["state"]): string {
     return "bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300";
   if (state === "starting")
     return "bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300";
-  return "bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300";
+  return "bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft";
 }
 
 function compatibilityClass(

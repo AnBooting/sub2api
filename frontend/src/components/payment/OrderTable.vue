@@ -27,13 +27,13 @@
       </div>
     </template>
     <template #cell-payment_type="{ value }">
-      <span class="text-sm text-gray-700 dark:text-gray-300">{{ t('payment.methods.' + value, value) }}</span>
+      <span class="text-sm text-gray-700 dark:text-ink-soft">{{ t('payment.methods.' + value, value) }}</span>
     </template>
     <template #cell-status="{ value }">
       <OrderStatusBadge :status="value" />
     </template>
     <template #cell-created_at="{ value }">
-      <span class="text-xs text-gray-500 dark:text-gray-400">{{ formatDate(value) }}</span>
+      <span class="text-xs text-gray-500 dark:text-ink-soft">{{ formatDate(value) }}</span>
     </template>
     <template #cell-actions="{ row }">
       <slot name="actions" :row="row" />

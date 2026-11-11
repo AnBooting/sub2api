@@ -140,6 +140,18 @@
   --c-moss-900: 45 60 36;
   --c-moss-950: 25 34 20;
 
+  /* Solid controls have a separate, theme-stable role from status text.
+   * All three states support light labels at >= 4.5:1 in both themes. */
+  --c-oxide-solid: 160 66 44;
+  --c-oxide-solid-hover: 128 52 36;
+  --c-oxide-solid-active: 100 42 30;
+  --c-moss-solid: 85 116 64;
+  --c-moss-solid-hover: 68 93 52;
+  --c-moss-solid-active: 55 74 43;
+  --c-ochre-solid: 137 92 20;
+  --c-ochre-solid-hover: 108 74 19;
+  --c-ochre-solid-active: 92 64 19;
+
   /* 图表第 6 序列 / lilac —— 永不用于界面。 */
   --c-lilac-50: 247 244 251;
   --c-lilac-100: 238 233 246;
@@ -286,10 +298,9 @@
   /* 深色纸面上强色底色更亮，压在上面的字仍然要亮，不能跟着纸翻黑 */
   --on-signal: 255 253 250;
 
-  /* 中性灰阶在深色纸面上必须整体翻转。
-   * 全仓仍有大量 `text-gray-400` / `bg-gray-100` 这类「色阶直用」（752 处），
-   * 它们不写 dark: 变体。若这里不翻转，深色下就会拿浅色的灰去配深色的纸
-   * —— 实测掉到 3.19:1。翻转后语义保持不变：300 最淡、900 最重。 */
+  /* Adaptive gray supports legacy utilities without dark variants.
+   * Explicit dark text uses ink roles; explicit dark backgrounds and borders
+   * use the fixed graphite palette (dark-*), so they do not invert twice. */
   --c-gray-50: 31 28 25;
   --c-gray-100: 38 34 30;
   --c-gray-200: 48 43 38;
@@ -302,7 +313,8 @@
   --c-gray-900: 238 233 227;
   --c-gray-950: 247 244 240;
 
-  /* 状态色的中段（500/600/700）也要在深色纸面上提亮。
+  /* 状态色的中段（500/600/700）作为前景在深色纸面上提亮。
+   * 实底控件改用独立的 *-solid 令牌，不能把这些亮前景色用作白字按钮底色。
    * 理由同灰阶：全仓 400+ 处 `text-danger-600` 之类不写 dark: 变体，
    * 深色下拿中深色压在深纸上只剩 3–3.5:1。50/100 这些「底色」保持深值不变
    * （深色下它们本来就该是暗底），只翻转「前景档」。

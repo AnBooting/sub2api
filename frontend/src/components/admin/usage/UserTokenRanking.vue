@@ -62,7 +62,7 @@
               >{{ index + 1 }}</span>
               <span v-else class="inline-block w-6 text-center text-sm tabular-nums text-gray-400">{{ index + 1 }}</span>
             </td>
-            <td class="max-w-[260px] truncate px-4 py-3 text-sm font-medium text-gray-700 dark:text-gray-200" :title="item.email">
+            <td class="max-w-[260px] truncate px-4 py-3 text-sm font-medium text-gray-700 dark:text-ink" :title="item.email">
               {{ item.email || `User #${item.user_id}` }}
               <span class="ml-1 font-normal text-ink-faint">#{{ item.user_id }}</span>
             </td>
@@ -119,7 +119,7 @@ const limitOptions = [
 // 前三名金/银/铜徽章
 const RANK_BADGE_CLASSES = [
   'bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-400',
-  'bg-gray-200 text-gray-600 dark:bg-gray-500/20 dark:text-gray-300',
+  'bg-gray-200 text-gray-600 dark:bg-dark-500/20 dark:text-ink-soft',
   'bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-400',
 ]
 

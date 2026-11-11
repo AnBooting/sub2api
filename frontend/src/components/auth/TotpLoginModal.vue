@@ -14,10 +14,10 @@
           <h3 class="mt-4 text-xl font-semibold text-gray-900 dark:text-on-signal">
             {{ t('profile.totp.loginTitle') }}
           </h3>
-          <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-2 text-sm text-gray-500 dark:text-ink-soft">
             {{ t('profile.totp.loginHint') }}
           </p>
-          <p v-if="userEmailMasked" class="mt-1 text-sm font-medium text-gray-700 dark:text-gray-300">
+          <p v-if="userEmailMasked" class="mt-1 text-sm font-medium text-gray-700 dark:text-ink-soft">
             {{ userEmailMasked }}
           </p>
         </div>

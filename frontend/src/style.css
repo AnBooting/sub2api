@@ -262,15 +262,15 @@
   }
 
   .btn-danger {
-    @apply bg-danger-600 text-on-signal hover:bg-danger-700;
+    @apply bg-danger-solid text-on-signal hover:bg-danger-solid-hover active:bg-danger-solid-active;
   }
 
   .btn-success {
-    @apply bg-success-600 text-on-signal hover:bg-success-700;
+    @apply bg-success-solid text-on-signal hover:bg-success-solid-hover active:bg-success-solid-active;
   }
 
   .btn-warning {
-    @apply bg-warning-600 text-on-signal hover:bg-warning-700;
+    @apply bg-warning-solid text-on-signal hover:bg-warning-solid-hover active:bg-warning-solid-active;
   }
 
   /* 支付渠道品牌色是允许写死色值的地方（见令牌契约第 6 条） */

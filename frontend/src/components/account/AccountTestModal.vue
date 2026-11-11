@@ -34,7 +34,7 @@
             'rounded-full px-2.5 py-1 text-xs font-semibold',
             account.status === 'active'
               ? 'bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-400'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
+              : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'
           ]"
         >
           {{ account.status }}
@@ -81,7 +81,7 @@
       <div class="group relative">
         <div
           ref="terminalRef"
-          class="max-h-[240px] min-h-[120px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-gray-800 dark:bg-black"
+          class="max-h-[240px] min-h-[120px] overflow-y-auto rounded-xl border border-gray-700 bg-gray-900 p-4 font-mono text-sm dark:border-dark-800 dark:bg-black"
         >
           <!-- Status Line -->
           <div v-if="status === 'idle'" class="flex items-center gap-2 text-gray-500">
@@ -146,7 +146,7 @@
             <div class="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover/img:bg-black/20">
               <Icon name="eye" size="lg" class="text-on-signal opacity-0 drop- transition-opacity group-hover/img:opacity-100" :stroke-width="2" />
             </div>
-            <div class="border-t border-gray-100 px-3 py-1.5 text-xs text-gray-500 dark:border-dark-500 dark:text-gray-300">
+            <div class="border-t border-gray-100 px-3 py-1.5 text-xs text-gray-500 dark:border-dark-500 dark:text-ink-soft">
               {{ image.mimeType || 'image/*' }}
             </div>
           </div>
@@ -199,7 +199,7 @@
       <div class="flex justify-end gap-3">
         <button
           @click="handleClose"
-          class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-600 dark:text-gray-300 dark:hover:bg-dark-500"
+          class="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-dark-600 dark:text-ink-soft dark:hover:bg-dark-500"
         >
           {{ t('common.close') }}
         </button>
@@ -211,9 +211,9 @@
             status === 'connecting' || !selectedModelId
               ? 'cursor-not-allowed bg-primary-400 text-on-signal'
               : status === 'success'
-                ? 'bg-success-500 text-on-signal hover:bg-success-600'
+                ? 'bg-success-solid text-on-signal hover:bg-success-solid-hover'
                 : status === 'error'
-                  ? 'bg-warning-500 text-on-signal hover:bg-warning-600'
+                  ? 'bg-warning-solid text-on-signal hover:bg-warning-solid-hover'
                   : 'bg-primary-500 text-on-signal hover:bg-primary-600'
           ]"
         >

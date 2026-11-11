@@ -138,7 +138,7 @@
                       {{ t("admin.settings.adminApiKey.currentKey") }}
                     </label>
                     <code
-                      class="rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-dark-700 dark:text-gray-100"
+                      class="rounded bg-gray-100 px-2 py-1 font-mono text-sm text-gray-900 dark:bg-dark-700 dark:text-ink"
                     >
                       {{ adminApiKeyMasked }}
                     </code>
@@ -828,7 +828,7 @@
                       {{ getBetaDisplayName(rule.beta_token) }}
                     </span>
                     <span
-                      class="rounded bg-gray-100 px-2 py-0.5 text-xs text-ink-faint dark:bg-dark-700 dark:text-gray-400"
+                      class="rounded bg-gray-100 px-2 py-0.5 text-xs text-ink-faint dark:bg-dark-700 dark:text-ink-soft"
                     >
                       {{ rule.beta_token }}
                     </span>
@@ -984,7 +984,7 @@
                         v-for="pattern in commonModelPatterns"
                         :key="pattern"
                         type="button"
-                        class="rounded border border-rule px-2 py-0.5 text-xs text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-700 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
+                        class="rounded border border-rule px-2 py-0.5 text-xs text-gray-600 transition-colors hover:border-primary-300 hover:bg-primary-50 hover:text-primary-700 dark:border-dark-600 dark:text-ink-soft dark:hover:border-primary-700 dark:hover:bg-primary-900/30 dark:hover:text-primary-300"
                         @click="addQuickPattern(rule, pattern)"
                       >
                         {{ pattern }}
@@ -1085,7 +1085,7 @@
               <!-- Empty state -->
               <div
                 v-if="openaiFastPolicyForm.rules.length === 0"
-                class="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-ink-faint dark:border-dark-600 dark:text-gray-400"
+                class="rounded-lg border border-dashed border-gray-200 p-6 text-center text-sm text-ink-faint dark:border-dark-600 dark:text-ink-soft"
               >
                 {{ t("admin.settings.openaiFastPolicy.empty") }}
               </div>
@@ -1158,7 +1158,7 @@
                     </span>
                     <span aria-hidden="true">→</span>
                     <span
-                      class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-gray-300"
+                      class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 font-medium text-gray-700 dark:bg-dark-600 dark:text-ink-soft"
                     >
                       {{
                         openaiFastPolicyActionSummary(
@@ -1483,7 +1483,7 @@
                     <span
                       v-for="suffix in registrationEmailSuffixWhitelistTags"
                       :key="suffix"
-                      class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
+                      class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-ink"
                     >
                       <span>{{ suffix }}</span>
                       <button
@@ -1801,7 +1801,7 @@
                       v-for="header in form.forwarded_client_ip_headers"
                       :key="header"
                       data-testid="forwarded-client-ip-header-tag"
-                      class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-gray-200"
+                      class="inline-flex items-center gap-1 rounded bg-gray-100 px-2 py-1 text-xs font-mono text-gray-700 dark:bg-dark-600 dark:text-ink"
                     >
                       <span>{{ header }}</span>
                       <button
@@ -2541,7 +2541,7 @@
                       </button>
                       <code
                         v-if="linuxdoRedirectUrlSuggestion"
-                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft"
                       >
                         {{ linuxdoRedirectUrlSuggestion }}
                       </code>
@@ -2593,7 +2593,7 @@
                   </div>
 
                   <div v-if="form.github_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft">
                       <template v-if="isZhLocale">
                         开通引导：GitHub Settings → Developer settings →
                         <a
@@ -2663,7 +2663,7 @@
                         </button>
                         <code
                           v-if="githubOAuthRedirectUrlSuggestion"
-                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft"
                         >
                           {{ githubOAuthRedirectUrlSuggestion }}
                         </code>
@@ -2703,7 +2703,7 @@
                   </div>
 
                   <div v-if="form.google_oauth_enabled" class="mt-4 space-y-4">
-                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300">
+                    <div class="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft">
                       {{
                         localText(
                           "开通引导：Google Cloud Console → APIs & Services → OAuth consent screen 完成同意屏幕；Credentials → Create Credentials → OAuth client ID，类型选择 Web application，并把下面地址加入 Authorized redirect URIs。",
@@ -2757,7 +2757,7 @@
                         </button>
                         <code
                           v-if="googleOAuthRedirectUrlSuggestion"
-                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                          class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft"
                         >
                           {{ googleOAuthRedirectUrlSuggestion }}
                         </code>
@@ -3094,7 +3094,7 @@
                       </button>
                       <code
                         v-if="wechatRedirectUrlSuggestion"
-                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft"
                       >
                         {{ wechatRedirectUrlSuggestion }}
                       </code>
@@ -3641,7 +3641,7 @@
                       </button>
                       <code
                         v-if="oidcRedirectUrlSuggestion"
-                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-gray-300"
+                        class="select-all break-all rounded bg-gray-50 px-2 py-1 font-mono text-xs text-gray-600 dark:bg-dark-800 dark:text-ink-soft"
                       >
                         {{ oidcRedirectUrlSuggestion }}
                       </code>
@@ -3917,7 +3917,7 @@
 
                 <div
                   v-if="form.default_subscriptions.length === 0"
-                  class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-ink-faint dark:border-dark-600 dark:text-gray-400"
+                  class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-ink-faint dark:border-dark-600 dark:text-ink-soft"
                 >
                   {{ t("admin.settings.defaults.defaultSubscriptionsEmpty") }}
                 </div>
@@ -4245,7 +4245,7 @@
                         authSourceDefaults[authSource.source].subscriptions
                           .length === 0
                       "
-                      class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-ink-faint dark:border-dark-600 dark:text-gray-400"
+                      class="rounded border border-dashed border-gray-300 px-4 py-3 text-sm text-ink-faint dark:border-dark-600 dark:text-ink-soft"
                     >
                       {{ t("admin.settings.authSourceDefaults.noSourceSubscriptions") }}
                     </div>
@@ -5074,7 +5074,7 @@
                         </p>
                       </div>
                       <span
-                        class="rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-dark-700 dark:text-gray-300"
+                        class="rounded bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-dark-700 dark:text-ink-soft"
                       >
                         %
                       </span>
@@ -6133,7 +6133,7 @@
                         >
                           <button
                             type="button"
-                            class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-ink-soft"
                             :title="
                               apiKeyVisible[pIdx]
                                 ? t(
@@ -6182,7 +6182,7 @@
                           </button>
                           <button
                             type="button"
-                            class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                            class="rounded p-1 text-gray-400 hover:text-gray-600 dark:hover:text-ink-soft"
                             :class="{
                               'opacity-30 cursor-not-allowed':
                                 !provider.api_key,
@@ -6689,7 +6689,7 @@
 
                 <button
                   type="button"
-                  class="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                  class="mt-3 flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 px-4 py-2.5 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-ink-soft dark:hover:border-primary-500 dark:hover:text-primary-400"
                   @click="addEndpoint"
                 >
                   <svg
@@ -6995,7 +6995,7 @@
               <!-- Add button -->
               <button
                 type="button"
-                class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-3 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-gray-400 dark:hover:border-primary-500 dark:hover:text-primary-400"
+                class="flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-dashed border-gray-300 py-3 text-sm text-ink-faint transition-colors hover:border-primary-400 hover:text-primary-600 dark:border-dark-600 dark:text-ink-soft dark:hover:border-primary-500 dark:hover:text-primary-400"
                 @click="addMenuItem"
               >
                 <svg
@@ -8055,7 +8055,7 @@
                       t("admin.settings.payment.preview")
                     }}</label>
                     <div
-                      class="rounded-lg border border-rule bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300"
+                      class="rounded-lg border border-rule bg-gray-50 px-3 py-2 text-sm text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-ink-soft"
                     >
                       {{
                         (form.payment_product_name_prefix || "Sub2API") +
@@ -8316,7 +8316,7 @@
                           'text-sm whitespace-nowrap',
                           form.payment_cancel_rate_limit_enabled
                             ? 'text-ink-soft'
-                            : 'text-gray-400 dark:text-gray-600',
+                            : 'text-gray-400 dark:text-dark-600',
                         ]"
                         >{{
                           t("admin.settings.payment.cancelRateLimitEvery")
@@ -8341,7 +8341,7 @@
                           'text-sm whitespace-nowrap',
                           form.payment_cancel_rate_limit_enabled
                             ? 'text-ink-soft'
-                            : 'text-gray-400 dark:text-gray-600',
+                            : 'text-gray-400 dark:text-dark-600',
                         ]"
                         >{{
                           t("admin.settings.payment.cancelRateLimitAllowMax")
@@ -8360,7 +8360,7 @@
                           'text-sm whitespace-nowrap',
                           form.payment_cancel_rate_limit_enabled
                             ? 'text-ink-soft'
-                            : 'text-gray-400 dark:text-gray-600',
+                            : 'text-gray-400 dark:text-dark-600',
                         ]"
                         >{{
                           t("admin.settings.payment.cancelRateLimitTimes")
@@ -8448,7 +8448,7 @@
                         'rounded-lg border px-3 py-1.5 text-sm font-medium transition-all',
                         isPaymentTypeEnabled(pt.value)
                           ? 'border-primary-500 bg-primary-500 text-on-signal'
-                          : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300 dark:hover:border-dark-500',
+                          : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:bg-gray-50 dark:border-dark-600 dark:bg-dark-800 dark:text-ink-soft dark:hover:border-dark-500',
                       ]"
                     >
                       {{ pt.label }}
@@ -8929,7 +8929,7 @@
                         class="sr-only peer"
                       />
                       <div
-                        class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-gray-500 peer-checked:bg-primary-600"
+                        class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-dark-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:after:border-dark-500 peer-checked:bg-primary-600"
                       ></div>
                     </label>
                     <input
@@ -13480,4 +13480,3 @@ watch(
   @apply whitespace-nowrap leading-none;
 }
 </style>
-

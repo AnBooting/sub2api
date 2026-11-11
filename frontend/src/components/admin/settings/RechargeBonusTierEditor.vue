@@ -42,7 +42,7 @@
               'rounded-md px-3 py-1 text-sm font-medium transition-colors',
               currentMode === option.value
                 ? 'bg-surface text-ink'
-                : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200',
+                : 'text-gray-500 hover:text-gray-700 dark:text-ink-soft dark:hover:text-ink',
             ]"
             :aria-pressed="currentMode === option.value"
             :data-testid="`recharge-bonus-mode-${option.value}`"
@@ -61,13 +61,13 @@
       <!-- 档位列表：紧凑表格 -->
       <div
         v-if="tiers.length === 0"
-        class="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-gray-400"
+        class="rounded-xl border border-dashed border-gray-300 px-4 py-3 text-sm text-gray-500 dark:border-dark-600 dark:text-ink-soft"
       >
         {{ t('admin.settings.payment.rechargeBonus.empty') }}
       </div>
       <div v-else class="overflow-hidden rounded-xl border border-gray-200 dark:border-dark-600">
         <div
-          class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-3 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 dark:bg-dark-800 dark:text-gray-400"
+          class="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem] items-center gap-3 bg-gray-50 px-3 py-2 text-xs font-medium text-gray-500 dark:bg-dark-800 dark:text-ink-soft"
         >
           <span>{{ t('admin.settings.payment.rechargeBonus.minAmountLabel') }}</span>
           <span>

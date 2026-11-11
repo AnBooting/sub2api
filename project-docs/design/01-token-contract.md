@@ -22,6 +22,15 @@
 3. 玻璃/毛玻璃（`backdrop-blur`）只允许用在**覆盖层**（弹层、抽屉、吸顶条），不得用于卡片。
 4. 阴影只有 `shadow-float` / `shadow-float-sm` 两个，且只给真正悬浮的层。
 
+### 明暗主题中的颜色角色（PR #23 review 修正）
+
+- `gray-*` 随主题适配，供没有显式深色变体的旧用法使用。显式 `dark:` 的文字改用 `ink / ink-soft / ink-faint`，背景、边框、ring 改用固定的 `dark-*`（graphite）色阶；不再叠加 `dark:*gray-*`，避免二次反转。
+- `success / warning / danger` 的数字色阶仍可用于状态前景与半透明提示底。白字实底控件必须使用 `*-solid`、`*-solid-hover`、`*-solid-active`，这些底色不随主题提亮。
+- `.btn-danger / .btn-success / .btn-warning` 已统一接入实底令牌。新增自定义实底操作也须用同一令牌，不再把数字 500/600/700 档直接放在 `text-on-signal` 后面。
+- `AppLayout` 在工具坞隐藏前仅响应式调整顶部间距；`pb-dock` 的底部空间须覆盖所有小于 1024px 的断点，继续包含 `env(safe-area-inset-bottom)`。
+
+浏览器回归：`python tools/verify-frontend-theme.py --base-url <local-url>`。脚本使用真实设置页和编辑账号弹窗、隔离 API fixture，并检查明暗主题按钮的默认/悬停/按下状态与 375/640/768/1023/1024px 底部操作。
+
 ## 2. 形
 
 - 圆角只有 2px（基准）/3px/4px/5px/6px 与 `full`（仅用于头像、开关、圆点）。**不得**出现 `rounded-2xl` 以上的视觉膨胀（映射已压到 6px，写错也不会膨胀）。

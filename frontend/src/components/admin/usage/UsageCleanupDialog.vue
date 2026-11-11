@@ -16,7 +16,7 @@
 
       <div class="rounded-xl border border-gray-200 p-4 dark:border-dark-700">
         <div class="flex items-center justify-between">
-          <h4 class="text-sm font-semibold text-gray-700 dark:text-gray-200">
+          <h4 class="text-sm font-semibold text-gray-700 dark:text-ink">
             {{ t('admin.usage.cleanup.recentTasks') }}
           </h4>
           <button type="button" class="btn btn-ghost btn-sm" @click="loadTasks">
@@ -35,7 +35,7 @@
             <div
               v-for="task in tasks"
               :key="task.id"
-              class="flex flex-col gap-2 rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-600 dark:border-dark-700 dark:text-gray-300"
+              class="flex flex-col gap-2 rounded-lg border border-gray-100 px-3 py-2 text-sm text-gray-600 dark:border-dark-700 dark:text-ink-soft"
             >
               <div class="flex flex-wrap items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
@@ -211,7 +211,7 @@ const statusClass = (status: string) => {
     running: 'bg-primary-100 text-primary-700 dark:bg-primary-500/20 dark:text-primary-200',
     succeeded: 'bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-200',
     failed: 'bg-danger-100 text-danger-700 dark:bg-danger-500/20 dark:text-danger-200',
-    canceled: 'bg-gray-200 text-gray-600 dark:bg-dark-600 dark:text-gray-300'
+    canceled: 'bg-gray-200 text-gray-600 dark:bg-dark-600 dark:text-ink-soft'
   }
   return map[status] || 'bg-gray-100 text-gray-600'
 }

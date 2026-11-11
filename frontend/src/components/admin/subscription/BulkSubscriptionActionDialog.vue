@@ -48,7 +48,7 @@
         </div>
 
         <template v-else-if="currentAction === 'reset_quota'">
-          <legend class="text-sm font-medium text-gray-700 dark:text-gray-200">
+          <legend class="text-sm font-medium text-gray-700 dark:text-ink">
             {{ t('admin.subscriptions.bulk.resetWindows') }}
           </legend>
           <div class="flex flex-wrap gap-5">
@@ -83,7 +83,7 @@
       </div>
 
       <div v-if="result" aria-live="polite" class="space-y-3">
-        <p class="rounded-lg bg-gray-50 p-3 text-sm font-medium text-gray-900 dark:bg-dark-700 dark:text-gray-100">
+        <p class="rounded-lg bg-gray-50 p-3 text-sm font-medium text-gray-900 dark:bg-dark-700 dark:text-ink">
           {{ t('admin.subscriptions.bulk.result', { success: result.success_count, failed: result.failed_count }) }}
         </p>
         <ul v-if="failedResults.length" class="max-h-48 space-y-2 overflow-y-auto">

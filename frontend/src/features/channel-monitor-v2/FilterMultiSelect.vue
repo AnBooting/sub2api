@@ -43,7 +43,7 @@
         >
           <button
             type="button"
-            class="dropdown-item select-option select-option-group flex w-full items-center justify-between border-b border-gray-100 px-4 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:border-dark-700 dark:text-gray-300 dark:hover:bg-dark-700"
+            class="dropdown-item select-option select-option-group flex w-full items-center justify-between border-b border-gray-100 px-4 py-2 text-left text-sm font-semibold text-gray-700 hover:bg-gray-100 dark:border-dark-700 dark:text-ink-soft dark:hover:bg-dark-700"
             @click="clear"
           >
             <span>{{ allLabel }}</span>
@@ -55,7 +55,7 @@
             :key="option.value"
             type="button"
             role="option"
-            class="dropdown-item select-option flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-dark-700"
+            class="dropdown-item select-option flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-100 dark:text-ink-soft dark:hover:bg-dark-700"
             :class="modelValue.includes(option.value) ? 'select-option-selected' : ''"
             :aria-selected="modelValue.includes(option.value)"
             @click="toggle(option.value)"

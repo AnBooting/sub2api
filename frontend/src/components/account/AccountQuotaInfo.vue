@@ -113,18 +113,18 @@ const tierBadgeClass = computed(() => {
     const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
     if (tier === 'google_ai_ultra') return 'bg-primary-100 text-primary-600 dark:bg-primary-900/40 dark:text-primary-300'
     if (tier === 'google_ai_pro') return 'bg-primary-100 text-primary-600 dark:bg-primary-900/40 dark:text-primary-300'
-    if (tier === 'google_one_free') return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+    if (tier === 'google_one_free') return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'
     // Backward compatibility
     const upper = (creds?.tier_id || '').toString().trim().toUpperCase()
     if (upper === 'GOOGLE_ONE_UNLIMITED') return 'bg-primary-100 text-primary-600 dark:bg-primary-900/40 dark:text-primary-300'
     if (upper === 'AI_PREMIUM') return 'bg-primary-100 text-primary-600 dark:bg-primary-900/40 dark:text-primary-300'
-    return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+    return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'
   }
 
   // AI Studio 默认样式：蓝色
   const tier = (creds?.tier_id || '').toString().trim().toLowerCase()
   if (tier === 'aistudio_paid') return 'bg-primary-100 text-primary-600 dark:bg-primary-900/40 dark:text-primary-300'
-  if (tier === 'aistudio_free') return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+  if (tier === 'aistudio_free') return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft'
   return 'bg-primary-100 text-primary-600 dark:bg-primary-900/40 dark:text-primary-300'
 })
 

@@ -164,7 +164,7 @@
         <p class="mt-2 text-xs text-ink-faint">{{ t('admin.backup.schedule.ordinaryHint') }}</p>
         <BackupArchiveSettings v-model="archiveForm" />
         <p v-if="scheduleValidationError" class="mt-3 text-sm text-danger-600 dark:text-danger-400" role="alert">{{ scheduleValidationError }}</p>
-        <div class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-dark-800 dark:text-gray-300" aria-live="polite">
+        <div class="mt-4 rounded-lg bg-gray-50 p-3 text-sm text-gray-700 dark:bg-dark-800 dark:text-ink-soft" aria-live="polite">
           <p class="font-medium">{{ t('admin.backup.schedule.preview') }}</p>
           <p>{{ retentionPreview }}</p>
         </div>
@@ -203,7 +203,7 @@
         <div class="overflow-x-auto">
           <table class="w-full min-w-[800px] text-sm">
             <thead>
-              <tr class="border-b border-gray-200 text-left text-xs tracking-wide text-ink-faint dark:border-dark-700 dark:text-gray-400">
+              <tr class="border-b border-gray-200 text-left text-xs tracking-wide text-ink-faint dark:border-dark-700 dark:text-ink-soft">
                 <th class="py-2 pr-4">ID</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.status') }}</th>
                 <th class="py-2 pr-4">{{ t('admin.backup.columns.fileName') }}</th>
@@ -291,7 +291,7 @@
         <div v-if="showR2Guide" class="fixed inset-0 z-50 flex items-center justify-center p-4" @mousedown.self="showR2Guide = false">
           <div class="fixed inset-0 bg-black/50" @click="showR2Guide = false"></div>
           <div class="relative max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 dark:bg-dark-800">
-            <button type="button" class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200" @click="showR2Guide = false">
+            <button type="button" class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-ink" @click="showR2Guide = false">
               <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
 
@@ -335,7 +335,7 @@
                 {{ t('admin.backup.r2Guide.step3.title') }}
               </h3>
               <p class="ml-8 text-sm text-ink-soft">{{ t('admin.backup.r2Guide.step3.desc') }}</p>
-              <code class="ml-8 mt-1 block rounded bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-dark-700 dark:text-gray-200">https://&lt;{{ t('admin.backup.r2Guide.step3.accountId') }}&gt;.r2.cloudflarestorage.com</code>
+              <code class="ml-8 mt-1 block rounded bg-gray-100 px-3 py-2 text-xs text-gray-800 dark:bg-dark-700 dark:text-ink">https://&lt;{{ t('admin.backup.r2Guide.step3.accountId') }}&gt;.r2.cloudflarestorage.com</code>
             </div>
 
             <!-- Step 4: Fill form -->
@@ -348,7 +348,7 @@
                 <table class="w-full text-sm">
                   <tbody>
                     <tr v-for="(row, i) in r2ConfigRows" :key="i" class="border-b border-rule last:border-0">
-                      <td class="whitespace-nowrap bg-gray-50 px-3 py-2 font-medium text-gray-700 dark:bg-dark-700 dark:text-gray-300">{{ row.field }}</td>
+                      <td class="whitespace-nowrap bg-gray-50 px-3 py-2 font-medium text-gray-700 dark:bg-dark-700 dark:text-ink-soft">{{ row.field }}</td>
                       <td class="px-3 py-2 text-ink-soft"><code class="text-xs">{{ row.value }}</code></td>
                     </tr>
                   </tbody>
@@ -380,7 +380,7 @@
           <div class="relative max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 dark:bg-dark-800">
             <button
               type="button"
-              class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              class="absolute right-4 top-4 text-gray-400 hover:text-gray-600 dark:hover:text-ink"
               :aria-label="t('common.close')"
               @click="closeDownloadParts"
             >
@@ -897,7 +897,7 @@ function statusClass(status: string): string {
     case 'failed':
       return 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300'
     default:
-      return 'bg-gray-100 text-gray-700 dark:bg-dark-800 dark:text-gray-300'
+      return 'bg-gray-100 text-gray-700 dark:bg-dark-800 dark:text-ink-soft'
   }
 }
 

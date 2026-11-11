@@ -136,7 +136,7 @@
         <div v-else class="mt-4 space-y-4">
           <div v-for="section in diagnosticPayloadSections" :key="section.key">
             <div class="mb-2 font-read text-[0.6875rem] font-medium text-ink-faint">{{ diagnosticPayloadLabel(section.key) }}</div>
-            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-gray-100"><code>{{ prettyJSON(section.value) }}</code></pre>
+            <pre class="max-h-[520px] overflow-auto rounded-xl border border-gray-200 bg-white p-4 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-800 dark:text-ink"><code>{{ prettyJSON(section.value) }}</code></pre>
           </div>
         </div>
       </div>
@@ -161,7 +161,7 @@
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="text-xs font-black text-ink">
                 #{{ idx + 1 }}
-                <span v-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ ev.type }}</span>
+                <span v-if="ev.type" class="ml-2 rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-bold text-gray-700 dark:bg-dark-700 dark:text-ink">{{ ev.type }}</span>
               </div>
               <div class="flex items-center gap-2">
                 <div class="font-mono text-xs text-ink-faint">
@@ -205,7 +205,7 @@
 
             <pre
               v-if="expandedUpstreamDetailIds.has(ev.id)"
-              class="mt-3 max-h-[240px] overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-900 dark:text-gray-100"
+              class="mt-3 max-h-[240px] overflow-auto rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-800 dark:border-dark-700 dark:bg-dark-900 dark:text-ink"
             ><code>{{ prettyJSON(getUpstreamResponsePreview(ev)) }}</code></pre>
           </div>
         </div>
@@ -427,7 +427,7 @@ function statusBadgeClass(code: number): string {
   if (code >= 500) return 'bg-danger-50 text-danger-700 ring-danger-600/20 dark:bg-danger-900/30 dark:text-danger-400 dark:ring-danger-500/30'
   if (code === 429) return 'bg-primary-50 text-primary-700 ring-primary-600/20 dark:bg-primary-900/30 dark:text-primary-400 dark:ring-primary-500/30'
   if (code >= 400) return 'bg-warning-50 text-warning-700 ring-warning-600/20 dark:bg-warning-900/30 dark:text-warning-400 dark:ring-warning-500/30'
-  return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-gray-900/30 dark:text-gray-400 dark:ring-gray-500/30'
+  return 'bg-gray-50 text-gray-700 ring-gray-600/20 dark:bg-dark-900/30 dark:text-ink-soft dark:ring-dark-500/30'
 }
 
 const statusClass = computed(() => statusBadgeClass(detail.value?.status_code ?? 0))

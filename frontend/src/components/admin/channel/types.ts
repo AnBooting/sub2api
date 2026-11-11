@@ -436,11 +436,11 @@ export function getPlatformTagClass(platform: string): string {
     case 'openai': return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400'
     case 'gemini': return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
     case 'antigravity': return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
-    case 'grok': return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+    case 'grok': return 'bg-gray-100 text-gray-700 dark:bg-dark-800 dark:text-ink-soft'
     case 'kimi': return 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-400'
     case 'zhipu': return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
     case 'deepseek': return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400'
-    default: return 'bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400'
+    default: return 'bg-gray-100 text-gray-700 dark:bg-dark-900/30 dark:text-ink-soft'
   }
 }
 
@@ -451,7 +451,7 @@ export function getPlatformTextClass(platform: string): string {
     case 'openai': return 'text-success-700 dark:text-success-400'
     case 'gemini': return 'text-primary-700 dark:text-primary-400'
     case 'antigravity': return 'text-primary-700 dark:text-primary-400'
-    case 'grok': return 'text-gray-700 dark:text-gray-300'
+    case 'grok': return 'text-gray-700 dark:text-ink-soft'
     case 'kimi': return 'text-danger-700 dark:text-danger-400'
     case 'zhipu': return 'text-primary-700 dark:text-primary-400'
     case 'deepseek': return 'text-success-700 dark:text-success-400'

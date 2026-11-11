@@ -105,7 +105,7 @@ const levelBadgeClass = (level: string) => {
   const v = String(level || '').toLowerCase()
   if (v === 'error' || v === 'fatal') return 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300'
   if (v === 'warn' || v === 'warning') return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300'
-  if (v === 'debug') return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300'
+  if (v === 'debug') return 'bg-gray-100 text-gray-700 dark:bg-dark-800 dark:text-ink-soft'
   return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
 }
 
@@ -406,8 +406,8 @@ onMounted(async () => {
         <p class="mt-1 text-xs text-ink-faint">{{ t('admin.ops.systemLogs.description') }}</p>
       </div>
       <div class="flex flex-wrap items-center gap-2 text-xs">
-        <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ t('admin.ops.systemLogs.queue') }} {{ health.queue_depth }}/{{ health.queue_capacity }}</span>
-        <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-700 dark:text-gray-200">{{ t('admin.ops.systemLogs.written') }} {{ health.written_count }}</span>
+        <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-700 dark:text-ink">{{ t('admin.ops.systemLogs.queue') }} {{ health.queue_depth }}/{{ health.queue_capacity }}</span>
+        <span class="rounded-md bg-gray-100 px-2 py-1 text-gray-700 dark:bg-dark-700 dark:text-ink">{{ t('admin.ops.systemLogs.written') }} {{ health.written_count }}</span>
         <span class="rounded-md bg-warning-100 px-2 py-1 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300">{{ t('admin.ops.systemLogs.dropped') }} {{ health.dropped_count }}</span>
         <span class="rounded-md bg-danger-100 px-2 py-1 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300">{{ t('admin.ops.systemLogs.failed') }} {{ health.write_failed_count }}</span>
       </div>
@@ -415,7 +415,7 @@ onMounted(async () => {
 
     <div class="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-800/70">
       <div class="mb-2 flex items-center justify-between">
-        <div class="text-xs font-semibold text-gray-700 dark:text-gray-200">{{ t('admin.ops.systemLogs.runtimeConfig') }}</div>
+        <div class="text-xs font-semibold text-gray-700 dark:text-ink">{{ t('admin.ops.systemLogs.runtimeConfig') }}</div>
         <span v-if="runtimeLoading" class="text-xs text-gray-500">{{ t('common.loading') }}</span>
       </div>
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">

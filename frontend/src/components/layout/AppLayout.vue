@@ -11,7 +11,7 @@
       <AppHeader />
 
       <!-- 内容区：底部为移动端工具坞留出让位 -->
-      <main class="px-3 py-4 pb-dock sm:px-5 sm:py-5 lg:px-7 lg:py-6">
+      <main class="px-3 pt-4 pb-dock sm:px-5 sm:pt-5 lg:px-7 lg:py-6">
         <slot />
       </main>
     </div>

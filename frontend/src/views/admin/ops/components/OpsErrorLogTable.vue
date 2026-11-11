@@ -117,7 +117,7 @@
             >{{ row.severity }}</span>
             <span
               v-if="row.request_type != null && row.request_type > 0"
-              class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-gray-200"
+              class="inline-flex items-center rounded px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-ink"
             >{{ formatRequestType(row.request_type) }}</span>
           </div>
         </template>
@@ -278,11 +278,11 @@ function getTypeBadge(log: OpsErrorLog): { label: string; className: string } {
     return { label: t('admin.ops.errorLog.typeRouting'), className: 'bg-primary-100 text-primary-800 dark:bg-primary-900 dark:text-primary-200' }
   }
   if (phase === 'internal' && owner === 'platform') {
-    return { label: t('admin.ops.errorLog.typeInternal'), className: 'bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-gray-200' }
+    return { label: t('admin.ops.errorLog.typeInternal'), className: 'bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-ink' }
   }
 
   const fallback = phase || owner || t('common.unknown')
-  return { label: fallback, className: 'bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-gray-200' }
+  return { label: fallback, className: 'bg-gray-100 text-gray-800 dark:bg-dark-700 dark:text-ink' }
 }
 
 interface Props {
