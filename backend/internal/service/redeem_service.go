@@ -27,6 +27,11 @@ var (
 const (
 	redeemMaxFailedAttempts = 30
 	redeemLockDuration      = 10 * time.Second // 锁超时时间，防止死锁
+	// redeemRateLimitRetryAfterSeconds 与 repository 的 redeemRateLimitWindow
+	// （10 分钟滑动窗口）保持一致，作为 service 层 429 的 Retry-After 上界提示；
+	// 中间件层限流器对自己的 429 自行计算精确剩余时间。repository 反向依赖本包，
+	// 该窗口常量无法直接共享。
+	redeemRateLimitRetryAfterSeconds = 600
 )
 
 type redeemRateLimitPolicy uint8
@@ -344,7 +349,7 @@ func (s *RedeemService) checkRedeemRateLimit(ctx context.Context, userID int64) 
 	}
 
 	if count >= redeemMaxFailedAttempts {
-		return ErrRedeemRateLimited
+		return ErrRedeemRateLimited.WithRetryAfter(redeemRateLimitRetryAfterSeconds)
 	}
 
 	return nil
