@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// N-03：空 messages / 空 input 必须在网关入口被 400 拒绝，不得转发上游、不得计费。
+// N-03：空 messages / 无上下文的空 Responses 请求在上游前拒绝，不得计费。
 // 六个入口逐一断言：400 + 上游零调用 + 账本零命令（与缺价红线同一套断言风格）。
 
 func TestGatewayEmptyMessagesRejectedBeforeUpstream(t *testing.T) {
@@ -99,6 +99,79 @@ func TestGatewayEmptyResponsesInputRejectedBeforeUpstream(t *testing.T) {
 			require.Empty(t, f.upstream.calls)
 			require.Empty(t, f.ledger.commands)
 		}
+	})
+}
+
+// Responses API allows instructions-only requests because input is optional.
+// Keep the real HTTP handler, pricing fixture, and upstream invocation in this regression test.
+func TestOpenAIResponsesInstructionsOnly(t *testing.T) {
+	f := newLockedHTTPFixture(t, false)
+	rec, _ := f.requestBody(t, `{"model":"client-model","instructions":"Reply with a greeting.","stream":false}`, nil)
+	require.Len(t, f.upstream.calls, 1, rec.Body.String())
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Len(t, f.ledger.commands, 1)
+}
+
+func TestOpenAIResponsesContextWithoutInput(t *testing.T) {
+	for _, tc := range []struct {
+		name, fields string
+	}{
+		{"instructions with null input", `"input":null,"instructions":"Reply with a greeting."`},
+		{"instructions with empty text", `"input":"","instructions":"Reply with a greeting."`},
+		{"instructions with empty array", `"input":[],"instructions":"Reply with a greeting."`},
+		{"previous response", `"previous_response_id":"resp_owned"`},
+		{"conversation ID", `"conversation":"conv_test"`},
+		{"conversation object", `"conversation":{"id":"conv_test"}`},
+		{"saved prompt", `"prompt":{"id":"pmpt_test","version":"1"}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := newLockedHTTPFixture(t, false)
+			require.NoError(t, f.handler.gatewayService.BindOpenAIHTTPResponseOwner(context.Background(), *f.key.GroupID, "resp_owned", f.key.UserID, f.key.ID))
+			rec, _ := f.requestBody(t, `{"model":"client-model","stream":false,`+tc.fields+"}", nil)
+			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+			require.Len(t, f.upstream.calls, 1)
+			require.Len(t, f.ledger.commands, 1)
+		})
+	}
+}
+
+func TestOpenAIResponsesEmptyContextStillRejected(t *testing.T) {
+	for _, fields := range []string{
+		`"instructions":"  "`,
+		`"previous_response_id":null`,
+		`"conversation":{}`,
+		`"conversation":{"id":" "}`,
+		`"conversation":{"id":123}`,
+		`"prompt":{"variables":{"greeting":"hello"}}`,
+		`"prompt":{"id":123}`,
+		`"input":123,"instructions":"hello"`,
+	} {
+		f := newLockedHTTPFixture(t, false)
+		rec, _ := f.requestBody(t, `{"model":"client-model","stream":false,`+fields+"}", nil)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		require.Empty(t, f.upstream.calls)
+		require.Empty(t, f.ledger.commands)
+	}
+}
+
+func TestOpenAIResponsesContextDoesNotBypassPricingOrOwnership(t *testing.T) {
+	t.Run("missing price", func(t *testing.T) {
+		f := newLockedHTTPFixture(t, false)
+		f.group.ModelPricing = nil
+		rec, _ := f.requestBody(t, `{"model":"client-model","instructions":"hello","stream":false}`, nil)
+		require.Equal(t, http.StatusServiceUnavailable, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), "pricing_unavailable")
+		require.Empty(t, f.upstream.calls)
+		require.Empty(t, f.ledger.commands)
+	})
+	t.Run("unowned previous response", func(t *testing.T) {
+		f := newLockedHTTPFixture(t, false)
+		require.NoError(t, f.handler.gatewayService.BindOpenAIHTTPResponseOwner(context.Background(), *f.key.GroupID, "resp_other", f.key.UserID+1, f.key.ID+1))
+		rec, _ := f.requestBody(t, `{"model":"client-model","previous_response_id":"resp_other","stream":false}`, nil)
+		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+		require.Contains(t, rec.Body.String(), "previous_response_id is not available for this user")
+		require.Empty(t, f.upstream.calls)
+		require.Empty(t, f.ledger.commands)
 	})
 }
 

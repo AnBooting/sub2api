@@ -75,7 +75,7 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
-	// N-03：空 input 直接 400，不转发上游、不计费（Responses 协议入口同口径）。
+	// N-03：仅拒绝没有 input 或其他上下文的空请求。
 	if rejectEmptyResponsesInput(c, body, h.responsesErrorResponse) {
 		return
 	}

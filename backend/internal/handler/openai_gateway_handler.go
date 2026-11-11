@@ -494,7 +494,7 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
-	// N-03：空 input 直接 400，不转发上游、不计费。
+	// N-03：仅拒绝没有 input 或其他上下文的空请求。
 	if rejectEmptyResponsesInput(c, body, h.errorResponse) {
 		return
 	}

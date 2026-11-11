@@ -8,7 +8,7 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// N-03 网关载荷守卫：空 messages / 空 input 一律 400，不转发上游、不计费。
+// N-03 网关载荷守卫：拒绝空 messages，以及没有输入或上下文的 Responses 请求。
 // 覆盖 /v1/chat/completions、/v1/messages、/v1/responses 的全部网关切片
 // （GatewayHandler 与 OpenAIGatewayHandler）。错误响应沿用各入口自己的协议
 // 格式化器，保证 OpenAI / Anthropic 两种错误形状不被破坏。
@@ -27,9 +27,9 @@ func rejectEmptyMessages(c *gin.Context, body []byte, writeErr gatewayPayloadErr
 	return true
 }
 
-// rejectEmptyResponsesInput 校验 Responses API 的 `input`：字符串必须非空、
-// 数组必须非空（Responses 协议允许 string 与 item 数组两种形状）。命中时写
-// 400 并返回 true。
+// Responses input is optional: instructions, a previous response, a conversation,
+// or a saved prompt can provide context instead. Ownership and endpoint capability
+// checks still run after this guard; a context reference does not bypass them.
 func rejectEmptyResponsesInput(c *gin.Context, body []byte, writeErr gatewayPayloadErrorWriter) bool {
 	input := gjson.GetBytes(body, "input")
 	switch {
@@ -39,6 +39,15 @@ func rejectEmptyResponsesInput(c *gin.Context, body []byte, writeErr gatewayPayl
 		}
 	case input.IsArray():
 		if len(input.Array()) > 0 {
+			return false
+		}
+	case input.Exists() && input.Type != gjson.Null:
+		writeErr(c, http.StatusBadRequest, "invalid_request_error", "input must be a string or an array")
+		return true
+	}
+	for _, path := range []string{"instructions", "previous_response_id", "conversation", "conversation.id", "prompt.id"} {
+		value := gjson.GetBytes(body, path)
+		if value.Type == gjson.String && strings.TrimSpace(value.String()) != "" {
 			return false
 		}
 	}

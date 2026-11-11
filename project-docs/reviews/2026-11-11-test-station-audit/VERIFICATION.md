@@ -3,6 +3,8 @@
 > 2026-11-11，独立审计轮（Lead 独立完成；成员委派通道经 7 次实测崩溃后弃用）。
 > 本文件自包含：结论、逐项证据（命令 + 退出码）、未修项与理由。
 
+> 2026-11-12 复审修正：原 N-03 对 Responses 的 `input` 误设为必填；F2 的处理与本轮验证见文末 `5。下列首轮测试结果是历史记录，不能代替本次 head 的验证结果。
+
 ## 1. 结论
 
 | 项 | 结果 |
@@ -78,3 +80,19 @@
 ## 4. 委派通道记录
 
 spawn_teammate ×3（首轮+唤醒各一轮）与一次性 subagent 探测共 7 次，全部「failed before finished / 无收尾消息」，判定运行时故障；经用户确认额度后改为独立完成，三个残留成员保持休眠。
+
+## 5. 2026-11-12 处理外部 review F2
+
+- 复现来源：用户提供的 `E:\Downloads\REVIEW.md`，审核 head 为 `ac49e0b80`。
+- F2 确认成立。先添加 `TestOpenAIResponsesInstructionsOnly`，真实 HTTP handler 返回 400、上游零调用；退出码 1。官方 Responses Create 契约允许可选 `input`，参见 https://developers.openai.com/api/reference/resources/responses/methods/create 。
+- 修复：输入缺省/null/空字符串/空数组时，非空的 instructions、previous_response_id、conversation（字符串或带 id 的对象）、prompt.id 都可以提供上下文；仅在确实没有输入或上下文时拒绝。显式非法 input 类型仍拒绝。Messages/Chat 的非空数组规则不变。
+- 回归全部直接调用生产 HTTP handler：8 种合法上下文场景均断言 200、上游一次、账本一笔；空白/无效上下文拒绝；额外覆盖「instructions-only 缺价」与「其他用户 previous_response_id」仍在上游前失败。
+- 变异验证：移除其他上下文分支后，instructions-only 与其余 7 场景全部按原缺陷失败；恢复修复后定向套件退出 0。
+
+### 本次 head 验证结果
+
+- `go test -tags=unit -count=1 ./internal/handler/`：退出码 0；使用 JSON 结果另行保存完整用例事件。
+- `golangci-lint run --timeout 5m --new-from-rev ac49e0b80 ./internal/handler/...`：0 issues，退出码 0。
+- 后端构建通过。`pre-push-check.ps1 -Scope backend -Mode full` 本轮退出 1，不能沿用首轮的全绿结论：全量单测失败为 3 条 TestPgDumper*（本机缺少 sh）以及 3 条 TestAliyunCaptchaVerifier*（本机假端点 2s 超时）。
+- 验证码三条在后端未经本轮改动的 #23 worktree 同样失败；隔离运行、设置本机代理旁路与移除进程代理环境后仍失败。当前仅能证明是两条分支共有的基线失败，尚未定位根因；未放宽测试或改动验证码业务代码。
+- 没有运行 PostgreSQL/Redis 集成环境、真实模型计费或部署验收；本轮仅修复 review 指出的 Responses 契约回归。
