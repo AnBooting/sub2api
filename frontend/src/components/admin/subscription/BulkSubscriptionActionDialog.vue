@@ -9,15 +9,15 @@
   >
     <form id="bulk-subscription-action-form" class="space-y-4" novalidate @submit.prevent="submit">
       <div>
-        <p class="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
+        <p class="mb-2 text-sm font-medium text-ink">
           {{ t('admin.subscriptions.bulk.confirmTargets', { count: targets.length }) }}
         </p>
         <ul class="max-h-48 divide-y divide-gray-100 overflow-y-auto rounded-lg border border-gray-200 dark:divide-dark-700 dark:border-dark-600">
           <li v-for="subscription in targets" :key="subscription.id" class="px-3 py-2 text-sm">
-            <div class="break-all text-gray-900 dark:text-gray-100">
+            <div class="break-all text-ink">
               {{ subscription.email || `#${subscription.id}` }}
             </div>
-            <div class="break-words text-xs text-gray-500 dark:text-gray-400">
+            <div class="break-words text-xs text-ink-faint">
               {{ subscription.group || t('admin.subscriptions.bulk.groupFallback', { id: subscription.groupId }) }}
               <span v-if="subscription.email" class="ml-2">#{{ subscription.id }}</span>
             </div>
@@ -42,7 +42,7 @@
             :placeholder="t('admin.subscriptions.adjustDaysPlaceholder')"
             aria-describedby="bulk-subscription-days-hint"
           />
-          <p id="bulk-subscription-days-hint" class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p id="bulk-subscription-days-hint" class="mt-1 text-xs text-ink-faint">
             {{ t('admin.subscriptions.bulk.extendHint') }}
           </p>
         </div>
@@ -52,7 +52,7 @@
             {{ t('admin.subscriptions.bulk.resetWindows') }}
           </legend>
           <div class="flex flex-wrap gap-5">
-            <label v-for="window in quotaWindows" :key="window" class="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+            <label v-for="window in quotaWindows" :key="window" class="flex items-center gap-2 text-sm text-ink-soft">
               <input
                 v-model="windows[window]"
                 :name="window"
@@ -63,21 +63,21 @@
               {{ t(`admin.subscriptions.${window}`) }}
             </label>
           </div>
-          <p class="text-xs text-gray-500 dark:text-gray-400">
+          <p class="text-xs text-ink-faint">
             {{ t('admin.subscriptions.bulk.resetHint') }}
           </p>
         </template>
 
-        <p v-else class="rounded-lg bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+        <p v-else class="rounded-lg bg-warning-50 p-3 text-sm text-warning-800 dark:bg-warning-900/20 dark:text-warning-200">
           {{ t(`admin.subscriptions.bulk.${currentAction}Hint`) }}
         </p>
       </fieldset>
 
-      <p v-if="validationError && !parametersLocked" role="alert" class="text-sm text-red-600 dark:text-red-400">
+      <p v-if="validationError && !parametersLocked" role="alert" class="text-sm text-danger-600 dark:text-danger-400">
         {{ validationError }}
       </p>
 
-      <div v-if="requestError" role="alert" class="space-y-2 rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+      <div v-if="requestError" role="alert" class="space-y-2 rounded-lg bg-danger-50 p-3 text-sm text-danger-700 dark:bg-danger-900/20 dark:text-danger-300">
         <p>{{ requestError }}</p>
         <p v-if="pendingOperation">{{ t('admin.subscriptions.bulk.retryHint') }}</p>
       </div>
@@ -87,7 +87,7 @@
           {{ t('admin.subscriptions.bulk.result', { success: result.success_count, failed: result.failed_count }) }}
         </p>
         <ul v-if="failedResults.length" class="max-h-48 space-y-2 overflow-y-auto">
-          <li v-for="item in failedResults" :key="item.subscription_id" class="rounded-lg bg-red-50 p-3 text-sm text-red-700 dark:bg-red-900/20 dark:text-red-300">
+          <li v-for="item in failedResults" :key="item.subscription_id" class="rounded-lg bg-danger-50 p-3 text-sm text-danger-700 dark:bg-danger-900/20 dark:text-danger-300">
             <p class="break-all font-medium">{{ failedTargetLabel(item.subscription_id) }}</p>
             <p class="mt-1 break-words">{{ item.error || t('admin.subscriptions.bulk.itemFailed') }}</p>
           </li>

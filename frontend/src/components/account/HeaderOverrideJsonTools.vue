@@ -26,7 +26,7 @@
     <div class="flex gap-2">
       <button
         type="button"
-        class="rounded-lg bg-primary-600 px-3 py-1 text-xs text-white transition-colors hover:bg-primary-700"
+        class="rounded-lg bg-primary-600 px-3 py-1 text-xs text-on-signal transition-colors hover:bg-primary-700"
         @click="applyImport"
       >
         {{ t('admin.accounts.headerOverride.importJsonApply') }}
@@ -39,7 +39,7 @@
         {{ t('admin.accounts.headerOverride.importJsonCancel') }}
       </button>
     </div>
-    <p class="text-xs text-gray-500 dark:text-gray-400">
+    <p class="text-xs text-ink-faint">
       {{ t('admin.accounts.headerOverride.importJsonHint') }}
     </p>
   </div>

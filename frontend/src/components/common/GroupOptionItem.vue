@@ -16,7 +16,7 @@
       <!-- Row 2: description with top spacing -->
       <span
         v-if="description"
-        class="mt-1.5 w-full whitespace-pre-line [overflow-wrap:anywhere] text-left text-xs leading-relaxed text-gray-500 dark:text-gray-400 line-clamp-3"
+        class="mt-1.5 line-clamp-3 w-full whitespace-pre-line text-left text-xs leading-relaxed text-ink-soft [overflow-wrap:anywhere]"
       >
         {{ description }}
       </span>
@@ -37,7 +37,7 @@
         </span>
         <span
           v-if="hasPeakRate"
-          class="inline-flex items-center whitespace-nowrap rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+          class="inline-flex items-center whitespace-nowrap rounded-full bg-warning-50 px-3 py-1 text-xs font-semibold text-warning-700 dark:bg-warning-900/20 dark:text-warning-300"
           :title="peakRateTitle"
         >
           {{ peakRateText }}
@@ -127,13 +127,13 @@ const peakRateTitle = computed(() => {
 const ratePillClass = computed(() => {
   switch (props.platform) {
     case 'anthropic':
-      return 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400'
+      return 'bg-warning-50 text-warning-700 dark:bg-warning-900/20 dark:text-warning-400'
     case 'openai':
-      return 'bg-green-50 text-green-700 dark:bg-green-900/20 dark:text-green-400'
+      return 'bg-success-50 text-success-700 dark:bg-success-900/20 dark:text-success-400'
     case 'gemini':
-      return 'bg-sky-50 text-sky-700 dark:bg-sky-900/20 dark:text-sky-400'
+      return 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
     default: // antigravity and others
-      return 'bg-violet-50 text-violet-700 dark:bg-violet-900/20 dark:text-violet-400'
+      return 'bg-primary-50 text-primary-700 dark:bg-primary-900/20 dark:text-primary-400'
   }
 })
 </script>

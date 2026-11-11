@@ -5,14 +5,14 @@
         class="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-dark-700 sm:flex-row sm:items-end sm:justify-between"
       >
         <div class="min-w-0">
-          <h2 class="text-lg font-semibold text-gray-900 dark:text-white">
+          <h2 class="text-lg font-semibold text-ink">
             {{ t("admin.plugins.title") }}
           </h2>
-          <p class="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">
+          <p class="mt-1 max-w-3xl text-sm text-ink-faint">
             {{ t("admin.plugins.description") }}
           </p>
           <div
-            class="mt-3 flex flex-wrap gap-2 text-xs text-gray-600 dark:text-gray-300"
+            class="mt-3 flex flex-wrap gap-2 text-xs text-ink-soft"
           >
             <span class="rounded bg-gray-100 px-2 py-1 dark:bg-dark-700">{{
               t("admin.plugins.onlyOpenAI")
@@ -53,12 +53,12 @@
         </div>
       </section>
 
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t("admin.plugins.uploadHint") }}
       </p>
 
       <div
-        class="border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200"
+        class="border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-800 dark:border-primary-900/60 dark:bg-primary-950/30 dark:text-primary-200"
       >
         <p>{{ t("admin.plugins.runtimeNotice") }}</p>
         <p class="mt-1">{{ t("admin.plugins.menuNotice") }}</p>
@@ -66,7 +66,7 @@
 
       <div
         v-if="loading"
-        class="flex min-h-48 items-center justify-center text-sm text-gray-500"
+        class="flex min-h-48 items-center justify-center text-sm text-ink-faint"
       >
         {{ t("common.loading") }}
       </div>
@@ -79,7 +79,7 @@
         <p class="mt-3 font-medium text-gray-800 dark:text-gray-200">
           {{ t("admin.plugins.empty") }}
         </p>
-        <p class="mt-1 max-w-lg text-sm text-gray-500 dark:text-gray-400">
+        <p class="mt-1 max-w-lg text-sm text-ink-faint">
           {{ t("admin.plugins.emptyHint") }}
         </p>
       </div>
@@ -88,7 +88,7 @@
         <article
           v-for="plugin in plugins"
           :key="plugin.id"
-          class="card overflow-hidden border border-gray-200 dark:border-dark-700"
+          class="card overflow-hidden border border-rule dark:border-dark-700"
         >
           <div
             class="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-5 dark:border-dark-700"
@@ -96,11 +96,11 @@
             <div class="min-w-0">
               <div class="flex flex-wrap items-center gap-2">
                 <h3
-                  class="truncate text-base font-semibold text-gray-900 dark:text-white"
+                  class="truncate text-base font-semibold text-ink"
                 >
                   {{ plugin.name }}
                 </h3>
-                <span class="font-mono text-xs text-gray-500"
+                <span class="font-mono text-xs text-ink-faint"
                   >v{{ plugin.version }}</span
                 >
                 <span
@@ -110,13 +110,13 @@
                   {{ t(`admin.plugins.${plugin.state}`) }}
                 </span>
               </div>
-              <p class="mt-1 text-xs text-gray-500">
+              <p class="mt-1 text-xs text-ink-faint">
                 {{ plugin.plugin_key
                 }}<span v-if="plugin.author"> · {{ plugin.author }}</span>
               </p>
               <p
                 v-if="plugin.description"
-                class="mt-2 text-sm text-gray-600 dark:text-gray-300"
+                class="mt-2 text-sm text-ink-soft"
               >
                 {{ plugin.description }}
               </p>
@@ -133,7 +133,7 @@
 
           <div class="grid grid-cols-1 gap-x-6 gap-y-4 p-5 md:grid-cols-2">
             <div>
-              <p class="text-xs font-medium uppercase text-gray-500">
+              <p class="font-read text-[0.6875rem] font-medium text-ink-faint">
                 {{ t("admin.plugins.compatibility") }}
               </p>
               <div class="mt-2 flex items-center gap-2">
@@ -143,26 +143,26 @@
                 >
                   {{ t(`admin.plugins.${plugin.compatibility.status}`) }}
                 </span>
-                <span class="text-xs text-gray-500 dark:text-gray-400">{{
+                <span class="text-xs text-ink-faint">{{
                   plugin.compatibility.message
                 }}</span>
               </div>
               <dl
                 class="mt-3 grid grid-cols-[auto,1fr] gap-x-3 gap-y-1 text-xs"
               >
-                <dt class="text-gray-500">
+                <dt class="text-ink-faint">
                   {{ t("admin.plugins.currentVersion") }}
                 </dt>
                 <dd class="font-mono text-gray-800 dark:text-gray-200">
                   {{ plugin.compatibility.current_sub2api_version }}
                 </dd>
-                <dt class="text-gray-500">
+                <dt class="text-ink-faint">
                   {{ t("admin.plugins.requiredVersion") }}
                 </dt>
                 <dd class="font-mono text-gray-800 dark:text-gray-200">
                   {{ plugin.compatibility.required_sub2api_version }}
                 </dd>
-                <dt class="text-gray-500">
+                <dt class="text-ink-faint">
                   {{ t("admin.plugins.recommendedVersion") }}
                 </dt>
                 <dd class="font-mono text-gray-800 dark:text-gray-200">
@@ -172,7 +172,7 @@
             </div>
 
             <div>
-              <p class="text-xs font-medium uppercase text-gray-500">
+              <p class="font-read text-[0.6875rem] font-medium text-ink-faint">
                 {{ t("admin.plugins.runtime") }}
               </p>
               <div class="mt-2 flex flex-wrap gap-2 text-xs">
@@ -180,7 +180,7 @@
                   class="rounded px-2 py-0.5"
                   :class="
                     plugin.runtime_healthy
-                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                      ? 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300'
                       : 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
                   "
                 >
@@ -199,13 +199,13 @@
               </div>
               <p
                 v-if="plugin.last_error"
-                class="mt-3 break-words text-xs text-red-600 dark:text-red-400"
+                class="mt-3 break-words text-xs text-danger-600 dark:text-danger-400"
               >
                 {{ plugin.last_error }}
               </p>
               <p
                 v-else-if="plugin.runtime_message"
-                class="mt-3 break-words text-xs text-gray-500"
+                class="mt-3 break-words text-xs text-ink-faint"
               >
                 {{ plugin.runtime_message }}
               </p>
@@ -213,7 +213,7 @@
 
             <div class="md:col-span-2">
               <label
-                class="flex items-center justify-between gap-4 text-xs font-medium text-gray-600 dark:text-gray-300"
+                class="flex items-center justify-between gap-4 text-xs font-medium text-ink-soft"
               >
                 <span>{{ t("admin.plugins.rollout") }}</span>
                 <span class="w-11 text-right font-mono"
@@ -298,7 +298,7 @@
         >
           <div
             v-if="uiLoading"
-            class="absolute inset-0 z-10 flex items-center justify-center text-sm text-gray-500"
+            class="absolute inset-0 z-10 flex items-center justify-center text-sm text-ink-faint"
           >
             {{ t("admin.plugins.loadingUI") }}
           </div>
@@ -306,11 +306,11 @@
             v-if="uiError"
             class="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center"
           >
-            <Icon name="exclamationTriangle" size="xl" class="text-amber-500" />
+            <Icon name="exclamationTriangle" size="xl" class="text-warning-500" />
             <p class="mt-3 font-medium text-gray-800 dark:text-gray-200">
               {{ t("admin.plugins.uiUnavailable") }}
             </p>
-            <p class="mt-1 max-w-xl text-sm text-gray-500">{{ uiError }}</p>
+            <p class="mt-1 max-w-xl text-sm text-ink-faint">{{ uiError }}</p>
           </div>
           <iframe
             v-if="uiSession"
@@ -318,7 +318,7 @@
             :src="uiSession.url"
             sandbox="allow-scripts"
             referrerpolicy="no-referrer"
-            class="h-full w-full border-0 bg-white dark:bg-dark-900"
+            class="h-full w-full border-0 bg-surface"
             :title="
               t('admin.plugins.configTitle', { name: configPlugin?.name || '' })
             "
@@ -704,11 +704,11 @@ async function handleBridgeMessage(event: MessageEvent): Promise<void> {
 
 function stateClass(state: PluginInstallation["state"]): string {
   if (state === "enabled")
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
+    return "bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300";
   if (state === "error" || state === "incompatible")
-    return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+    return "bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300";
   if (state === "starting")
-    return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
+    return "bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300";
   return "bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300";
 }
 
@@ -716,10 +716,10 @@ function compatibilityClass(
   status: PluginInstallation["compatibility"]["status"],
 ): string {
   if (status === "compatible")
-    return "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300";
+    return "bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-300";
   if (status === "untested")
-    return "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300";
-  return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300";
+    return "bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300";
+  return "bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-300";
 }
 
 onMounted(() => {

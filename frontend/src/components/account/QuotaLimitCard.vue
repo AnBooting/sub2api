@@ -140,7 +140,7 @@ const dailyFixedHint = computed(() =>
           </svg>
           <div>
             <label class="input-label mb-0 cursor-pointer">{{ t('admin.accounts.quotaLimitToggle') }}</label>
-            <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <p class="mt-0.5 text-xs text-ink-faint">
               {{ t('admin.accounts.quotaLimitToggleHint') }}
             </p>
           </div>

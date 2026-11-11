@@ -15,7 +15,7 @@
         v-if="visible"
         type="button"
         data-testid="claude-reset-count"
-        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/30"
         :disabled="loading || redeeming"
         :title="countButtonTitle"
         @click="refresh"
@@ -41,7 +41,7 @@
         v-if="visible"
         type="button"
         data-testid="claude-reset-redeem"
-        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-orange-600 transition-colors hover:bg-orange-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-orange-400 dark:hover:bg-orange-900/30"
+        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-warning-600 transition-colors hover:bg-warning-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-warning-400 dark:hover:bg-warning-900/30"
         :disabled="redeeming || loading || !canRedeem"
         :title="redeemButtonTitle"
         @click="openRedeemConfirm"
@@ -76,19 +76,19 @@
       <span
         v-if="status.eligible && totalResets > 0 && status.available_count === 0"
         data-testid="claude-reset-not-usable"
-        class="text-[10px] text-gray-500 dark:text-gray-400"
+        class="text-[10px] text-ink-faint"
       >
         {{ t('admin.accounts.claudeResetCredits.notUsableNow') }}
       </span>
-      <span v-if="!status.eligible" class="text-[10px] text-amber-600 dark:text-amber-400">
+      <span v-if="!status.eligible" class="text-[10px] text-warning-600 dark:text-warning-400">
         {{ t('admin.accounts.claudeResetCredits.ineligible') }}
       </span>
-      <span v-if="cooldownActive" data-testid="claude-reset-cooldown" class="text-[10px] text-amber-600 dark:text-amber-400">
+      <span v-if="cooldownActive" data-testid="claude-reset-cooldown" class="text-[10px] text-warning-600 dark:text-warning-400">
         {{ t('admin.accounts.claudeResetCredits.cooldown', { time: formatTime(status.cooldown_until!, 'short') }) }}
       </span>
     </div>
 
-    <div v-if="visible && error" role="alert" class="text-[10px] text-red-600 dark:text-red-400">
+    <div v-if="visible && error" role="alert" class="text-[10px] text-danger-600 dark:text-danger-400">
       {{ t('admin.accounts.claudeResetCredits.error') }}
     </div>
     <div
@@ -232,9 +232,9 @@ const confirmMessage = computed(() => {
 
 const feedbackClass = computed(() => {
   switch (redeemFeedback.value?.kind) {
-    case 'success': return 'text-emerald-600 dark:text-emerald-400'
-    case 'warning': return 'text-amber-600 dark:text-amber-400'
-    default: return 'text-red-600 dark:text-red-400'
+    case 'success': return 'text-success-600 dark:text-success-400'
+    case 'warning': return 'text-warning-600 dark:text-warning-400'
+    default: return 'text-danger-600 dark:text-danger-400'
   }
 })
 

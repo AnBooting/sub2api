@@ -29,7 +29,7 @@
       v-model="inputValue"
       type="text"
       inputmode="numeric"
-      class="h-full w-10 border-0 bg-transparent p-0 text-center font-mono text-sm tabular-nums text-gray-900 focus:outline-none focus:ring-0 dark:text-white"
+      class="h-full w-10 border-0 bg-transparent p-0 text-center font-read text-sm tabular-nums text-ink focus:outline-none focus:ring-0"
       :aria-label="t('admin.accounts.columns.priority')"
       data-testid="account-priority-input"
       @keydown.enter.prevent="commitInput"
@@ -42,7 +42,7 @@
       v-else
       type="button"
       class="relative flex h-full min-w-[2rem] items-center justify-center px-1 font-mono text-sm tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-500"
-      :class="dirty ? 'font-semibold text-primary-600 dark:text-primary-400' : 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white'"
+      :class="dirty ? 'font-semibold text-primary-600 dark:text-primary-400' : 'text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-on-signal'"
       :disabled="saving"
       :title="t('admin.accounts.priorityQuick.editHint')"
       data-testid="account-priority-value"

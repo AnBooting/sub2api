@@ -7,7 +7,7 @@
       class="!hidden w-full table-fixed border-collapse text-sm lg:!table"
     >
       <thead>
-        <tr class="border-b border-gray-100 bg-gray-50/50 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-gray-400">
+        <tr class="border-b border-rule bg-paper-inset font-read text-[11px] font-medium text-ink-faint">
           <th class="w-[180px] px-4 py-3 text-center">{{ columns.name }}</th>
           <th class="w-[200px] px-4 py-3 text-left">{{ columns.description }}</th>
           <th class="w-[140px] px-4 py-3 text-left">{{ columns.platform }}</th>
@@ -48,7 +48,7 @@
           <td
             v-if="secIdx === 0"
             :rowspan="channel.platforms.length"
-            class="px-4 py-3 text-center align-middle font-medium text-gray-900 dark:text-white"
+            class="px-4 py-3 text-center align-middle font-medium text-gray-900 dark:text-on-signal"
           >
             {{ channel.name }}
           </td>
@@ -67,7 +67,7 @@
           <td class="align-top px-4 py-3">
             <span
               :class="[
-                'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase',
+                'inline-flex items-center gap-1 border px-2 py-0.5 font-read text-[11px] font-medium',
                 platformBadgeClass(section.platform),
               ]"
             >
@@ -84,7 +84,7 @@
                 class="flex flex-wrap items-center gap-1.5"
               >
                 <span
-                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-purple-600 dark:text-purple-400"
+                  class="inline-flex items-center gap-0.5 font-read text-[11px] font-medium text-ink-soft"
                   :title="t('availableChannels.exclusiveTooltip')"
                 >
                   <Icon name="shield" size="xs" class="h-3 w-3" />
@@ -105,7 +105,7 @@
                   />
                   <span
                     v-if="hasPeakRate(g)"
-                    class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                    class="inline-flex items-center gap-1 rounded-md bg-warning-50 px-1.5 py-0.5 text-[10px] font-medium text-warning-700 dark:bg-warning-900/20 dark:text-warning-300"
                     :title="peakRateTitle(g)"
                   >
                     <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -120,7 +120,7 @@
                 class="flex flex-wrap items-center gap-1.5"
               >
                 <span
-                  class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-gray-500 dark:text-gray-400"
+                  class="inline-flex items-center gap-0.5 font-read text-[11px] font-medium text-ink-faint"
                   :title="t('availableChannels.publicTooltip')"
                 >
                   <Icon name="globe" size="xs" class="h-3 w-3" />
@@ -141,7 +141,7 @@
                   />
                   <span
                     v-if="hasPeakRate(g)"
-                    class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                    class="inline-flex items-center gap-1 rounded-md bg-warning-50 px-1.5 py-0.5 text-[10px] font-medium text-warning-700 dark:bg-warning-900/20 dark:text-warning-300"
                     :title="peakRateTitle(g)"
                   >
                     <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -191,7 +191,7 @@
         class="border-b-2 border-gray-200 px-4 py-4 last:border-b-0 dark:border-dark-600"
       >
         <header class="mb-3 min-w-0">
-          <h3 class="break-words text-sm font-semibold text-gray-900 dark:text-white">
+          <h3 class="break-words text-sm font-semibold text-gray-900 dark:text-on-signal">
             {{ channel.name }}
           </h3>
           <p class="mt-1 break-words text-xs leading-5 text-gray-500 dark:text-gray-400">
@@ -207,7 +207,7 @@
           >
             <span
               :class="[
-                'inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium uppercase',
+                'inline-flex items-center gap-1 border px-2 py-0.5 font-read text-[11px] font-medium',
                 platformBadgeClass(section.platform),
               ]"
             >
@@ -226,7 +226,7 @@
                     class="flex min-w-0 flex-wrap items-center gap-1.5"
                   >
                     <span
-                      class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-purple-600 dark:text-purple-400"
+                      class="inline-flex items-center gap-0.5 font-read text-[11px] font-medium text-ink-soft"
                       :title="t('availableChannels.exclusiveTooltip')"
                     >
                       <Icon name="shield" size="xs" class="h-3 w-3" />
@@ -248,7 +248,7 @@
                       />
                       <span
                         v-if="hasPeakRate(g)"
-                        class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                        class="inline-flex items-center gap-1 rounded-md bg-warning-50 px-1.5 py-0.5 text-[10px] font-medium text-warning-700 dark:bg-warning-900/20 dark:text-warning-300"
                         :title="peakRateTitle(g)"
                       >
                         <Icon name="clock" size="xs" class="h-3 w-3" />
@@ -261,7 +261,7 @@
                     class="flex min-w-0 flex-wrap items-center gap-1.5"
                   >
                     <span
-                      class="inline-flex items-center gap-0.5 text-[10px] font-medium uppercase text-gray-500 dark:text-gray-400"
+                      class="inline-flex items-center gap-0.5 font-read text-[11px] font-medium text-ink-faint"
                       :title="t('availableChannels.publicTooltip')"
                     >
                       <Icon name="globe" size="xs" class="h-3 w-3" />
@@ -283,7 +283,7 @@
                       />
                       <span
                         v-if="hasPeakRate(g)"
-                        class="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-300"
+                        class="inline-flex items-center gap-1 rounded-md bg-warning-50 px-1.5 py-0.5 text-[10px] font-medium text-warning-700 dark:bg-warning-900/20 dark:text-warning-300"
                         :title="peakRateTitle(g)"
                       >
                         <Icon name="clock" size="xs" class="h-3 w-3" />

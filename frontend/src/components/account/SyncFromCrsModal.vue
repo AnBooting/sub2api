@@ -13,7 +13,7 @@
       class="space-y-4"
       @submit.prevent="handlePreview"
     >
-      <div class="text-sm text-gray-600 dark:text-dark-300">
+      <div class="text-sm text-ink-soft">
         {{ t('admin.accounts.syncFromCrsDesc') }}
       </div>
       <div
@@ -22,7 +22,7 @@
         {{ t('admin.accounts.crsUpdateBehaviorNote') }}
       </div>
       <div
-        class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-600 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400"
+        class="rounded-lg border border-warning-200 bg-warning-50 p-3 text-xs text-warning-600 dark:border-warning-800 dark:bg-warning-900/20 dark:text-warning-400"
       >
         {{ t('admin.accounts.crsVersionRequirement') }}
       </div>
@@ -80,14 +80,14 @@
           {{ t('admin.accounts.crsExistingAccounts') }}
           <span class="ml-1 text-xs text-gray-400">({{ previewResult.existing_accounts.length }})</span>
         </div>
-        <div class="max-h-32 overflow-auto text-xs text-gray-500 dark:text-dark-400">
+        <div class="max-h-32 overflow-auto text-xs text-ink-faint">
           <div
             v-for="acc in previewResult.existing_accounts"
             :key="acc.crs_account_id"
             class="flex items-center gap-2 py-0.5"
           >
             <span
-              class="inline-block rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-400"
+              class="inline-block rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-700 dark:bg-primary-900/30 dark:text-primary-400"
             >{{ acc.platform }} / {{ acc.type }}</span>
             <span class="truncate">{{ acc.name }}</span>
           </div>
@@ -97,19 +97,19 @@
       <!-- New accounts (selectable) -->
       <div v-if="previewResult.new_accounts.length">
         <div class="mb-2 flex items-center justify-between">
-          <div class="text-sm font-medium text-gray-900 dark:text-white">
+          <div class="text-sm font-medium text-ink">
             {{ t('admin.accounts.crsNewAccounts') }}
             <span class="ml-1 text-xs text-gray-400">({{ previewResult.new_accounts.length }})</span>
           </div>
           <div class="flex gap-2">
             <button
               type="button"
-              class="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+              class="text-xs text-primary-600 hover:text-primary-700 dark:text-primary-400"
               @click="selectAll"
             >{{ t('admin.accounts.crsSelectAll') }}</button>
             <button
               type="button"
-              class="text-xs text-gray-500 hover:text-gray-600 dark:text-gray-400"
+              class="text-xs text-gray-500 hover:text-ink-soft"
               @click="selectNone"
             >{{ t('admin.accounts.crsSelectNone') }}</button>
           </div>
@@ -129,7 +129,7 @@
               @change="toggleSelect(acc.crs_account_id)"
             />
             <span
-              class="inline-block rounded bg-green-100 px-1.5 py-0.5 text-[10px] font-medium text-green-700 dark:bg-green-900/30 dark:text-green-400"
+              class="inline-block rounded bg-success-100 px-1.5 py-0.5 text-[10px] font-medium text-success-700 dark:bg-success-900/30 dark:text-success-400"
             >{{ acc.platform }} / {{ acc.type }}</span>
             <span class="truncate text-sm text-gray-700 dark:text-dark-300">{{ acc.name }}</span>
           </label>
@@ -140,9 +140,9 @@
       </div>
 
       <!-- Sync options summary -->
-      <div class="flex items-center gap-2 text-xs text-gray-500 dark:text-dark-400">
+      <div class="flex items-center gap-2 text-xs text-ink-faint">
         <span>{{ t('admin.accounts.syncProxies') }}:</span>
-        <span :class="form.sync_proxies ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-dark-500'">
+        <span :class="form.sync_proxies ? 'text-success-600 dark:text-success-400' : 'text-ink-faint'">
           {{ form.sync_proxies ? t('common.yes') : t('common.no') }}
         </span>
       </div>
@@ -164,7 +164,7 @@
       <div
         class="space-y-2 rounded-xl border border-gray-200 p-4 dark:border-dark-700"
       >
-        <div class="text-sm font-medium text-gray-900 dark:text-white">
+        <div class="text-sm font-medium text-ink">
           {{ t('admin.accounts.syncResult') }}
         </div>
         <div class="text-sm text-gray-700 dark:text-dark-300">
@@ -172,7 +172,7 @@
         </div>
 
         <div v-if="errorItems.length" class="mt-2">
-          <div class="text-sm font-medium text-red-600 dark:text-red-400">
+          <div class="text-sm font-medium text-danger-600 dark:text-danger-400">
             {{ t('admin.accounts.syncErrors') }}
           </div>
           <div

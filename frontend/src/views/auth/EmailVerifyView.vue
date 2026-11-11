@@ -1,27 +1,27 @@
 <template>
   <AuthLayout>
-    <div class="space-y-6">
+   <div class="space-y-5">
       <!-- Title -->
-      <div class="text-center">
-        <h2 class="text-2xl font-bold text-gray-900 dark:text-white">
+   <div class="min-w-0">
+   <h2 class="title-block-title">
           {{ t('auth.verifyYourEmail') }}
         </h2>
-        <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
+   <p class="mt-1 text-[0.8125rem] leading-relaxed text-ink-soft">
           {{ t('auth.sendCodeDesc') }}
-          <span class="font-medium text-gray-700 dark:text-gray-300">{{ email }}</span>
+   <span class="font-medium text-ink">{{ email }}</span>
         </p>
       </div>
 
       <!-- No Data Warning -->
       <div
         v-if="!hasRegisterData"
-        class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-800/50 dark:bg-amber-900/20"
+   class="rounded-xl border border-warning-200 bg-warning-50 p-4 dark:border-warning-800/50 dark:bg-warning-900/20"
       >
         <div class="flex items-start gap-3">
           <div class="flex-shrink-0">
-            <Icon name="exclamationCircle" size="md" class="text-amber-500" />
+   <Icon name="exclamationCircle" size="md" class="text-warning-500" />
           </div>
-          <div class="text-sm text-amber-700 dark:text-amber-400">
+   <div class="text-sm text-warning-700 dark:text-warning-400">
             <p class="font-medium">{{ t('auth.sessionExpired') }}</p>
             <p class="mt-1">{{ t('auth.sessionExpiredDesc') }}</p>
           </div>
@@ -54,13 +54,13 @@
         <!-- Code Status -->
         <div
           v-if="codeSent"
-          class="rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-800/50 dark:bg-green-900/20"
+   class="rounded-xl border border-success-200 bg-success-50 p-4 dark:border-success-800/50 dark:bg-success-900/20"
         >
           <div class="flex items-start gap-3">
             <div class="flex-shrink-0">
-              <Icon name="checkCircle" size="md" class="text-green-500" />
+   <Icon name="checkCircle" size="md" class="text-success-500" />
             </div>
-            <p class="text-sm text-green-700 dark:text-green-400">
+   <p class="text-sm text-success-700 dark:text-success-400">
               {{ t('auth.codeSentSuccess') }}
             </p>
           </div>
@@ -113,7 +113,7 @@
         >
           <svg
             v-if="isLoading"
-            class="-ml-1 mr-2 h-4 w-4 animate-spin text-white"
+            class="-ml-1 mr-2 h-4 w-4 animate-spin text-on-signal"
             fill="none"
             viewBox="0 0 24 24"
           >
@@ -141,7 +141,7 @@
             v-if="countdown > 0"
             type="button"
             disabled
-            class="cursor-not-allowed text-sm text-gray-400 dark:text-dark-500"
+   class="cursor-not-allowed text-sm text-ink-faint"
           >
             {{ t('auth.resendCountdown', { countdown }) }}
           </button>
@@ -168,7 +168,7 @@
     <template #footer>
       <button
         @click="handleBack"
-        class="flex items-center gap-2 text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-gray-300"
+   class="flex items-center gap-2 text-ink-soft transition-colors hover:text-ink dark:hover:text-ink-faint"
       >
         <Icon name="arrowLeft" size="sm" />
         {{ t('auth.backToRegistration') }}

@@ -1,23 +1,23 @@
 <template>
   <div class="table-page-layout" :class="{ 'mobile-mode': isMobile }">
-    <!-- 固定区域：操作按钮 -->
+    <!-- 固定区：操作 -->
     <div v-if="$slots.actions" class="layout-section-fixed">
       <slot name="actions" />
     </div>
 
-    <!-- 固定区域：搜索和过滤器 -->
+    <!-- 固定区：搜索与过滤 -->
     <div v-if="$slots.filters" class="layout-section-fixed">
       <slot name="filters" />
     </div>
 
-    <!-- 滚动区域：表格 -->
+    <!-- 滚动区：读数册 -->
     <div class="layout-section-scrollable">
       <div class="card table-scroll-container">
         <slot name="table" />
       </div>
     </div>
 
-    <!-- 固定区域：分页器 -->
+    <!-- 固定区：分页 -->
     <div v-if="$slots.pagination" class="layout-section-fixed">
       <slot name="pagination" />
     </div>
@@ -44,65 +44,113 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 桌面端：Flexbox 布局 */
+/* 桌面：整页不滚动，只有表体滚动 —— 表头与分页钉住，读数行在中间走。 */
 .table-page-layout {
-  @apply flex flex-col gap-6;
-  height: calc(100vh - 64px - 4rem); /* 减去 header + lg:p-8 的上下padding */
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  /* header 高 3.75rem + 主区上下 padding（lg: py-6 = 1.5rem × 2） */
+  height: calc(100dvh - 3.75rem - 3rem);
 }
 
 .layout-section-fixed {
-  @apply flex-shrink-0;
+  flex-shrink: 0;
 }
 
 .layout-section-scrollable {
-  @apply flex-1 min-h-0 flex flex-col;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-/* 表格滚动容器 - 增强版表体滚动方案 */
+/* 读数册容器：1px 痕量线围出，切角 2px，不投影 */
 .table-scroll-container {
-  @apply flex flex-col overflow-hidden h-full bg-white dark:bg-dark-800 rounded-2xl border border-gray-200 dark:border-dark-700 shadow-sm;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  height: 100%;
+  background-color: rgb(var(--surface));
+  border: 1px solid rgb(var(--rule));
+  border-radius: var(--radius-cut);
 }
 
 .table-scroll-container :deep(.table-wrapper) {
-  @apply flex-1 overflow-x-auto overflow-y-auto;
-  /* 确保横向滚动条显示在最底部 */
+  flex: 1;
+  overflow: auto;
   scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
 }
 
 .table-scroll-container :deep(table) {
-  @apply w-full;
-  min-width: max-content; /* 关键：确保表格宽度根据内容撑开，从而触发横向滚动 */
-  display: table; /* 使用标准 table 布局以支持 sticky 列 */
+  width: 100%;
+  min-width: max-content;
+  display: table; /* 标准 table 布局，sticky 列才有参照 */
 }
 
 .table-scroll-container :deep(thead) {
-  @apply bg-gray-50/80 dark:bg-dark-800/80 backdrop-blur-sm;
-}
-
-.table-scroll-container :deep(tbody) {
-  /* 保持默认 table-row-group 显示，不使用 block */
+  background-color: rgb(var(--paper-inset));
 }
 
 .table-scroll-container :deep(th) {
-  @apply px-5 py-4 text-left text-sm font-medium text-gray-600 dark:text-dark-300 border-b border-gray-200 dark:border-dark-700;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-family: var(--font-read);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: var(--track-label);
+  color: rgb(var(--ink-faint));
+  border-bottom: 1px solid rgb(var(--rule));
+  white-space: nowrap;
 }
 
 .table-scroll-container :deep(td) {
-  @apply px-5 py-4 text-sm text-gray-700 dark:text-gray-300 border-b border-gray-100 dark:border-dark-800;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8125rem;
+  color: rgb(var(--ink-soft));
+  border-bottom: 1px solid rgb(var(--rule));
+  vertical-align: middle;
 }
 
-/* 移动端：恢复正常滚动 */
-.table-page-layout.mobile-mode .table-scroll-container {
-  @apply h-auto overflow-visible border-none shadow-none bg-transparent;
+/* 移动端：同一本读数册，只是不再锁视口高度 —— 页面跟着内容走，
+ * 表格在自己的容器里横向滚动，页面本身绝不横向溢出。 */
+.table-page-layout.mobile-mode {
+  height: auto;
+  min-height: 0;
 }
 
 .table-page-layout.mobile-mode .layout-section-scrollable {
-  @apply flex-none min-h-fit;
+  flex: none;
+  min-height: 0;
+}
+
+.table-page-layout.mobile-mode .table-scroll-container {
+  height: auto;
+  max-height: none;
+}
+
+.table-page-layout.mobile-mode .table-scroll-container :deep(.table-wrapper) {
+  flex: none;
+  max-height: none;
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .table-page-layout.mobile-mode .table-scroll-container :deep(table) {
-  @apply flex-none;
   display: table;
   min-width: 100%;
+}
+
+/* 移动端触控：行更高，行内按钮点击区足够 */
+@media (max-width: 1023px) {
+  .table-scroll-container :deep(td) {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+    font-size: 0.875rem;
+  }
+  .table-scroll-container :deep(th) {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
 }
 </style>

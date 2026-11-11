@@ -1,0 +1,222 @@
+/* ============================================================================
+ * design-system.css · 唯一令牌源（Single Source of Truth）
+ * 哲学：project-docs/design/00-philosophy.md（v2 · 暖纸上的编辑体）
+ * 契约：project-docs/design/01-token-contract.md
+ * 规则：颜色 / 圆角 / 阴影 / 动效时长只能从这里取值；
+ *       组件层（.vue）不得出现写死的十六进制色值。
+ * ========================================================================== */
+
+/* ---------- 字族 ---------- */
+/* 展示与标题：Newsreader —— 带光学尺寸轴的编辑体衬线。
+ * 用它而不是无衬线做标题，是这个界面「有审美」的主要来源：
+ * 衬线的粗细对比让大字号有呼吸，小字号仍然克制。 */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/newsreader-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Newsreader';
+  font-style: italic;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url('/fonts/newsreader-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* 界面与读数：Archivo 可变字（宽度轴 62–125%）。
+ * 衬线负责气质，无衬线负责操作与数字的精确性 —— 两族分工明确。 */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113;
+}
+
+/* ---------- 色板 ----------
+ * 底色从「冷石墨纸」改成「暖石灰纸」：纸是阅读的容器，暖调让人愿意停留。
+ * 墨不是纯黑，是带一点暖的深褐 —— 和纸同源，所以压得住。 */
+:root {
+  /* 纸 / paper：暖石灰。名字保留 gray（内部色阶），语义由 --paper 承担。 */
+  --c-gray-50: 251 249 246;
+  --c-gray-100: 246 242 237;
+  --c-gray-200: 237 231 223;
+  --c-gray-300: 224 216 205;
+  --c-gray-400: 187 178 165;
+  --c-gray-500: 112 104 93;
+  --c-gray-600: 92 85 77;
+  --c-gray-700: 86 79 71;
+  --c-gray-800: 58 53 47;
+  --c-gray-900: 35 32 28;
+  --c-gray-950: 22 20 18;
+
+  /* 石墨 / graphite：夜纸。不是冷蓝黑，是带暖的深褐墨夜。 */
+  --c-graphite-50: 247 244 240;
+  --c-graphite-100: 238 233 227;
+  --c-graphite-200: 216 209 200;
+  --c-graphite-300: 183 175 165;
+  --c-graphite-400: 145 137 127;
+  --c-graphite-500: 110 103 94;
+  --c-graphite-600: 82 76 69;
+  --c-graphite-700: 58 53 48;
+  --c-graphite-800: 40 36 32;
+  --c-graphite-900: 28 25 22;
+  --c-graphite-950: 18 16 14;
+
+  /* 信号 / signal：克莱因钴蓝偏冷，作为唯一「通电」色，压得住暖纸。 */
+  --c-cobalt-50: 240 243 252;
+  --c-cobalt-100: 224 230 249;
+  --c-cobalt-200: 196 208 243;
+  --c-cobalt-300: 158 177 233;
+  --c-cobalt-400: 115 140 219;
+  --c-cobalt-500: 74 100 195;
+  --c-cobalt-600: 56 78 168;
+  --c-cobalt-700: 44 61 135;
+  --c-cobalt-800: 36 49 106;
+  --c-cobalt-900: 28 38 78;
+  --c-cobalt-950: 17 23 49;
+
+  /* 断线 / oxide：铁锈红，暖调，和纸同族。 */
+  --c-oxide-50: 253 244 240;
+  --c-oxide-100: 251 230 221;
+  --c-oxide-200: 245 203 186;
+  --c-oxide-300: 236 165 141;
+  --c-oxide-400: 219 124 95;
+  --c-oxide-500: 191 88 61;
+  --c-oxide-600: 160 66 44;
+  --c-oxide-700: 128 52 36;
+  --c-oxide-800: 100 42 30;
+  --c-oxide-900: 75 32 24;
+  --c-oxide-950: 45 19 14;
+
+  /* 测量 / ochre：赭石金，提醒与阈值。 */
+  --c-ochre-50: 253 248 236;
+  --c-ochre-100: 251 238 210;
+  --c-ochre-200: 245 219 165;
+  --c-ochre-300: 236 194 111;
+  --c-ochre-400: 219 164 60;
+  --c-ochre-500: 189 134 31;
+  --c-ochre-600: 155 107 25;
+  --c-ochre-700: 122 84 22;
+  --c-ochre-800: 92 64 19;
+  --c-ochre-900: 68 47 15;
+  --c-ochre-950: 41 28 9;
+
+  /* 通路 / moss：苔绿，成功与在线。 */
+  --c-moss-50: 245 248 241;
+  --c-moss-100: 232 240 222;
+  --c-moss-200: 209 226 192;
+  --c-moss-300: 176 205 152;
+  --c-moss-400: 140 176 113;
+  --c-moss-500: 108 145 82;
+  --c-moss-600: 85 116 64;
+  --c-moss-700: 68 93 52;
+  --c-moss-800: 55 74 43;
+  --c-moss-900: 45 60 36;
+  --c-moss-950: 25 34 20;
+
+  /* 图表第 6 序列 / lilac —— 永不用于界面。 */
+  --c-lilac-50: 247 244 251;
+  --c-lilac-100: 238 233 246;
+  --c-lilac-200: 216 205 236;
+  --c-lilac-300: 189 172 220;
+  --c-lilac-400: 160 140 200;
+  --c-lilac-500: 132 111 175;
+  --c-lilac-600: 105 87 141;
+  --c-lilac-700: 82 68 111;
+  --c-lilac-800: 64 53 86;
+  --c-lilac-900: 49 41 65;
+  --c-lilac-950: 28 23 37;
+
+  /* 分类 / azure —— 归属与类型，不表状态。 */
+  --c-azure-50: 243 247 250;
+  --c-azure-100: 226 236 244;
+  --c-azure-200: 197 216 231;
+  --c-azure-300: 157 189 214;
+  --c-azure-400: 112 158 192;
+  --c-azure-500: 78 124 158;
+  --c-azure-600: 60 100 130;
+  --c-azure-700: 47 80 105;
+  --c-azure-800: 39 65 85;
+  --c-azure-900: 32 53 69;
+  --c-azure-950: 19 30 40;
+
+  /* 语义表面（随明暗模式切换） */
+  --paper: 251 249 246;
+  --paper-inset: 246 242 237;
+  --surface: 255 253 250;
+  --surface-raised: 255 254 252;
+  --ink: 22 20 18;
+  /* 墨的深浅必须过 WCAG AA：浅墨压在暖纸上极易掉到 3:1（实测过 3.01）。
+   * ink-soft 用于正文次级，ink-faint 用于标签/表头 —— 后者是 4.9:1 的下限位置。 */
+  --ink-soft: 92 85 77;
+  --ink-faint: 112 104 93;
+  --rule: 237 231 223;
+  --rule-strong: 224 216 205;
+  --signal: 74 100 195;
+  --signal-ink: 255 253 250;
+  /* 「压在强色上的字」：信号色、危险色、成功色的底色都用它。
+   * 与 white 分开，是因为 bg-white 要跟随纸面（深色下是深纸），
+   * 而 text-white 需要永远亮 —— 一个令牌不能同时服务这两个意图。 */
+  --on-signal: 255 253 250;
+
+  /* 度量 */
+  --radius-cut: 3px;
+  --rule-width: 1px;
+  --row-h: 2.5rem;
+  --touch-min: 44px;
+  --gutter: clamp(0.75rem, 2.2vw, 2rem);
+  --measure: 68ch;
+
+  /* 动效 */
+  --motion-fast: 140ms;
+  --motion-base: 240ms;
+  --motion-trace: 620ms;
+  --ease-cut: cubic-bezier(0.22, 0.61, 0.24, 1);
+  /* 缓慢的呼吸曲线：用于唯一编排瞬间的收束 */
+  --ease-settle: cubic-bezier(0.16, 0.84, 0.24, 1);
+
+  /* 字族与字距 */
+  --font-ui: 'Archivo', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
+    system-ui, sans-serif;
+  --font-display: 'Newsreader', 'Songti SC', 'Source Han Serif SC', 'Noto Serif SC', Georgia, serif;
+  --font-read: 'Archivo', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --track-title: -0.018em;
+  --track-label: 0.045em;
+  --track-display: -0.028em;
+}
+
+.dark {
+  --paper: 18 16 14;
+  --paper-inset: 28 25 22;
+  --surface: 28 25 22;
+  --surface-raised: 40 36 32;
+  --ink: 238 233 227;
+  --ink-soft: 183 175 165;
+  --ink-faint: 145 137 127;
+  --rule: 58 53 48;
+  --rule-strong: 82 76 69;
+  --signal: 115 140 219;
+  --signal-ink: 18 16 14;
+  /* 深色纸面上强色底色更亮，压在上面的字仍然要亮，不能跟着纸翻黑 */
+  --on-signal: 255 253 250;
+}

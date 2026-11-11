@@ -227,3 +227,43 @@
 .dark .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #1e293b !important; }
 .dark .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #1e293b !important; }
 .dark .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #1e293b !important; }
+
+/* 覆盖层与引导气泡：视觉换到「配线图」——纸面、痕量线、切角、唯一信号色。
+ * 保留 driver.js 的结构与 !important 覆盖方式（它靠特异性和 !important 生效）。 */
+.driver-active-element {
+  outline: 2px solid rgb(var(--signal) / 0.55) !important;
+  outline-offset: 2px !important;
+  border-radius: var(--radius-cut) !important;
+}
+
+.driver-popover.theme-tour-popover {
+  background-color: rgb(var(--surface)) !important;
+  border: 1px solid rgb(var(--rule-strong)) !important;
+  border-radius: var(--radius-cut) !important;
+  color: rgb(var(--ink)) !important;
+  font-family: var(--font-ui) !important;
+  box-shadow: 0 18px 40px -24px rgb(0 0 0 / 0.45) !important;
+  max-width: min(26rem, calc(100vw - 1.5rem)) !important;
+  max-height: calc(100dvh - 2rem) !important;
+}
+
+.dark .driver-popover.theme-tour-popover {
+  background-color: rgb(var(--surface)) !important;
+  border-color: rgb(var(--rule-strong)) !important;
+  color: rgb(var(--ink)) !important;
+}
+
+/* 移动端：气泡占满可用宽度，按钮堆叠时仍可点 */
+@media (max-width: 639px) {
+  .driver-popover.theme-tour-popover {
+    max-width: calc(100vw - 1rem) !important;
+  }
+  .theme-tour-popover .driver-popover-navigation-btns {
+    flex-wrap: wrap !important;
+    gap: 0.5rem !important;
+  }
+  .theme-tour-popover .driver-popover-navigation-btns button {
+    min-height: var(--touch-min) !important;
+    flex: 1 1 auto !important;
+  }
+}

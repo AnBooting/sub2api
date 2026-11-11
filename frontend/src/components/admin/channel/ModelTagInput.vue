@@ -21,7 +21,7 @@
         ref="inputRef"
         v-model="inputValue"
         type="text"
-        class="flex-1 min-w-[120px] border-none bg-transparent text-sm outline-none placeholder:text-gray-400 dark:text-white"
+        class="flex-1 min-w-[120px] border-none bg-transparent text-sm text-ink outline-none placeholder:text-ink-faint"
         :placeholder="models.length === 0 ? placeholder : ''"
         @keydown.enter="handleEnter"
         @keydown.tab="handleTab"

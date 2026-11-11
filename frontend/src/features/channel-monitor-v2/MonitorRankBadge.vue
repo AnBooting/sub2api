@@ -42,7 +42,7 @@
     <span v-if="showTrophy" class="sr-only">{{ ariaLabel }}</span>
     <span
       class="text-xs font-semibold"
-      :class="showTrophy ? rankClass : 'text-gray-500 dark:text-dark-300'"
+      :class="showTrophy ? rankClass : 'text-ink-faint'"
     >
       {{ label }}
     </span>
@@ -55,25 +55,25 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 
-/** Rank medal palettes: light / mid / dark fills for the multi-path trophy SVG. */
+/**
+ * 名次是「测量注记」，不是装饰：1/2/3 名用赭石的三档明度表示强弱，
+ * 其余名次走中性墨阶。色值一律来自令牌，不写死十六进制。
+ */
 const RANK_PALETTES = {
   1: {
-    // gold
-    light: '#FFD524',
-    mid: '#F5B200',
-    dark: '#B45309',
+    light: 'rgb(var(--c-ochre-300))',
+    mid: 'rgb(var(--c-ochre-500))',
+    dark: 'rgb(var(--c-ochre-700))',
   },
   2: {
-    // silver
-    light: '#E5E7EB',
-    mid: '#9CA3AF',
-    dark: '#4B5563',
+    light: 'rgb(var(--c-gray-200))',
+    mid: 'rgb(var(--c-gray-400))',
+    dark: 'rgb(var(--c-gray-600))',
   },
   3: {
-    // bronze
-    light: '#E8A86A',
-    mid: '#CD7F32',
-    dark: '#8B5A2B',
+    light: 'rgb(var(--c-oxide-300))',
+    mid: 'rgb(var(--c-oxide-400))',
+    dark: 'rgb(var(--c-oxide-600))',
   },
 } as const
 
@@ -114,9 +114,9 @@ const ariaLabel = computed(() => {
 const titleText = computed(() => ariaLabel.value)
 
 const rankClass = computed(() => {
-  if (rankNum.value === 1) return 'text-amber-600 dark:text-amber-400'
-  if (rankNum.value === 2) return 'text-slate-500 dark:text-slate-300'
-  if (rankNum.value === 3) return 'text-amber-800 dark:text-amber-600'
+  if (rankNum.value === 1) return 'text-warning-600 dark:text-warning-400'
+  if (rankNum.value === 2) return 'text-gray-500 dark:text-gray-300'
+  if (rankNum.value === 3) return 'text-warning-800 dark:text-warning-600'
   return ''
 })
 </script>

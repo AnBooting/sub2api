@@ -2,10 +2,10 @@
   <div class="border-t border-gray-200 pt-4 mt-4 dark:border-dark-400">
     <div class="mb-3 flex items-start justify-between gap-3">
       <div class="min-w-0 flex-1">
-        <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <label class="text-sm font-medium text-ink-soft">
           {{ t("admin.groups.codexModelsManifest.title") }}
         </label>
-        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        <p class="mt-1 text-xs text-ink-faint">
           {{ t("admin.groups.codexModelsManifest.hint") }}
         </p>
       </div>
@@ -20,7 +20,7 @@
     <div v-if="config.enabled">
       <p
         v-if="config.enabled"
-        class="mb-2 text-xs text-gray-500 dark:text-gray-400"
+        class="mb-2 text-xs text-ink-faint"
       >
         {{ t("admin.groups.codexModelsManifest.enabledHint") }}
       </p>
@@ -65,7 +65,7 @@
         />
         <div
           v-if="showDropdown && (searchResults.length > 0 || searchKeyword.trim() !== '')"
-          class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+          class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white dark:border-dark-600 dark:bg-dark-800"
           data-testid="codex-manifest-dropdown"
         >
           <p
@@ -95,10 +95,10 @@
       <!-- 回退子开关 -->
       <div class="mt-3 flex items-start justify-between gap-3">
         <div class="min-w-0 flex-1">
-          <label class="text-sm text-gray-700 dark:text-gray-300">
+          <label class="text-sm text-ink-soft">
             {{ t("admin.groups.codexModelsManifest.fallback") }}
           </label>
-          <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+          <p class="mt-1 text-xs text-ink-faint">
             {{ t("admin.groups.codexModelsManifest.fallbackHint") }}
           </p>
         </div>
@@ -112,14 +112,14 @@
 
       <p
         v-if="showValidationError"
-        class="mt-2 text-xs text-red-600 dark:text-red-400"
+        class="mt-2 text-xs text-danger-600 dark:text-danger-400"
         role="alert"
         data-testid="codex-manifest-validation-error"
       >
         {{ t("admin.groups.codexModelsManifest.selectAtLeastOne") }}
       </p>
     </div>
-    <p v-else class="text-xs text-gray-500 dark:text-gray-400">
+    <p v-else class="text-xs text-ink-faint">
       {{ t("admin.groups.codexModelsManifest.disabledHint") }}
     </p>
   </div>

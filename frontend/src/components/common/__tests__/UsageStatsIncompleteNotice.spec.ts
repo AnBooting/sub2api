@@ -15,8 +15,9 @@ describe('UsageStatsIncompleteNotice', () => {
     const node = wrapper.get('[data-testid="usage-stats-incomplete"]')
     // 可重试的业务态：必须是 status 而不是 alert，且不是红色。
     expect(node.attributes('role')).toBe('status')
-    expect(node.classes().join(' ')).toContain('amber')
-    expect(node.classes().join(' ')).not.toContain('rose')
+    // 用 warning（赭石 = 测量/提醒），不能用 danger（氧化红 = 断线）。
+    expect(node.classes().join(' ')).toContain('warning')
+    expect(node.classes().join(' ')).not.toContain('danger')
     expect(node.text()).toContain('usageStatsIncomplete.title')
     expect(node.text()).toContain('usageStatsIncomplete.description')
     wrapper.unmount()

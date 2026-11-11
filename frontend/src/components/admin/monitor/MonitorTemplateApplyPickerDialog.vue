@@ -4,7 +4,7 @@
     :title="t('admin.channelMonitor.template.applyPickerTitle', { name: templateName })"
     @close="$emit('close')"
   >
-    <p class="mb-3 text-sm text-gray-600 dark:text-gray-400">
+    <p class="mb-3 text-sm text-ink-soft">
       {{ t('admin.channelMonitor.template.applyPickerHint') }}
     </p>
 
@@ -33,7 +33,7 @@
         >
           {{ t('admin.channelMonitor.template.selectNone') }}
         </button>
-        <span class="ml-auto text-gray-500 dark:text-gray-400">
+        <span class="ml-auto text-ink-faint">
           {{ t('admin.channelMonitor.template.selectedCount', {
             n: selectedIds.length,
             total: monitors.length,
@@ -54,7 +54,7 @@
             class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500"
             @click.stop="toggle(m.id)"
           />
-          <span class="font-medium text-gray-900 dark:text-white">{{ m.name }}</span>
+          <span class="font-medium text-ink">{{ m.name }}</span>
           <span class="text-xs text-gray-400">{{ m.provider }}</span>
           <span v-if="m.provider === 'openai'" class="text-xs text-gray-400">{{ m.api_mode }}</span>
           <span

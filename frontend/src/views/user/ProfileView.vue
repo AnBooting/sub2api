@@ -1,51 +1,69 @@
 <template>
   <AppLayout>
-    <div
-      data-testid="profile-shell"
-      class="mx-auto max-w-[950px] space-y-6"
-    >
-      <ProfileInfoCard
-        :user="user"
-        :linuxdo-enabled="linuxdoOAuthEnabled"
-        :dingtalk-enabled="dingtalkOAuthEnabled"
-        :oidc-enabled="oidcOAuthEnabled"
-        :oidc-provider-name="oidcOAuthProviderName"
-        :wechat-enabled="wechatOAuthEnabled"
-        :wechat-open-enabled="wechatOAuthOpenEnabled"
-        :wechat-mp-enabled="wechatOAuthMPEnabled"
-      />
+   <div
+   data-testid="profile-shell"
+   class="mx-auto max-w-[950px] space-y-6"
+   >
+   <!-- 图签：标题在左，账户读数在右 -->
+   <div class="title-block">
+   <div class="min-w-0">
+   <h1 class="title-block-title">{{ t('profile.title') }}</h1>
+   <p class="page-description">{{ t('profile.description') }}</p>
+   </div>
+   <dl v-if="user" class="title-block-meta">
+   <div class="flex items-center gap-1.5">
+   <dt>{{ t('profile.accountBalance') }}</dt>
+   <dd class="text-ink">{{ formatMoney(user.balance) }}</dd>
+   </div>
+   <div class="flex items-center gap-1.5">
+   <dt>{{ t('profile.concurrencyLimit') }}</dt>
+   <dd class="text-ink">{{ user.concurrency || 0 }}</dd>
+   </div>
+   </dl>
+   </div>
 
-      <div
-        v-if="contactInfo"
-        class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
-      >
-        <div class="flex items-center gap-4">
-          <div class="rounded-xl bg-primary-100 p-3 text-primary-600">
-            <Icon name="chat" size="lg" />
-          </div>
-          <div>
-            <h3 class="font-semibold text-primary-800 dark:text-primary-200">
-              {{ t('common.contactSupport') }}
-            </h3>
-            <p class="text-sm font-medium">{{ contactInfo }}</p>
-          </div>
-        </div>
-      </div>
+   <ProfileInfoCard
+   :user="user"
+   :linuxdo-enabled="linuxdoOAuthEnabled"
+   :dingtalk-enabled="dingtalkOAuthEnabled"
+   :oidc-enabled="oidcOAuthEnabled"
+   :oidc-provider-name="oidcOAuthProviderName"
+   :wechat-enabled="wechatOAuthEnabled"
+   :wechat-open-enabled="wechatOAuthOpenEnabled"
+   :wechat-mp-enabled="wechatOAuthMPEnabled"
+   />
 
-      <ProfilePasswordForm />
+   <div
+   v-if="contactInfo"
+   class="card border-primary-200 bg-primary-50 p-6 dark:bg-primary-900/20"
+   >
+   <div class="flex items-center gap-4">
+   <div class="rounded-xl bg-primary-100 p-3 text-primary-600">
+   <Icon name="chat" size="lg" />
+   </div>
+   <div>
+   <h3 class="font-semibold text-primary-800 dark:text-primary-200">
+   {{ t('common.contactSupport') }}
+   </h3>
+   <p class="text-sm font-medium">{{ contactInfo }}</p>
+   </div>
+   </div>
+   </div>
 
-      <ProfileBalanceNotifyCard
-        v-if="user && balanceLowNotifyEnabled"
-        :enabled="user.balance_notify_enabled ?? true"
-        :threshold="user.balance_notify_threshold"
-        :extra-emails="user.balance_notify_extra_emails ?? []"
-        :system-default-threshold="systemDefaultThreshold"
-        :user-email="user.email"
-      />
+   <ProfilePasswordForm />
 
-      <ProfileTotpCard />
-      <ProfilePasskeyCard :enabled="passkeyEnabled" />
-    </div>
+   <ProfileBalanceNotifyCard
+   v-if="user && balanceLowNotifyEnabled"
+   :enabled="user.balance_notify_enabled ?? true"
+   :threshold="user.balance_notify_threshold"
+   :extra-emails="user.balance_notify_extra_emails ?? []"
+   :system-default-threshold="systemDefaultThreshold"
+   :user-email="user.email"
+   />
+
+   <ProfileTotpCard />
+   <ProfilePasskeyCard :enabled="passkeyEnabled" />
+   </div>
   </AppLayout>
 </template>
 
@@ -80,35 +98,40 @@ const oidcOAuthEnabled = ref(false)
 const oidcOAuthProviderName = ref('OIDC')
 const passkeyEnabled = ref(false)
 
+/** 余额读数：等宽两位小数，与图纸上其他读数同一口径 */
+function formatMoney(value: number | null | undefined): string {
+  return (value ?? 0).toFixed(2)
+}
+
 onMounted(async () => {
   const profileRefresh = authStore.refreshUser().catch((error) => {
-    console.error('Failed to refresh profile:', error)
+   console.error('Failed to refresh profile:', error)
   })
 
   const settingsLoad = appStore.fetchPublicSettings()
-    .then((settings) => {
-      if (!settings) {
-        return
-      }
-      contactInfo.value = settings.contact_info || ''
-      balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
-      systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
-      linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled ?? false
-      dingtalkOAuthEnabled.value = settings.dingtalk_oauth_enabled ?? false
-      wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
-      wechatOAuthOpenEnabled.value = typeof settings.wechat_oauth_open_enabled === 'boolean'
-        ? settings.wechat_oauth_open_enabled
-        : undefined
-      wechatOAuthMPEnabled.value = typeof settings.wechat_oauth_mp_enabled === 'boolean'
-        ? settings.wechat_oauth_mp_enabled
-        : undefined
-      oidcOAuthEnabled.value = settings.oidc_oauth_enabled ?? false
-      oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
-      passkeyEnabled.value = settings.passkey_enabled === true
-    })
-    .catch((error) => {
-      console.error('Failed to load settings:', error)
-    })
+   .then((settings) => {
+   if (!settings) {
+   return
+   }
+   contactInfo.value = settings.contact_info || ''
+   balanceLowNotifyEnabled.value = settings.balance_low_notify_enabled ?? false
+   systemDefaultThreshold.value = settings.balance_low_notify_threshold ?? 0
+   linuxdoOAuthEnabled.value = settings.linuxdo_oauth_enabled ?? false
+   dingtalkOAuthEnabled.value = settings.dingtalk_oauth_enabled ?? false
+   wechatOAuthEnabled.value = isWeChatWebOAuthEnabled(settings)
+   wechatOAuthOpenEnabled.value = typeof settings.wechat_oauth_open_enabled === 'boolean'
+   ? settings.wechat_oauth_open_enabled
+   : undefined
+   wechatOAuthMPEnabled.value = typeof settings.wechat_oauth_mp_enabled === 'boolean'
+   ? settings.wechat_oauth_mp_enabled
+   : undefined
+   oidcOAuthEnabled.value = settings.oidc_oauth_enabled ?? false
+   oidcOAuthProviderName.value = settings.oidc_oauth_provider_name || 'OIDC'
+   passkeyEnabled.value = settings.passkey_enabled === true
+   })
+   .catch((error) => {
+   console.error('Failed to load settings:', error)
+   })
 
   await Promise.all([profileRefresh, settingsLoad])
 })

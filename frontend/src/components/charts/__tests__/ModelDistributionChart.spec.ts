@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 
 import ModelDistributionChart from '../ModelDistributionChart.vue'
+import { chartPalette } from '@/styles/chartPalette'
 
 const messages: Record<string, string> = {
   'admin.dashboard.modelDistribution': 'Model Distribution',
@@ -183,9 +184,17 @@ describe('ModelDistributionChart', () => {
       'Others',
     ])
     expect(chartData.datasets[0].data).toEqual([12, 8, 0, 10])
-    expect(chartData.datasets[0].backgroundColor[0]).toBe('#3b82f6')
-    expect(chartData.datasets[0].backgroundColor[3]).toBe('#94a3b8')
-    expect(chartData.datasets[0].backgroundColor[3]).not.toBe(chartData.datasets[0].backgroundColor[0])
+    // 序列色唯一来源是 chartPalette()：断言与生产同源取值，不在测试里另算一遍色值。
+    // （jsdom 下 CSS 变量未必注入，chartPalette 会回落到内置 fallback —— 这正是生产同源取值的好处。）
+    const palette = chartPalette()
+    const colors = chartData.datasets[0].backgroundColor
+    expect(colors[0]).toBe(palette.series[0])
+    // Others 用独立的中性轴色，而不是继续轮转序列色。
+    expect(colors[3]).toBe(palette.axis)
+    // 语义保留：Others 必须与前三条序列色互不相同，否则饼图分不出来。
+    expect(colors[3]).not.toBe(colors[0])
+    expect(colors[3]).not.toBe(colors[1])
+    expect(colors[3]).not.toBe(colors[2])
 
     const rows = wrapper.findAll('tbody tr')
     expect(rows).toHaveLength(4)

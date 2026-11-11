@@ -12,24 +12,24 @@
     <!-- Live 会话：展示可用的时长与计费口径（后端当前不提供实时语音时长字段） -->
     <div
       v-if="isLive"
-      class="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900 dark:bg-emerald-900/20 dark:text-emerald-100"
+      class="rounded-lg bg-success-50 p-3 text-sm text-success-900 dark:bg-success-900/20 dark:text-success-100"
       data-testid="usage-live-details"
     >
       <p class="font-medium">{{ t('usage.liveTitle') }}</p>
       <dl class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
         <div>
-          <dt class="text-gray-500 dark:text-emerald-200/70">{{ t('usage.liveSessionDuration') }}</dt>
+          <dt class="text-gray-500 dark:text-success-200/70">{{ t('usage.liveSessionDuration') }}</dt>
           <dd data-testid="usage-live-duration">{{ liveDuration }}</dd>
         </div>
         <div>
-          <dt class="text-gray-500 dark:text-emerald-200/70">{{ t('usage.liveBilling') }}</dt>
+          <dt class="text-gray-500 dark:text-success-200/70">{{ t('usage.liveBilling') }}</dt>
           <dd data-testid="usage-live-billing">{{ liveBilling }}</dd>
         </div>
       </dl>
     </div>
     <p v-if="!snapshot" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-dark-700" data-testid="missing-snapshot">{{ t('usage.missingLockedSnapshot') }}</p>
     <template v-else>
-      <p v-if="conflicts.length" role="alert" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300" data-testid="snapshot-conflict">{{ t('usage.snapshotConflict') }}</p>
+      <p v-if="conflicts.length" role="alert" class="rounded-lg bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-900/20 dark:text-warning-300" data-testid="snapshot-conflict">{{ t('usage.snapshotConflict') }}</p>
       <h3 class="text-sm font-semibold">{{ t('usage.lockedSnapshot') }}</h3>
       <dl class="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
         <div><dt class="text-gray-500">{{ t('usage.requestStartedAt') }}</dt><dd class="break-words">{{ snapshot.request_started_at ?? '—' }}</dd></div>

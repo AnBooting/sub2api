@@ -15,7 +15,7 @@
             modelValue === amt
               ? 'border-primary-500 bg-primary-50 text-primary-700 dark:border-primary-400 dark:bg-primary-900/40 dark:text-primary-300'
               : quoteFor(amt).percent > 0
-                ? 'border-red-200 bg-white text-gray-700 hover:border-red-300 dark:border-red-500/40 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-red-400/60'
+                ? 'border-danger-200 bg-white text-gray-700 hover:border-danger-300 dark:border-danger-500/40 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-danger-400/60'
                 : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
           ]"
           :data-testid="`quick-amount-${amt}`"
@@ -28,7 +28,7 @@
             data-testid="quick-amount-bonus-badge"
           >
             <span
-              class="relative flex items-center gap-1 whitespace-nowrap rounded bg-red-600 py-0.5 pl-1.5 pr-1 text-[11px] font-extrabold leading-tight tracking-tight text-white shadow-md ring-2 ring-white before:pointer-events-none before:absolute before:inset-[2px] before:rounded-sm before:border before:border-dotted before:border-white/70 dark:bg-red-500 dark:ring-dark-800"
+              class="relative flex items-center gap-1 whitespace-nowrap rounded bg-danger-600 py-0.5 pl-1.5 pr-1 text-[11px] font-extrabold leading-tight tracking-tight text-on-signal ring-2 ring-white before:pointer-events-none before:absolute before:inset-[2px] before:rounded-sm before:border before:border-dotted before:border-white/70 dark:bg-danger-500 dark:ring-dark-800"
             >
               <span>{{ badgeText(amt) }}</span>
               <span class="h-1 w-1 shrink-0 rounded-full bg-white"></span>
@@ -40,7 +40,7 @@
             v-if="showSecondLine"
             :class="[
               'mt-0.5 block text-[11px] font-normal leading-tight',
-              quoteFor(amt).percent > 0 ? 'text-red-600 dark:text-red-300' : 'text-gray-400 dark:text-gray-500',
+              quoteFor(amt).percent > 0 ? 'text-danger-600 dark:text-danger-300' : 'text-gray-400 dark:text-gray-500',
             ]"
             data-testid="quick-amount-credited"
           >{{ secondLine(amt) }}</span>

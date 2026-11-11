@@ -41,6 +41,9 @@ const flushPromises = async () => {
   await Promise.resolve()
 }
 
+// 内联错误块 = danger 三族（底色/描边/文字）；不含 btn-danger（提交按钮合法用危险色）。
+const DANGER_CALLOUT = /bg-danger-(?:50|100)|border-danger-|text-danger-(?:600|700)/
+
 describe('TOTP 弹窗定时器清理', () => {
   let intervalSeed = 1000
   let setIntervalSpy: ReturnType<typeof vi.spyOn>
@@ -146,7 +149,8 @@ describe('TOTP 弹窗定时器清理', () => {
 
     expect(mocks.showError).toHaveBeenCalledWith('setup failed')
     expect(wrapper.text()).not.toContain('setup failed')
-    expect(wrapper.find('.bg-red-50').exists()).toBe(false)
+    // 范围限定在弹层面板本身：该类名已从调色板删除，旧断言 '.bg-red-50' 恒真（见 task-2 报告）。
+    expect(wrapper.get('.relative.w-full.max-w-md').html()).not.toMatch(DANGER_CALLOUT)
   })
 
   it('TotpDisableDialog 失败时改用 toast 并不渲染内联错误', async () => {
@@ -164,6 +168,7 @@ describe('TOTP 弹窗定时器清理', () => {
 
     expect(mocks.showError).toHaveBeenCalledWith('disable failed')
     expect(wrapper.text()).not.toContain('disable failed')
-    expect(wrapper.find('.bg-red-50').exists()).toBe(false)
+    // 限定在表单内：弹层头部图标本来就允许用 danger 底色（圆底图标，非内联错误块）。
+    expect(wrapper.get('form').html()).not.toMatch(DANGER_CALLOUT)
   })
 })
