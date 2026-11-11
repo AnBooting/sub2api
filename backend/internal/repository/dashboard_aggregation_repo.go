@@ -84,7 +84,7 @@ func (r *dashboardAggregationRepository) AggregateRange(ctx context.Context, sta
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if _, err := tx.ExecContext(ctx, "LOCK TABLE ONLY usage_logs IN ACCESS SHARE MODE"); err != nil {
 		return err
 	}
@@ -272,7 +272,7 @@ func loadQuarantinedRepairDays(ctx context.Context, tx *sql.Tx, start, end time.
 	if err != nil {
 		return nil, fmt.Errorf("read quarantined usage statistics days: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	quarantined := make(map[time.Time]struct{})
 	var dayStart time.Time
 	for rows.Next() {

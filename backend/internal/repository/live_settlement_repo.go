@@ -357,7 +357,7 @@ func (r *liveSettlementRepository) ClaimDue(ctx context.Context, owner string, l
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	claims := make([]service.LiveSettlementClaim, 0)
 	for rows.Next() {
 		var claim service.LiveSettlementClaim
@@ -780,7 +780,7 @@ func (r *liveSettlementRepository) ListHandoffs(ctx context.Context, afterID int
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	jobs := make([]service.LiveSettlementJob, 0)
 	for rows.Next() {
 		job, err := scanLiveSettlementHandoff(rows)

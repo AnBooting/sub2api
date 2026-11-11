@@ -20,7 +20,7 @@ func (r *usageLogRepository) readUsageStatsSnapshot(ctx context.Context, read fu
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 	if err := read(&usageLogRepository{sql: tx}); err != nil {
 		return err
 	}

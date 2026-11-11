@@ -10,9 +10,22 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
+
+// advanceToBoundary 复现 production advanceUsageRawSafeFrom 的边界语义：
+// 取 cutoff 在配置时区内的自然日零点；若早于 cutoff 则推到次日零点（UTC 表示）。
+func advanceToBoundary(t *testing.T, cutoff time.Time) time.Time {
+	t.Helper()
+	loc := timezone.Location()
+	boundary := truncateToDay(cutoff.In(loc))
+	if boundary.Before(cutoff) {
+		boundary = boundary.AddDate(0, 0, 1)
+	}
+	return boundary.UTC()
+}
 
 func TestDashboardAggregationRepositorySyncGroupUsageRollupsNoopsAtCurrentDate(t *testing.T) {
 	setGroupUsageRollupTestTimezone(t)
