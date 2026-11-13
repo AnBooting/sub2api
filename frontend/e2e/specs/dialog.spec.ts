@@ -79,3 +79,53 @@ test('backdrop click does not close the dialog by default', async ({ page }) => 
   await page.mouse.click(5, 5)
   await expect(page.locator('#inner-first')).toBeVisible()
 })
+
+test('hidden ancestors and non-tabbable controls do not corrupt either boundary', async ({ page }) => {
+  await openDialog(page, 'hidden-boundaries')
+  await page.locator('#inner-last').focus()
+  await page.keyboard.press('Tab')
+  await expect(page.locator('#inner-first')).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(page.locator('#inner-last')).toBeFocused()
+})
+
+test('an empty dialog holds focus on its panel', async ({ page }) => {
+  await page.goto(harnessUrl('empty'))
+  await page.locator('#open').click()
+  await expect(page.locator('.modal-content')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(page.locator('.modal-content')).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(page.locator('.modal-content')).toBeFocused()
+})
+
+test('the real user API-key group portal belongs to the dialog Tab cycle', async ({ page }) => {
+  await page.route('**/api/v1/**', async route => {
+    const path = new URL(route.request().url()).pathname
+    const group = { id: 1, name: 'Review group', platform: 'openai', status: 'active', subscription_type: 'standard', rate_multiplier: 1 }
+    const data = path.endsWith('/admin/users/1/api-keys')
+      ? { items: [{ id: 1, name: 'Review key', key: 'fixture-key-not-a-credential', status: 'active', group_id: 1, group, created_at: '2026-01-01T00:00:00Z' }], total: 1 }
+      : path.endsWith('/admin/groups/all') ? [group] : {}
+    await route.fulfill({ json: { code: 0, data } })
+  })
+  await page.goto(harnessUrl('user-keys'))
+  await page.locator('#open').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog.getByText('Review key', { exact: true })).toBeVisible()
+  await dialog.getByRole('button').filter({ hasText: 'Review group' }).click()
+  const unbind = page.getByRole('button', { name: 'admin.users.none', exact: true })
+  const groupOption = page.getByRole('button', { name: /Review group/ }).last()
+  await expect(unbind).toBeVisible()
+  // focus() keeps the real menu open; clicking this button would dismiss it.
+  await dialog.getByRole('button', { name: 'keys.chain.edit', exact: true }).focus()
+  await page.keyboard.press('Tab')
+  await expect(unbind).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(groupOption).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(dialog.getByRole('button', { name: 'Close modal' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(groupOption).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  await expect(unbind).toBeFocused()
+})

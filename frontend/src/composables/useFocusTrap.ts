@@ -19,26 +19,38 @@ const FOCUSABLE_SELECTOR = [
 ].join(',')
 
 /**
- * 元素是否可能获得焦点。
- * 只排除明确不可交互的节点：display:none 的元素 focus() 无效，若落在
- * 边界上会让 Tab 看起来「卡住」。visibility:hidden 与祖先隐藏依赖布局
- * 计算，这里不处理，由 focus() 自身兜底——焦点只会停在原地，不会逃出弹窗。
+ * 只收集能参与顺序键盘导航的控件，包括其祖先的可见性和惰性状态。
+ * 不能依赖 focus() 失败兜底：错误的末项会让浏览器直接把 Tab 放行到背景。
  */
 function isFocusCandidate(element: HTMLElement): boolean {
-  if (element.hidden || element.hasAttribute('disabled')) return false
-  if (element.getAttribute('aria-hidden') === 'true') return false
-  try {
-    return window.getComputedStyle(element).display !== 'none'
-  } catch {
-    // 脱离文档的节点在个别环境下无法计算样式，按可聚焦处理
-    return true
+  if (element.tabIndex < 0 || element.matches(':disabled')) return false
+  if (element.closest('[hidden], [inert], [aria-hidden="true"]')) return false
+  const visibility = window.getComputedStyle(element).visibility
+  if (visibility === 'hidden' || visibility === 'collapse') return false
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    const style = window.getComputedStyle(node)
+    if (style.display === 'none' || style.contentVisibility === 'hidden') return false
   }
+  // 浏览器进一步排除未渲染节点（例如闭合 details）；jsdom 没有布局 API。
+  return !element.checkVisibility || element.checkVisibility()
 }
 
 export function getFocusableElements(container: HTMLElement | null): HTMLElement[] {
   if (!container) return []
 
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(isFocusCandidate)
+}
+
+/** body portal 通过触发控件继承所属弹窗，不改变定位或堆叠上下文。 */
+export function getDialogFocusScope(element: HTMLElement | null | undefined): string | undefined {
+  return element?.closest<HTMLElement>('[data-dialog-focus-scope]')?.dataset.dialogFocusScope
+}
+
+function getFocusRoots(container: HTMLElement): HTMLElement[] {
+  const scope = container.dataset.dialogFocusScope
+  if (!scope) return [container]
+  return [container, ...Array.from(document.querySelectorAll<HTMLElement>('[data-dialog-focus-scope]'))
+    .filter(root => root !== container && root.dataset.dialogFocusScope === scope)]
 }
 
 export interface TabTrapDecision {
@@ -90,11 +102,23 @@ export function useFocusTrap({ container, isActive }: UseFocusTrapOptions) {
     if (event.key !== 'Tab' || event.defaultPrevented) return
     if (!isActive()) return
 
-    const decision = resolveTabTrap(getFocusableElements(container()), document.activeElement, event.shiftKey)
+    const panel = container()
+    if (!panel) return
+    const roots = getFocusRoots(panel)
+    const elements = roots.flatMap(getFocusableElements)
+    const active = document.activeElement
+    let decision = resolveTabTrap(elements, active, event.shiftKey)
+    if (!decision && active instanceof HTMLElement) {
+      const next = elements[elements.indexOf(active) + (event.shiftKey ? -1 : 1)]
+      // portal 与面板在 DOM 中可能隔着背景控件，跨根移动必须显式接续。
+      if (!roots.some(root => root.contains(active) && root.contains(next))) {
+        decision = { preventDefault: true, target: next }
+      }
+    }
     if (!decision) return
 
     event.preventDefault()
-    decision.target?.focus({ preventScroll: true })
+    ;(decision.target ?? panel).focus({ preventScroll: true })
   }
 
   onMounted(() => document.addEventListener('keydown', onKeydown))

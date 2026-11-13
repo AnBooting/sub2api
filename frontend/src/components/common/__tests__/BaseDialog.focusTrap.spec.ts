@@ -122,4 +122,21 @@ describe('BaseDialog focus trap', () => {
 
     expect(document.activeElement).toBe(byId('enabled'))
   })
+
+  it.each([
+    '<div style="display:none"><button>Hidden ancestor</button></div>',
+    '<div hidden><button>Hidden attribute</button></div>',
+    '<div style="visibility:hidden"><button>Invisible</button></div>',
+    '<div inert><button>Inert ancestor</button></div>',
+    '<fieldset disabled><button>Disabled fieldset</button></fieldset>',
+    '<button tabindex="-2">Negative tabindex</button>'
+  ])('excludes non-tabbable boundaries: %s', async excluded => {
+    mountDialog({ html: twoButtons + excluded })
+    await settle()
+    byId('last')!.focus()
+    expect(pressTab(byId('last')).defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(byId('first'))
+    expect(pressTab(byId('first'), true).defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(byId('last'))
+  })
 })

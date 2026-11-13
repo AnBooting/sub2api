@@ -11,7 +11,7 @@
         @click.self="handleClose"
       >
         <!-- Modal panel -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
+        <div ref="dialogRef" :class="['modal-content', widthClasses]" :data-dialog-focus-scope="dialogId" tabindex="-1" @click.stop>
           <!-- Header -->
           <div class="modal-header">
             <h3 :id="dialogId" class="modal-title">
@@ -146,7 +146,7 @@ watch(
       }
       if (dialogRef.value) {
         // 与焦点陷阱共用同一份可聚焦元素规则
-        getFocusableElements(dialogRef.value)[0]?.focus()
+        ;(getFocusableElements(dialogRef.value)[0] ?? dialogRef.value).focus()
       }
     } else {
       updateScrollLock(false)
