@@ -241,9 +241,9 @@
     /* 只在主操作上给一层极轻的影，让它浮起半毫米 */
     box-shadow: 0 1px 2px rgb(56 78 168 / 0.28);
   }
-  /* 深色纸面上信号色本身已足够亮，保持白字才有力；近黑字会读成禁用态。 */
+  /* 深色主按钮保留亮字；交互态加深底色，保证普通字号的对比度。 */
   .dark .btn-primary {
-    @apply bg-primary-500 text-on-signal hover:bg-primary-400 active:bg-primary-300;
+    @apply bg-primary-500 text-on-signal hover:bg-primary-600 active:bg-primary-700;
     box-shadow: 0 1px 2px rgb(0 0 0 / 0.35);
   }
 

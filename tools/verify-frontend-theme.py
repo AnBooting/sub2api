@@ -23,6 +23,7 @@ COLOR = """el => {
 
 USER={'id':99991,'email':'review@example.test','username':'review','role':'admin','status':'active','balance':100,'concurrency':5,'subscriptions':[]}
 ACCOUNT={'id':991,'name':'Review fixture account','platform':'openai','type':'apikey','status':'active','schedulable':True,'priority':1,'concurrency':5,'group_ids':[],'groups':[],'credentials':{'base_url':'https://example.test','api_key':'fixture-only'},'extra':{},'created_at':'2026-11-01T00:00:00Z','updated_at':'2026-11-01T00:00:00Z'}
+BUTTON_KINDS=('primary','danger','success','warning')
 
 def mock(route):
     path=urlparse(route.request.url).path
@@ -91,16 +92,16 @@ def run(args):
                     save.click(trial=True)
 
             page.set_viewport_size({'width':1280,'height':900})
-            page.evaluate("""() => {
+            page.evaluate("""kinds => {
               const section=document.createElement('section'); section.id='theme-button-probes';
               section.style.cssText='position:fixed;left:20px;top:80px;z-index:2147483640;padding:16px;background:rgb(var(--surface))';
-              for(const kind of ['danger','success','warning']) {
+              for(const kind of kinds) {
                 const b=document.createElement('button'); b.id='probe-'+kind; b.type='button'; b.className='btn btn-'+kind; b.textContent=kind; section.appendChild(b);
               } document.body.appendChild(section);
-            }""")
+            }""",BUTTON_KINDS)
             for theme in ('light','dark'):
                 page.evaluate("theme=>document.documentElement.classList.toggle('dark',theme==='dark')",theme)
-                for kind in ('danger','success','warning'):
+                for kind in BUTTON_KINDS:
                     button=page.locator('#probe-'+kind)
                     for state in ('default','hover','active'):
                         page.mouse.move(1270,10)
@@ -108,7 +109,8 @@ def run(args):
                         if state=='active': page.mouse.down()
                         page.wait_for_timeout(250)
                         color=button.evaluate(COLOR)
-                        check(theme+' '+kind+' '+state,color['ratio']>=4.5,**color)
+                        native_state=button.evaluate("el=>el.matches(':active')?'active':el.matches(':hover')?'hover':'default'")
+                        check(theme+' '+kind+' '+state,color['ratio']>=4.5 and native_state==state,native_state=native_state,**color)
                         if state=='active': page.mouse.up()
             check('no uncaught page errors',not errors,errors=errors)
             context.close()
