@@ -66,7 +66,7 @@
 
         <!-- Apply button -->
         <div class="date-picker-actions">
-          <button @click="apply" class="date-picker-apply">
+          <button @click="apply" class="btn btn-primary btn-sm date-picker-apply">
             {{ t('dates.apply') }}
           </button>
         </div>
@@ -422,10 +422,6 @@ onUnmounted(() => {
 
 .date-picker-actions {
   @apply flex justify-end p-2 pt-0;
-}
-
-.date-picker-apply {
-  @apply btn btn-primary btn-sm;
 }
 
 /* Dropdown animation */
