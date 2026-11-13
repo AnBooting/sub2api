@@ -140,3 +140,12 @@ GitHub 需代理：`git -C F:\sub2 config --local http.proxy http://127.0.0.1:78
 | `tools/pre-push-check.ps1` | 本地合并门禁：-Scope docs/backend/frontend/all，-Mode quick/full；CI 停摆时它就是门禁 |
 | `.github/PULL_REQUEST_TEMPLATE.md` | PR 四段模板 + 自检清单（含 --repo、迁移编号、i18n、变异验证） |
 | `tools/verify-deployed-build.ps1` | 线上后端版本/前端构建与本地 HEAD 比对 |
+
+## 变更请求面板（forge 插件）绑定规范
+
+「变更请求」面板只从**本会话前台 bash/pwsh 工具结果**派生 PR 绑定（`gh pr create` 输出的 URL、`gh pr view <编号> --repo 字面量`、`git push` 的分支）；后台任务、子代理会话、复合命令/变量仓库都不识别（2026-11-11 实测：PR #22 因此最初不显示）。为保证新 PR 自动出现在面板：
+
+1. `gh pr create` 与 `git push` 一律前台执行，不得 `run_in_background`。
+2. 创建 PR 后紧跟一条前台 `gh pr view <N> --repo AnBooting/sub2api`（数字编号 + 字面量仓库，双保险；与既有 --repo 红线一致）。
+3. 评审/合并前会话保持在 PR 的 head 分支；合并后再切回 `develop`。
+4. 子代理创建的 PR 不聚合到 Lead 面板——Lead 须自己跑一次第 2 条命令。

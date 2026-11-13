@@ -11,7 +11,7 @@
         @click.self="handleClose"
       >
         <!-- 图板面板：1px 痕量线 + 切角 2px；手机上由 .modal-content 变成底部浮层 -->
-        <div ref="dialogRef" :class="['modal-content', widthClasses]" :data-dialog-focus-scope="dialogId" tabindex="-1" @click.stop>
+        <div ref="dialogRef" :class="['modal-content', widthClasses]" @click.stop>
           <div class="modal-header">
             <h3 :id="dialogId" class="modal-title">
               {{ title }}
@@ -48,7 +48,6 @@ const openDialogs = new Set<string>()
 <script setup lang="ts">
 import { computed, watch, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import Icon from '@/components/icons/Icon.vue'
-import { getFocusableElements, useFocusTrap } from '@/composables/useFocusTrap'
 
 // 生成唯一 ID 以避免多个对话框同时打开时 ID 冲突
 const dialogId = `modal-title-${++dialogIdCounter}`
@@ -83,12 +82,6 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const emit = defineEmits<Emits>()
-
-// Tab 焦点陷阱：多弹窗叠加时只让最上层拦截，避免键盘焦点跑到背景页面
-useFocusTrap({
-  container: () => dialogRef.value,
-  isActive: () => props.show && [...openDialogs].pop() === dialogId
-})
 
 // 自定义 z-index（覆盖 CSS 里的默认 z-50）
 const zIndexStyle = computed(() => {
@@ -140,8 +133,10 @@ watch(
         modalBodyRef.value.scrollTop = 0
       }
       if (dialogRef.value) {
-        // 与焦点陷阱共用同一份可聚焦元素规则
-        ;(getFocusableElements(dialogRef.value)[0] ?? dialogRef.value).focus()
+        const firstFocusable = dialogRef.value.querySelector<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+        firstFocusable?.focus()
       }
     } else {
       updateScrollLock(false)
