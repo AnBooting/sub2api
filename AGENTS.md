@@ -10,6 +10,14 @@
 - 目标：按 `project-docs/prd/` 的 PRD 实现功能，并做 Docker 生产部署
 - 文档索引：`project-docs/`（需求与规格见 `project-docs/prd/`）
 
+## 开工前检查（每个任务开始前逐项确认，结论写进任务描述）
+
+1. **目标与验收**：要改变的可观察行为是什么？哪条命令、哪个退出码或哪份证据能证明它变了。
+2. **授权边界**：这一轮允许哪些 Git 写操作、**谁合并**。默认只提交与推送；合并 PR、直推 `develop`、删远端分支、回退已合并提交都要单独授权。
+3. **写域**：动哪些文件、在哪个分支或 worktree；共享状态（Git 索引、构建目录、浏览器端口）谁先谁后。
+4. **证据落位**：日志、截图、JSON 从第一次落盘就写进 `project-docs/reviews/<日期>-pr<N>-review/`，不放仓库根。
+5. **门禁**：本轮要跑的真实命令，默认 `pwsh -File tools/pre-push-check.ps1 -Mode full`。
+
 ## 绝对红线
 
 1. **不在 `main` 分支提交**。`main` 是上游镜像，只用于 `git fetch upstream`。

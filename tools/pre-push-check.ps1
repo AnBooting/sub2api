@@ -116,6 +116,15 @@ if ($Scope -in @('docs', 'all')) {
     } else {
         Add-Result 'secrets: 敏感文件名扫描' 0 "跳过：本地没有 $base"
     }
+
+    # 状态表靠人工维护必然过期；远端不可用时脚本自己 SKIP，不阻断本地提交。
+    $statusScript = Join-Path $PSScriptRoot 'check-project-status.ps1'
+    if (Test-Path -LiteralPath $statusScript) {
+        [void](Invoke-Step 'status: 00-overview §7 与远端一致' {
+            # 必须走子进程：脚本内的 exit 会连带终止本门禁。
+            pwsh -NoProfile -File $statusScript -RepoRoot $RepoRoot
+        })
+    }
 }
 
 # ---------- backend ----------
