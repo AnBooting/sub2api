@@ -494,6 +494,10 @@ func (h *OpenAIGatewayHandler) Responses(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	// N-03：仅拒绝没有 input 或其他上下文的空请求。
+	if rejectEmptyResponsesInput(c, body, h.errorResponse) {
+		return
+	}
 	reqModel := modelResult.String()
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {
@@ -1550,6 +1554,10 @@ func (h *OpenAIGatewayHandler) Messages(c *gin.Context) {
 	modelResult := gjson.GetBytes(body, "model")
 	if !modelResult.Exists() || modelResult.Type != gjson.String || modelResult.String() == "" {
 		h.anthropicErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
+		return
+	}
+	// N-03：空 messages 直接 400，不转发上游、不计费。
+	if rejectEmptyMessages(c, body, h.anthropicErrorResponse) {
 		return
 	}
 	reqModel := modelResult.String()

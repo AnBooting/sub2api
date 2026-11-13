@@ -57,13 +57,17 @@ func TestDashboardPartialHTTPPreservesCardsAndUptime(t *testing.T) {
 					for _, section := range []string{"trend", "models", "groups", "users_trend"} {
 						require.NotContains(t, body.Data, section)
 					}
-					stats = body.Data["stats"].(map[string]any)
+					statsRaw, statsOK := body.Data["stats"].(map[string]any)
+					require.True(t, statsOK)
+					stats = statsRaw
 				}
 				require.Nil(t, stats["total_actual_cost"])
 				require.Equal(t, float64(5), stats["today_actual_cost"])
 				require.Equal(t, float64(8), stats["total_users"])
 				require.GreaterOrEqual(t, stats["uptime"], float64(59))
-				require.Equal(t, false, stats["usage_availability"].(map[string]any)["total"])
+				usageAvail, availOK := stats["usage_availability"].(map[string]any)
+				require.True(t, availOK)
+				require.Equal(t, false, usageAvail["total"])
 			}
 		})
 	}

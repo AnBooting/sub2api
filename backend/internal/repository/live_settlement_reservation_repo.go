@@ -70,7 +70,7 @@ func lockLiveReservationPair(ctx context.Context, tx *sql.Tx, first, second int6
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 	count := 0
 	for rows.Next() {
 		var generation int64

@@ -186,6 +186,7 @@ func newHelperTestContext(method, path string) (*gin.Context, *httptest.Response
 func validClaudeCodeBodyJSON() []byte {
 	return []byte(`{
 		"model":"claude-3-5-sonnet-20241022",
+		"messages":[{"role":"user","content":"hi"}],
 		"system":[{"text":"You are Claude Code, Anthropic's official CLI for Claude."}],
 		"metadata":{"user_id":"user_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa_account__session_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"}
 	}`)
