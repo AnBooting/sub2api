@@ -43,31 +43,44 @@ python tools/verify-frontend-theme.py --base-url http://127.0.0.1:4173 --report 
 
 变异验证：仅把修复的深色 hover/active 两个背景类回退为 cobalt 400/300（测试不变），重新生产构建退出 0；浏览器退出 1，30/32 通过，再次精确失败于上述两态，数值与基线一致。随后已恢复 600/700。证据：[mutation-theme.json](mutation-theme.json)、[完整浏览器输出](mutation-theme.log)、[生产构建输出](mutation-build.log)、[CSS 哈希](mutation-assets.json)。
 
-## 与 #24 合并后的同步（2026-11-14）
+## 与 #24 的关系（2026-11-14 更新）
 
-`origin/develop` 已含 PR #22 与 PR #24（`f887dd35b`）。合入本分支时出现两处冲突，按语义合并、不整块取值：
+PR #24 曾合入 `develop`（`f887dd35b`），随后按维护者要求以 `38ce3715a` 回退。本分支因此重新合并了回退后的 `develop`（`0ea4f3704`），并**移除随回退一起消失的 #24 内容**：
 
-| 文件 | 冲突内容 | 合并结果 |
-| --- | --- | --- |
-| `BaseDialog.vue` | 本 PR 的关闭按钮视觉与中文注释 vs #24 的面板作用域属性与 `useFocusTrap` 接线 | 保留 `btn btn-ghost btn-icon`、`aria-label="Close dialog"`；并入 `data-dialog-focus-scope`、`tabindex="-1"` 与 `useFocusTrap` |
-| `UserApiKeysModal.vue` | 本 PR 去掉 `shadow-lg` 的菜单样式 vs #24 的作用域属性 | 保留本 PR 的类名，并入 `:data-dialog-focus-scope` |
+| 文件 | 处理 |
+| --- | --- |
+| `BaseDialog.vue` | 保留本 PR 的关闭按钮视觉（`btn btn-ghost btn-icon`、`aria-label="Close dialog"`）与中文注释；移除 `data-dialog-focus-scope`、`tabindex="-1"` 与 `useFocusTrap` 接线 |
+| `UserApiKeysModal.vue` | 保留本 PR 去掉 `shadow-lg` 的菜单类名；移除 `:data-dialog-focus-scope` 与对应 import |
+| `frontend/e2e/**`、`playwright.config.ts`、`useFocusTrap.ts`、`BaseDialog.focusTrap.spec.ts` | 随回退删除（#24 引入的设施，不属于本 PR） |
 
-**必须同步的断言**：本 PR 把关闭按钮的 `aria-label` 改为 `Close dialog`，而 #24 的 e2e 用 `Close modal` 定位该按钮。合并后已把 `frontend/e2e/specs/dialog.spec.ts` 的断言改为 `Close dialog`；不改会留下一条永远找不到元素的假绿/假红。
+因此本 PR 的门禁不再包含 e2e 项，命令回到 `-Scope frontend -Mode full`（4 项）。
 
-### 合并后暴露的编译缺陷（已修）
+### 合并期间暴露的编译缺陷（已修，保留）
 
-合并 #24 后首次跑 `-RunE2E` 门禁，`date-range.spec.ts` 5 条全部失败：Vite 报
-`The `btn` class does not exist ... @apply btn btn-primary btn-sm`，页面只剩错误覆盖层。
-本 PR 早先把 `.date-picker-apply` 改成 `@apply btn btn-primary btn-sm`，而 `btn` 定义在全局 `@layer components`，scoped 样式里的 `@apply` 解析不到它。
+合并 #24 期间首次跑 e2e 时暴露：`DateRangePicker.vue` 的 scoped 样式写 `@apply btn btn-primary btn-sm`，而 `btn` 定义在全局 `@layer components`，scoped 编译解析不到，dev 模式整页只剩 Vite 错误覆盖层。
 
-修复：模板改用共享类 `class="btn btn-primary btn-sm date-picker-apply"`，删除 scoped 里的 `@apply btn ...`。修复后 `date-range.spec.ts` **5/5 通过**（`date-range-verify.log` / `.exit.txt`）。
+修复：模板改用共享类 `class="btn btn-primary btn-sm date-picker-apply"`，删除 scoped 里的 `@apply btn ...`。该问题与本 PR 的视觉改造同源，**保留修复**；全仓复查 `@apply` 引用自定义类后无同类遗漏。
 
-门禁首轮还因本工作树未安装合入的 `@playwright/test` 而失败（`error: unknown command 'test'`），`corepack pnpm@9 install --frozen-lockfile` 后复跑。两次失败证据分别保留为 `frontend-gate-attempt1-e2e-missing-deps.*` 与 `frontend-gate-attempt2-date-range-apply.*`。
+## 独立复核发现的同类残留（R2，已修）
 
-## 最终验收（合并 #24 后的候选）
+2026-11-14 由独立复核（`opendesign/deepseek-v4.1-flash`）发现：F2 只修了 `.btn-primary`，但共享 helper `platformButtonClass()` 的深色三态仍是原数值，而它正是订阅/续费主操作按钮的来源。
 
-- 生产构建（`corepack pnpm@9 exec vite build`）：退出码 0，产物写入 `backend/internal/web/dist`。见 `final-build.log` / `final-build.exit.txt`。
-- 生产产物浏览器矩阵（`python tools/verify-frontend-theme.py --base-url http://127.0.0.1:4173`）：**32/32 通过，退出码 0**；深色 primary default/hover/active = 5.300:1 / 7.326:1 / 9.735:1，且原生 `:hover`/`:active` 均命中。见 `final-theme.json` / `final-theme.log` / `final-theme.exit.txt`。
-- 前端全量门禁（`pwsh -File tools/pre-push-check.ps1 -Scope frontend -Mode full -RunE2E`）：**exit 0**，5 项全 PASS（vue-tsc -b / check:i18n / vitest 全量 / vite build / e2e）。见 `frontend-gate.log` / `frontend-gate.exit.txt`。
+| 位置 | 原值 | 原深色对比度 | 修复后 |
+| --- | --- | --- | --- |
+| `utils/platformColors.ts:133` | `dark:hover:bg-primary-400 dark:active:bg-primary-300` | 3.18 / 2.09:1 | `dark:bg-primary-500 dark:hover:bg-primary-600 dark:active:bg-primary-700` → 5.30 / 7.33 / 9.74:1 |
+| `views/admin/RiskControlView.vue:503` | `bg-signal text-on-signal` | 3.18:1 | `bg-primary-500 text-on-signal` → 5.30:1 |
+| `views/admin/ops/components/OpsDashboardHeader.vue:1128` | `bg-signal text-on-signal` | 3.18:1 | `bg-primary-500 text-on-signal` → 5.30:1 |
 
-> 证据日志已统一为 LF 并去除行尾空白，内容与命令输出逐行一致。
+新增契约测试 `frontend/src/utils/__tests__/signalContrast.spec.ts`：从 `design-system.css` 读真实令牌复算 WCAG 比值，断言「深色明亮钴蓝不得压亮字」，并直接调用生产 `platformButtonClass()`。
+
+- 修复前：4 failed / 3 passed（`r2-repro.log`）
+- 修复后：7/7 通过（`r2-fixed.log`）
+- 变异验证：回退三处修复 → 4 failed / 3 passed（`r2-mutation.log`），恢复后再次 7/7
+
+## 最终验收（回退 #24 后的候选）
+
+- 生产构建（`corepack pnpm@9 exec vite build`）：退出码 0，产物写入 `backend/internal/web/dist`。
+- 生产产物浏览器矩阵（`python tools/verify-frontend-theme.py --base-url http://127.0.0.1:4173`）：**32/32 通过，退出码 0**；深色 primary default/hover/active = 5.300:1 / 7.326:1 / 9.735:1，原生 `:hover`/`:active` 均命中。见 `final-theme.json` / `final-theme.log` / `final-theme.exit.txt`。
+- 前端全量门禁（`pwsh -File tools/pre-push-check.ps1 -Scope frontend -Mode full`）：**exit 0**，4 项全 PASS（vue-tsc -b / check:i18n / vitest 全量 / vite build）。见 `frontend-gate-r2.log` / `frontend-gate-r2.exit.txt`。
+
+> 证据日志已统一为 LF 并去除行尾空白，内容与命令输出逐行一致。早期含 e2e 的 `frontend-gate*.log` 保留为历史记录，其基线（含 #24）已不适用于当前分支。

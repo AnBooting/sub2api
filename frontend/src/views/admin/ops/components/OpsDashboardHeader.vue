@@ -1125,7 +1125,7 @@ function handleToolbarRefresh() {
                   type="button"
                   class="rounded px-1.5 py-0.5 text-[9px] font-bold transition-colors sm:px-2 sm:text-[10px]"
                   :class="realtimeWindow === window
-                    ? 'bg-signal text-on-signal'
+                    ? 'bg-primary-500 text-on-signal'
                     : 'bg-gray-200 text-gray-600 hover:bg-gray-300 dark:bg-dark-700 dark:text-ink-soft dark:hover:bg-dark-600'"
                   @click="realtimeWindow = window"
                 >

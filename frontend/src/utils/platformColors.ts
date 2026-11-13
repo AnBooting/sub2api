@@ -130,7 +130,7 @@ const TEXT = 'text-ink'
 const ICON = 'text-success-600 dark:text-success-400'
 // 订阅按钮是主操作 → 唯一信号色 cobalt。
 const BUTTON =
-  'bg-signal text-on-signal hover:bg-primary-600 active:bg-primary-700 dark:hover:bg-primary-400 dark:active:bg-primary-300'
+  'bg-signal text-on-signal hover:bg-primary-600 active:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 dark:active:bg-primary-700'
 // 折扣是标注/测量值 → ochre。
 const DISCOUNT = 'bg-warning-50 text-warning-800 dark:bg-warning-950/60 dark:text-warning-300'
 

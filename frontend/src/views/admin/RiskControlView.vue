@@ -500,7 +500,7 @@
                       <button
                         type="button"
                         class="rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-                        :class="configForm.api_keys_mode === 'append' ? 'bg-signal text-on-signal' : 'text-ink-soft hover:bg-paper-inset hover:text-ink'"
+                        :class="configForm.api_keys_mode === 'append' ? 'bg-primary-500 text-on-signal' : 'text-ink-soft hover:bg-paper-inset hover:text-ink'"
                         :disabled="configForm.clear_api_key"
                         @click="setAPIKeysMode('append')"
                       >
