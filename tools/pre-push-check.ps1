@@ -44,7 +44,6 @@ param(
     [ValidateSet('quick', 'full')]
     [string]$Mode = 'quick',
     [string]$BackendTestPattern = './...',
-    [switch]$RunE2E,
     [string]$RepoRoot
 )
 
@@ -200,11 +199,6 @@ if ($Scope -in @('frontend', 'all')) {
                 $tail = ($vitestOut -split [Environment]::NewLine | Select-Object -Last 8) -join [Environment]::NewLine
                 Add-Result 'frontend: vitest run' $vitestCode $tail -Known:$knownFe
                 [void](Invoke-Step 'frontend: vite build' { corepack pnpm@9 exec vite build })
-                if ($RunE2E) {
-                    [void](Invoke-Step 'frontend: e2e' { corepack pnpm@9 run test:e2e })
-                } else {
-                    Add-Result 'frontend: e2e（默认跳过）' 0 '浏览器级 e2e 需要后端无关的 harness，加 -RunE2E 启用'
-                }
             } else {
                 Add-Result 'frontend: 单测/构建（quick 跳过）' 0 '需要它们请用 -Mode full'
             }

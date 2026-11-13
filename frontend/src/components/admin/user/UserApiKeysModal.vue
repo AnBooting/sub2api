@@ -54,7 +54,6 @@
     <div
       v-if="groupSelectorKeyId !== null && dropdownPosition"
       ref="dropdownRef"
-      :data-dialog-focus-scope="getDialogFocusScope(groupButtonRefs.get(groupSelectorKeyId))"
       class="animate-in fade-in slide-in-from-top-2 fixed z-[100000020] w-64 overflow-hidden rounded-xl bg-white shadow-lg ring-1 ring-black/5 duration-200 dark:bg-dark-800 dark:ring-white/10"
       :style="{ top: dropdownPosition.top + 'px', left: dropdownPosition.left + 'px' }"
     >
@@ -114,7 +113,6 @@ import { adminAPI } from '@/api/admin'
 import { formatDateTime } from '@/utils/format'
 import type { AdminUser, AdminGroup, ApiKey } from '@/types'
 import BaseDialog from '@/components/common/BaseDialog.vue'
-import { getDialogFocusScope } from '@/composables/useFocusTrap'
 import GroupOptionItem from '@/components/common/GroupOptionItem.vue'
 import GroupChainEditor from '@/components/keys/GroupChainEditor.vue'
 import KeyGroupChain from '@/components/keys/KeyGroupChain.vue'

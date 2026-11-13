@@ -20,8 +20,8 @@ test-unit:
 test-integration:
 	go test -tags=integration ./...
 
-# 需要一套已运行的后端（BASE_URL 默认 http://localhost:8080）
-test-e2e: test-e2e-local
+test-e2e:
+	./scripts/e2e-test.sh
 
 test-e2e-local:
 	go test -tags=e2e -v -timeout=300s ./internal/integration/...
