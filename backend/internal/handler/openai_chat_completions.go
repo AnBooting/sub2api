@@ -75,6 +75,10 @@ func (h *OpenAIGatewayHandler) ChatCompletions(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	// N-03：空 messages 直接 400，不转发上游、不计费（各协议入口同口径）。
+	if rejectEmptyMessages(c, body, h.errorResponse) {
+		return
+	}
 	reqModel := modelResult.String()
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
 	if !openAICompatibleTextTargetAllowed(c, apiKey, reqModel) {

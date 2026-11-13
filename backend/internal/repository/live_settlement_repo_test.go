@@ -65,7 +65,8 @@ func newLiveSettlementConfirmedFixture(t *testing.T, price *float64, candidate *
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	store := NewGatewayCache(client).(service.LiveCallStore)
+	store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, storeOK)
 	created := time.UnixMilli(1800000000123)
 	record := &service.LiveCallRecord{
 		CallID: "raw-upstream-call-id", CallHash: HashLiveCallID("raw-upstream-call-id"),
@@ -1203,7 +1204,8 @@ func newMarkActiveFixture(t *testing.T) (*gatewayCache, *service.LiveCallRecord,
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	cache := NewGatewayCache(client).(*gatewayCache)
+	cache, cacheOK := NewGatewayCache(client).(*gatewayCache)
+	require.True(t, cacheOK)
 	price := 0.1
 	created := time.Date(2026, 1, 2, 3, 4, 5, 123000000, time.UTC)
 	record := &service.LiveCallRecord{

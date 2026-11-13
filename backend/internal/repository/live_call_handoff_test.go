@@ -49,7 +49,10 @@ func newHandoffV2Fixture(t *testing.T, id string, generation int64) (*miniredis.
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	cache := NewGatewayCache(client).(*gatewayCache)
+	cache, cacheOK := NewGatewayCache(client).(*gatewayCache)
+	if !cacheOK {
+		t.Fatal("NewGatewayCache must return *gatewayCache")
+	}
 	price := 0.1
 	created := time.Date(2026, 1, 2, 3, 4, 5, 123000000, time.UTC)
 	record := &service.LiveCallRecord{

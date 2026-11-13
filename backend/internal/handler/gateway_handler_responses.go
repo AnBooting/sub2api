@@ -75,6 +75,10 @@ func (h *GatewayHandler) Responses(c *gin.Context) {
 		h.responsesErrorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	// N-03：仅拒绝没有 input 或其他上下文的空请求。
+	if rejectEmptyResponsesInput(c, body, h.responsesErrorResponse) {
+		return
+	}
 	reqModel := modelResult.String()
 	bindRequestedReasoningEffort(c, body, reqModel)
 	ensureCompositeTargetPlatform(c, apiKey, reqModel)
