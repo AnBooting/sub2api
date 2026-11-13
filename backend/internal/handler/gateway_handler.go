@@ -223,6 +223,10 @@ func (h *GatewayHandler) Messages(c *gin.Context) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "model is required")
 		return
 	}
+	// N-03：空 messages 直接 400，不转发上游、不计费（各协议入口同口径）。
+	if rejectEmptyMessages(c, body, h.errorResponse) {
+		return
+	}
 	if !compositeTargetPlatformResolved(c, apiKey, reqModel) {
 		h.errorResponse(c, http.StatusBadRequest, "invalid_request_error", "Model is not supported by composite groups")
 		return

@@ -12,7 +12,6 @@ import (
 	dbent "github.com/Wei-Shaw/sub2api/ent"
 	dbusagecleanuptask "github.com/Wei-Shaw/sub2api/ent/usagecleanuptask"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 )
 
@@ -564,14 +563,6 @@ func (r *usageCleanupRepository) markTaskFailedWithEnt(ctx context.Context, task
 		SetUpdatedAt(now).
 		Save(ctx)
 	return err
-}
-
-// usageCleanupWindowEnd 返回给定时刻所在配置时区自然日的 UTC 末刻度。
-// 传 EndTime 即把其所在整天标记为不可证明完整（含 EndTime 当日的删除）。
-func usageCleanupWindowEnd(at time.Time) time.Time {
-	loc := timezone.Location()
-	at = at.In(loc)
-	return time.Date(at.Year(), at.Month(), at.Day(), 23, 59, 59, 999999999, loc).UTC()
 }
 
 func usageCleanupTaskFromEnt(row *dbent.UsageCleanupTask) (service.UsageCleanupTask, error) {

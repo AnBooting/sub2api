@@ -9,7 +9,6 @@ import (
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/pagination"
-	"github.com/Wei-Shaw/sub2api/internal/pkg/timezone"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 	"github.com/stretchr/testify/require"
 )
@@ -531,18 +530,6 @@ func TestUsageCleanupRepositoryDeleteUsageLogsBatchQueryError(t *testing.T) {
 	_, err := repo.DeleteUsageLogsBatch(context.Background(), filters, 5)
 	require.Error(t, err)
 	require.NoError(t, mock.ExpectationsWereMet())
-}
-
-// advanceToBoundary 复现 production advanceUsageRawSafeFrom 的边界语义：
-// 取 cutoff 在配置时区内的自然日零点；若早于 cutoff 则推到次日零点（UTC 表示）。
-func advanceToBoundary(t *testing.T, cutoff time.Time) time.Time {
-	t.Helper()
-	loc := timezone.Location()
-	boundary := truncateToDay(cutoff.In(loc))
-	if boundary.Before(cutoff) {
-		boundary = boundary.AddDate(0, 0, 1)
-	}
-	return boundary.UTC()
 }
 
 func TestBuildUsageCleanupWhere(t *testing.T) {

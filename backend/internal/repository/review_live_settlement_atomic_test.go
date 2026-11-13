@@ -17,8 +17,10 @@ func TestReviewLiveAtomicSettlementAcrossCaches(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	a := NewGatewayCache(client).(service.LiveCallStore)
-	b := NewGatewayCache(client).(service.LiveCallStore)
+	a, aOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, aOK)
+	b, bOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, bOK)
 	ctx := context.Background()
 	record := &service.LiveCallRecord{CallID: "atomic", CallHash: HashLiveCallID("atomic"), Controller: service.LiveControllerPending, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour)}
 	require.NoError(t, a.SaveLiveCall(ctx, record, time.Hour))
@@ -93,7 +95,8 @@ func TestReviewLiveAtomicSettlementLegacyAndExpiry(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	store := NewGatewayCache(client).(service.LiveCallStore)
+	store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, storeOK)
 	ctx := context.Background()
 	state := &service.LiveSettlement{Status: service.LiveSettlementPending, ActualCost: 1, TotalCost: 1, FrozenAt: time.Now().UTC()}
 	record := &service.LiveCallRecord{CallID: "legacy", CallHash: HashLiveCallID("legacy"), Controller: service.LiveControllerClosed, CreatedAt: time.Now(), ExpiresAt: time.Now().Add(time.Hour), Settlement: state}
@@ -122,7 +125,8 @@ func TestReviewLiveLeaseDuplicateReleasePreservesOtherLease(t *testing.T) {
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
 	regular := NewConcurrencyCache(client, 15, 900)
-	live := regular.(service.LiveConcurrencyCache)
+	live, liveOK := regular.(service.LiveConcurrencyCache)
+	require.True(t, liveOK)
 	ctx := context.Background()
 	for _, id := range []string{"lease-a", "lease-b"} {
 		ok, err := live.AcquireLiveLease(ctx, 10, 2, 20, 2, 30, id, false)
@@ -175,7 +179,8 @@ func TestReviewLiveVerifiedBeginRejectsChangedOrCorruptMetadata(t *testing.T) {
 			server := miniredis.RunT(t)
 			client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 			t.Cleanup(func() { _ = client.Close() })
-			store := NewGatewayCache(client).(service.LiveCallStore)
+			store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+			require.True(t, storeOK)
 			ctx := context.Background()
 			price := 0.1
 			record := &service.LiveCallRecord{CallID: "verified", CallHash: HashLiveCallID("verified"), UserID: 1, AccountID: 2, APIKeyID: 3, LeaseID: "lease", Model: "live", CreatedAt: time.Now().Add(-time.Minute), ExpiresAt: time.Now().Add(time.Hour), RealtimePricePerMin: &price, Controller: service.LiveControllerPending}
@@ -203,7 +208,8 @@ func TestReviewLiveVerifiedBeginLegacyNilAndExpiry(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	store := NewGatewayCache(client).(service.LiveCallStore)
+	store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, storeOK)
 	ctx := context.Background()
 	record := &service.LiveCallRecord{CallID: "legacy-verified", CallHash: HashLiveCallID("legacy-verified"), UserID: 1, AccountID: 2, APIKeyID: 3, LeaseID: "lease", Model: "live", CreatedAt: time.Now().Add(-time.Minute), ExpiresAt: time.Now().Add(time.Hour), Controller: service.LiveControllerPending}
 	require.NoError(t, store.SaveLiveCall(ctx, record, time.Second))
@@ -235,7 +241,8 @@ func TestReviewLiveVerifiedBeginCanonicalFields(t *testing.T) {
 			server := miniredis.RunT(t)
 			client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 			t.Cleanup(func() { _ = client.Close() })
-			store := NewGatewayCache(client).(service.LiveCallStore)
+			store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+			require.True(t, storeOK)
 			ctx := context.Background()
 			price := 0.123456789012345
 			created := time.Unix(1800000000, 123456789)
@@ -270,7 +277,8 @@ func TestReviewLiveVerifiedBeginRejectsNonpositiveAndMissingPricesForCharge(t *t
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	store := NewGatewayCache(client).(service.LiveCallStore)
+	store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, storeOK)
 	ctx := context.Background()
 	record := &service.LiveCallRecord{CallID: "no-price", CallHash: HashLiveCallID("no-price"), UserID: 1, AccountID: 2, APIKeyID: 3, LeaseID: "lease", Model: "live", CreatedAt: time.Now().Add(-time.Minute), ExpiresAt: time.Now().Add(time.Hour), Controller: service.LiveControllerPending}
 	require.NoError(t, store.SaveLiveCall(ctx, record, time.Hour))
@@ -293,8 +301,10 @@ func TestReviewLiveSettlementAuditClaimsUseRedisTimeAndFenceOwners(t *testing.T)
 	server.SetTime(now)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	a := NewGatewayCache(client).(service.LiveCallStore)
-	b := NewGatewayCache(client).(service.LiveCallStore)
+	a, aOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, aOK)
+	b, bOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, bOK)
 	ctx := context.Background()
 	record := &service.LiveCallRecord{CallID: "audit-claim", CallHash: HashLiveCallID("audit-claim"), Controller: service.LiveControllerPending}
 	require.NoError(t, a.SaveLiveCall(ctx, record, time.Hour))
@@ -388,7 +398,8 @@ func TestReviewLiveSettlementAuditClaimRejectsMalformedState(t *testing.T) {
 			server := miniredis.RunT(t)
 			client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 			t.Cleanup(func() { _ = client.Close() })
-			store := NewGatewayCache(client).(service.LiveCallStore)
+			store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+			require.True(t, storeOK)
 			ctx := context.Background()
 			record := &service.LiveCallRecord{CallID: "audit-invalid", CallHash: HashLiveCallID("audit-invalid"), Controller: service.LiveControllerPending}
 			require.NoError(t, store.SaveLiveCall(ctx, record, time.Hour))
@@ -411,7 +422,8 @@ func TestReviewLiveSettlementAuditLateOwnerDoesNotModifySettled(t *testing.T) {
 	server := miniredis.RunT(t)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	store := NewGatewayCache(client).(service.LiveCallStore)
+	store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, storeOK)
 	ctx := context.Background()
 	record := &service.LiveCallRecord{CallID: "late-audit", CallHash: HashLiveCallID("late-audit"), Controller: service.LiveControllerPending}
 	require.NoError(t, store.SaveLiveCall(ctx, record, time.Hour))
@@ -444,7 +456,8 @@ func TestReviewLiveSettlementAuditClaimHonoursSubsecondRedisTime(t *testing.T) {
 	server.SetTime(start)
 	client := redis.NewClient(&redis.Options{Addr: server.Addr()})
 	t.Cleanup(func() { _ = client.Close() })
-	store := NewGatewayCache(client).(service.LiveCallStore)
+	store, storeOK := NewGatewayCache(client).(service.LiveCallStore)
+	require.True(t, storeOK)
 	ctx := context.Background()
 	record := &service.LiveCallRecord{CallID: "audit-subsecond", CallHash: HashLiveCallID("audit-subsecond"), Controller: service.LiveControllerPending}
 	require.NoError(t, store.SaveLiveCall(ctx, record, time.Hour))

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 )
 
 const (
@@ -11,6 +12,10 @@ const (
 	UnknownReason  = ""
 	UnknownMessage = "internal error"
 )
+
+// MetadataKeyRetryAfter 是 429 类错误在 Metadata 中携带重试秒数的保留键。
+// response.ErrorFrom 会把它落到 Retry-After 响应头（RFC 6585）。
+const MetadataKeyRetryAfter = "retry_after_seconds"
 
 type Status struct {
 	Code     int32             `json:"code"`
@@ -70,6 +75,31 @@ func (e *ApplicationError) WithMetadata(md map[string]string) *ApplicationError 
 		err.Metadata[k] = v
 	}
 	return err
+}
+
+// WithRetryAfter 返回携带 Retry-After 秒数元数据的克隆（仅接受正整数）。
+func (e *ApplicationError) WithRetryAfter(seconds int) *ApplicationError {
+	if seconds <= 0 {
+		return e
+	}
+	return e.WithMetadata(map[string]string{MetadataKeyRetryAfter: strconv.Itoa(seconds)})
+}
+
+// RetryAfter 从错误链中读取 Retry-After 秒数；不存在或非法时返回 false。
+func RetryAfter(err error) (int, bool) {
+	var appErr *ApplicationError
+	if !errors.As(err, &appErr) || appErr == nil {
+		return 0, false
+	}
+	raw, ok := appErr.Metadata[MetadataKeyRetryAfter]
+	if !ok {
+		return 0, false
+	}
+	seconds, parseErr := strconv.Atoi(raw)
+	if parseErr != nil || seconds <= 0 {
+		return 0, false
+	}
+	return seconds, true
 }
 
 // New returns an error object for the code, message.

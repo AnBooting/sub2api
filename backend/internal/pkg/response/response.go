@@ -5,6 +5,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"strconv"
 
 	infraerrors "github.com/Wei-Shaw/sub2api/internal/pkg/errors"
 	"github.com/Wei-Shaw/sub2api/internal/util/logredact"
@@ -85,6 +86,11 @@ func ErrorFrom(c *gin.Context, err error) bool {
 	}
 
 	statusCode, status := infraerrors.ToHTTP(err)
+	// 429 类错误若携带 Retry-After 元数据（RFC 6585），统一落响应头，
+	// 与网关/中间件层限流器的 429 行为保持一致。
+	if seconds, ok := infraerrors.RetryAfter(err); ok {
+		c.Header("Retry-After", strconv.Itoa(seconds))
+	}
 
 	// Log internal errors with full details for debugging
 	if statusCode >= 500 && c.Request != nil {
