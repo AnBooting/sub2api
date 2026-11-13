@@ -114,6 +114,8 @@ gh pr create --repo AnBooting/sub2api --base develop `
 - **作者 ≠ 审者**：安全、契约、计费类改动必须由独立的人/会话复核。
 - 评审结论与证据归档到 `project-docs/reviews/<日期>-pr<N>-review/`，PR 正文链接过去。
 - 评审方可以**不参与实现**；实现者的自述不能代替复核。
+- **证据从第一次落盘就写进证据目录**，不要先放仓库根再搬：根目录的 `*.log` 被 `.gitignore` 拦下，容易到合并后才发现证据链不全（2026-11-14 PR #24 补过第二个提交才补齐）。
+- 证据文件统一 LF、去行尾空白、保留单个结尾换行，否则 `git diff --check` 会拦住提交；生成的 JSON 同样处理。
 
 ### 5.3 合并
 
@@ -123,6 +125,9 @@ gh pr create --repo AnBooting/sub2api --base develop `
 | 纯文档/chore | 允许直接 `git push origin develop`（快进）；GitHub 会把对应 PR 自动标 MERGED，**这不等于在页面上点过合并**，要在文档里写清 |
 
 `main` 只从 `develop` 快进合入，永远不在 `main` 上提交。
+
+> **合并要单独授权**：任务说「完成 git 相关操作」只覆盖提交与推送。合并 PR、直推 `develop`、删远端分支、回退已合并提交，都要用户明确点头。
+> 2026-11-14 实测：在收到「合并不在我们这里」之前合了 #24，之后用 `38ce3715a` 整体回退，白走一趟。**开工时先确认谁合并**，把结论写进任务描述，别沿用默认。
 
 ### 5.4 PR 编号
 
@@ -219,6 +224,18 @@ Windows 清理顺序：**先删 `node_modules`**（长路径会拦住 `worktree 
 - `text=auto` 让仓库内统一 LF，`eol=lf` 控制工作区；未声明时由 `core.autocrlf` 决定，**不同平台结果不一致**——这是"本地正常、提交后 diff 全变"的常见根因。
 - 实测教训：CRLF 文档提交时 `git diff --check` 会报 trailing whitespace 直接拦住提交；提交前统一 LF。
 - 二进制文件用 `-text` 阻止转换。
+
+PowerShell 侧统一处理（`*.log/*.txt/*.json` 证据文件适用）：
+
+```powershell
+$enc = New-Object System.Text.UTF8Encoding($false)
+foreach ($f in Get-ChildItem <目录> -Recurse -File -Include *.log,*.txt,*.json) {
+  $lines = [IO.File]::ReadAllLines($f.FullName) | ForEach-Object { $_.TrimEnd() }
+  [IO.File]::WriteAllText($f.FullName, ($lines -join "`n") + "`n", $enc)
+}
+```
+
+> 2026-11-13/14 在 PR #23/#24 上踩了四次（日志 CRLF、JSON CRLF、EOF 多空行、EOF 缺换行）。`Set-Content`/`Out-File` 默认写 CRLF，别用它写证据。
 
 ## 13. 本地钩子（可选，建议）
 
