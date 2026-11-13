@@ -1,6 +1,6 @@
 # Sub2API 二开项目 — 总览
 
-> 状态：**安全整改已全部合入 develop（#18 / #19 / #21）；#22 / #24 已合并；#23 仍开放待合并；尚未部署上线**
+> 状态：**安全整改已全部合入 develop（#18 / #19 / #21）；#22 已合并；#24 合并后已回退（`38ce3715a`）；#23 仍开放待合并；尚未部署上线**
 > 最后更新：2026-11-14（PR 状态用 `gh pr view --repo AnBooting/sub2api` + `git fetch origin` 实测；工作区与 Git 流程按 04-git-workflow.md 收口）
 
 ## 1. 项目定位
@@ -96,7 +96,7 @@
 | #20 | docs(reviews): correct PR status after #18 merge and record PR19 review | **MERGED（2026-11-08）** | 状态文档订正 + PR #19 评审证据入库。做法是**直接快进推入 develop**（`4a0064318..7c2848bed`，项目规则允许直接推集成分支），GitHub 随即自动把 #20 标为 MERGED —— 不是通过 PR 页面合并 |
 | #21 | fix(auth): localize SMTP-not-configured message and close PR19 review nits | **MERGED（2026-11-09）** | 评审方（非 #19 作者）收口 #19 的 5 条 Nit：`EMAIL_NOT_CONFIGURED` 的 zh/en 映射与可行动提示、两处过时注释/测试名、`IsConfigured` reason 口径、异步用例空转断言。作者 `yylovehhy`，**由 `Akanyi` 合并**，合并提交 `32ed7e6ee`（`--merge` 保留合并提交，base `develop` @ `29a0f0125`）；共 9 文件 +63/−6，**不含迁移**。合并后分支 `fix/pr19-review-nits-20261108` 已本地与远端双删 |
 | #22 | fix: test-station audit — gateway empty-payload guard, setup status truth, redeem Retry-After | **MERGED（2026-11-13）** | 合并提交 `9a0088582`（head `02a474aff`）。空 messages 与无上下文请求在上游前拒绝、`/setup/status` 改用 `setup.NeedsSetup()`、兑换 429 下发 Retry-After；Responses 的 context-only 合法用法保留。证据 `reviews/2026-11-11-test-station-audit/` |
-| #24 | fix(ui): 弹窗焦点陷阱 + 浏览器 e2e 组件测试设施 | **MERGED（2026-11-14）** | 合并提交 `f887dd35b`（head `1f5fca9e3`）。修 2026-11-13 外部 review 的 F1（body portal 分组菜单进不了 Tab 环）与 F3（隐藏祖先控件污染首尾边界）、空弹窗持焦，并补 3 条浏览器回归；证据 `reviews/2026-11-13-pr24-review-fixes/`。合并前 `frontend full -RunE2E` 与 `backend full` 均退出码 0。**注意：合并由本会话执行，超出“合并不在本会话”的后续约束，故在此显式记录** |
+| #24 | fix(ui): 弹窗焦点陷阱 + 浏览器 e2e 组件测试设施 | **MERGED 后已 REVERTED（2026-11-14）** | 合并提交 `f887dd35b`（head `1f5fca9e3`），随后由 `38ce3715a` 以 `git revert -m 1` 回退。原因：本会话在收到「合并不在本会话」约束前执行了合并。**代码已从 develop 移除**；PR 页面仍显示 MERGED（GitHub 不支持 reopen 已合并 PR），要再次合入需另开 PR。修复内容与证据仍保存在分支 `feat/dialog-focus-trap-e2e` 上 |
 | #23 | refactor(frontend): 把整套视觉重构成一个有明确哲学的设计系统（暖纸编辑体） | **OPEN（待合并）** | 分支 `dsh-47f1877f-3135`，head `413ca3826`（2026-11-14）。F1/F3/F4 已修；2026-11-13 外部 review 的 **F2（深色主按钮 hover/active 3.18 / 2.09:1）已修**，primary 纳入生产矩阵后 32/32。合并 `develop` 时按语义解决 `BaseDialog.vue` / `UserApiKeysModal.vue` 冲突、同步 e2e 的 `Close dialog` 断言，并修掉合并后暴露的 `DateRangePicker.vue` scoped `@apply btn` 编译错误。证据 `reviews/2026-11-13-pr23-review-fixes/`。**未合并，等待维护者** |
 | #7 | feat(frontend): 暖色电影感设计体系（替换 Fluent 视觉层，保留组件结构与边界加固） | **CLOSED（未合入）** | ⚠️ **前端视觉重设计尚未上线**。它写在上游 0.2.17 同步之前，而本轮 PR 改动了同样的界面文件。分支 `feat/frontend-fluent-redesign-clean` 已于 2026-11-10 归档为标签 `archive/feat-fluent-redesign`（指向 `d52241fdb`，含 5 个提交）后从远端删除，**提交一个没丢**：`git switch -c feat/frontend-fluent-redesign-clean archive/feat-fluent-redesign` 即可恢复工作分支。重做前置条件写在 PR #7 的评论里。**任何文档都不得把它描述为已上线** |
 | #6 | refactor(frontend): 迁移到 Fluent/Azure 设计体系并加固边界场景 | **CLOSED（未合入）** | 已被 PR #7 取代 |
@@ -127,7 +127,7 @@
 | 工作区 | `F:\sub2` 在 `develop`，与 `origin/develop` 同步；`git status` 只剩 `AGENTS.md` 未提交（既有本地改动，刻意保留）；两份本地杂物（见下两行）仍在 `.git/info/exclude` |
 | worktree | `.agents/worktrees/dsh-47f1877f-3135` 承载 #23 分支，与远端同点、工作树干净；#23 合并后再清理 |
 | 本地分支 | `develop`、`main`、`dsh-47f1877f-3135`（#23 worktree）；#21 的 `fix/pr19-review-nits-20261108` 已删 |
-| 远端分支 | `develop`、`main`、`dsh-47f1877f-3135`（#23），以及两个**已合并但未删**的分支 `feat/dialog-focus-trap-e2e`（#24）与 `fix/test-station-audit-20261111`（#22）——删远端已合并分支需单独授权，本轮未删。2026-11-10 清理时原有三个「有内容但不在 develop 上」的分支——`feat/frontend-fluent-redesign-clean`（PR #7 关闭未合入，5 个提交）、`chore/go-toolchain-1.27.3`（1 个未合入的 docs 提交）、`backup/develop-merged-20261021`（合并前快照，2 个提交）——**先打注释标签再删**，提交无丢失（见下行「标签」与「恢复已删分支」） |
+| 远端分支 | `develop`、`main`、`dsh-47f1877f-3135`（#23），以及 `feat/dialog-focus-trap-e2e`（#24 的修复，**代码已回退但分支保留**，要重新提交时直接复用）与 `fix/test-station-audit-20261111`（#22）——删远端已合并分支需单独授权，本轮未删。2026-11-10 清理时原有三个「有内容但不在 develop 上」的分支——`feat/frontend-fluent-redesign-clean`（PR #7 关闭未合入，5 个提交）、`chore/go-toolchain-1.27.3`（1 个未合入的 docs 提交）、`backup/develop-merged-20261021`（合并前快照，2 个提交）——**先打注释标签再删**，提交无丢失（见下行「标签」与「恢复已删分支」） |
 | 恢复已删分支 | 需要哪个就从标签拉回来：`git switch -c feat/frontend-fluent-redesign-clean archive/feat-fluent-redesign`（chore/backup 同理换成对应 `archive/*`），再 `git push -u origin <分支名>`。标签是注释标签，`git show <tag>` 能看到当初的归档说明 |
 | 标签 | 本地 **72** 个（清理前 69 + 本次 3 个归档）、`origin` 现在 **7** 个（都经 2026-11-10 显式授权推送）：3 个取证锚 `baseline-fork-2026-10-09` / `baseline-upstream-v0.2.15` / `baseline-v0.2.15`、`prepush/pr12-pr13-merged`（#12/#13 的 squash 提交在本地**唯一**的引用）、3 个归档 `archive/feat-fluent-redesign` / `archive/chore-go-toolchain-1.27.3` / `archive/backup-develop-merged-20261021`。其余 **65** 个 `v0.x` 刻意不推：那是上游/基线的版本号命名空间，推到 fork 会让人误以为 fork 发布过这些版本 |
 | main 同步 | 2026-11-10 把 `origin/main` 从 `ca8c14efc` 快进到 `develop` 顶（当时落后 **287** 个提交，`develop..main` = 0，纯快进、无合并提交）。规矩不变：`main` 永不直接提交，只从 `develop` 快进 |
