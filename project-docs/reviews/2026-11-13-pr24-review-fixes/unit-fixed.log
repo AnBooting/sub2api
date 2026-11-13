@@ -1,0 +1,13 @@
+
+ RUN  v2.1.9 F:/sub2/frontend
+
+ ✓ src/components/common/__tests__/BaseDialog.spec.ts (1 test) 130ms
+ ✓ src/components/common/__tests__/BaseDialog.ids.spec.ts (2 tests) 135ms
+ ✓ src/components/common/__tests__/BaseDialog.escape.spec.ts (2 tests) 139ms
+ ✓ src/components/common/__tests__/BaseDialog.scrollLock.spec.ts (4 tests) 155ms
+ ✓ src/components/common/__tests__/BaseDialog.focusTrap.spec.ts (13 tests) 246ms
+
+ Test Files  5 passed (5)
+      Tests  22 passed (22)
+   Start at  23:58:42
+   Duration  2.71s (transform 823ms, setup 927ms, collect 2.82s, tests 804ms, environment 5.25s, prepare 1.14s)

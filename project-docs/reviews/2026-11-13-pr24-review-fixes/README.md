@@ -43,6 +43,7 @@
 | `browser-final.log` | 恢复后全量 e2e（dialog/select/date-range）通过 |
 | `typecheck.log` | `vue-tsc -b` 无输出、退出码 0 |
 | `frontend-gate.log` / `frontend-gate.exit.txt` | `pwsh -File tools/pre-push-check.ps1 -Mode full -Scope frontend -RunE2E` 原始输出与退出码 |
+| `backend-gate.log` | `pwsh -File tools/pre-push-check.ps1 -Scope backend -Mode full` 的汇总（退出码 0） |
 
 ## 未覆盖
 

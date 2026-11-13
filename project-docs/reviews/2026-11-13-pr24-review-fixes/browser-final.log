@@ -1,0 +1,34 @@
+[WebServer] (node:2532) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+[WebServer]   npx update-browserslist-db@latest
+[WebServer]   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Running 22 tests using 1 worker
+
+(node:38316) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 e2e\specs\date-range.spec.ts:12:1 › click opens the picker (737ms)
+  ok  2 e2e\specs\date-range.spec.ts:18:1 › clicking the trigger again closes the picker (587ms)
+  ok  3 e2e\specs\date-range.spec.ts:26:1 › Escape closes the picker (577ms)
+  ok  4 e2e\specs\date-range.spec.ts:34:1 › clicking outside closes the picker (803ms)
+  ok  5 e2e\specs\date-range.spec.ts:42:1 › choosing a preset and applying updates the range (1.2s)
+  ok  6 e2e\specs\dialog.spec.ts:11:1 › initial focus lands on the first enabled control (773ms)
+  ok  7 e2e\specs\dialog.spec.ts:16:1 › Tab from the last control wraps to the first (908ms)
+  ok  8 e2e\specs\dialog.spec.ts:26:1 › Shift+Tab from the first control wraps to the last (884ms)
+  ok  9 e2e\specs\dialog.spec.ts:34:1 › focus cannot escape to the page behind the dialog (963ms)
+  ok 10 e2e\specs\dialog.spec.ts:46:1 › closing the dialog returns focus to the trigger (908ms)
+  ok 11 e2e\specs\dialog.spec.ts:54:1 › Escape closes only the topmost nested dialog (883ms)
+  ok 12 e2e\specs\dialog.spec.ts:69:1 › backdrop click closes the dialog when enabled (827ms)
+  ok 13 e2e\specs\dialog.spec.ts:76:1 › backdrop click does not close the dialog by default (766ms)
+  ok 14 e2e\specs\dialog.spec.ts:83:1 › hidden ancestors and non-tabbable controls do not corrupt either boundary (857ms)
+  ok 15 e2e\specs\dialog.spec.ts:92:1 › an empty dialog holds focus on its panel (927ms)
+  ok 16 e2e\specs\dialog.spec.ts:102:1 › the real user API-key group portal belongs to the dialog Tab cycle (1.2s)
+  ok 17 e2e\specs\select.spec.ts:11:1 › click opens the dropdown and focuses the first enabled option (939ms)
+  ok 18 e2e\specs\select.spec.ts:17:1 › ArrowDown opens the dropdown from a focused trigger (699ms)
+  ok 19 e2e\specs\select.spec.ts:27:1 › arrow keys move the focused option, skip disabled ones and wrap around (821ms)
+  ok 20 e2e\specs\select.spec.ts:43:1 › Enter selects the focused option and returns focus to the trigger (950ms)
+  ok 21 e2e\specs\select.spec.ts:54:1 › Escape closes without changing the value and returns focus to the trigger (830ms)
+  ok 22 e2e\specs\select.spec.ts:65:1 › Tab closes the dropdown (785ms)
+
+  22 passed (23.2s)
