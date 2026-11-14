@@ -334,8 +334,8 @@ describe('admin AccountsView — 账号行展示', () => {
     })
     expect(link.classes()).toEqual(expect.arrayContaining([
       'border-dotted',
-      'text-gray-900',
-      'dark:text-white',
+      // 墨色走语义令牌：text-ink（随明暗自动切换），不再写 gray-900/dark:text-white。
+      'text-ink',
     ]))
     expect(link.classes()).not.toContain('text-primary-600')
     const tooltip = wrapper.findComponent(HelpTooltip)

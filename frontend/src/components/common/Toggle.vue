@@ -1,16 +1,18 @@
 <template>
+  <!--
+    轨道本身只有 20px 高，但按钮盒是 44px：视觉不动，触控面够大。
+    颜色只有两种读数：通电 = 钴蓝（signal），断电 = 痕量线灰。
+  -->
   <button
     type="button"
-    @click="toggle"
-    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 dark:focus:ring-offset-dark-800"
-    :class="[modelValue ? 'bg-primary-600' : 'bg-gray-200 dark:bg-dark-600']"
     role="switch"
     :aria-checked="modelValue"
+    class="inline-flex h-11 w-11 shrink-0 items-center justify-center focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-signal"
+    @click="toggle"
   >
-    <span
-      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"
-      :class="[modelValue ? 'translate-x-5' : 'translate-x-0']"
-    />
+    <span :class="['switch', modelValue && 'switch-active']">
+      <span class="switch-thumb" />
+    </span>
   </button>
 </template>
 

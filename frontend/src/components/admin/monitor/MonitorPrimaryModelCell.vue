@@ -2,7 +2,7 @@
   <div class="flex flex-col gap-0.5">
     <div class="flex items-center gap-2">
       <!-- 纯配额模式主模型是占位符 "quota"（数据源是账号不是模型），展示层替换为本地化标签 -->
-      <span class="text-sm text-gray-900 dark:text-gray-100">{{ formatMonitorModel(row.primary_model) }}</span>
+      <span class="text-sm text-ink">{{ formatMonitorModel(row.primary_model) }}</span>
       <HelpTooltip>
       <template #trigger>
         <span
@@ -26,7 +26,7 @@
           {{ t('monitorCommon.extraModelsEmpty') }}
         </div>
         <div v-else class="space-y-1">
-          <div class="text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+          <div class="text-[11px] font-read font-medium text-ink-faint">
             {{ t('monitorCommon.extraModelsHeader') }}
           </div>
           <table class="w-full text-left text-[11px]">

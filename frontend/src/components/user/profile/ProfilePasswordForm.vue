@@ -2,16 +2,16 @@
   <div :class="props.embedded ? 'space-y-4' : 'card'">
     <div
       v-if="!props.embedded"
-      class="border-b border-gray-100 px-6 py-4 dark:border-dark-700"
+   class="border-b border-rule px-6 py-4"
     >
-      <h2 class="text-lg font-medium text-gray-900 dark:text-white">
+   <h2 class="text-ink">
         {{ t('profile.changePassword') }}
       </h2>
     </div>
     <div :class="props.embedded ? '' : 'px-6 py-6'">
       <form @submit.prevent="handleChangePassword" class="space-y-4">
         <div v-if="props.embedded">
-          <p class="text-sm font-semibold text-gray-900 dark:text-white">
+   <p class="text-sm font-semibold text-ink">
             {{ t('profile.changePassword') }}
           </p>
         </div>

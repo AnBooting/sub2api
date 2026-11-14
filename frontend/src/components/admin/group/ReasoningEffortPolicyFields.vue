@@ -79,7 +79,7 @@
               />
               <p
                 v-if="showValidation && groupErrors(group.id).match_type"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1 text-xs text-danger-600 dark:text-danger-400"
                 role="alert"
               >
                 {{ mappingErrorText(groupErrors(group.id).match_type) }}
@@ -107,7 +107,7 @@
 
             <button
               type="button"
-              class="flex h-11 w-11 items-center justify-center self-end rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+              class="flex h-11 w-11 items-center justify-center self-end rounded-lg text-gray-400 transition-colors hover:bg-danger-50 hover:text-danger-500 focus:outline-none focus:ring-2 focus:ring-danger-500/30 dark:hover:bg-danger-900/20 dark:hover:text-danger-400"
               :title="t('admin.groups.form.removeReasoningEffortMapping')"
               :aria-label="t('admin.groups.form.removeReasoningEffortMapping')"
               @click="removeGroup(group.id)"
@@ -118,7 +118,7 @@
 
           <p
             v-if="showValidation && groupErrors(group.id).duplicateScope"
-            class="text-xs text-red-600 dark:text-red-400"
+            class="text-xs text-danger-600 dark:text-danger-400"
             role="alert"
           >
             {{ mappingErrorText(groupErrors(group.id).duplicateScope) }}
@@ -146,7 +146,7 @@
               />
               <p
                 v-if="showValidation && pairErrors(pair.id).from"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1 text-xs text-danger-600 dark:text-danger-400"
                 role="alert"
               >
                 {{ mappingErrorText(pairErrors(pair.id).from) }}
@@ -174,7 +174,7 @@
               />
               <p
                 v-if="showValidation && pairErrors(pair.id).to"
-                class="mt-1 text-xs text-red-600 dark:text-red-400"
+                class="mt-1 text-xs text-danger-600 dark:text-danger-400"
                 role="alert"
               >
                 {{ mappingErrorText(pairErrors(pair.id).to) }}
@@ -183,7 +183,7 @@
 
             <button
               type="button"
-              class="flex h-11 w-11 items-center justify-center self-end rounded-lg text-gray-400 transition-colors hover:bg-red-50 hover:text-red-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+              class="flex h-11 w-11 items-center justify-center self-end rounded-lg text-gray-400 transition-colors hover:bg-danger-50 hover:text-danger-500 focus:outline-none focus:ring-2 focus:ring-danger-500/30 dark:hover:bg-danger-900/20 dark:hover:text-danger-400"
               :title="t('admin.groups.form.removeReasoningEffortPair')"
               :aria-label="t('admin.groups.form.removeReasoningEffortPair')"
               @click="removePair(group.id, pair.id)"

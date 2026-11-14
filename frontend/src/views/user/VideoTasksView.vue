@@ -1,10 +1,10 @@
 <template>
   <AppLayout>
     <div class="mx-auto max-w-4xl space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 class="text-lg font-semibold text-gray-900 dark:text-white">{{ t('videoTasks.title') }}</h1>
-          <p class="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{{ t('videoTasks.subtitle') }}</p>
+      <div class="title-block">
+        <div class="min-w-0">
+          <h1 class="title-block-title">{{ t('videoTasks.title') }}</h1>
+          <p class="lead mt-2">{{ t('videoTasks.subtitle') }}</p>
         </div>
         <button class="btn btn-secondary" :disabled="loading" data-testid="video-tasks-refresh" @click="load">
           <Icon name="refresh" size="md" :class="loading ? 'animate-spin' : ''" />
@@ -14,17 +14,17 @@
 
       <div
         v-if="errorMessage"
-        class="card border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+   class="card border border-danger-200 bg-danger-50 p-4 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-200"
         data-testid="video-tasks-error"
       >
         {{ errorMessage }}
       </div>
 
-      <div v-if="loading && !tasks.length" class="card py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+   <div v-if="loading && !tasks.length" class="card py-12 text-center text-sm text-ink-soft">
         {{ t('videoTasks.loading') }}
       </div>
 
-      <div v-else-if="!tasks.length" class="card py-12 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="video-tasks-empty">
+   <div v-else-if="!tasks.length" class="card py-12 text-center text-sm text-ink-soft" data-testid="video-tasks-empty">
         {{ t('videoTasks.empty') }}
       </div>
 
@@ -32,24 +32,24 @@
         <li v-for="task in tasks" :key="task.task_no" class="card p-4" data-testid="video-task-row">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="font-mono text-sm text-gray-900 dark:text-white">{{ task.task_no }}</p>
-              <p class="mt-1 text-sm font-medium text-gray-900 dark:text-white">
+   <p class="font-mono text-sm text-ink">{{ task.task_no }}</p>
+   <p class="mt-1 text-sm font-medium text-ink">
                 {{ task.model || '—' }}
               </p>
-              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+   <p class="mt-0.5 text-xs text-ink-soft">
                 {{ platformLabel(task.platform || '') }}
                 <span v-if="billingModeLabel(task)"> · {{ billingModeLabel(task) }}</span>
               </p>
-              <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+   <p class="mt-0.5 text-xs text-ink-soft">
                 {{ t('videoTasks.columns.createdAt') }}: {{ formatTime(task.created_at) }}
               </p>
-              <p v-if="task.settled_at" class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+   <p v-if="task.settled_at" class="mt-0.5 text-xs text-ink-soft">
                 {{ t('videoTasks.columns.settledAt') }}: {{ formatTime(task.settled_at) }}
               </p>
               <p
                 v-if="task.last_error"
                 class="mt-1 text-xs"
-                :class="task.status === 'processing' ? 'text-gray-600 dark:text-gray-400' : 'text-red-600 dark:text-red-400'"
+   :class="task.status === 'processing' ? 'text-ink-soft ' : 'text-danger-600 dark:text-danger-300'"
                 data-testid="video-task-error"
               >
                 {{ t(task.status === 'processing' ? 'videoTasks.processingUpdate' : 'videoTasks.lastError') }}: {{ taskErrorLabel(task) }}
@@ -78,7 +78,7 @@
         </button>
         <p
           v-if="loadMoreError"
-          class="text-xs text-red-600 dark:text-red-400"
+   class="text-xs text-danger-600 dark:text-danger-400"
           data-testid="video-tasks-load-more-error"
         >
           {{ loadMoreError }}
@@ -149,11 +149,11 @@ function statusLabel(status: VideoTaskStatus | undefined): string {
 function statusClass(status: VideoTaskStatus | undefined): string {
   switch (status) {
     case 'completed':
-      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+   return 'bg-success-100 text-success-700 dark:bg-success-900/40 dark:text-success-300'
     case 'failed':
-      return 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+   return 'bg-danger-100 text-danger-700 dark:bg-danger-900/40 dark:text-danger-300'
     default:
-      return 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
+   return 'bg-warning-100 text-warning-700 dark:bg-warning-900/40 dark:text-warning-300'
   }
 }
 

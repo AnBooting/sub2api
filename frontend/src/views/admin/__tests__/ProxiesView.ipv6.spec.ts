@@ -10,7 +10,8 @@ const source = readFileSync(
 )
 
 function extractRegex(): RegExp {
-  const match = source.match(/const regex =\s*\n?\s*(\/\^\(https\?[^;\n]+\/i)\n/)
+  // 容忍 CRLF：源码是文本，断言不应依赖行尾约定（本仓既有 LF，编辑器/工具可能写出 CRLF）。
+  const match = source.match(/const regex =\s*\r?\n?\s*(\/\^\(https\?[^;\r\n]+\/i)/)
   expect(match, 'parseProxyUrl regex not found in ProxiesView.vue').toBeTruthy()
   return new RegExp((match as RegExpMatchArray)[1].slice(1, -2), 'i')
 }

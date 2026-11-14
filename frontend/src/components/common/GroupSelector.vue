@@ -2,32 +2,30 @@
   <div>
     <label class="input-label">
       {{ t('admin.users.groups') }}
-      <span class="font-normal text-gray-400">{{ t('common.selectedCount', { count: modelValue.length }) }}</span>
+      <span class="font-normal text-ink-faint">{{ t('common.selectedCount', { count: modelValue.length }) }}</span>
     </label>
     <div
       v-if="isSearchable"
-      class="flex items-center gap-2 rounded-t-lg border border-b-0 border-gray-200 bg-gray-50 px-3 py-2 dark:border-dark-600 dark:bg-dark-800"
+      class="flex min-h-[44px] items-center gap-2 border border-b-0 border-rule-strong bg-paper-inset px-3 py-2"
     >
-      <Icon name="search" size="sm" class="shrink-0 text-gray-400" />
+      <Icon name="search" size="sm" class="shrink-0 text-ink-faint" />
       <input
         v-model="searchText"
         type="text"
         :placeholder="t('common.searchPlaceholder')"
-        class="flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none dark:text-gray-100 dark:placeholder:text-dark-400"
+        class="flex-1 bg-transparent text-ink placeholder:text-ink-faint focus:outline-none"
       />
     </div>
     <div
       :class="[
-        'grid max-h-32 grid-cols-2 gap-1 overflow-y-auto p-2',
-        isSearchable
-          ? 'rounded-b-lg border border-t-0 border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-800'
-          : 'rounded-lg border border-gray-200 bg-gray-50 dark:border-dark-600 dark:bg-dark-800'
+        'grid max-h-32 grid-cols-2 gap-1 overflow-y-auto border border-rule-strong bg-paper-inset p-2',
+        isSearchable ? 'border-t-0' : ''
       ]"
     >
       <label
         v-for="group in filteredGroups"
         :key="group.id"
-        class="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 transition-colors hover:bg-white dark:hover:bg-dark-700"
+        class="flex min-h-[36px] cursor-pointer items-center gap-2 border border-transparent bg-surface px-2 py-1.5 transition-colors hover:border-rule-strong"
         :title="group.rate_multiplier == null ? group.name : t('admin.groups.rateAndAccounts', { rate: group.rate_multiplier, count: group.account_count || 0 })"
       >
         <input
@@ -35,7 +33,7 @@
           :value="group.id"
           :checked="modelValue.includes(group.id)"
           @change="handleChange(group.id, ($event.target as HTMLInputElement).checked)"
-          class="h-3.5 w-3.5 shrink-0 rounded border-gray-300 text-primary-500 focus:ring-primary-500 dark:border-dark-500"
+          class="h-3.5 w-3.5 shrink-0 border border-rule-strong bg-surface accent-signal"
         />
         <GroupBadge
           :name="group.name"
@@ -44,11 +42,11 @@
           :rate-multiplier="group.rate_multiplier == null ? undefined : group.rate_multiplier"
           class="min-w-0 flex-1"
         />
-        <span class="shrink-0 text-xs text-gray-400">{{ group.account_count || 0 }}</span>
+        <span class="shrink-0 font-read text-[0.6875rem] text-ink-faint">{{ group.account_count || 0 }}</span>
       </label>
       <div
         v-if="filteredGroups.length === 0"
-        class="col-span-2 py-2 text-center text-sm text-gray-500 dark:text-gray-400"
+        class="col-span-2 py-2 text-center text-sm text-ink-soft"
       >
         {{ t('common.noGroupsAvailable') }}
       </div>

@@ -23,7 +23,7 @@ describe('KeyUsageView detail icons', () => {
       if (!icon) throw new Error('Could not locate production ICON_' + name)
       const wrapper = mount({
         template: svgTemplate,
-        setup: () => ({ row: { iconSvg: icon, iconColor: 'text-emerald-500' }, sanitizeSvg }),
+        setup: () => ({ row: { iconSvg: icon, iconColor: 'text-success-500' }, sanitizeSvg }),
       })
       try {
         expect(wrapper.element.tagName.toLowerCase()).toBe('svg')

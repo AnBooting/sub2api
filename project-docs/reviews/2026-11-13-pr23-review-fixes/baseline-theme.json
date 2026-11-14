@@ -1,0 +1,460 @@
+{
+  "passed": 30,
+  "total": 32,
+  "checks": [
+    {
+      "name": "dark settings populated API key",
+      "passed": true,
+      "foreground": [
+        238,
+        233,
+        227
+      ],
+      "background": [
+        58,
+        53,
+        48
+      ],
+      "ratio": 10.047296949104892
+    },
+    {
+      "name": "dark populated account endpoint option",
+      "passed": true,
+      "foreground": [
+        238,
+        233,
+        227
+      ],
+      "background": [
+        28,
+        25,
+        22
+      ],
+      "ratio": 14.500012478491747
+    },
+    {
+      "name": "bottom action at 375",
+      "passed": true,
+      "padding": "68px",
+      "button_bottom": 732.171875,
+      "dock_top": 742.859375
+    },
+    {
+      "name": "bottom action at 640",
+      "passed": true,
+      "padding": "68px",
+      "button_bottom": 732.171875,
+      "dock_top": 742.859375
+    },
+    {
+      "name": "bottom action at 768",
+      "passed": true,
+      "padding": "68px",
+      "button_bottom": 732.171875,
+      "dock_top": 742.859375
+    },
+    {
+      "name": "bottom action at 1023",
+      "passed": true,
+      "padding": "68px",
+      "button_bottom": 732.171875,
+      "dock_top": 742.859375
+    },
+    {
+      "name": "bottom action at 1024",
+      "passed": true,
+      "padding": "24px",
+      "button_bottom": 792.171875,
+      "dock_top": null
+    },
+    {
+      "name": "light primary default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        74,
+        100,
+        195
+      ],
+      "ratio": 5.300409737758981
+    },
+    {
+      "name": "light primary hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        56,
+        78,
+        168
+      ],
+      "ratio": 7.325564671340467
+    },
+    {
+      "name": "light primary active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        44,
+        61,
+        135
+      ],
+      "ratio": 9.73549750307535
+    },
+    {
+      "name": "light danger default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        160,
+        66,
+        44
+      ],
+      "ratio": 6.247797963772589
+    },
+    {
+      "name": "light danger hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        128,
+        52,
+        36
+      ],
+      "ratio": 8.49556328805808
+    },
+    {
+      "name": "light danger active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        100,
+        42,
+        30
+      ],
+      "ratio": 10.932739377535022
+    },
+    {
+      "name": "light success default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        85,
+        116,
+        64
+      ],
+      "ratio": 5.224910040348128
+    },
+    {
+      "name": "light success hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        68,
+        93,
+        52
+      ],
+      "ratio": 7.228836474570265
+    },
+    {
+      "name": "light success active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        55,
+        74,
+        43
+      ],
+      "ratio": 9.501173288656265
+    },
+    {
+      "name": "light warning default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        137,
+        92,
+        20
+      ],
+      "ratio": 5.737765307727225
+    },
+    {
+      "name": "light warning hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        108,
+        74,
+        19
+      ],
+      "ratio": 7.874429519502571
+    },
+    {
+      "name": "light warning active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        92,
+        64,
+        19
+      ],
+      "ratio": 9.410461053121495
+    },
+    {
+      "name": "dark primary default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        74,
+        100,
+        195
+      ],
+      "ratio": 5.300409737758981
+    },
+    {
+      "name": "dark primary hover",
+      "passed": false,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        115,
+        140,
+        219
+      ],
+      "ratio": 3.180414173856848
+    },
+    {
+      "name": "dark primary active",
+      "passed": false,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        158,
+        177,
+        233
+      ],
+      "ratio": 2.085077226792471
+    },
+    {
+      "name": "dark danger default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        160,
+        66,
+        44
+      ],
+      "ratio": 6.247797963772589
+    },
+    {
+      "name": "dark danger hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        128,
+        52,
+        36
+      ],
+      "ratio": 8.49556328805808
+    },
+    {
+      "name": "dark danger active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        100,
+        42,
+        30
+      ],
+      "ratio": 10.932739377535022
+    },
+    {
+      "name": "dark success default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        85,
+        116,
+        64
+      ],
+      "ratio": 5.224910040348128
+    },
+    {
+      "name": "dark success hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        68,
+        93,
+        52
+      ],
+      "ratio": 7.228836474570265
+    },
+    {
+      "name": "dark success active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        55,
+        74,
+        43
+      ],
+      "ratio": 9.501173288656265
+    },
+    {
+      "name": "dark warning default",
+      "passed": true,
+      "native_state": "default",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        137,
+        92,
+        20
+      ],
+      "ratio": 5.737765307727225
+    },
+    {
+      "name": "dark warning hover",
+      "passed": true,
+      "native_state": "hover",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        108,
+        74,
+        19
+      ],
+      "ratio": 7.874429519502571
+    },
+    {
+      "name": "dark warning active",
+      "passed": true,
+      "native_state": "active",
+      "foreground": [
+        255,
+        253,
+        250
+      ],
+      "background": [
+        92,
+        64,
+        19
+      ],
+      "ratio": 9.410461053121495
+    },
+    {
+      "name": "no uncaught page errors",
+      "passed": true,
+      "errors": []
+    }
+  ]
+}

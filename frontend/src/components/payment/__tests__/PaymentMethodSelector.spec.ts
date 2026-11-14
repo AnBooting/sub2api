@@ -48,7 +48,7 @@ describe('PaymentMethodSelector', () => {
     expect(wrapper.text()).not.toContain('payment.methods.ldc')
   })
 
-  it('uses the generic selected style for custom methods that contain built-in names', () => {
+  it('uses the generic signal border for custom methods that contain built-in names', () => {
     const wrapper = mount(PaymentMethodSelector, {
       props: {
         selected: 'card_alipay',
@@ -57,7 +57,19 @@ describe('PaymentMethodSelector', () => {
     })
 
     const button = wrapper.get('button')
-    expect(button.classes()).toContain('border-primary-500')
-    expect(button.classes()).not.toContain('border-[#02A9F1]')
+    // 通配渠道（类型名里含内置名但并非内置渠道）走通用选中态：信号色边框，不刷品牌色。
+    expect(button.classes()).toContain('border-signal')
+    // 品牌色例外只给内置渠道（见 brandColors.ts）：通配渠道的按钮上不得出现任何品牌色 borderColor。
+    // 注意 jsdom 会把内联 hex 规范成 rgb(...)，所以否定期望必须同时覆盖 hex 与 rgb 两种写法，
+    // 否则断言会因 jsdom 规范化而恒真（只测 hex 永远匹配不到）。
+    const style = (button.attributes('style') ?? '').toLowerCase()
+    expect(style).not.toMatch(BRAND_COLOR_ANY_FORM)
   })
 })
+
+/**
+ * 品牌色（brandColors.ts 的四个渠道）的两种书写形态：源码 hex 与 jsdom 规范化后的 rgb()。
+ * 两条都写，避免只比 hex 时被 jsdom 规范化成 rgb 而恒真。
+ */
+const BRAND_COLOR_ANY_FORM =
+  /#00aeef|rgb\(\s*0,\s*174,\s*239\s*\)|#635bff|rgb\(\s*99,\s*91,\s*255\s*\)|#2bb741|rgb\(\s*43,\s*183,\s*65\s*\)|#14171a|rgb\(\s*20,\s*23,\s*26\s*\)/

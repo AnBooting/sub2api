@@ -1,0 +1,15 @@
+== 仓库：F:\sub2\.agents\worktrees\dsh-47f1877f-3135
+== HEAD：2d7fc008d test(e2e): 断言跟随关闭按钮 aria-label 改名
+[PASS] frontend: vue-tsc -b (exit 0)
+[PASS] frontend: check:i18n (exit 0)
+[PASS] frontend: vitest run (exit 0)
+[PASS] frontend: vite build (exit 0)
+[PASS] frontend: e2e (exit 0)
+
+== 汇总
+[PASS] frontend: vue-tsc -b
+[PASS] frontend: check:i18n
+[PASS] frontend: vitest run
+[PASS] frontend: vite build
+[PASS] frontend: e2e
+全部通过（5 项）

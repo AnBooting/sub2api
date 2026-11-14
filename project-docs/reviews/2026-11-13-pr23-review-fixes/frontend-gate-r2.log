@@ -1,0 +1,13 @@
+== 仓库：F:\sub2\.agents\worktrees\dsh-47f1877f-3135
+== HEAD：413ca3826 fix(frontend): darken primary hover and active to hold 4.5:1
+[PASS] frontend: vue-tsc -b (exit 0)
+[PASS] frontend: check:i18n (exit 0)
+[PASS] frontend: vitest run (exit 0)
+[PASS] frontend: vite build (exit 0)
+
+== 汇总
+[PASS] frontend: vue-tsc -b
+[PASS] frontend: check:i18n
+[PASS] frontend: vitest run
+[PASS] frontend: vite build
+全部通过（4 项）

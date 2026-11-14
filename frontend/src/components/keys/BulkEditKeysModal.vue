@@ -9,10 +9,10 @@
   >
     <form id="bulk-edit-keys-form" class="space-y-5" @submit.prevent="submit">
       <div class="space-y-1 text-sm">
-        <p class="font-medium text-gray-900 dark:text-white">
+   <p class="font-medium text-ink">
           {{ t('keys.bulkEdit.selectedCount', { count: pendingKeys.length }) }}
         </p>
-        <p class="text-gray-500 dark:text-gray-400">{{ t('keys.bulkEdit.hint') }}</p>
+   <p class="text-ink-soft">{{ t('keys.bulkEdit.hint') }}</p>
       </div>
 
       <fieldset :disabled="submitting" class="space-y-5">
@@ -121,10 +121,10 @@
         </div>
       </fieldset>
 
-      <p v-if="validationError" role="alert" class="text-sm text-red-600 dark:text-red-400">
+   <p v-if="validationError" role="alert" class="text-sm text-danger-600 dark:text-danger-400">
         {{ validationError }}
       </p>
-      <div v-if="failures.length" role="alert" class="space-y-2 text-sm text-red-600 dark:text-red-400">
+   <div v-if="failures.length" role="alert" class="space-y-2 text-sm text-danger-600 dark:text-danger-400">
         <p>{{ t('keys.bulkEdit.failureHint') }}</p>
         <ul class="max-h-40 space-y-1 overflow-y-auto">
           <li v-for="failure in failures" :key="failure.id" class="break-words">

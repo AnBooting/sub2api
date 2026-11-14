@@ -1,6 +1,14 @@
 <template>
   <AppLayout>
     <TablePageLayout>
+      <template #actions>
+        <!-- 图签：这一页此前没有页面标题，补上与其它列表页同构的锚点 -->
+        <div class="title-block">
+          <div class="min-w-0">
+            <h1 class="title-block-title">{{ t('nav.availableChannels') }}</h1>
+          </div>
+        </div>
+      </template>
       <template #filters>
         <!-- 缺价口径：模型没配价时平台不放行（后端 503 pricing_unavailable） -->
         <MissingPriceNotice class="mb-3" />
@@ -10,7 +18,7 @@
               <Icon
                 name="search"
                 size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+   class="absolute left-3 top-1/2 -translate-y-1/2 text-ink-faint"
               />
               <input
                 v-model="searchQuery"

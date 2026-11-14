@@ -1,21 +1,21 @@
 <template>
-  <div class="min-h-screen bg-gray-50 px-4 py-10 dark:bg-dark-900">
+  <div class="min-h-screen bg-paper-inset px-4 py-10">
     <div class="mx-auto max-w-2xl">
       <div v-if="isProcessing" class="card p-6 text-center">
         <div class="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"></div>
-        <h1 class="mt-4 text-lg font-semibold text-gray-900 dark:text-white">
+   <h1 class="mt-4 text-ink">
           {{ t('auth.oauth.callbackTitle') }}
         </h1>
-        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+   <p class="mt-1 text-[0.8125rem] leading-relaxed text-ink-soft">
           {{ t('auth.oauth.callbackHint') }}
         </p>
       </div>
 
       <div v-else-if="needsRegistrationCompletion" class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+   <h1 class="text-ink">
           {{ t('auth.oidc.callbackTitle', { providerName }) }}
         </h1>
-        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+   <p class="mt-1 text-[0.8125rem] leading-relaxed text-ink-soft">
           {{ registrationHint }}
         </p>
 
@@ -65,7 +65,7 @@
               @keyup.enter="handleSubmitRegistration"
             />
           </div>
-          <p v-if="registrationError" class="text-sm text-red-600 dark:text-red-400">
+   <p v-if="registrationError" class="text-sm text-danger-600 dark:text-danger-400">
             {{ registrationError }}
           </p>
           <button
@@ -80,10 +80,10 @@
       </div>
 
       <div v-else-if="invalidCallback" class="card p-6 text-center">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+   <h1 class="text-ink">
           {{ t('auth.oauth.invalidCallbackTitle') }}
         </h1>
-        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+   <p class="mt-1 text-[0.8125rem] leading-relaxed text-ink-soft">
           {{ t('auth.oauth.invalidCallbackHint') }}
         </p>
         <button class="btn btn-primary mt-6" type="button" @click="router.replace('/login')">
@@ -92,10 +92,10 @@
       </div>
 
       <div v-else class="card p-6">
-        <h1 class="text-lg font-semibold text-gray-900 dark:text-white">
+   <h1 class="text-ink">
           {{ t('auth.oauth.callbackTitle') }}
         </h1>
-        <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">
+   <p class="mt-1 text-[0.8125rem] leading-relaxed text-ink-soft">
           {{ t('auth.oauth.callbackHint') }}
         </p>
 

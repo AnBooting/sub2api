@@ -47,7 +47,7 @@
       </div>
 
       <!-- Expanded: show the label "Pricing Entry" or similar -->
-      <div v-else class="flex-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+      <div v-else class="flex-1 text-xs font-medium text-ink-faint">
         {{ t('admin.channels.form.pricingEntry') }}
       </div>
 
@@ -55,7 +55,7 @@
       <button
         type="button"
         @click.stop="emit('remove')"
-        class="flex-shrink-0 rounded p-1 text-gray-400 hover:text-red-500"
+        class="flex-shrink-0 rounded p-1 text-gray-400 hover:text-danger-500"
       >
         <Icon name="trash" size="sm" />
       </button>
@@ -70,8 +70,8 @@
         <!-- Header: Models + Billing Mode -->
         <div class="mt-3 flex items-start gap-2">
           <div class="flex-1">
-            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {{ t('admin.channels.form.models') }} <span class="text-red-500">*</span>
+            <label class="text-xs font-medium text-ink-faint">
+              {{ t('admin.channels.form.models') }} <span class="text-danger-500">*</span>
             </label>
             <ModelTagInput
               :models="entry.models"
@@ -82,7 +82,7 @@
             />
           </div>
           <div class="w-40">
-            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <label class="text-xs font-medium text-ink-faint">
               {{ t('admin.channels.form.billingMode') }}
             </label>
             <Select
@@ -110,7 +110,7 @@
         <p v-if="entry.currency === 'CNY'" class="mt-1 text-xs text-gray-500">{{ t('admin.settings.pricing.manualCNYHint') }}</p>
         <div v-if="entry.billing_mode === 'token'">
           <!-- Default prices (fallback when no interval matches) -->
-          <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
+          <label class="mt-3 block text-xs font-medium text-ink-faint">
             {{ t('admin.channels.form.defaultPrices') }}
             <span class="ml-1 font-normal text-gray-400">{{ entry.currency === 'CNY' ? '¥' : '$' }}/MTok</span>
           </label>
@@ -168,7 +168,7 @@
           <!-- Channel token intervals; the group long-context toggle controls whether tiers apply. -->
           <div v-if="!hideTokenIntervals" class="mt-3">
             <div class="flex items-center justify-between">
-              <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+              <label class="text-xs font-medium text-ink-faint">
                 {{ t('admin.channels.form.intervals') }}
                 <span class="ml-1 font-normal text-gray-400">(min, max]</span>
               </label>
@@ -199,7 +199,7 @@
         <!-- Per-request mode -->
         <div v-else-if="entry.billing_mode === 'per_request'">
           <!-- Default per-request price -->
-          <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
+          <label class="mt-3 block text-xs font-medium text-ink-faint">
             {{ t('admin.channels.form.defaultPerRequestPrice') }}
             <span class="ml-1 font-normal text-gray-400">{{ entry.currency === 'CNY' ? '¥' : '$' }}</span>
           </label>
@@ -210,7 +210,7 @@
 
           <!-- Tiers -->
           <div class="mt-3 flex items-center justify-between">
-            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <label class="text-xs font-medium text-ink-faint">
               {{ t('admin.channels.form.requestTiers') }}
             </label>
             <button type="button" @click="addInterval" class="text-xs text-primary-600 hover:text-primary-700">
@@ -235,7 +235,7 @@
         <!-- Image/video mode -->
         <div v-else-if="entry.billing_mode === 'image' || entry.billing_mode === 'video'">
           <!-- Default image price (per-request, same as per_request mode) -->
-          <label class="mt-3 block text-xs font-medium text-gray-500 dark:text-gray-400">
+          <label class="mt-3 block text-xs font-medium text-ink-faint">
             {{ entry.billing_mode === 'video' ? t('admin.channels.form.defaultVideoPrice') : t('admin.channels.form.defaultImagePrice') }}
             <span class="ml-1 font-normal text-gray-400">{{ entry.currency === 'CNY' ? '¥' : '$' }}</span>
           </label>
@@ -246,7 +246,7 @@
 
           <!-- Image tiers -->
           <div class="mt-3 flex items-center justify-between">
-            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <label class="text-xs font-medium text-ink-faint">
               {{ entry.billing_mode === 'video' ? t('admin.channels.form.videoTiers') : t('admin.channels.form.imageTiers') }}
             </label>
             <button type="button" @click="addMediaTier" class="text-xs text-primary-600 hover:text-primary-700">
@@ -267,13 +267,13 @@
 
         <div class="mt-3 border-t border-gray-200 pt-3 dark:border-dark-600" data-testid="reasoning-effort-multipliers">
           <div class="flex items-center justify-between gap-2">
-            <label class="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <label class="text-xs font-medium text-ink-faint">
               {{ t('admin.channels.form.reasoningEffortMultipliers') }}
             </label>
             <button
               v-if="Object.keys(entry.reasoning_effort_multipliers || {}).length"
               type="button"
-              class="text-xs text-gray-500 hover:text-red-500"
+              class="text-xs text-gray-500 hover:text-danger-500"
               @click="emit('update', { ...entry, reasoning_effort_multipliers: null })"
             >
               {{ t('admin.channels.form.clearReasoningEffortMultipliers') }}
@@ -281,7 +281,7 @@
           </div>
           <p class="mt-1 text-xs text-gray-400">{{ t('admin.channels.form.reasoningEffortMultipliersHint') }}</p>
           <div class="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-            <label v-for="effort in REASONING_EFFORT_LEVELS" :key="effort" class="text-xs text-gray-500 dark:text-gray-400">
+            <label v-for="effort in REASONING_EFFORT_LEVELS" :key="effort" class="text-xs text-ink-faint">
               {{ effort }}
               <input
                 :value="entry.reasoning_effort_multipliers?.[effort]"
@@ -297,7 +297,7 @@
               />
             </label>
           </div>
-          <p v-if="reasoningEffortMultiplierError" role="alert" class="mt-1 text-xs text-red-500">
+          <p v-if="reasoningEffortMultiplierError" role="alert" class="mt-1 text-xs text-danger-500">
             {{ reasoningEffortMultiplierError }}
           </p>
         </div>

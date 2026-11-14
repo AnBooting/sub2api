@@ -13,22 +13,22 @@
           :key="user.user_id"
           class="border-t border-gray-100/50 dark:border-dark-700/50"
         >
-          <td class="max-w-[120px] truncate py-1 pl-6 text-gray-600 dark:text-gray-300" :title="user.email">
+          <td class="max-w-[120px] truncate py-1 pl-6 text-gray-600 dark:text-ink-soft" :title="user.email">
             {{ user.email || `User #${user.user_id}` }}
           </td>
-          <td class="py-1 text-right text-gray-500 dark:text-gray-400">
+          <td class="py-1 text-right text-gray-500 dark:text-ink-soft">
             {{ user.requests.toLocaleString() }}
           </td>
-          <td class="py-1 text-right text-gray-500 dark:text-gray-400">
+          <td class="py-1 text-right text-gray-500 dark:text-ink-soft">
             {{ formatTokens(user.total_tokens) }}
           </td>
-          <td class="py-1 text-right text-green-600 dark:text-green-400">
+          <td class="py-1 text-right text-success-600 dark:text-success-400">
             {{ formatCustomerCredit(formatCost(user.actual_cost)) }}
           </td>
-          <td v-if="showAccountCost" class="py-1 text-right text-orange-500 dark:text-orange-400">
+          <td v-if="showAccountCost" class="py-1 text-right text-warning-500 dark:text-warning-400">
             ${{ formatCost(user.account_cost) }}
           </td>
-          <td class="py-1 pr-1 text-right text-gray-400 dark:text-gray-500">
+          <td class="py-1 pr-1 text-right text-gray-400 dark:text-ink-faint">
             {{ formatCustomerCredit(formatCost(user.cost)) }}
           </td>
         </tr>

@@ -2,16 +2,16 @@
   <div class="flex h-full min-h-0 flex-col gap-4">
     <!-- 说明 -->
     <div class="flex flex-col gap-1">
-      <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+      <h3 class="text-base font-semibold text-ink">
         {{ t('admin.pricing.table.title') }}
       </h3>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t('admin.pricing.table.description') }}
       </p>
-      <p class="text-xs text-amber-600 dark:text-amber-400">
+      <p class="text-xs text-warning-600 dark:text-warning-400">
         {{ t('admin.pricing.table.limitNotice') }}
       </p>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t('admin.pricing.table.cardNotice') }}
       </p>
     </div>
@@ -51,7 +51,7 @@
       </button>
       <span
         v-if="probe.state.status !== 'idle'"
-        class="text-xs text-gray-500 dark:text-gray-400"
+        class="text-xs text-ink-faint"
         data-testid="probe-progress"
       >
         {{ t('admin.pricing.table.progress', { done: probe.state.completed, total: probe.state.total }) }}
@@ -64,47 +64,47 @@
       <p v-if="loading" class="p-4 text-sm text-gray-500">
         {{ t('admin.pricing.table.loading') }}
       </p>
-      <p v-else-if="loadFailed" class="p-4 text-sm text-red-500">
+      <p v-else-if="loadFailed" class="p-4 text-sm text-danger-500">
         {{ t('admin.pricing.table.loadFailed') }}
       </p>
       <EmptyState v-else-if="rows.length === 0" :title="t('admin.pricing.table.empty')" />
       <table v-else class="w-full text-sm" data-testid="price-table">
         <thead>
           <tr>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.model') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.currency') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.unit') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.unitPrice') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.inputPrice') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.outputPrice') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.cacheReadPrice') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.cacheWritePrice') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.imagePrice') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.card') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.source') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.table.columns.scope') }}
             </th>
           </tr>
@@ -116,31 +116,31 @@
             class="border-b border-gray-100 dark:border-dark-800"
             data-testid="price-row"
           >
-            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ row.model }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ row.currency }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ unitLabel(row.unit) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">
+            <td class="px-3 py-2 font-medium text-ink">{{ row.model }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ row.currency }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ unitLabel(row.unit) }}</td>
+            <td class="px-3 py-2 text-ink-soft">
               {{ formatPrice(row.perRequestPrice) }}
             </td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ formatPrice(row.inputPrice) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ formatPrice(row.outputPrice) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">
+            <td class="px-3 py-2 text-ink-soft">{{ formatPrice(row.inputPrice) }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ formatPrice(row.outputPrice) }}</td>
+            <td class="px-3 py-2 text-ink-soft">
               {{ formatPrice(row.cacheReadPrice) }}
             </td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">
+            <td class="px-3 py-2 text-ink-soft">
               {{ formatPrice(row.cacheWritePrice) }}
             </td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ formatPrice(row.imagePrice) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ cardLabel(row.model) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ sourceLabel(row.source) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ scopeLabel(row) }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ formatPrice(row.imagePrice) }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ cardLabel(row.model) }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ sourceLabel(row.source) }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ scopeLabel(row) }}</td>
           </tr>
         </tbody>
       </table>
     </div>
 
     <!-- 分页 -->
-    <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600 dark:text-gray-400">
+    <div class="flex flex-wrap items-center justify-between gap-3 text-xs text-ink-soft">
       <span data-testid="total-count">
         {{ t('admin.pricing.table.totalCount', { count: filteredRows.length }) }}
       </span>

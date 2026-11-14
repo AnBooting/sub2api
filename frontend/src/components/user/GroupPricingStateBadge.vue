@@ -16,7 +16,7 @@
     <!-- 下一档切换时间：后端给的 RFC3339；字段缺失 / null / 非法 → 不显示 -->
     <span
       v-if="nextSwitchText"
-      class="text-[10px] text-gray-500 dark:text-gray-400"
+   class="text-[10px] text-ink-soft"
       :title="nextSwitchLabel"
       data-testid="group-pricing-state-next-switch"
     >
@@ -65,11 +65,11 @@ const multiplierText = computed(() => {
 const badgeClass = computed(() => {
   switch (state.value?.state) {
     case 'peak':
-      return 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+   return 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200'
     case 'valley':
-      return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+   return 'bg-success-100 text-success-700 dark:bg-success-900/40 dark:text-success-300'
     default:
-      return 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300'
+   return 'bg-paper-inset text-ink-soft  dark:text-ink-soft'
   }
 })
 

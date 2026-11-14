@@ -2,10 +2,10 @@
   <section class="card" data-testid="shop-sync-status">
     <div class="flex flex-wrap items-start gap-3 px-6 py-4">
       <div class="min-w-0 flex-1">
-        <h2 class="text-sm font-medium text-gray-900 dark:text-white">
+        <h2 class="text-sm font-medium text-ink">
           {{ t('admin.shopSync.title') }}
         </h2>
-        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        <p class="mt-1 text-xs text-ink-faint">
           {{ t('admin.shopSync.description') }}
         </p>
       </div>
@@ -14,20 +14,20 @@
 
     <div class="grid gap-3 border-t border-gray-100 px-6 py-4 text-sm sm:grid-cols-3 dark:border-dark-700">
       <div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.shopSync.lastSuccessAt') }}</p>
-        <p class="mt-0.5 font-medium text-gray-900 dark:text-white" data-testid="shop-sync-last-success">
+        <p class="text-xs text-ink-faint">{{ t('admin.shopSync.lastSuccessAt') }}</p>
+        <p class="mt-0.5 font-medium text-ink" data-testid="shop-sync-last-success">
           {{ lastSuccessText }}
         </p>
       </div>
       <div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.shopSync.lastAttemptAt') }}</p>
-        <p class="mt-0.5 font-medium text-gray-900 dark:text-white" data-testid="shop-sync-last-attempt">
+        <p class="text-xs text-ink-faint">{{ t('admin.shopSync.lastAttemptAt') }}</p>
+        <p class="mt-0.5 font-medium text-ink" data-testid="shop-sync-last-attempt">
           {{ lastAttemptText }}
         </p>
       </div>
       <div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.shopSync.productCount') }}</p>
-        <p class="mt-0.5 font-medium text-gray-900 dark:text-white" data-testid="shop-sync-product-count">
+        <p class="text-xs text-ink-faint">{{ t('admin.shopSync.productCount') }}</p>
+        <p class="mt-0.5 font-medium text-ink" data-testid="shop-sync-product-count">
           {{ productCount }}
         </p>
       </div>
@@ -35,7 +35,7 @@
 
     <p
       v-if="errorText"
-      class="px-6 pb-4 text-sm font-medium text-amber-600 dark:text-amber-400"
+      class="px-6 pb-4 text-sm font-medium text-warning-600 dark:text-warning-400"
       :title="rawErrorCode"
       data-testid="shop-sync-error"
     >
@@ -43,7 +43,7 @@
     </p>
     <p
       v-if="paused"
-      class="px-6 pb-4 text-sm font-medium text-amber-600 dark:text-amber-400"
+      class="px-6 pb-4 text-sm font-medium text-warning-600 dark:text-warning-400"
       data-testid="shop-sync-paused"
     >
       {{ t('admin.shopSync.paused') }}

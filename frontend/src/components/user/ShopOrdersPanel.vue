@@ -3,7 +3,7 @@
     <!-- 订单详情（刷新后按 URL / 本地快照回查原订单就落在这里） -->
     <div v-if="detail" class="card p-5" data-testid="shop-order-detail">
       <div class="flex items-center justify-between gap-2">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">
+   <h3 class="text-sm font-semibold text-ink">
           {{ t('shop.orders.detailTitle') }}
         </h3>
         <button class="btn btn-secondary btn-sm" data-testid="shop-order-back" @click="backToList">
@@ -13,25 +13,25 @@
 
       <dl class="mt-3 space-y-2 text-sm">
         <div class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.order.orderNo') }}</dt>
-          <dd class="font-mono text-gray-900 dark:text-white">{{ detail.order_no }}</dd>
+   <dt class="text-ink-soft">{{ t('shop.order.orderNo') }}</dt>
+   <dd class="font-mono text-ink">{{ detail.order_no }}</dd>
         </div>
         <div v-if="detail.product_name" class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.tabs.products') }}</dt>
-          <dd class="text-right text-gray-900 dark:text-white">{{ detail.product_name }}</dd>
+   <dt class="text-ink-soft">{{ t('shop.tabs.products') }}</dt>
+   <dd class="text-right text-ink">{{ detail.product_name }}</dd>
         </div>
         <div class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.order.quantity') }}</dt>
-          <dd class="text-gray-900 dark:text-white">{{ detail.quantity }}</dd>
+   <dt class="text-ink-soft">{{ t('shop.order.quantity') }}</dt>
+   <dd class="text-ink">{{ detail.quantity }}</dd>
         </div>
         <div class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.order.amount') }}</dt>
-          <dd class="font-semibold text-gray-900 dark:text-white">
+   <dt class="text-ink-soft">{{ t('shop.order.amount') }}</dt>
+   <dd class="font-semibold text-ink">
             {{ formatOrderAmount(detail.amount_cny) }}
           </dd>
         </div>
         <div class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.order.status') }}</dt>
+   <dt class="text-ink-soft">{{ t('shop.order.status') }}</dt>
           <dd>
             <span class="badge" :class="statusBadgeClass(detail.display_status)" data-testid="shop-order-status">
               {{ statusLabel(detail.display_status) }}
@@ -39,19 +39,19 @@
           </dd>
         </div>
         <div v-if="detail.created_at" class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.order.createdAt') }}</dt>
-          <dd class="text-right text-gray-900 dark:text-white">{{ formatTime(detail.created_at) }}</dd>
+   <dt class="text-ink-soft">{{ t('shop.order.createdAt') }}</dt>
+   <dd class="text-right text-ink">{{ formatTime(detail.created_at) }}</dd>
         </div>
         <div v-if="detail.paid_at" class="flex justify-between gap-3">
-          <dt class="text-gray-500 dark:text-gray-400">{{ t('shop.orders.paidAt') }}</dt>
-          <dd class="text-right text-gray-900 dark:text-white">{{ formatTime(detail.paid_at) }}</dd>
+   <dt class="text-ink-soft">{{ t('shop.orders.paidAt') }}</dt>
+   <dd class="text-right text-ink">{{ formatTime(detail.paid_at) }}</dd>
         </div>
       </dl>
 
       <!-- 交付异常：可追踪订单号 + 人工兜底路径 -->
       <div
         v-if="detail.display_status === 'delivery_pending'"
-        class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100"
+   class="mt-4 rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100"
         data-testid="shop-order-delivery-pending"
       >
         <p class="font-medium">{{ t('shop.delivery.pendingTitle') }}</p>
@@ -60,9 +60,9 @@
 
       <!-- 卡密：仅本人可见 -->
       <div v-if="detail.card_secret" class="mt-4" data-testid="shop-order-card">
-        <p class="text-sm text-gray-500 dark:text-gray-400">{{ t('shop.order.cardReady') }}</p>
+   <p class="text-sm text-ink-soft">{{ t('shop.order.cardReady') }}</p>
         <div class="mt-2 flex items-center gap-2">
-          <code class="min-w-0 flex-1 truncate rounded-lg bg-gray-100 px-3 py-2 font-mono text-sm text-gray-900 dark:bg-dark-700 dark:text-white">
+   <code class="min-w-0 flex-1 truncate rounded-lg bg-paper-inset px-3 py-2 font-mono text-sm text-ink">
             {{ detail.card_secret }}
           </code>
           <button class="btn btn-secondary shrink-0" @click="copyCard">
@@ -87,7 +87,7 @@
     <!-- 订单列表 -->
     <template v-else>
       <div class="flex items-center justify-between gap-2">
-        <h3 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t('shop.orders.title') }}</h3>
+   <h3 class="text-sm font-semibold text-ink">{{ t('shop.orders.title') }}</h3>
         <button
           class="btn btn-secondary btn-sm"
           :disabled="loading"
@@ -98,15 +98,15 @@
         </button>
       </div>
 
-      <p v-if="errorMessage" class="card border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200" data-testid="shop-orders-error">
+   <p v-if="errorMessage" class="card border border-danger-200 bg-danger-50 p-3 text-sm text-danger-700 dark:border-danger-500/30 dark:bg-danger-500/10 dark:text-danger-200" data-testid="shop-orders-error">
         {{ errorMessage }}
       </p>
 
-      <div v-if="loading && !orders.length" class="card py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+   <div v-if="loading && !orders.length" class="card py-10 text-center text-sm text-ink-soft">
         {{ t('shop.orders.loading') }}
       </div>
 
-      <div v-else-if="!orders.length" class="card py-10 text-center text-sm text-gray-500 dark:text-gray-400" data-testid="shop-orders-empty">
+   <div v-else-if="!orders.length" class="card py-10 text-center text-sm text-ink-soft" data-testid="shop-orders-empty">
         {{ t('shop.orders.empty') }}
       </div>
 
@@ -114,19 +114,19 @@
         <li v-for="row in orders" :key="row.order_no">
           <button
             type="button"
-            class="card flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-gray-50 dark:hover:bg-dark-800"
+   class="card flex w-full items-center justify-between gap-3 p-4 text-left transition-colors hover:bg-paper-inset dark:hover:bg-surface"
             :data-testid="'shop-order-row-' + row.order_no"
             @click="openDetail(row.order_no)"
           >
             <span class="min-w-0">
-              <span class="block truncate font-mono text-sm text-gray-900 dark:text-white">{{ row.order_no }}</span>
-              <span class="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
+   <span class="block truncate font-mono text-sm text-ink">{{ row.order_no }}</span>
+   <span class="mt-0.5 block truncate text-xs text-ink-soft">
                 {{ row.product_name || row.product_id }}
                 <template v-if="row.created_at"> · {{ formatTime(row.created_at) }}</template>
               </span>
             </span>
             <span class="flex shrink-0 items-center gap-2">
-              <span class="text-sm font-semibold text-gray-900 dark:text-white">{{ formatOrderAmount(row.amount_cny) }}</span>
+   <span class="text-sm font-semibold text-ink">{{ formatOrderAmount(row.amount_cny) }}</span>
               <span class="badge" :class="statusBadgeClass(row.display_status)">{{ statusLabel(row.display_status) }}</span>
             </span>
           </button>

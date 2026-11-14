@@ -1,0 +1,9 @@
+
+ RUN  v2.1.9 F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend
+
+ ✓ src/utils/__tests__/signalContrast.spec.ts (7 tests) 8ms
+
+ Test Files  1 passed (1)
+      Tests  7 passed (7)
+   Start at  02:46:59
+   Duration  2.13s (transform 78ms, setup 142ms, collect 136ms, tests 8ms, environment 704ms, prepare 184ms)

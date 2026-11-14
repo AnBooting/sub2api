@@ -1,21 +1,17 @@
 <template>
-  <div class="min-h-screen bg-gray-50 dark:bg-dark-950">
-    <!-- Background Decoration -->
-    <div class="pointer-events-none fixed inset-0 bg-mesh-gradient"></div>
-
-    <!-- Sidebar -->
+  <div class="min-h-screen bg-paper text-ink">
+    <!-- 侧栏（桌面为固定导轨，移动端为抽屉） -->
     <AppSidebar />
 
-    <!-- Main Content Area -->
+    <!-- 主区：与侧栏同一条痕量线分隔 -->
     <div
-      class="relative min-h-screen transition-all duration-300"
-      :class="[sidebarCollapsed ? 'lg:ml-[72px]' : 'lg:ml-64']"
+      class="relative min-h-screen transition-[margin] duration-200 ease-cut"
+      :class="[sidebarCollapsed ? 'lg:ml-[76px]' : 'lg:ml-60']"
     >
-      <!-- Header -->
       <AppHeader />
 
-      <!-- Main Content -->
-      <main class="p-4 md:p-6 lg:p-8">
+      <!-- 内容区：底部为移动端工具坞留出让位 -->
+      <main class="px-3 pt-4 pb-dock sm:px-5 sm:pt-5 lg:px-7 lg:py-6">
         <slot />
       </main>
     </div>

@@ -164,6 +164,8 @@ export default {
 
   // Navigation
   nav: {
+    navigation: '主导航',
+    more: '更多',
     dashboard: '仪表盘',
     help: '帮助',
     announcements: '公告',

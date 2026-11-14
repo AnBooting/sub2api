@@ -6,14 +6,14 @@
   >
     <span
       v-if="allowLive"
-      class="rounded bg-emerald-100 px-1.5 py-0.5 font-medium text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300"
+   class="rounded bg-success-100 px-1.5 py-0.5 font-medium text-success-700 dark:bg-success-900/40 dark:text-success-300"
       data-testid="group-live-badge"
     >
       {{ t('groupLive.badge') }}
     </span>
     <span
       v-if="realtimePrice !== null"
-      class="text-gray-500 dark:text-gray-400"
+   class="text-ink-soft"
       data-testid="group-live-price"
     >
       {{ t('groupLive.realtimePrice', { price: formattedPrice }) }}

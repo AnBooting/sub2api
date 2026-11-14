@@ -1,14 +1,14 @@
 <template>
   <div
-    class="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-6 text-center dark:border-amber-900/40 dark:bg-amber-900/10"
+    class="flex h-full min-h-[200px] flex-col items-center justify-center gap-2 border border-warning-300 bg-warning-50 px-4 py-6 text-center dark:border-warning-800 dark:bg-warning-950/40"
     data-testid="usage-stats-incomplete"
     role="status"
   >
-    <Icon name="exclamationTriangle" size="md" class="text-amber-500 dark:text-amber-400" />
-    <p class="text-sm font-medium text-amber-800 dark:text-amber-300">
+    <Icon name="exclamationTriangle" size="md" class="text-warning-500 dark:text-warning-400" />
+    <p class="text-sm font-medium text-warning-800 dark:text-warning-300">
       {{ title || t('usageStatsIncomplete.title') }}
     </p>
-    <p v-if="description !== null" class="max-w-md text-xs text-amber-700 dark:text-amber-400">
+    <p v-if="description !== null" class="max-w-md text-xs text-warning-700 dark:text-warning-400">
       {{ description || t('usageStatsIncomplete.description') }}
     </p>
   </div>

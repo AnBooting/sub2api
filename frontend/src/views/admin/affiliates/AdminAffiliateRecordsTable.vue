@@ -45,7 +45,7 @@
             />
           </template>
           <template #cell-invitee="{ row }">
-            <span v-if="row.invitee_id == null" class="text-sm text-gray-400 dark:text-dark-500">-</span>
+            <span v-if="row.invitee_id == null" class="text-sm text-ink-faint">-</span>
             <UserCell
               v-else
               :id="row.invitee_id"
@@ -65,22 +65,22 @@
             />
           </template>
           <template #cell-aff_code="{ row }">
-            <span class="font-mono text-sm text-gray-700 dark:text-gray-300">{{ row.aff_code || '-' }}</span>
+            <span class="font-mono text-sm text-ink-soft">{{ row.aff_code || '-' }}</span>
           </template>
           <template #cell-order="{ row }">
-            <span v-if="row.order_id == null" class="text-sm text-gray-400 dark:text-dark-500">-</span>
+            <span v-if="row.order_id == null" class="text-sm text-ink-faint">-</span>
             <div v-else class="space-y-0.5">
-              <div class="font-mono text-sm text-gray-900 dark:text-white">#{{ row.order_id }}</div>
-              <div class="max-w-56 truncate text-sm text-gray-500 dark:text-dark-400">{{ row.out_trade_no }}</div>
+              <div class="font-mono text-sm text-ink">#{{ row.order_id }}</div>
+              <div class="max-w-56 truncate text-sm text-ink-faint">{{ row.out_trade_no }}</div>
             </div>
           </template>
           <template #cell-payment_type="{ row }">
             <template v-if="row.payment_type">{{ t('payment.methods.' + row.payment_type, row.payment_type) }}</template>
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+            <span v-else class="text-sm text-ink-faint">-</span>
           </template>
           <template #cell-order_status="{ row }">
             <OrderStatusBadge v-if="row.order_status" :status="row.order_status" />
-            <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+            <span v-else class="text-sm text-ink-faint">-</span>
           </template>
           <template #cell-total_rebate="{ row }">
             <AmountText :value="row.total_rebate" />
@@ -89,8 +89,8 @@
             <NullableAmountText :value="row.order_amount" />
           </template>
           <template #cell-pay_amount="{ row }">
-            <span v-if="row.pay_amount == null" class="text-sm text-gray-400 dark:text-dark-500">-</span>
-            <span v-else class="text-sm text-gray-900 dark:text-white">¥{{ formatAmount(row.pay_amount) }}</span>
+            <span v-if="row.pay_amount == null" class="text-sm text-ink-faint">-</span>
+            <span v-else class="text-sm text-ink">¥{{ formatAmount(row.pay_amount) }}</span>
           </template>
           <template #cell-rebate_amount="{ row }">
             <AmountText :value="row.rebate_amount" strong />
@@ -116,7 +116,7 @@
             <NullableAmountText :value="row.history_quota_after" />
           </template>
           <template #cell-created_at="{ row }">
-            <span class="text-sm text-gray-700 dark:text-gray-300">{{ formatDateTime(row.created_at) }}</span>
+            <span class="text-sm text-ink-soft">{{ formatDateTime(row.created_at) }}</span>
           </template>
         </DataTable>
       </template>
@@ -151,9 +151,9 @@
       </div>
       <div v-else-if="selectedOverview" class="space-y-4">
         <div class="rounded-lg border border-gray-100 bg-gray-50 p-4 dark:border-dark-700 dark:bg-dark-800">
-          <div class="font-mono text-sm text-gray-900 dark:text-white">#{{ selectedOverview.user_id }}</div>
-          <div class="mt-1 text-sm font-medium text-gray-900 dark:text-white">{{ selectedOverview.email || '-' }}</div>
-          <div class="mt-0.5 text-sm text-gray-500 dark:text-dark-400">{{ selectedOverview.username || '-' }}</div>
+          <div class="font-mono text-sm text-ink">#{{ selectedOverview.user_id }}</div>
+          <div class="mt-1 text-sm font-medium text-ink">{{ selectedOverview.email || '-' }}</div>
+          <div class="mt-0.5 text-sm text-ink-faint">{{ selectedOverview.username || '-' }}</div>
         </div>
         <div class="grid gap-3 sm:grid-cols-2">
           <OverviewStat :label="t('admin.affiliates.overview.affCode')" :value="selectedOverview.aff_code || '-'" mono />
@@ -382,15 +382,15 @@ const UserCell = defineComponent({
   emits: ['open'],
   setup(cellProps, { emit }) {
     return () => h('div', { class: 'space-y-0.5' }, [
-      h('div', { class: 'font-mono text-sm text-gray-900 dark:text-white' }, `#${cellProps.id}`),
+      h('div', { class: 'font-mono text-sm text-ink' }, `#${cellProps.id}`),
       h(cellProps.clickable ? 'button' : 'div', {
         class: cellProps.clickable
           ? 'max-w-56 truncate text-left text-sm font-medium text-primary-600 hover:text-primary-700 hover:underline dark:text-primary-400 dark:hover:text-primary-300'
-          : 'max-w-56 truncate text-sm text-gray-700 dark:text-gray-300',
+          : 'max-w-56 truncate text-sm text-ink-soft',
         type: cellProps.clickable ? 'button' : undefined,
         onClick: cellProps.clickable ? () => emit('open', cellProps.id) : undefined,
       }, cellProps.email || '-'),
-      h('div', { class: 'max-w-56 truncate text-sm text-gray-500 dark:text-dark-400' }, cellProps.username || '-'),
+      h('div', { class: 'max-w-56 truncate text-sm text-ink-faint' }, cellProps.username || '-'),
     ])
   },
 })
@@ -403,8 +403,8 @@ const AmountText = defineComponent({
   setup(amountProps) {
     return () => h('span', {
       class: amountProps.strong
-        ? 'text-sm font-semibold text-emerald-600 dark:text-emerald-400'
-        : 'text-sm text-gray-900 dark:text-white',
+        ? 'text-sm font-semibold text-success-600 dark:text-success-400'
+        : 'text-sm text-ink',
     }, `$${formatAmount(amountProps.value)}`)
   },
 })
@@ -417,7 +417,7 @@ const NullableAmountText = defineComponent({
     return () => {
       const value = amountProps.value
       if (value === null || value === undefined) {
-        return h('span', { class: 'text-sm text-gray-400 dark:text-dark-500' }, '-')
+        return h('span', { class: 'text-sm text-ink-faint' }, '-')
       }
       return h(AmountText, { value })
     }
@@ -432,11 +432,11 @@ const OverviewStat = defineComponent({
   },
   setup(statProps) {
     return () => h('div', { class: 'rounded-lg border border-gray-100 bg-white p-3 dark:border-dark-700 dark:bg-dark-900' }, [
-      h('div', { class: 'text-sm text-gray-500 dark:text-dark-400' }, statProps.label),
+      h('div', { class: 'text-sm text-ink-faint' }, statProps.label),
       h('div', {
         class: statProps.mono
-          ? 'mt-1 font-mono text-base font-semibold text-gray-900 dark:text-white'
-          : 'mt-1 text-base font-semibold text-gray-900 dark:text-white',
+          ? 'mt-1 font-mono text-base font-semibold text-ink'
+          : 'mt-1 text-base font-semibold text-ink',
       }, statProps.value),
     ])
   },

@@ -1,6 +1,17 @@
 <template>
   <AppLayout>
     <TablePageLayout>
+      <template #actions>
+        <div class="title-block">
+          <div class="min-w-0">
+            <h1 class="title-block-title">{{ t('admin.channels.title') }}</h1>
+            <p class="lead mt-1 hidden sm:block">{{ t('admin.channels.description') }}</p>
+          </div>
+          <div class="title-block-meta">
+            <span data-testid="channels-total-readout">{{ pagination.total }} {{ t('common.total') }}</span>
+          </div>
+        </div>
+      </template>
       <template #filters>
         <div class="flex flex-col gap-4">
           <!-- 视图切换：渠道列表 / 价格总表 / 缺价清单 -->
@@ -17,9 +28,10 @@
               role="tab"
               :aria-selected="activeView === view.value"
               :class="[
-                'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                'px-3 py-1.5 text-sm font-medium transition-colors',
+                'min-h-[44px] rounded-[var(--radius-cut)] sm:min-h-0',
                 activeView === view.value
-                  ? 'bg-primary-600 text-white'
+                  ? 'bg-primary-600 text-on-signal'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-200 dark:hover:bg-dark-600'
               ]"
               @click="activeView = view.value"
@@ -38,7 +50,7 @@
               <Icon
                 name="search"
                 size="md"
-                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+                class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-ink-faint"
               />
               <input
                 v-model="searchQuery"
@@ -89,11 +101,11 @@
           @sort="handleSort"
         >
           <template #cell-name="{ value }">
-            <span class="font-medium text-gray-900 dark:text-white">{{ value }}</span>
+            <span class="font-medium text-ink">{{ value }}</span>
           </template>
 
           <template #cell-description="{ value }">
-            <span class="text-sm text-gray-600 dark:text-gray-400">{{ value || '-' }}</span>
+            <span class="text-sm text-ink-soft">{{ value || '-' }}</span>
           </template>
 
           <template #cell-status="{ row }">
@@ -105,7 +117,7 @@
 
           <template #cell-group_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
             >
               {{ (row.group_ids || []).length }}
               {{ t('admin.channels.groupsUnit', 'groups') }}
@@ -114,7 +126,7 @@
 
           <template #cell-pricing_count="{ row }">
             <span
-              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-gray-300"
+              class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-dark-600 dark:text-ink-soft"
             >
               {{ (row.model_pricing || []).length }}
               {{ t('admin.channels.pricingUnit', 'pricing rules') }}
@@ -122,7 +134,7 @@
           </template>
 
           <template #cell-created_at="{ value }">
-            <span class="text-sm text-gray-600 dark:text-gray-400">
+            <span class="text-sm text-ink-soft">
               {{ formatDate(value) }}
             </span>
           </template>
@@ -131,14 +143,14 @@
             <div class="flex items-center gap-1">
               <button
                 @click="openEditDialog(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               >
                 <Icon name="edit" size="sm" />
                 <span class="text-xs">{{ t('common.edit', 'Edit') }}</span>
               </button>
               <button
                 @click="handleDelete(row)"
-                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                class="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-ink-faint transition-colors hover:bg-danger-50 hover:text-danger-600 dark:hover:bg-danger-900/20 dark:hover:text-danger-400"
               >
                 <Icon name="trash" size="sm" />
                 <span class="text-xs">{{ t('common.delete', 'Delete') }}</span>
@@ -180,7 +192,7 @@
     >
       <div class="channel-dialog-body">
         <!-- Tab Bar -->
-        <div class="flex items-center border-b border-gray-200 dark:border-dark-700 flex-shrink-0 -mx-4 sm:-mx-6 px-4 sm:px-6 -mt-3 sm:-mt-4">
+        <div class="flex items-center border-b border-rule flex-shrink-0 -mx-4 sm:-mx-6 px-4 sm:px-6 -mt-3 sm:-mt-4">
           <!-- Basic Settings Tab -->
           <button
             type="button"
@@ -210,7 +222,7 @@
           <div v-show="activeTab === 'basic'" class="space-y-5">
             <!-- Name -->
             <div>
-              <label class="input-label">{{ t('admin.channels.form.name', 'Name') }} <span class="text-red-500">*</span></label>
+              <label class="input-label">{{ t('admin.channels.form.name', 'Name') }} <span class="text-danger-500">*</span></label>
               <input
                 v-model="form.name"
                 type="text"
@@ -289,10 +301,10 @@
             <div class="border-t border-gray-200 pt-4 dark:border-dark-700">
               <div class="flex items-center justify-between">
                 <div>
-                  <label class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <label class="text-sm font-medium text-ink-soft">
                     {{ t('admin.channels.form.applyPricingToAccountStats') }}
                   </label>
-                  <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  <p class="mt-0.5 text-xs text-ink-faint">
                     {{ t('admin.channels.form.applyPricingToAccountStatsDesc') }}
                   </p>
                 </div>
@@ -314,23 +326,23 @@
             <!-- Groups -->
             <div>
               <label class="input-label text-xs">
-                {{ t('admin.channels.form.groups', 'Associated Groups') }} <span class="text-red-500">*</span>
+                {{ t('admin.channels.form.groups', 'Associated Groups') }} <span class="text-danger-500">*</span>
                 <span v-if="section.group_ids.length > 0" class="ml-1 font-normal text-gray-400">
                   ({{ t('admin.channels.form.selectedCount', { count: section.group_ids.length }) }})
                 </span>
               </label>
-              <div class="max-h-40 overflow-auto rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-900">
-                <div v-if="groupsLoading" class="py-2 text-center text-xs text-gray-500">
+              <div class="max-h-40 overflow-auto rounded-lg border border-rule bg-gray-50 p-2 dark:border-dark-600 dark:bg-dark-900">
+                <div v-if="groupsLoading" class="py-2 text-center text-xs text-ink-faint">
                   {{ t('common.loading', 'Loading...') }}
                 </div>
-                <div v-else-if="getGroupsForPlatform(section.platform).length === 0" class="py-2 text-center text-xs text-gray-500">
+                <div v-else-if="getGroupsForPlatform(section.platform).length === 0" class="py-2 text-center text-xs text-ink-faint">
                   {{ t('admin.channels.form.noGroupsAvailable', 'No groups available') }}
                 </div>
                 <div v-else class="flex flex-wrap gap-1">
                   <label
                     v-for="group in getGroupsForPlatform(section.platform)"
                     :key="group.id"
-                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 text-xs transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
+                    class="inline-flex cursor-pointer items-center gap-1.5 rounded-md border border-rule px-2 py-1 text-xs transition-colors hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
                     :class="[
                       section.group_ids.includes(group.id) ? 'bg-primary-50 border-primary-300 dark:bg-primary-900/20 dark:border-primary-700' : '',
                       isGroupInOtherChannel(group.id, section.platform) ? 'opacity-40' : ''
@@ -361,10 +373,10 @@
             <div v-if="section.platform === 'anthropic' && webSearchGlobalEnabled" class="border-t border-gray-200 pt-3 dark:border-dark-600">
               <div class="flex items-center justify-between">
                 <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <label class="text-xs font-medium text-ink-soft">
                     {{ t('admin.channels.form.webSearchEmulation') }}
                   </label>
-                  <p class="mt-0.5 text-[11px] text-red-500 dark:text-red-400">
+                  <p class="mt-0.5 text-[11px] text-danger-500 dark:text-danger-400">
                     {{ t('admin.channels.form.webSearchEmulationHint') }}
                   </p>
                 </div>
@@ -376,10 +388,10 @@
             <div v-if="section.platform === 'openai'" class="border-t border-gray-200 pt-3 dark:border-dark-600">
               <div class="flex items-center justify-between gap-4">
                 <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <label class="text-xs font-medium text-ink-soft">
                     {{ t('admin.channels.form.codexImageGenerationBridge') }}
                   </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                  <p class="mt-0.5 text-[11px] text-warning-600 dark:text-warning-400">
                     {{ t('admin.channels.form.codexImageGenerationBridgeHint') }}
                   </p>
                 </div>
@@ -391,10 +403,10 @@
             <div v-if="section.platform === 'anthropic'" class="border-t border-gray-200 pt-3 dark:border-dark-600">
               <div class="flex items-center justify-between gap-4">
                 <div>
-                  <label class="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  <label class="text-xs font-medium text-ink-soft">
                     {{ t('admin.channels.form.bedrockCCCompat') }}
                   </label>
-                  <p class="mt-0.5 text-[11px] text-amber-600 dark:text-amber-400">
+                  <p class="mt-0.5 text-[11px] text-warning-600 dark:text-warning-400">
                     {{ t('admin.channels.form.bedrockCCCompatHint') }}
                   </p>
                 </div>
@@ -454,7 +466,7 @@
                   <button
                     type="button"
                     @click="removeMappingEntry(sIdx, srcModel)"
-                    class="rounded p-0.5 text-gray-400 hover:text-red-500"
+                    class="rounded p-0.5 text-gray-400 hover:text-danger-500"
                   >
                     <Icon name="trash" size="sm" />
                   </button>
@@ -471,7 +483,7 @@
                     type="button"
                     @click="syncLatestModels(sIdx)"
                     :disabled="modelActionPending || submitting || section.group_ids.length === 0"
-                    class="text-xs text-gray-500 hover:text-primary-600 disabled:opacity-50"
+                    class="text-xs text-ink-faint hover:text-primary-600 disabled:opacity-50"
                   >
                     {{ syncingPlatform === section.platform ? t('admin.channels.form.syncingModels') : t('admin.channels.form.syncLatestModels') }}
                   </button>
@@ -512,7 +524,7 @@
             <!-- Account Stats Pricing Rules (per-platform, always visible) -->
             <div class="mt-4 border-t border-gray-200 pt-4 dark:border-dark-700 space-y-3">
               <div class="flex items-center justify-between">
-                <h4 class="text-sm font-medium text-gray-700 dark:text-gray-300">
+                <h4 class="text-sm font-medium text-ink-soft">
                   {{ t('admin.channels.form.accountStatsPricingRules') }}
                 </h4>
                 <button
@@ -527,7 +539,7 @@
               <!-- Filter rules for this platform's groups -->
               <p
                 v-if="section.account_stats_pricing_rules.length === 0"
-                class="text-xs italic text-gray-400 dark:text-gray-500"
+                class="text-xs italic text-gray-400 dark:text-ink-faint"
               >
                 {{ t('admin.channels.form.noRulesConfigured') }}
               </p>
@@ -535,21 +547,21 @@
               <div
                 v-for="(rule, ruleIndex) in section.account_stats_pricing_rules"
                 :key="ruleIndex"
-                class="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600"
+                class="space-y-3 rounded-lg border border-rule p-4 dark:border-dark-600"
               >
                 <div class="flex items-center justify-between">
                   <input
                     v-model="rule.name"
                     :placeholder="t('admin.channels.form.ruleName')"
-                    class="bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none dark:text-gray-300"
+                    class="bg-transparent text-sm font-medium text-gray-700 placeholder-gray-400 outline-none dark:text-ink-soft"
                   />
-                  <button type="button" @click="removeAccountStatsRule(sIdx, ruleIndex)" class="text-xs text-red-500 hover:text-red-700">
+                  <button type="button" @click="removeAccountStatsRule(sIdx, ruleIndex)" class="text-xs text-danger-500 hover:text-danger-700">
                     {{ t('common.delete') }}
                   </button>
                 </div>
 
                 <div>
-                  <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.channels.form.ruleGroups') }}</label>
+                  <label class="text-xs text-ink-faint">{{ t('admin.channels.form.ruleGroups') }}</label>
                   <div class="mt-1 flex flex-wrap gap-1">
                     <label
                       v-for="gid in section.group_ids"
@@ -569,7 +581,7 @@
                 </div>
 
                 <div>
-                  <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.channels.form.ruleAccounts') }}</label>
+                  <label class="text-xs text-ink-faint">{{ t('admin.channels.form.ruleAccounts') }}</label>
                   <!-- Selected account chips -->
                   <div class="mt-1 flex flex-wrap gap-1">
                     <span
@@ -578,7 +590,7 @@
                       class="inline-flex items-center gap-1 rounded-md border border-primary-300 bg-primary-50 px-2 py-0.5 text-xs dark:border-primary-700 dark:bg-primary-900/20"
                     >
                       <span :class="['font-medium', platformTextClass(section.platform)]">{{ getRuleAccountLabel(accountId) }}</span>
-                      <button type="button" @click="removeRuleAccount(rule, accountId)" class="text-gray-400 hover:text-red-500">
+                      <button type="button" @click="removeRuleAccount(rule, accountId)" class="text-gray-400 hover:text-danger-500">
                         <Icon name="x" size="xs" />
                       </button>
                     </span>
@@ -596,14 +608,14 @@
                     <!-- Search results dropdown -->
                     <div
                       v-if="showRuleAccountDropdown[`${section.platform}-${ruleIndex}`] && (ruleAccountSearchResults[`${section.platform}-${ruleIndex}`]?.length ?? 0) > 0"
-                      class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white shadow-lg dark:border-dark-600 dark:bg-dark-800"
+                      class="absolute z-50 mt-1 max-h-48 w-full overflow-auto rounded-lg border bg-white dark:border-dark-600 dark:bg-dark-800"
                     >
                       <button
                         v-for="account in ruleAccountSearchResults[`${section.platform}-${ruleIndex}`]"
                         :key="account.id"
                         type="button"
                         @click="selectRuleAccount(rule, account, section.platform, ruleIndex)"
-                        class="w-full px-3 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-dark-700"
+                        class="w-full px-3 py-2 text-left text-sm hover:bg-paper-inset"
                         :class="{ 'opacity-50': rule.account_ids.includes(account.id) }"
                         :disabled="rule.account_ids.includes(account.id)"
                       >
@@ -619,7 +631,7 @@
 
                 <div>
                   <div class="mb-1 flex items-center justify-between">
-                    <label class="text-xs text-gray-500 dark:text-gray-400">{{ t('admin.channels.form.ruleModelPricing') }}</label>
+                    <label class="text-xs text-ink-faint">{{ t('admin.channels.form.ruleModelPricing') }}</label>
                     <button type="button" @click="addRulePricingEntry(sIdx, ruleIndex)" class="text-xs text-primary-600 hover:text-primary-700">
                       + {{ t('common.add') }}
                     </button>
@@ -1911,6 +1923,6 @@ onUnmounted(() => {
 }
 
 .channel-tab-inactive {
-  @apply border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300;
+  @apply border-transparent text-ink-faint hover:text-gray-700 hover:border-gray-300 dark:text-ink-soft dark:hover:text-ink-soft;
 }
 </style>

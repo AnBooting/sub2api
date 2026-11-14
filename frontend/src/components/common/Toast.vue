@@ -1,72 +1,58 @@
 <template>
   <Teleport to="body">
     <div
-      class="pointer-events-none fixed right-4 top-4 z-[9999] space-y-3"
+      class="pointer-events-none fixed inset-x-3 top-3 z-[9999] flex flex-col items-end gap-2 sm:inset-x-auto sm:right-4 sm:top-4"
       aria-live="polite"
       aria-atomic="true"
     >
       <TransitionGroup
-        enter-active-class="transition ease-out duration-300"
-        enter-from-class="opacity-0 translate-x-full"
-        enter-to-class="opacity-100 translate-x-0"
-        leave-active-class="transition ease-in duration-200"
-        leave-from-class="opacity-100 translate-x-0"
-        leave-to-class="opacity-0 translate-x-full"
+        enter-active-class="transition duration-150 ease-cut"
+        enter-from-class="opacity-0 translate-y-1"
+        enter-to-class="opacity-100 translate-y-0"
+        leave-active-class="transition duration-150 ease-cut"
+        leave-from-class="opacity-100 translate-y-0"
+        leave-to-class="opacity-0"
       >
         <div
           v-for="toast in toasts"
           :key="toast.id"
           :class="[
-            'pointer-events-auto min-w-[320px] max-w-md overflow-hidden rounded-lg shadow-lg',
-            'bg-white dark:bg-dark-800',
-            'border-l-4',
-            getBorderColor(toast.type)
+            'toast',
+            // .toast 语义类自带 fixed 定位（供单条直接使用时）；这里由外层 flex 列
+            // 统一排布，所以用 utility 复位成相对定位，避免多条叠在同一点。
+            'relative right-auto top-auto w-full min-w-0 sm:w-auto',
+            getToneClass(toast.type)
           ]"
         >
-          <div class="p-4">
-            <div class="flex items-start gap-3">
-              <!-- Icon -->
-              <div class="mt-0.5 flex-shrink-0">
-                <Icon
-                  :name="getToastIconName(toast.type)"
-                  size="md"
-                  :class="getIconColor(toast.type)"
-                  aria-hidden="true"
-                />
-              </div>
+          <Icon
+            :name="getToastIconName(toast.type)"
+            size="md"
+            :class="['mt-0.5 shrink-0', getIconColor(toast.type)]"
+            aria-hidden="true"
+          />
 
-              <!-- Content -->
-              <div class="min-w-0 flex-1">
-                <p v-if="toast.title" class="text-sm font-semibold text-gray-900 dark:text-white">
-                  {{ toast.title }}
-                </p>
-                <p
-                  :class="[
-                    'text-sm leading-relaxed',
-                    toast.title
-                      ? 'mt-1 text-gray-600 dark:text-gray-300'
-                      : 'text-gray-900 dark:text-white'
-                  ]"
-                >
-                  {{ toast.message }}
-                </p>
-              </div>
-
-              <!-- Close button -->
-              <button
-                @click="removeToast(toast.id)"
-                class="-m-1 flex-shrink-0 rounded p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-dark-700 dark:hover:text-gray-300"
-                aria-label="Close notification"
-              >
-                <Icon name="x" size="sm" />
-              </button>
-            </div>
+          <div class="min-w-0 flex-1">
+            <p v-if="toast.title" class="text-sm font-semibold text-ink">
+              {{ toast.title }}
+            </p>
+            <p :class="['text-sm leading-relaxed', toast.title ? 'mt-0.5 text-ink-soft' : 'text-ink']">
+              {{ toast.message }}
+            </p>
           </div>
 
-          <!-- Progress bar -->
-          <div v-if="toast.duration" class="h-1 bg-gray-100 dark:bg-dark-700">
+          <button
+            type="button"
+            class="btn btn-ghost btn-icon -my-1 -mr-1 shrink-0"
+            :aria-label="t('common.close')"
+            @click="removeToast(toast.id)"
+          >
+            <Icon name="x" size="sm" />
+          </button>
+
+          <!-- 停留进度：一条 1px 痕量线在走完前给出还剩多久的读数 -->
+          <div v-if="toast.duration" class="toast-progress-track">
             <div
-              :class="['h-full toast-progress', getProgressBarColor(toast.type)]"
+              :class="['toast-progress', getProgressBarColor(toast.type)]"
               :style="{ animationDuration: `${toast.duration}ms` }"
             ></div>
           </div>
@@ -78,9 +64,11 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import Icon from '@/components/icons/Icon.vue'
 import { useAppStore } from '@/stores/app'
 
+const { t } = useI18n()
 const appStore = useAppStore()
 
 const toasts = computed(() => appStore.toasts)
@@ -101,30 +89,31 @@ const getToastIconName = (type: string): 'checkCircle' | 'xCircle' | 'exclamatio
 
 const getIconColor = (type: string): string => {
   const colors: Record<string, string> = {
-    success: 'text-green-500',
-    error: 'text-red-500',
-    warning: 'text-yellow-500',
-    info: 'text-blue-500'
+    success: 'text-success-600',
+    error: 'text-danger-600',
+    warning: 'text-warning-600',
+    info: 'text-signal'
   }
   return colors[type] || colors.info
 }
 
-const getBorderColor = (type: string): string => {
-  const colors: Record<string, string> = {
-    success: 'border-green-500',
-    error: 'border-red-500',
-    warning: 'border-yellow-500',
-    info: 'border-blue-500'
+// 左侧 3px 竖条由语义类给出底色，这里只选语气
+const getToneClass = (type: string): string => {
+  const tones: Record<string, string> = {
+    success: 'toast-success',
+    error: 'toast-error',
+    warning: 'toast-warning',
+    info: 'toast-info'
   }
-  return colors[type] || colors.info
+  return tones[type] || tones.info
 }
 
 const getProgressBarColor = (type: string): string => {
   const colors: Record<string, string> = {
-    success: 'bg-green-500',
-    error: 'bg-red-500',
-    warning: 'bg-yellow-500',
-    info: 'bg-blue-500'
+    success: 'bg-success-500',
+    error: 'bg-danger-500',
+    warning: 'bg-warning-500',
+    info: 'bg-signal'
   }
   return colors[type] || colors.info
 }
@@ -135,7 +124,16 @@ const removeToast = (id: string) => {
 </script>
 
 <style scoped>
+.toast-progress-track {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1px;
+  background-color: rgb(var(--rule));
+}
+
 .toast-progress {
+  height: 100%;
   width: 100%;
   animation-name: toast-progress-shrink;
   animation-timing-function: linear;
@@ -148,6 +146,13 @@ const removeToast = (id: string) => {
   }
   to {
     width: 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-progress {
+    animation: none;
+    width: 100%;
   }
 }
 </style>

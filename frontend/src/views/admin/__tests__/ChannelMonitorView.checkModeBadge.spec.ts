@@ -149,9 +149,10 @@ describe('ChannelMonitorView check-mode badge', () => {
     const cls = modeBadge!.attributes('class')
     if (mode === 'probe') {
       expect(cls).toContain('bg-gray-100')
-      expect(cls).not.toContain('bg-blue-100')
+      expect(cls).not.toContain('bg-primary-100')
     } else {
-      expect(cls).toContain('bg-blue-100')
+      // quota 系数据源来自账号配额 = 信号色 primary（钴蓝）。
+      expect(cls).toContain('bg-primary-100')
       expect(cls).not.toContain('bg-gray-100')
     }
     wrapper.unmount()

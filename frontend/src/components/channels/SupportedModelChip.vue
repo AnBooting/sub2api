@@ -3,10 +3,10 @@
     <span
       ref="triggerEl"
       :class="[
-        'inline-flex cursor-help items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium transition-colors',
+        'inline-flex cursor-help items-center gap-1 border px-2 py-0.5 text-xs font-medium transition-colors',
         effectivePlatform
           ? platformBadgeClass(effectivePlatform)
-          : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-300',
+          : 'border-rule-strong bg-paper-inset text-ink-soft',
       ]"
       @mouseenter="onEnter"
       @mouseleave="onLeave"
@@ -21,7 +21,7 @@
       />
       <span
         v-if="showPlatform && model.platform"
-        class="rounded bg-gray-200/60 px-1 text-[10px] uppercase text-gray-600 dark:bg-dark-700 dark:text-gray-400"
+        class="bg-paper-inset px-1 font-read text-[10px] text-ink-faint"
       >
         {{ model.platform }}
       </span>
@@ -36,32 +36,32 @@
         v-show="show"
         ref="popoverEl"
         role="tooltip"
-        class="pointer-events-none fixed z-[99999] w-80 max-w-[min(22rem,calc(100vw-1rem))] rounded-lg border bg-white text-xs shadow-xl dark:bg-dark-800"
+        class="pointer-events-none fixed z-[99999] w-80 max-w-[min(22rem,calc(100vw-1rem))] border bg-surface text-xs"
         :class="[popoverBorderClass]"
         :style="popoverStyle"
       >
         <!-- Header：平台主题色背景，含模型名 + 平台徽章 -->
         <div
-          class="flex items-center justify-between gap-2 rounded-t-lg border-b px-3 py-2"
+          class="flex items-center justify-between gap-2 border-b px-3 py-2"
           :class="[popoverHeaderClass, popoverBorderClass]"
         >
           <span class="truncate font-semibold">{{ model.name }}</span>
           <span
             v-if="model.platform"
-            class="flex-shrink-0 rounded bg-white/70 px-1.5 py-0.5 text-[10px] uppercase tracking-wide dark:bg-dark-900/60"
+            class="flex-shrink-0 bg-surface/70 px-1.5 py-0.5 font-read text-[10px] dark:bg-dark-900/60"
           >
             {{ model.platform }}
           </span>
         </div>
 
         <div class="p-3">
-          <div v-if="!model.pricing" class="text-gray-500 dark:text-gray-400">
+          <div v-if="!model.pricing" class="text-gray-500 dark:text-ink-soft">
             {{ noPricingLabel }}
           </div>
 
-          <div v-else class="space-y-2 text-gray-700 dark:text-gray-300">
+          <div v-else class="space-y-2 text-gray-700 dark:text-ink-soft">
             <div class="flex justify-between">
-              <span class="text-gray-500 dark:text-gray-400">{{ t(prefixKey('billingMode')) }}</span>
+              <span class="text-gray-500 dark:text-ink-soft">{{ t(prefixKey('billingMode')) }}</span>
               <span>{{ billingModeLabel }}</span>
             </div>
 
@@ -148,7 +148,7 @@
               class="mt-2 border-t pt-2"
               :class="[popoverBorderClass]"
             >
-              <div class="mb-1 font-medium text-gray-600 dark:text-gray-400">
+              <div class="mb-1 font-medium text-gray-600 dark:text-ink-soft">
                 {{ t(prefixKey('intervals')) }}
               </div>
               <div class="space-y-1">
@@ -157,7 +157,7 @@
                   :key="idx"
                   class="flex justify-between text-[11px]"
                 >
-                  <span class="text-gray-500 dark:text-gray-400">
+                  <span class="text-gray-500 dark:text-ink-soft">
                     <template v-if="iv.tier_label">{{ iv.tier_label }}</template>
                     <template v-else>{{ formatRange(iv.min_tokens, iv.max_tokens) }}</template>
                   </span>
@@ -228,7 +228,7 @@ const popoverBorderClass = computed(() =>
 const popoverHeaderClass = computed(() =>
   effectivePlatform.value
     ? platformBadgeLightClass(effectivePlatform.value)
-    : 'bg-gray-50 text-gray-700 dark:bg-dark-700/60 dark:text-gray-300',
+    : 'bg-gray-50 text-gray-700 dark:bg-dark-700/60 dark:text-ink-soft',
 )
 
 function prefixKey(k: string): string {

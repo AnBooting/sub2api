@@ -1,132 +1,140 @@
 /** @type {import('tailwindcss').Config} */
+// 令牌来源：frontend/src/styles/design-system.css
+// 约定：这里只做「CSS 变量 → Tailwind 名称」映射，不写死色值。
+const withVar = (name) => `rgb(var(--c-${name}) / <alpha-value>)`
+const semantic = (name) => `rgb(var(--${name}) / <alpha-value>)`
+
+function palette(family) {
+  const steps = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950]
+  return Object.fromEntries(steps.map((step) => [step, withVar(`${family}-${step}`)]))
+}
+
+// Foreground status shades adapt to the theme; solid controls keep dark fills
+// so their light labels stay readable in either theme and every pointer state.
+function statusPalette(family) {
+  return {
+    ...palette(family),
+    solid: {
+      DEFAULT: withVar(`${family}-solid`),
+      hover: withVar(`${family}-solid-hover`),
+      active: withVar(`${family}-solid-active`)
+    }
+  }
+}
+
+/**
+ * 封闭调色板：覆盖 theme.colors（不是 extend），Tailwind 默认 22 个色族不注册。
+ * 写了 bg-emerald-500 之类不会生效 —— 审查会抓出来，逼着用语义令牌。
+ */
+const COLORS = {
+  transparent: 'transparent',
+  current: 'currentColor',
+  inherit: 'inherit',
+
+  // 纸与墨：白 = 纸面 surface，黑 = 主墨 ink
+  white: semantic('surface'),
+  black: semantic('ink'),
+
+  // 纸/墨色阶（暖石灰 / 暖深褐）
+  gray: palette('gray'),
+  dark: palette('graphite'),
+
+  // 信号：克莱因钴蓝。别名 primary 让既有 class 自动换色
+  primary: palette('cobalt'),
+  cobalt: palette('cobalt'),
+
+  // 状态
+  success: statusPalette('moss'),
+  warning: statusPalette('ochre'),
+  danger: statusPalette('oxide'),
+
+  // 分类（归属/类型）：默认 azure，另有四个同明度的分类色相供区分平台
+  accent: palette('azure'),
+  'tax-blue': palette('tax-blue'),
+  'tax-plum': palette('tax-plum'),
+  'tax-sage': palette('tax-sage'),
+  'tax-clay': palette('tax-clay'),
+  // 图表第 6 序列专用
+  lilac: palette('lilac'),
+
+  // 语义名称
+  paper: { DEFAULT: semantic('paper'), inset: semantic('paper-inset') },
+  surface: { DEFAULT: semantic('surface'), raised: semantic('surface-raised') },
+  ink: {
+    DEFAULT: semantic('ink'),
+    soft: semantic('ink-soft'),
+    faint: semantic('ink-faint')
+  },
+  rule: { DEFAULT: semantic('rule'), strong: semantic('rule-strong') },
+  signal: semantic('signal'),
+  // 压在强色（signal/danger/success/warning）上的字：永远亮，不随纸面翻色
+  'on-signal': semantic('on-signal')
+}
+
 export default {
   content: ['./index.html', './src/**/*.{vue,js,ts,jsx,tsx}'],
   darkMode: 'class',
   theme: {
+    colors: COLORS,
     extend: {
-      colors: {
-        // 主色调 - Teal/Cyan 青色系
-        primary: {
-          50: '#f0fdfa',
-          100: '#ccfbf1',
-          200: '#99f6e4',
-          300: '#5eead4',
-          400: '#2dd4bf',
-          500: '#14b8a6',
-          600: '#0d9488',
-          700: '#0f766e',
-          800: '#115e59',
-          900: '#134e4a',
-          950: '#042f2e'
-        },
-        // 辅助色 - 深蓝灰
-        accent: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617'
-        },
-        // 深色模式背景
-        dark: {
-          50: '#f8fafc',
-          100: '#f1f5f9',
-          200: '#e2e8f0',
-          300: '#cbd5e1',
-          400: '#94a3b8',
-          500: '#64748b',
-          600: '#475569',
-          700: '#334155',
-          800: '#1e293b',
-          900: '#0f172a',
-          950: '#020617'
-        }
-      },
       fontFamily: {
-        sans: [
-          'system-ui',
-          '-apple-system',
-          'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
-          'Helvetica Neue',
-          'Arial',
-          'PingFang SC',
-          'Hiragino Sans GB',
-          'Microsoft YaHei',
-          'sans-serif'
-        ],
-        mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+        // 界面与读数
+        sans: ['var(--font-ui)'],
+        read: ['var(--font-read)'],
+        mono: ['var(--font-read)'],
+        // 展示：编辑体衬线。标题、大数字、品牌名用这一族。
+        display: ['var(--font-display)']
       },
-      boxShadow: {
-        glass: '0 8px 32px rgba(0, 0, 0, 0.08)',
-        'glass-sm': '0 4px 16px rgba(0, 0, 0, 0.06)',
-        glow: '0 0 20px rgba(20, 184, 166, 0.25)',
-        'glow-lg': '0 0 40px rgba(20, 184, 166, 0.35)',
-        card: '0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.06)',
-        'card-hover': '0 10px 40px rgba(0, 0, 0, 0.08)',
-        'inner-glow': 'inset 0 1px 0 rgba(255, 255, 255, 0.1)'
-      },
-      backgroundImage: {
-        'gradient-radial': 'radial-gradient(var(--tw-gradient-stops))',
-        'gradient-primary': 'linear-gradient(135deg, #14b8a6 0%, #0d9488 100%)',
-        'gradient-dark': 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
-        'gradient-glass':
-          'linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.05) 100%)',
-        'mesh-gradient':
-          'radial-gradient(at 40% 20%, rgba(20, 184, 166, 0.12) 0px, transparent 50%), radial-gradient(at 80% 0%, rgba(6, 182, 212, 0.08) 0px, transparent 50%), radial-gradient(at 0% 50%, rgba(20, 184, 166, 0.08) 0px, transparent 50%)'
-      },
-      animation: {
-        'fade-in': 'fadeIn 0.3s ease-out',
-        'slide-up': 'slideUp 0.3s ease-out',
-        'slide-down': 'slideDown 0.3s ease-out',
-        'slide-in-right': 'slideInRight 0.3s ease-out',
-        'scale-in': 'scaleIn 0.2s ease-out',
-        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-        shimmer: 'shimmer 2s linear infinite',
-        glow: 'glow 2s ease-in-out infinite alternate'
-      },
-      keyframes: {
-        fadeIn: {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' }
-        },
-        slideUp: {
-          '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' }
-        },
-        slideDown: {
-          '0%': { opacity: '0', transform: 'translateY(-10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' }
-        },
-        slideInRight: {
-          '0%': { opacity: '0', transform: 'translateX(20px)' },
-          '100%': { opacity: '1', transform: 'translateX(0)' }
-        },
-        scaleIn: {
-          '0%': { opacity: '0', transform: 'scale(0.95)' },
-          '100%': { opacity: '1', transform: 'scale(1)' }
-        },
-        shimmer: {
-          '0%': { backgroundPosition: '-200% 0' },
-          '100%': { backgroundPosition: '200% 0' }
-        },
-        glow: {
-          '0%': { boxShadow: '0 0 20px rgba(20, 184, 166, 0.25)' },
-          '100%': { boxShadow: '0 0 30px rgba(20, 184, 166, 0.4)' }
-        }
-      },
-      backdropBlur: {
-        xs: '2px'
+      fontStretch: { 'semi-condensed': '88%', normal: '100%', wide: '103%' },
+      fontSize: {
+        // 编辑体字号阶：衬线在小字号会糊，所以标题从 1.25rem 起跳
+        'display-sm': ['1.375rem', { lineHeight: '1.25', letterSpacing: 'var(--track-display)' }],
+        'display-md': ['1.875rem', { lineHeight: '1.15', letterSpacing: 'var(--track-display)' }],
+        'display-lg': ['2.5rem', { lineHeight: '1.08', letterSpacing: 'var(--track-display)' }],
+        'display-xl': ['3.5rem', { lineHeight: '1.02', letterSpacing: 'var(--track-display)' }]
       },
       borderRadius: {
-        '4xl': '2rem'
+        // 切角取代圆角：3px 基准，最大 6px；full 仅头像/开关/圆点
+        sm: '2px',
+        DEFAULT: '3px',
+        md: '4px',
+        lg: '5px',
+        xl: '6px',
+        '2xl': '6px',
+        '3xl': '6px',
+        '4xl': '6px',
+        full: '999px'
+      },
+      boxShadow: {
+        // 唯一允许的柔影：真正浮起来的层。暖色投影，不用纯黑。
+        float: '0 18px 44px -26px rgb(58 53 48 / 0.42)',
+        'float-sm': '0 10px 26px -20px rgb(58 53 48 / 0.36)',
+        none: 'none'
+      },
+      transitionTimingFunction: {
+        cut: 'cubic-bezier(0.22, 0.61, 0.24, 1)',
+        settle: 'cubic-bezier(0.16, 0.84, 0.24, 1)'
+      },
+      transitionDuration: { fast: '140ms', base: '240ms' },
+      spacing: { touch: '44px', dock: '4.75rem', gutter: 'var(--gutter)' },
+      maxWidth: { measure: '68ch' },
+      keyframes: {
+        // 唯一编排瞬间：痕量线被画出
+        'trace-draw': { from: { transform: 'scaleX(0)' }, to: { transform: 'scaleX(1)' } },
+        // 衬线标题的一次性入场：只做微小的字距收束，不做位移
+        'type-settle': {
+          from: { opacity: '0', letterSpacing: '0.04em' },
+          to: { opacity: '1', letterSpacing: 'var(--track-display)' }
+        },
+        'ink-in': {
+          from: { opacity: '0', transform: 'translateY(4px)' },
+          to: { opacity: '1', transform: 'translateY(0)' }
+        }
+      },
+      animation: {
+        'trace-draw': 'trace-draw var(--motion-trace) var(--ease-settle) both',
+        'type-settle': 'type-settle var(--motion-trace) var(--ease-settle) both',
+        'ink-in': 'ink-in var(--motion-base) var(--ease-cut) both'
       }
     }
   },
