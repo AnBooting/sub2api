@@ -17,25 +17,93 @@ func (r *usageLogRepository) getPerformanceStats(ctx context.Context, userID int
 }
 
 func (r *usageLogRepository) getPerformanceStatsAt(ctx context.Context, userID int64, now time.Time) (rpm, tpm int64, err error) {
-	fiveMinutesAgo := now.Add(-5 * time.Minute)
+	filterColumn, filterValue := "", int64(0)
+	if userID > 0 {
+		filterColumn, filterValue = "user_id", userID
+	}
+	return r.queryPerformanceStats(ctx, now, filterColumn, filterValue, false)
+}
+
+// dashboardPerformanceWindow 是仪表盘 RPM/TPM 的滑动窗口。
+const dashboardPerformanceWindow = 5 * time.Minute
+
+// dashboardPerformanceMinCoveredMinutes 是分母下限。与渠道监控 V2 的 covered minutes
+// 一致：区间为空时按 1 分钟计，避免除以 0 或把速率放大成噪声。
+const dashboardPerformanceMinCoveredMinutes = 1.0
+
+// dashboardPerformanceCoveredMinutes 返回窗口内实际覆盖的分钟数，作为 RPM/TPM 的分母。
+//
+// coverageStart 是原始 usage_logs 的完整性边界（usage_stats_repair_control.raw_safe_from）：
+// 该时刻之前的历史可能已被保留策略清理或尚未验证，不能计入分子，也不应算进分母。
+// 与渠道监控 V2 的 channelMonitorV2CoveredMinutes 同口径——分母取「窗口 ∩ 实际覆盖区间」，
+// 而不是写死窗口长度：
+//   - 边界早于窗口起点（稳态）→ 覆盖时长就是整窗口 5 分钟，结果与旧的写死 /5 逐位一致；
+//   - 边界落在窗口内（新库、恢复、保留清理后重新积累）→ 只有后半段有数据，旧实现仍除以 5，
+//     速率被系统性低估（4 次请求 / 2 分钟真实覆盖应报 2 RPM，旧实现报 0）。
+//
+// 零值表示边界未知（控制行缺失，例如迁移 260 尚未执行），此时按整窗口计算，保持旧行为。
+func dashboardPerformanceCoveredMinutes(now, coverageStart time.Time) float64 {
+	start := now.Add(-dashboardPerformanceWindow)
+	if coverageStart.After(start) {
+		start = coverageStart
+	}
+	covered := now.Sub(start).Minutes()
+	if covered < dashboardPerformanceMinCoveredMinutes {
+		return dashboardPerformanceMinCoveredMinutes
+	}
+	if covered > dashboardPerformanceWindow.Minutes() {
+		return dashboardPerformanceWindow.Minutes()
+	}
+	return covered
+}
+
+// dashboardPerformanceRate 把窗口内的总量折算成每分钟速率。
+// 截断（而不是四舍五入）保持旧实现 count/5 的整数语义。
+func dashboardPerformanceRate(total int64, minutes float64) int64 {
+	if total <= 0 {
+		return 0
+	}
+	return int64(float64(total) / minutes)
+}
+
+// queryPerformanceStats 计算滑动窗口内的平均 RPM/TPM。
+//
+// 分母是窗口内实际覆盖的分钟数（见 dashboardPerformanceCoveredMinutes），不再写死
+// 除以 5。filterColumn 只由本文件内的调用方传入常量（user_id / api_key_id），不来自
+// 外部输入。
+//
+// includeCacheTokens 保留两条既有的 token 组成：管理员/用户仪表盘只算 input+output，
+// API Key 仪表盘含缓存 token。TPM 是否统一计入缓存见
+// project-docs/reviews/2026-11-14-rpm-alignment/ 的分析，本次不改 token 组成。
+func (r *usageLogRepository) queryPerformanceStats(ctx context.Context, now time.Time, filterColumn string, filterValue int64, includeCacheTokens bool) (rpm, tpm int64, err error) {
+	tokenExpr := "input_tokens + output_tokens"
+	if includeCacheTokens {
+		tokenExpr = "input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens"
+	}
+	// 分子与分母必须描述同一段区间：完整性边界（raw_safe_from）之前的历史不可信，
+	// 分子只统计边界之后的窗口内行，分母用同一区间的长度（见
+	// dashboardPerformanceCoveredMinutes）。控制行缺失时 COALESCE 退化为整窗口，保持旧行为。
 	query := `
 		SELECT
 			COUNT(*) as request_count,
-			COALESCE(SUM(input_tokens + output_tokens), 0) as token_count
+			COALESCE(SUM(` + tokenExpr + `), 0) as token_count,
+			(SELECT raw_safe_from FROM usage_stats_repair_control WHERE id = 1) as coverage_start
 		FROM usage_logs
-		WHERE created_at >= $1`
-	args := []any{fiveMinutesAgo}
-	if userID > 0 {
-		query += " AND user_id = $2"
-		args = append(args, userID)
+		WHERE created_at >= GREATEST($1::timestamptz, COALESCE(
+			(SELECT raw_safe_from FROM usage_stats_repair_control WHERE id = 1), $1::timestamptz))`
+	args := []any{now.Add(-dashboardPerformanceWindow)}
+	if filterColumn != "" {
+		query += " AND " + filterColumn + " = $2"
+		args = append(args, filterValue)
 	}
 
-	var requestCount int64
-	var tokenCount int64
-	if err := scanSingleRow(ctx, r.sql, query, args, &requestCount, &tokenCount); err != nil {
+	var requestCount, tokenCount int64
+	var coverageStart sql.NullTime
+	if err := scanSingleRow(ctx, r.sql, query, args, &requestCount, &tokenCount, &coverageStart); err != nil {
 		return 0, 0, err
 	}
-	return requestCount / 5, tokenCount / 5, nil
+	minutes := dashboardPerformanceCoveredMinutes(now, coverageStart.Time)
+	return dashboardPerformanceRate(requestCount, minutes), dashboardPerformanceRate(tokenCount, minutes), nil
 }
 
 // UserStats 用户使用统计
@@ -587,21 +655,8 @@ func (r *usageLogRepository) GetUserDashboardStats(ctx context.Context, userID i
 
 // getPerformanceStatsByAPIKey 获取指定 API Key 的 RPM 和 TPM（近5分钟平均值）
 func (r *usageLogRepository) getPerformanceStatsByAPIKey(ctx context.Context, apiKeyID int64) (rpm, tpm int64, err error) {
-	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
-	query := `
-		SELECT
-			COUNT(*) as request_count,
-			COALESCE(SUM(input_tokens + output_tokens + cache_creation_tokens + cache_read_tokens), 0) as token_count
-		FROM usage_logs
-		WHERE created_at >= $1 AND api_key_id = $2`
-	args := []any{fiveMinutesAgo, apiKeyID}
-
-	var requestCount int64
-	var tokenCount int64
-	if err := scanSingleRow(ctx, r.sql, query, args, &requestCount, &tokenCount); err != nil {
-		return 0, 0, err
-	}
-	return requestCount / 5, tokenCount / 5, nil
+	// 与管理员/用户仪表盘共用同一个分母口径；token 组成仍保持本路径既有的含缓存口径。
+	return r.queryPerformanceStats(ctx, time.Now(), "api_key_id", apiKeyID, true)
 }
 
 // GetAPIKeyDashboardStats 获取指定 API Key 的仪表盘统计（按 api_key_id 过滤）

@@ -25,6 +25,7 @@ export default {
       output: 'Output',
       cacheToday: 'Cache (Today)',
       performance: 'Performance',
+      performanceWindow: 'last 5 minutes',
       avgResponse: 'Avg Response',
       averageTime: 'Average Time',
       active: 'active',

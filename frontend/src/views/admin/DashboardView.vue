@@ -184,6 +184,7 @@
               <div class="flex-1">
                 <p class="text-xs font-medium text-gray-500 dark:text-gray-400">
                   {{ t('admin.dashboard.performance') }}
+                  <span class="font-normal">· {{ t('admin.dashboard.performanceWindow') }}</span>
                 </p>
                 <div class="flex items-baseline gap-2">
                   <p class="text-xl font-bold text-gray-900 dark:text-white">
