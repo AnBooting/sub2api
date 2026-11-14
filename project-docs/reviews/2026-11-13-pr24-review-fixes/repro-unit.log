@@ -1,0 +1,47 @@
+
+ RUN  v2.1.9 F:/sub2/frontend
+
+ ❯ src/components/common/__tests__/BaseDialog.focusTrap.spec.ts (13 tests | 6 failed) 499ms
+   × BaseDialog focus trap > excludes non-tabbable boundaries: <div style="display:none"><button>Hidden ancestor</button></div> 49ms
+     → expected false to be true // Object.is equality
+   × BaseDialog focus trap > excludes non-tabbable boundaries: <div hidden><button>Hidden attribute</button></div> 21ms
+     → expected false to be true // Object.is equality
+   × BaseDialog focus trap > excludes non-tabbable boundaries: <div style="visibility:hidden"><button>Invisible</button></div> 21ms
+     → expected false to be true // Object.is equality
+   × BaseDialog focus trap > excludes non-tabbable boundaries: <div inert><button>Inert ancestor</button></div> 22ms
+     → expected false to be true // Object.is equality
+   × BaseDialog focus trap > excludes non-tabbable boundaries: <fieldset disabled><button>Disabled fieldset</button></fieldset> 22ms
+     → expected false to be true // Object.is equality
+   × BaseDialog focus trap > excludes non-tabbable boundaries: <button tabindex="-2">Negative tabindex</button> 17ms
+     → expected false to be true // Object.is equality
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 6 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/common/__tests__/BaseDialog.focusTrap.spec.ts > BaseDialog focus trap > excludes non-tabbable boundaries: <div style="display:none"><button>Hidden ancestor</button></div>
+ FAIL  src/components/common/__tests__/BaseDialog.focusTrap.spec.ts > BaseDialog focus trap > excludes non-tabbable boundaries: <div hidden><button>Hidden attribute</button></div>
+ FAIL  src/components/common/__tests__/BaseDialog.focusTrap.spec.ts > BaseDialog focus trap > excludes non-tabbable boundaries: <div style="visibility:hidden"><button>Invisible</button></div>
+ FAIL  src/components/common/__tests__/BaseDialog.focusTrap.spec.ts > BaseDialog focus trap > excludes non-tabbable boundaries: <div inert><button>Inert ancestor</button></div>
+ FAIL  src/components/common/__tests__/BaseDialog.focusTrap.spec.ts > BaseDialog focus trap > excludes non-tabbable boundaries: <fieldset disabled><button>Disabled fieldset</button></fieldset>
+ FAIL  src/components/common/__tests__/BaseDialog.focusTrap.spec.ts > BaseDialog focus trap > excludes non-tabbable boundaries: <button tabindex="-2">Negative tabindex</button>
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/components/common/__tests__/BaseDialog.focusTrap.spec.ts:137:53
+    135|     await settle()
+    136|     byId('last')!.focus()
+    137|     expect(pressTab(byId('last')).defaultPrevented).toBe(true)
+       |                                                     ^
+    138|     expect(document.activeElement).toBe(byId('first'))
+    139|     expect(pressTab(byId('first'), true).defaultPrevented).toBe(true)
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/6]⎯
+
+ Test Files  1 failed (1)
+      Tests  6 failed | 7 passed (13)
+   Start at  23:56:37
+   Duration  18.18s (transform 541ms, setup 560ms, collect 576ms, tests 499ms, environment 14.95s, prepare 639ms)

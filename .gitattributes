@@ -20,3 +20,8 @@ backend/migrations/*.sql text eol=lf
 
 # Dockerfile
 Dockerfile text eol=lf
+# 证据目录：评审日志与 JSON 由工具生成，统一 LF 并放宽空白检查，
+# 否则 Windows 上 Set-Content/Out-File 写出的 CRLF 会让 git diff --check 拦住提交。
+project-docs/reviews/**/*.log  text eol=lf whitespace=-blank-at-eol,-blank-at-eof
+project-docs/reviews/**/*.json text eol=lf whitespace=-blank-at-eol,-blank-at-eof
+project-docs/reviews/**/*.txt  text eol=lf whitespace=-blank-at-eol,-blank-at-eof
