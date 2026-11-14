@@ -230,7 +230,7 @@
    v-if="showThroughput"
    :label="t('channelMonitorV2.metrics.rpm')"
    :value="formatRate(snapshot.metrics.rpm)"
-   :detail="t('channelMonitorV2.metrics.rpmDetail')"
+          :detail="t('channelMonitorV2.metrics.rpmDetailWindowed')"
    :title="exactRate(snapshot.metrics.rpm)"
    />
    </section>

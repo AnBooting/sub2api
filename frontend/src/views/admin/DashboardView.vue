@@ -108,7 +108,10 @@
               <p v-else class="stat-trend text-warning-700 dark:text-warning-300">{{ t('admin.dashboard.unavailable') }}</p>
             </div>
             <div class="border-b border-rule p-3 lg:border-b-0">
-              <p class="stat-label">{{ t('admin.dashboard.performance') }}</p>
+              <p class="stat-label">
+                {{ t('admin.dashboard.performance') }}
+                <span class="font-normal">· {{ t('admin.dashboard.performanceWindow') }}</span>
+              </p>
               <p class="stat-value mt-1">{{ formatTokens(stats.rpm) }}<span class="ml-1 font-read text-[11px] text-ink-faint">RPM</span></p>
               <p class="stat-trend">{{ formatTokens(stats.tpm) }} TPM</p>
             </div>

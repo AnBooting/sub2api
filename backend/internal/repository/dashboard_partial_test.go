@@ -27,7 +27,9 @@ func TestDashboardPartialKeepsSafeTodayAndHidesUnknownTotals(t *testing.T) {
 	mock.ExpectQuery(`(?s)SELECT active_users.*FROM usage_dashboard_hourly`).
 		WillReturnRows(sqlmock.NewRows([]string{"active_users"}).AddRow(1))
 	mock.ExpectQuery(`(?s)SELECT.*COUNT\(\*\).*FROM usage_logs`).
-		WillReturnRows(sqlmock.NewRows([]string{"requests", "tokens"}).AddRow(10, 500))
+		// 性能统计现在同时读取覆盖边界（raw_safe_from），用于把分母换成实际覆盖分钟数。
+		// 边界为零值表示未知，分母回落到整窗口 5 分钟，与旧实现一致（10 次 → 2 RPM）。
+		WillReturnRows(sqlmock.NewRows([]string{"requests", "tokens", "coverage_start"}).AddRow(10, 500, nil))
 	mock.ExpectCommit()
 	stats := &DashboardStats{TotalUsers: 9}
 	require.NoError(t, repo.fillDashboardUsageStatsAggregated(context.Background(), stats, day, day.Add(12*time.Hour)))

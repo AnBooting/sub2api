@@ -38,6 +38,7 @@ export default {
       tpm: 'TPM',
       tps: '每秒 Token',
       rpmDetail: '每分钟请求数',
+      rpmDetailWindowed: '每分钟请求数（当前窗口均值）',
       tpmDetail: '每分钟 Token 数',
       tpsDetail: '由 TPM ÷ 60 换算',
       errorRate: '错误率',
