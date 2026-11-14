@@ -121,7 +121,8 @@ if ($Scope -in @('docs', 'all')) {
     $statusScript = Join-Path $PSScriptRoot 'check-project-status.ps1'
     if (Test-Path -LiteralPath $statusScript) {
         [void](Invoke-Step 'status: 00-overview §7 与远端一致' {
-            # 必须走子进程：脚本内的 exit 会连带终止本门禁。
+            # 走子进程隔离：子脚本的 exit 只影响它自己，退出码经 $LASTEXITCODE 传回。
+            # 不要在 scriptblock 里写 exit —— 那会终止整个门禁进程。
             pwsh -NoProfile -File $statusScript -RepoRoot $RepoRoot
         })
     }
