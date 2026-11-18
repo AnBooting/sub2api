@@ -7,12 +7,14 @@ description: "Use when working on the Sub2API fork at F:\\sub2: Go/Vue code, mig
 
 ## 项目身份
 
+在目标工作树先读 `AGENTS.md`。项目指示优先于本速查，工具版本、分支和迁移以该工作树的配置和实际文件为准。
+
 | 项 | 值 |
 |---|---|
 | 仓库 | `F:\sub2` |
 | 上游 | `Wei-Shaw/sub2api`（LGPL-3.0），基线 `v0.2.15` / `3a6fd1c9` |
 | 分支 | `main` = 上游镜像（**禁止提交**）；`develop` = 二开集成 |
-| 技术栈 | Go 1.27.2 + Gin + Ent + PostgreSQL 18 + Redis 8；Vue 3.5 + Vite 5 + pnpm 9 |
+| 技术栈 | Go（版本见 `backend/go.mod`）+ Gin + Ent + PostgreSQL 18 + Redis 8；Vue 3.5 + Vite 5 + pnpm 9 |
 | 文档 | `F:\sub2\project-docs\`（先读 `00-overview.md`，规则读 `F:\sub2\AGENTS.md`） |
 
 ## 仓库导航
@@ -23,7 +25,7 @@ description: "Use when working on the Sub2API fork at F:\\sub2: Go/Vue code, mig
 
 | 工具 | 位置 / 用法 |
 |---|---|
-| Go 1.27.2 | `F:\tools\go1.27.2\go\bin\go.exe`（`GOROOT`/`GOPATH`/`PATH` 已持久化） |
+| Go | 按项目 `AGENTS.md` 选本机工具链，用 `go version` 核对 `backend/go.mod` |
 | pnpm | **必须** `corepack pnpm@9`；全局 pnpm 11 与锁文件不兼容 |
 | ocr | `F:\tools\ocr\opencodereview.exe`（= `ocr.exe`，阿里 OpenCodeReview v1.12.13）。**只有 `delegate preview/rule` 可用**：它只选文件与取规则、不调 LLM。`ocr review` 走 LLM，实测 454 次 HTTP 429、0 文件完成，**不要指望它做整库审查**；深审由宿主代理读 diff 完成 |
 | Docker | 需用户手动安装（见 `project-docs\03-dev-environment.md`） |
@@ -60,10 +62,23 @@ corepack pnpm@9 exec vite build
 2. **不整文件覆盖** `_reference/domestic-provider-kit/reference/` 里的共享文件；按
    `_reference/domestic-provider-kit/docs/MERGE-INDEX.md` 的行号摘录**逐段**提取国模片段。
 3. **不提交凭据**：`.env`、`data/`、`postgres_data/`、`redis_data/`、API Key、SSH 信息。
-4. **不碰** `dwin-builder`（192.168.43.119）。
+4. **不碰** `dwin-builder`。按项目规则，构建与验证一律在本机完成。
 5. **缺价不放行**：未定价模型必须在请求上游前拒绝，不得零价或回落 GPT 兜底价。
-6. **迁移编号**接在上游最新之后（当前最新 **250**，新增从 **251** 起），不改写已有迁移。
-   已用编号：243–245 国模移植、246 分组 HA、247 视频价目、248 云猫订单、249 视频任务、250 放宽 group-link 授权 CHECK。
+6. **新增迁移按实际占号分配**，保留已有迁移与项目预留区间。0.2.17 同步时 fork 的 243–250 已重编号为 251–258，251 已占用（见 `project-docs/上游同步说明.md`）。在目标工作树根目录核对本地文件以及已确认同步的集成、上游引用。引用可能过期时先核实其版本，无法确认时只报告本地范围。
+
+   ```powershell
+   $names = @(Get-ChildItem -LiteralPath backend/migrations -File -Filter '*.sql' -Name -ErrorAction Stop)
+   foreach ($ref in 'refs/remotes/origin/develop', 'refs/remotes/upstream/main') {
+       $files = @(git ls-tree --name-only "${ref}:backend/migrations")
+       if ($LASTEXITCODE -ne 0 -or $files.Count -eq 0) { throw "无法核对 $ref 的迁移" }
+       $names += $files
+   }
+   $used = @($names | ForEach-Object { if ($_ -match '^([0-9]+)_.+\.sql$') { [int]$Matches[1] } } | Sort-Object -Unique)
+   if ($used.Count -eq 0) { throw '未找到迁移编号' }
+   $used[-1] + 1
+   ```
+
+   输出是候选号。写入前复核项目预留号及并行分支的占用，合入前再核对目标分支。
 7. **不推送到 `upstream`**。其 push URL 已置哨兵值 `DISABLED-upstream-is-read-only`，误推会立即失败。
    `gh` 在本目录**未设默认仓库**，`gh pr view <n>` 会解析到上游同名 PR；一律显式 `--repo AnBooting/sub2api`。
 
@@ -84,7 +99,7 @@ corepack pnpm@9 exec vite build
 | 测试锁住 bug | 全绿但断言的是错误行为（4k 档曾被三个测试断言非法） | 修缺陷前先写**能失败**的测试；修复后**变异验证**（回退修复必须让测试失败） |
 | 测试照抄被测逻辑 | 改坏生产代码测试仍绿 | 抽出生产函数再断言（如 `mergeSearchSurcharge`），不要重写组合过程 |
 | 审查者读到过期工作树 | 行号/内容与当前源码不符 | 以当前源码为准并复核实证，不直接采信结论 |
-| 本地分支引用过期 | 误判提交「未推送」 | 判定「仅本地提交」用 `git rev-list --count --all --not --remotes`；`git branch -d` 只比较当前 HEAD，不是安全判据 |
+| 本地分支引用过期 | 误判提交「未推送」 | 按项目 `AGENTS.md` 做全库检查，单独核验候选分支顶端能否由预定保留引用到达。要求远端保留时，用目标远端实际公布的引用核对，并按项目规则确认清理授权 |
 | **viper 默认值污染「是否配置」哨兵** | 接线在测试里全绿、**生产里完全不生效** | `gateway.openai_ws.sticky_session_ttl_seconds` 默认 **3600（非零）**，用 `> 0` 判「已配置」恒真 → 策略分支成死代码。测试必须建模 viper 默认值，别只用 `config.Config{}`；「未配置则回落」要用取 **min**（配置作为上限）而非「非零即覆盖」 |
 | 新增/修改策略驱动参数 | 静默作废运维配置 | 把既有配置保留为**安全上限**（取 min），调小仍生效；调大不再放大需在注释与 PR 说明 |
 | 并发代理写同一文件 | `FS_STALE_VERSION` / 半成品编译失败 | 写入前查 mtime 确认无活跃写者；半成品（`undefined: xxx`）先判定是并发残留再动手，别当作自己的缺陷 |
@@ -94,16 +109,15 @@ corepack pnpm@9 exec vite build
 - 位置：`F:\sub2\_reference\domestic-provider-kit\`（只读参考，已校验 89/89 SHA256）。
 - **7 个 core 文件上游全无** → 直接新增。
 - **47 个共享参考文件全部有差异**（+12,798/-5,136 行），差异里混杂大量无关的上游演进 → 逐段合并。
-- 迁移 196/197/198 → 重编号 **243/244/245**。
+- 196/197/198 是移植包内编号。若仍需移植，按上面的迁移占号步骤选连续空号。早期合并计划里的 243/244/245 是历史方案。
 - 上游已有 `cn_provider`（余额/限流/调度）与前端 `keyGroupProviders.ts` 的 `domestic` 分类，
   与移植包的 `domestic_provider` 语义重叠 → 见 `project-docs/07-decisions.md` ADR-005。
 - 详细方案见 `F:\sub2\project-docs\02-merge-plan.md` 与 `09-preflight-report.md`。
 
 ## 部署
 
-本地：见 `project-docs/05-deploy-docker.md`。
-生产：**等用户提供服务器信息**（用户名/密码或密钥、IP、系统、是否已装 Docker、有无存量数据、TLS 方案），
-不做假设。部署前必须 `pg_dump` 备份并记录回滚点。
+本地部署见 `project-docs/05-deploy-docker.md`。
+生产发布按 `project-docs/00-overview.md` 的归属交给指定发布人。获得该目标的部署授权后，确认主机别名、系统、Docker、存量数据和 TLS 方案。认证使用已配置的 SSH agent 或宿主凭据库，只传连接别名或凭据引用。需要人工登录时，由发布人在受控终端输入；不向用户收集密码、私钥或令牌原文，不写入对话、参数、日志或文档。缺少受控接入时交接缺项。部署前用 `pg_dump` 备份并记录回滚点。
 
 ## 审查
 
