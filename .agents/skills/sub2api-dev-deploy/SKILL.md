@@ -19,7 +19,7 @@ description: "Use when working on the Sub2API fork at F:\\sub2: Go/Vue code, mig
 
 ## 仓库导航
 
-跨模块、公共契约、计费、调度、迁移或影响面不明确的任务，先读 `project-skills/repository-navigation/SKILL.md`，使用 `tools/repo-intelligence.mjs` 和 `tools/repo-map.mjs` 生成最小上下文包，再进入实现和验证。
+跨模块、公共契约、计费、调度、迁移或影响面不明确的任务，先读 `.agents/skills/repository-navigation/SKILL.md`，使用 `tools/repo-intelligence.mjs` 和 `tools/repo-map.mjs` 生成最小上下文包，再进入实现和验证。
 
 ## 环境（本机已就绪，勿重复安装）
 

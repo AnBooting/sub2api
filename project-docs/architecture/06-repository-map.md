@@ -54,7 +54,7 @@ node tools/repo-intelligence.mjs mcp --allow-dirty
 - `query` 和 `mcp` 默认拒绝 dirty 工作树；只有确认当前索引对应未提交内容时才传 `--allow-dirty`。
 - `mcp` 强制使用 Roam `core` profile、关闭自动索引并关闭模型摘要。
 - Roam 不可用或索引缺失时使用 `node tools/repo-map.mjs impact <term>` fallback。
-- 项目级触发和查询组合规范见 `project-skills/repository-navigation/SKILL.md`；本文件保留架构入口和缓存契约。
+- 项目级触发和查询组合规范见 `.agents/skills/repository-navigation/SKILL.md`；本文件保留架构入口和缓存契约。
 
 ## 当前结构入口
 
