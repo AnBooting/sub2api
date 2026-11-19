@@ -41,8 +41,9 @@ describe('GatewayFailureBadge', () => {
   it('uses warning colour for pricing (platform to-do) and neutral for model_not_found (user picked wrong)', () => {
     const pricing = mountBadge('pricing_unavailable')
     const notFound = mountBadge('model_not_found')
-    expect(pricing.get('span').classes().join(' ')).toContain('amber')
-    expect(notFound.get('span').classes().join(' ')).not.toContain('amber')
+    // 缺价 = warning（赭石，平台侧待办）；选错模型不得用同一警示色。
+    expect(pricing.get('span').classes().join(' ')).toContain('warning')
+    expect(notFound.get('span').classes().join(' ')).not.toContain('warning')
     pricing.unmount()
     notFound.unmount()
   })

@@ -94,14 +94,44 @@ export default {
       }
     },
     providers: {
-      title: 'Supported AI Models',
-      description: 'One API, Multiple Choices',
-      supported: 'Supported',
-      soon: 'Soon',
+      title: 'Upstream ports',
+      description: 'Four directions currently wired in',
+      supported: 'Connected',
+      soon: 'Not wired',
       claude: 'Claude',
+      gpt: 'GPT',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
       more: 'More'
+    },
+    // Patch-diagram hero: draws how one request travels across the board
+    patch: {
+      title: 'How a request travels across the board',
+      baseUrl: 'Endpoint',
+      version: 'Version',
+      upstreamHint: 'A pool of four upstream accounts; any one of them is enough',
+      gate: 'Check',
+      gateHint: 'Reads the key and group, then decides on the model price; unpriced models are refused, never billed at zero',
+      route: 'Forward',
+      routeHint: 'Picks one live line and sends the call; on failure it moves to the next one and keeps the session context',
+      ledger: 'Settle',
+      ledgerHint: 'Bills the actual usage into your balance and usage log, so every call can be reconciled',
+      failover: 'Reroute',
+      failoverHint: 'When the primary line fails, the standby account takes over without dropping the request',
+      noRpmCap: 'No cap',
+      statusLive: 'Line live',
+      statusSignedOut: 'Not wired',
+      statusDisabled: 'Account disabled',
+      statusNoBalance: 'Zero balance',
+      footnote: 'Every readout on this board is a live value from your own account; signed out they are a dash, never an invented number.'
+    },
+    // Stage list rendered as a reading table
+    spec: {
+      title: 'Three things this board carries',
+      meta: 'In call order',
+      columnIndex: 'No.',
+      columnStage: 'Stage',
+      columnWhat: 'What happens'
     },
     // CTA section
     cta: {
@@ -188,6 +218,11 @@ export default {
     queryFailed: 'Query failed',
     queryFailedRetry: 'Query failed, please try again later',
     noDailyUsage: 'No daily usage data',
+    // Empty state written as an invitation, not "no data"
+    emptyTitle: 'Paste your Key into the field above',
+    emptyDescription: 'Once queried, this page draws the quota rings, balance, today and lifetime totals, plus the daily and per-model ledger for this Key. The Key only makes a request from your browser; nothing is stored.',
+    showKey: 'Show Key',
+    hideKey: 'Hide Key',
   },
 
   // Setup Wizard

@@ -54,7 +54,8 @@ describe('admin shop sync status card', () => {
 
     const error = wrapper.get('[data-testid="shop-sync-error"]')
     expect(error.text()).toBe('admin.shopSync.errors.serviceRejected')
-    expect(error.classes()).toContain('text-amber-600')
+    // 上游拒绝 = 可重试的预警态 warning（赭石），不是断线红。
+    expect(error.classes()).toContain('text-warning-600')
     // 原始码只留在 title 属性里，不作为正文展示。
     expect(error.attributes('title')).toBe('shop_upstream_rejected')
     expect(wrapper.get('[data-testid="shop-sync-state"]').text()).toBe('admin.shopSync.stateFailed')

@@ -15,11 +15,11 @@
       <li
         v-for="(id, index) in localIds"
         :key="id"
-        class="flex flex-wrap items-center gap-2 rounded-lg border border-gray-200 p-2 dark:border-dark-600"
+   class="flex flex-wrap items-center gap-2 rounded-lg border border-rule p-2 dark:border-dark-600"
         :data-group-id="id"
       >
         <span
-          class="drag-handle flex cursor-grab items-center text-gray-300 hover:text-gray-500 active:cursor-grabbing dark:text-dark-600 dark:hover:text-dark-400"
+   class="drag-handle flex cursor-grab items-center text-ink-faint hover:text-ink-soft active:cursor-grabbing dark:text-dark-600 dark:hover:text-ink-soft"
           :aria-label="t('keys.chain.dragHandle')"
           :title="t('keys.chain.dragHandle')"
           data-action="drag"
@@ -28,13 +28,13 @@
             <path d="M7 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 2a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM7 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM13 14a2 2 0 1 0 0 4 2 2 0 0 0 0-4z" />
           </svg>
         </span>
-        <span class="w-5 text-center text-sm text-gray-500">{{ index + 1 }}</span>
+   <span class="w-5 text-center text-sm text-ink-soft">{{ index + 1 }}</span>
         <div class="min-w-0 flex-1">
           <template v-if="groupById(id)">
             <GroupBadge v-bind="badgeProps(groupById(id)!)" />
-            <span v-if="groupById(id)?.status === 'inactive'" class="text-xs text-gray-500">{{ t('keys.chain.unavailable', { id }) }}</span>
+   <span v-if="groupById(id)?.status === 'inactive'" class="text-xs text-ink-soft">{{ t('keys.chain.unavailable', { id }) }}</span>
           </template>
-          <span v-else class="text-sm text-gray-500">{{ t('keys.chain.unavailable', { id }) }}</span>
+   <span v-else class="text-sm text-ink-soft">{{ t('keys.chain.unavailable', { id }) }}</span>
           <!-- Live 开关与 Realtime 每分钟单价（分组 DTO 已下发） -->
           <GroupLiveBadge :group="groupById(id)" />
           <!-- DeepSeek 峰谷计价状态（分组 DTO 已下发，字段缺失时自动隐藏） -->

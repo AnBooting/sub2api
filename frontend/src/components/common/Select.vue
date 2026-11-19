@@ -10,6 +10,7 @@
       :id="id"
       :aria-label="ariaLabel ?? 'Select option'"
       :aria-describedby="ariaDescribedby"
+      :title="selectedLabel || undefined"
       :class="[
         'select-trigger',
         isOpen && 'select-trigger-open',
@@ -62,7 +63,7 @@
         >
           <!-- Search input -->
           <div v-if="isSearchable" class="select-search">
-            <Icon name="search" size="sm" class="text-gray-400" />
+            <Icon name="search" size="sm" class="shrink-0 text-ink-faint" />
             <input
               ref="searchInputRef"
               v-model="searchQuery"
@@ -97,14 +98,14 @@
                   v-if="option._creatable"
                   name="search"
                   size="sm"
-                  class="flex-shrink-0 text-gray-400"
+                  class="flex-shrink-0 text-ink-faint"
                 />
-                <span class="select-option-label" :class="option._creatable && 'italic text-gray-500 dark:text-dark-300'">{{ getOptionLabel(option) }}</span>
+                <span class="select-option-label" :class="option._creatable && 'text-ink-soft'">{{ getOptionLabel(option) }}</span>
                 <Icon
                   v-if="isSelected(option)"
                   name="check"
                   size="sm"
-                  class="text-primary-500"
+                  class="text-signal"
                   :stroke-width="2"
                 />
               </slot>
@@ -518,66 +519,86 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 触发框与 .input 同一套纸与线：1px 痕量线、切角 2px、16px 字号（避免 iOS 聚焦缩放） */
 .select-trigger {
   @apply flex w-full items-center justify-between gap-2;
-  @apply rounded-xl px-4 py-2.5 text-sm;
-  @apply bg-white dark:bg-dark-800;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-  @apply hover:border-gray-300 dark:hover:border-dark-500;
+  @apply border border-rule-strong bg-surface px-3 py-2 text-ink;
+  @apply transition-colors duration-150;
+  @apply hover:border-ink-faint;
+  @apply focus:border-signal focus:outline-none;
   @apply cursor-pointer;
+  border-radius: var(--radius-cut);
+  min-height: 2.25rem;
+  font-size: 16px;
+}
+
+/* 手机上是拇指目标：触发框升到 44px，与 .btn 的规则对齐 */
+@media (max-width: 767px) {
+  .select-trigger {
+    min-height: var(--touch-min);
+  }
+}
+
+@media (min-width: 768px) {
+  .select-trigger {
+    font-size: 0.875rem;
+  }
 }
 
 .select-trigger-open {
-  @apply border-primary-500 ring-2 ring-primary-500/30;
+  @apply border-signal;
 }
 
 .select-trigger-error {
-  @apply border-red-500 focus:border-red-500 focus:ring-red-500/30;
+  @apply border-danger-400;
 }
 
 .select-trigger-disabled {
-  @apply cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900;
+  @apply cursor-not-allowed bg-paper-inset text-ink-faint;
 }
 
 .select-value {
-  @apply flex-1 truncate text-left;
+  @apply min-w-0 flex-1 truncate text-left;
 }
 
 .select-icon {
-  @apply flex-shrink-0 text-gray-400 dark:text-dark-400;
+  @apply flex-shrink-0 text-ink-faint;
 }
 
+/* 清除按钮：视觉是 16px 图标，触控面靠 44px 盒子撑开 */
 .select-clear {
-  @apply flex flex-shrink-0 cursor-pointer items-center justify-center;
-  @apply rounded text-gray-400 transition-colors;
-  @apply hover:text-gray-600 dark:hover:text-gray-200;
+  @apply -mr-1.5 flex h-11 w-11 flex-shrink-0 cursor-pointer items-center justify-center;
+  @apply text-ink-faint transition-colors;
+  @apply hover:text-ink;
 }
 </style>
 
 <style>
+/* 下拉是真正浮起来的层：唯一允许 shadow-float 的地方 + 1px 线 + 切角 */
 .select-dropdown-portal {
   @apply w-max min-w-[200px];
-  @apply bg-white dark:bg-dark-800;
-  @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply border border-rule-strong bg-surface;
   @apply overflow-hidden;
+  border-radius: var(--radius-cut);
+  box-shadow: 0 18px 44px -26px rgb(58 53 48 / 0.42);
   pointer-events: auto !important;
 }
 
 .select-dropdown-portal .select-search {
-  @apply flex items-center gap-2 px-3 py-2;
-  @apply border-b border-gray-100 dark:border-dark-700;
+  @apply flex items-center gap-2 border-b border-rule px-3 py-2;
 }
 
 .select-dropdown-portal .select-search-input {
-  @apply flex-1 bg-transparent text-sm;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
+  @apply min-w-0 flex-1 bg-transparent text-ink;
+  @apply placeholder:text-ink-faint;
   @apply focus:outline-none;
+  font-size: 16px;
+}
+
+@media (min-width: 768px) {
+  .select-dropdown-portal .select-search-input {
+    font-size: 0.875rem;
+  }
 }
 
 .select-dropdown-portal .select-options {
@@ -586,44 +607,42 @@ onUnmounted(() => {
 
 .select-dropdown-portal .select-option {
   @apply flex items-center justify-between gap-2;
-  @apply px-4 py-2.5 text-sm;
-  @apply text-gray-700 dark:text-gray-300;
-  @apply cursor-pointer transition-colors duration-150;
-  @apply hover:bg-gray-50 dark:hover:bg-dark-700;
+  @apply px-3 py-2.5 text-sm text-ink-soft;
+  @apply cursor-pointer transition-colors duration-100;
+  @apply hover:bg-paper-inset hover:text-ink;
+  min-height: var(--touch-min);
   pointer-events: auto !important;
 }
 
 .select-dropdown-portal .select-option-selected {
-  @apply bg-primary-50 dark:bg-primary-900/20;
-  @apply text-primary-700 dark:text-primary-300;
+  background-color: rgb(var(--signal) / 0.08);
+  color: rgb(var(--ink));
 }
 
 .select-dropdown-portal .select-option-focused {
-  @apply bg-gray-100 dark:bg-dark-700;
+  @apply bg-paper-inset;
 }
 
 .select-dropdown-portal .select-option-disabled {
   @apply cursor-not-allowed opacity-40;
 }
 
+/* 分组标题是"分区注记"，不是眉标：等宽小字、句首大写，不做全大写 */
 .select-dropdown-portal .select-option-group {
   @apply cursor-default select-none;
-  @apply bg-gray-50 dark:bg-dark-900;
-  @apply text-[11px] font-bold uppercase tracking-wider;
-  @apply text-gray-500 dark:text-gray-400;
+  @apply bg-paper-inset font-read text-[0.6875rem] font-medium text-ink-faint;
 }
 
 .select-dropdown-portal .select-option-group:hover {
-  @apply bg-gray-50 dark:bg-dark-900;
+  @apply bg-paper-inset;
 }
 
 .select-dropdown-portal .select-option-label {
-  @apply flex-1 min-w-0 truncate text-left;
+  @apply min-w-0 flex-1 truncate text-left;
 }
 
 .select-dropdown-portal .select-empty {
-  @apply px-4 py-8 text-center text-sm;
-  @apply text-gray-500 dark:text-dark-400;
+  @apply px-4 py-8 text-center text-sm text-ink-faint;
 }
 
 .select-dropdown-enter-active,

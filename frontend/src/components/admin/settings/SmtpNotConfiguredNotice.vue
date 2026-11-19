@@ -1,6 +1,6 @@
 <template>
   <div
-    class="card border-amber-200 dark:border-amber-800/60"
+    class="card border-warning-200 dark:border-warning-800/60"
     data-testid="smtp-not-configured"
     role="alert"
   >
@@ -8,13 +8,13 @@
       <Icon
         name="exclamationTriangle"
         size="md"
-        class="mt-0.5 flex-shrink-0 text-amber-500 dark:text-amber-400"
+        class="mt-0.5 flex-shrink-0 text-warning-500 dark:text-warning-400"
       />
       <div class="min-w-0">
-        <h3 class="font-medium text-gray-900 dark:text-white">
+        <h3 class="font-medium text-ink">
           {{ t('admin.settings.smtp.notConfiguredTitle') }}
         </h3>
-        <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+        <p class="mt-1 text-sm text-ink-soft">
           {{ t('admin.settings.smtp.notConfiguredHint') }}
         </p>
       </div>

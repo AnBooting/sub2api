@@ -1,57 +1,126 @@
 <template>
-  <!-- Custom Home Content: Full Page Mode -->
-  <div v-if="hasHomeContent" class="min-h-screen">
-    <!-- iframe mode -->
+  <!-- 自定义首页：整页模式（管理员配置 home_content） -->
+  <div v-if="hasHomeContent" class="min-h-screen bg-paper text-ink">
     <iframe
       v-if="isHomeContentUrl"
       :src="homeContent.trim()"
       class="h-screen w-full border-0"
       allowfullscreen
     ></iframe>
-    <!-- HTML mode - SECURITY: homeContent is admin-only setting, XSS risk is acceptable -->
+    <!-- HTML 模式 - SECURITY: homeContent 是管理员配置项，其 XSS 风险已被接受 -->
     <div v-else v-html="homeContent"></div>
   </div>
 
-  <!-- Compact Home Page -->
+  <!-- 紧凑首页：品牌、一句说明、一个入口 -->
   <div
     v-else-if="compactHomeEnabled"
     data-testid="compact-home"
-    class="flex min-h-screen flex-col bg-gray-50 text-gray-900 dark:bg-dark-950 dark:text-white"
+    class="flex min-h-screen flex-col bg-paper text-ink"
   >
-    <header class="border-b border-gray-200 px-4 py-4 sm:px-6 dark:border-dark-800">
-      <nav class="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 sm:gap-4">
-        <div class="flex min-w-0 flex-1 items-center gap-3">
-          <img
-            :src="siteLogo || '/logo.svg'"
-            alt="Logo"
-            class="h-9 w-9 shrink-0 rounded-lg object-contain"
-          />
-          <span class="min-w-0 truncate text-base font-semibold">{{ siteName }}</span>
+    <header class="border-b border-rule">
+      <nav class="mx-auto flex min-w-0 max-w-5xl flex-wrap items-center justify-between gap-3 px-gutter py-3">
+        <div class="home-brand flex min-w-0 flex-1 items-center gap-2.5">
+          <img :src="siteLogo || '/logo.svg'" alt="" class="h-8 w-8 shrink-0 object-contain" />
+          <span class="brand-name min-w-0 truncate">{{ siteName }}</span>
         </div>
-        <div class="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-2">
+        <div class="flex max-w-full shrink-0 flex-wrap items-center justify-end gap-1.5">
           <LocaleSwitcher />
           <a
             v-if="docUrl"
             :href="docUrl"
             target="_blank"
             rel="noopener noreferrer"
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-dark-400 dark:hover:bg-dark-800"
+            class="btn btn-ghost btn-icon"
             :title="t('home.viewDocs')"
+            :aria-label="t('home.viewDocs')"
           >
             <Icon name="book" size="md" />
           </a>
           <router-link
             v-if="showModelPlazaEntry"
             to="/model-plaza"
-            class="flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
+            class="btn btn-ghost"
             :title="t('nav.modelPlaza')"
           >
             <Icon name="grid" size="md" />
             <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
           </router-link>
           <button
-            class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-dark-400 dark:hover:bg-dark-800"
+            type="button"
+            class="btn btn-ghost btn-icon"
             :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
+            :aria-label="isDark ? t('home.switchToLight') : t('home.switchToDark')"
+            @click="toggleTheme"
+          >
+            <Icon v-if="isDark" name="sun" size="md" />
+            <Icon v-else name="moon" size="md" />
+          </button>
+          <router-link :to="isAuthenticated ? dashboardPath : '/login'" class="btn btn-primary">
+            {{ isAuthenticated ? t('home.dashboard') : t('home.login') }}
+          </router-link>
+        </div>
+      </nav>
+    </header>
+
+    <main class="flex min-w-0 flex-1 items-center px-gutter py-16">
+      <div class="mx-auto w-full max-w-measure">
+        <h1 class="title-block-display [overflow-wrap:anywhere]">{{ siteName }}</h1>
+        <p class="lead mt-4 whitespace-pre-wrap [overflow-wrap:anywhere]">
+          {{ siteSubtitle }}
+        </p>
+        <router-link
+          :to="isAuthenticated ? dashboardPath : '/login'"
+          class="btn btn-primary mt-7"
+        >
+          {{ isAuthenticated ? t('home.goToDashboard') : t('home.login') }}
+          <Icon name="arrowRight" size="sm" />
+        </router-link>
+      </div>
+    </main>
+
+    <footer class="border-t border-rule px-gutter py-4">
+      <p class="mx-auto max-w-5xl text-xs text-ink-faint [overflow-wrap:anywhere]">
+        &copy; {{ currentYear }} {{ siteName }}
+      </p>
+    </footer>
+  </div>
+
+  <!-- 默认首页：一次请求在图上的走向 -->
+  <div v-else class="flex min-h-screen flex-col bg-paper text-ink">
+    <header class="border-b border-rule">
+      <nav class="mx-auto flex min-w-0 max-w-6xl items-center justify-between gap-3 px-gutter py-3">
+        <router-link to="/" class="home-brand flex min-w-0 items-center gap-2.5">
+          <img :src="siteLogo || '/logo.svg'" alt="" class="h-8 w-8 shrink-0 object-contain" />
+          <span class="brand-name min-w-0 truncate">{{ siteName }}</span>
+        </router-link>
+
+        <div class="flex min-w-0 shrink items-center gap-1">
+          <LocaleSwitcher />
+          <a
+            v-if="docUrl"
+            :href="docUrl"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-ghost btn-icon"
+            :title="t('home.viewDocs')"
+            :aria-label="t('home.viewDocs')"
+          >
+            <Icon name="book" size="md" />
+          </a>
+          <router-link
+            v-if="showModelPlazaEntry"
+            to="/model-plaza"
+            class="btn btn-ghost"
+            :title="t('nav.modelPlaza')"
+          >
+            <Icon name="grid" size="md" />
+            <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
+          </router-link>
+          <button
+            type="button"
+            class="btn btn-ghost btn-icon"
+            :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
+            :aria-label="isDark ? t('home.switchToLight') : t('home.switchToDark')"
             @click="toggleTheme"
           >
             <Icon v-if="isDark" name="sun" size="md" />
@@ -59,7 +128,7 @@
           </button>
           <router-link
             :to="isAuthenticated ? dashboardPath : '/login'"
-            class="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+            class="btn btn-primary ml-1"
           >
             {{ isAuthenticated ? t('home.dashboard') : t('home.login') }}
           </router-link>
@@ -67,426 +136,186 @@
       </nav>
     </header>
 
-    <main class="flex min-w-0 flex-1 items-center justify-center px-4 py-16 sm:px-6">
-      <div class="min-w-0 max-w-2xl text-center">
-        <img
-          :src="siteLogo || '/logo.svg'"
-          alt="Logo"
-          class="mx-auto mb-6 h-20 w-20 rounded-2xl object-contain"
-        />
-        <h1 class="[overflow-wrap:anywhere] text-3xl font-bold md:text-4xl">{{ siteName }}</h1>
-        <p class="mt-4 whitespace-pre-wrap [overflow-wrap:anywhere] text-base text-gray-600 dark:text-dark-300">{{ siteSubtitle }}</p>
-        <router-link
-          :to="isAuthenticated ? dashboardPath : '/login'"
-          class="mt-8 inline-flex min-h-10 items-center justify-center rounded-lg bg-primary-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          {{ isAuthenticated ? t('home.goToDashboard') : t('home.login') }}
-        </router-link>
-      </div>
-    </main>
-
-    <footer class="min-w-0 border-t border-gray-200 px-4 py-5 text-center text-sm text-gray-500 [overflow-wrap:anywhere] sm:px-6 dark:border-dark-800 dark:text-dark-400">
-      &copy; {{ currentYear }} {{ siteName }}
-    </footer>
-  </div>
-
-  <!-- Default Home Page -->
-  <div
-    v-else
-    class="relative flex min-h-screen flex-col overflow-hidden bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950"
-  >
-    <!-- Background Decorations -->
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <div
-        class="absolute -right-40 -top-40 h-96 w-96 rounded-full bg-primary-400/20 blur-3xl"
-      ></div>
-      <div
-        class="absolute -bottom-40 -left-40 h-96 w-96 rounded-full bg-primary-500/15 blur-3xl"
-      ></div>
-      <div
-        class="absolute left-1/3 top-1/4 h-72 w-72 rounded-full bg-primary-300/10 blur-3xl"
-      ></div>
-      <div
-        class="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full bg-primary-400/10 blur-3xl"
-      ></div>
-      <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
-      ></div>
-    </div>
-
-    <!-- Header -->
-    <header class="relative z-20 px-6 py-4">
-      <nav class="mx-auto flex max-w-6xl items-center justify-between">
-        <!-- Logo -->
-        <div class="flex items-center">
-          <div class="h-10 w-10 overflow-hidden rounded-xl shadow-md">
-            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
-          </div>
-        </div>
-
-        <!-- Nav Actions -->
-        <div class="flex items-center gap-3">
-          <!-- Language Switcher -->
-          <LocaleSwitcher />
-
-          <!-- Doc Link -->
-          <a
-            v-if="docUrl"
-            :href="docUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
-            :title="t('home.viewDocs')"
-          >
-            <Icon name="book" size="md" />
-          </a>
-
-          <!-- Model Plaza Link -->
-          <router-link
-            v-if="showModelPlazaEntry"
-            to="/model-plaza"
-            class="inline-flex items-center gap-1.5 rounded-lg p-2 text-sm text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
-            :title="t('nav.modelPlaza')"
-          >
-            <Icon name="grid" size="md" />
-            <span class="hidden sm:inline">{{ t('nav.modelPlaza') }}</span>
-          </router-link>
-
-          <!-- Theme Toggle -->
-          <button
-            @click="toggleTheme"
-            class="rounded-lg p-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-800 dark:hover:text-white"
-            :title="isDark ? t('home.switchToLight') : t('home.switchToDark')"
-          >
-            <Icon v-if="isDark" name="sun" size="md" />
-            <Icon v-else name="moon" size="md" />
-          </button>
-
-          <!-- Login / Dashboard Button -->
-          <router-link
-            v-if="isAuthenticated"
-            :to="dashboardPath"
-            class="inline-flex items-center gap-1.5 rounded-full bg-gray-900 py-1 pl-1 pr-2.5 transition-colors hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700"
-          >
-            <span
-              class="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-primary-400 to-primary-600 text-[10px] font-semibold text-white"
-            >
-              {{ userInitial }}
-            </span>
-            <span class="text-xs font-medium text-white">{{ t('home.dashboard') }}</span>
-            <svg
-              class="h-3 w-3 text-gray-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              stroke-width="2"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M4.5 19.5l15-15m0 0H8.25m11.25 0v11.25"
-              />
-            </svg>
-          </router-link>
-          <router-link
-            v-else
-            to="/login"
-            class="inline-flex items-center rounded-full bg-gray-900 px-3 py-1 text-xs font-medium text-white transition-colors hover:bg-gray-800 dark:bg-gray-800 dark:hover:bg-gray-700"
-          >
-            {{ t('home.login') }}
-          </router-link>
-        </div>
-      </nav>
-    </header>
-
-    <!-- Main Content -->
-    <main class="relative z-10 flex-1 px-6 py-16">
-      <div class="mx-auto max-w-6xl">
-        <!-- Hero Section - Left/Right Layout -->
-        <div class="mb-12 flex flex-col items-center justify-between gap-12 lg:flex-row lg:gap-16">
-          <!-- Left: Text Content -->
-          <div class="flex-1 text-center lg:text-left">
-            <h1
-              class="mb-4 text-4xl font-bold text-gray-900 dark:text-white md:text-5xl lg:text-6xl"
-            >
+    <main class="min-w-0 flex-1">
+      <!-- Hero：左边这一页是什么，右边画出请求怎么走 -->
+      <section class="mx-auto max-w-6xl px-gutter pb-10 pt-12 sm:pt-16">
+        <div class="grid min-w-0 gap-10 lg:grid-cols-12 lg:gap-12">
+          <div class="min-w-0 lg:col-span-5">
+            <h1 class="title-block-display [overflow-wrap:anywhere]">
               {{ siteName }}
             </h1>
-            <p class="mb-8 text-lg text-gray-600 dark:text-dark-300 md:text-xl">
+            <p class="lead mt-4 [overflow-wrap:anywhere]">
               {{ siteSubtitle }}
             </p>
+            <p class="mt-3 max-w-measure text-sm leading-[1.65] text-ink-soft [overflow-wrap:anywhere]">
+              {{ t('home.heroDescription') }}
+            </p>
 
-            <!-- CTA Button -->
-            <div>
+            <div class="mt-7 flex flex-wrap items-center gap-2">
               <router-link
                 :to="isAuthenticated ? dashboardPath : '/login'"
-                class="btn btn-primary px-8 py-3 text-base shadow-lg shadow-primary-500/30"
+                class="btn btn-primary"
               >
                 {{ isAuthenticated ? t('home.goToDashboard') : t('home.getStarted') }}
-                <Icon name="arrowRight" size="md" class="ml-2" :stroke-width="2" />
+                <Icon name="arrowRight" size="sm" />
               </router-link>
+              <a
+                v-if="docUrl"
+                :href="docUrl"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="btn btn-secondary"
+              >
+                {{ t('home.viewDocs') }}
+              </a>
             </div>
+
+            <!-- 图签读数：接口地址与版本 -->
+            <dl class="mt-8 flex flex-wrap gap-x-8 gap-y-2 border-t border-rule pt-3">
+              <div class="min-w-0">
+                <dt class="stat-label">{{ t('home.patch.baseUrl') }}</dt>
+                <dd class="mt-0.5 min-w-0 break-all font-read text-[0.8125rem] tabular-nums text-ink">
+                  {{ apiBaseUrl || dash }}
+                </dd>
+              </div>
+              <div class="min-w-0">
+                <dt class="stat-label">{{ t('home.patch.version') }}</dt>
+                <dd class="mt-0.5 font-read text-[0.8125rem] tabular-nums text-ink">
+                  {{ siteVersion || dash }}
+                </dd>
+              </div>
+            </dl>
           </div>
 
-          <!-- Right: Terminal Animation -->
-          <div class="flex flex-1 justify-center lg:justify-end">
-            <div class="terminal-container">
-              <div class="terminal-window">
-                <!-- Window header -->
-                <div class="terminal-header">
-                  <div class="terminal-buttons">
-                    <span class="btn-close"></span>
-                    <span class="btn-minimize"></span>
-                    <span class="btn-maximize"></span>
+          <!-- 主视觉：请求在图上的走向。宽屏横排、窄屏纵排，同一张图纸。 -->
+          <div class="min-w-0 lg:col-span-7">
+            <figure
+              data-testid="patch-diagram"
+              class="panel min-w-0 overflow-hidden"
+              :aria-label="t('home.patch.title')"
+            >
+              <figcaption class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-rule px-3 py-2.5 sm:px-5">
+                <span class="text-[0.8125rem] font-medium text-ink">{{ t('home.patch.title') }}</span>
+                <span class="font-read text-[0.6875rem] tabular-nums text-ink-faint">
+                  {{ requestLine }}
+                </span>
+              </figcaption>
+
+              <div class="patch-body px-3 py-3 sm:px-5 sm:py-4">
+                <div class="patch-col patch-col-ports">
+                  <div
+                    v-for="port in upstreamPorts"
+                    :key="port.key"
+                    class="patch-port"
+                    :class="'is-' + lineState"
+                  >
+                    <span class="patch-port-dot" aria-hidden="true"></span>
+                    <span class="patch-port-name">{{ t(port.label) }}</span>
                   </div>
-                  <span class="terminal-title">terminal</span>
                 </div>
-                <!-- Terminal content -->
-                <div class="terminal-body">
-                  <div class="code-line line-1">
-                    <span class="code-prompt">$</span>
-                    <span class="code-cmd">curl</span>
-                    <span class="code-flag">-X POST</span>
-                    <span class="code-url">/v1/messages</span>
+
+                <div class="patch-col patch-col-nodes" :class="'is-' + lineState">
+                  <div
+                    v-for="stage in stages"
+                    :key="stage.key"
+                    class="patch-node"
+                    :class="'is-' + stage.state"
+                  >
+                    <div class="patch-node-head">
+                      <span class="patch-node-name">{{ t(stage.label) }}</span>
+                      <!-- 落账节点的读数是账户余额：全页最大的那个数，用衬线大读数 -->
+                      <span
+                        v-if="stage.key === 'ledger'"
+                        class="readout-display patch-node-read-display"
+                      >{{ stage.readout }}</span>
+                      <span v-else class="patch-node-read">{{ stage.readout }}</span>
+                    </div>
+                    <p class="patch-note">{{ t(stage.hint) }}</p>
                   </div>
-                  <div class="code-line line-2">
-                    <span class="code-comment"># Routing to upstream...</span>
-                  </div>
-                  <div class="code-line line-3">
-                    <span class="code-success">200 OK</span>
-                    <span class="code-response">{ "content": "Hello!" }</span>
-                  </div>
-                  <div class="code-line line-4">
-                    <span class="code-prompt">$</span>
-                    <span class="cursor"></span>
+
+                  <!-- 备用线路：虚线，主线路断掉时接通 -->
+                  <div class="patch-failover" :class="'is-' + failoverState">
+                    <span class="patch-failover-tag">{{ t('home.patch.failover') }}</span>
+                    <span class="patch-note patch-note-inline">{{ t('home.patch.failoverHint') }}</span>
                   </div>
                 </div>
               </div>
-            </div>
+
+              <p class="patch-legend">{{ t('home.patch.upstreamHint') }}</p>
+
+              <p class="patch-foot">
+                <span class="patch-status" :class="'is-' + lineState">{{ statusText }}</span>
+                {{ t('home.patch.footnote') }}
+              </p>
+            </figure>
           </div>
         </div>
+      </section>
 
-        <!-- Feature Tags - Centered -->
-        <div class="mb-12 flex flex-wrap items-center justify-center gap-4 md:gap-6">
-          <div
-            class="inline-flex items-center gap-2.5 rounded-full border border-gray-200/50 bg-white/80 px-5 py-2.5 shadow-sm backdrop-blur-sm dark:border-dark-700/50 dark:bg-dark-800/80"
-          >
-            <Icon name="swap" size="sm" class="text-primary-500" />
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{
-              t('home.tags.subscriptionToApi')
-            }}</span>
-          </div>
-          <div
-            class="inline-flex items-center gap-2.5 rounded-full border border-gray-200/50 bg-white/80 px-5 py-2.5 shadow-sm backdrop-blur-sm dark:border-dark-700/50 dark:bg-dark-800/80"
-          >
-            <Icon name="shield" size="sm" class="text-primary-500" />
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{
-              t('home.tags.stickySession')
-            }}</span>
-          </div>
-          <div
-            class="inline-flex items-center gap-2.5 rounded-full border border-gray-200/50 bg-white/80 px-5 py-2.5 shadow-sm backdrop-blur-sm dark:border-dark-700/50 dark:bg-dark-800/80"
-          >
-            <Icon name="chart" size="sm" class="text-primary-500" />
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{
-              t('home.tags.realtimeBilling')
-            }}</span>
-          </div>
+      <!-- 环节说明：窄屏纵向读数条目，宽屏排成读数册 -->
+      <section class="mx-auto max-w-6xl px-gutter pb-12">
+        <div class="title-block">
+          <h2 class="title-block-title">{{ t('home.spec.title') }}</h2>
+          <p class="title-block-meta">{{ t('home.spec.meta') }}</p>
         </div>
+        <ol class="spec-list">
+          <li v-for="(row, index) in specRows" :key="row.key" class="spec-item">
+            <span class="spec-index">{{ padIndex(index) }}</span>
+            <span class="spec-name">{{ t(row.name) }}</span>
+            <span class="spec-desc">{{ t(row.desc) }}</span>
+          </li>
+        </ol>
+      </section>
 
-        <!-- Features Grid -->
-        <div class="mb-12 grid gap-6 md:grid-cols-3">
-          <!-- Feature 1: Unified Gateway -->
-          <div
-            class="group rounded-2xl border border-gray-200/50 bg-white/60 p-6 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 dark:border-dark-700/50 dark:bg-dark-800/60"
+      <!-- 上游端口 -->
+      <section class="mx-auto max-w-6xl px-gutter pb-12">
+        <div class="title-block">
+          <h2 class="title-block-title">{{ t('home.providers.title') }}</h2>
+          <p class="title-block-meta">{{ t('home.providers.description') }}</p>
+        </div>
+        <ul class="flex flex-wrap gap-2">
+          <li
+            v-for="provider in providers"
+            :key="provider.key"
+            class="port"
+            :class="provider.supported ? '' : 'port-idle'"
           >
-            <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-500/30 transition-transform group-hover:scale-110"
-            >
-              <Icon name="server" size="lg" class="text-white" />
-            </div>
-            <h3 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-              {{ t('home.features.unifiedGateway') }}
-            </h3>
-            <p class="text-sm leading-relaxed text-gray-600 dark:text-dark-400">
-              {{ t('home.features.unifiedGatewayDesc') }}
+            <span class="port-mark" aria-hidden="true">{{ provider.mark }}</span>
+            <span class="port-name">{{ t(provider.label) }}</span>
+            <span class="badge" :class="provider.supported ? 'badge-success' : 'badge-gray'">
+              {{ provider.supported ? t('home.providers.supported') : t('home.providers.soon') }}
+            </span>
+          </li>
+        </ul>
+      </section>
+
+      <!-- 收口：一句引文 + 一个动作 -->
+      <section class="mx-auto max-w-6xl px-gutter pb-16">
+        <div class="panel flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 sm:p-5">
+          <div class="min-w-0">
+            <p class="pull-quote">{{ t('home.cta.title') }}</p>
+            <p class="mt-2 max-w-measure text-sm leading-[1.65] text-ink-soft [overflow-wrap:anywhere]">
+              {{ t('home.cta.description') }}
             </p>
           </div>
-
-          <!-- Feature 2: Account Pool -->
-          <div
-            class="group rounded-2xl border border-gray-200/50 bg-white/60 p-6 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 dark:border-dark-700/50 dark:bg-dark-800/60"
+          <router-link
+            :to="isAuthenticated ? dashboardPath : '/register'"
+            class="btn btn-primary shrink-0"
           >
-            <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/30 transition-transform group-hover:scale-110"
-            >
-              <svg
-                class="h-6 w-6 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
-                />
-              </svg>
-            </div>
-            <h3 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-              {{ t('home.features.multiAccount') }}
-            </h3>
-            <p class="text-sm leading-relaxed text-gray-600 dark:text-dark-400">
-              {{ t('home.features.multiAccountDesc') }}
-            </p>
-          </div>
-
-          <!-- Feature 3: Billing & Quota -->
-          <div
-            class="group rounded-2xl border border-gray-200/50 bg-white/60 p-6 backdrop-blur-sm transition-all duration-300 hover:shadow-xl hover:shadow-primary-500/10 dark:border-dark-700/50 dark:bg-dark-800/60"
-          >
-            <div
-              class="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg shadow-purple-500/30 transition-transform group-hover:scale-110"
-            >
-              <svg
-                class="h-6 w-6 text-white"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                stroke-width="1.5"
-              >
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z"
-                />
-              </svg>
-            </div>
-            <h3 class="mb-2 text-lg font-semibold text-gray-900 dark:text-white">
-              {{ t('home.features.balanceQuota') }}
-            </h3>
-            <p class="text-sm leading-relaxed text-gray-600 dark:text-dark-400">
-              {{ t('home.features.balanceQuotaDesc') }}
-            </p>
-          </div>
+            {{ isAuthenticated ? t('home.goToDashboard') : t('home.cta.button') }}
+          </router-link>
         </div>
-
-        <!-- Supported Providers -->
-        <div class="mb-8 text-center">
-          <h2 class="mb-3 text-2xl font-bold text-gray-900 dark:text-white">
-            {{ t('home.providers.title') }}
-          </h2>
-          <p class="text-sm text-gray-600 dark:text-dark-400">
-            {{ t('home.providers.description') }}
-          </p>
-        </div>
-
-        <div class="mb-16 flex flex-wrap items-center justify-center gap-4">
-          <!-- Claude - Supported -->
-          <div
-            class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
-          >
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-orange-400 to-orange-500"
-            >
-              <span class="text-xs font-bold text-white">C</span>
-            </div>
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('home.providers.claude') }}</span>
-            <span
-              class="rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
-              >{{ t('home.providers.supported') }}</span
-            >
-          </div>
-          <!-- GPT - Supported -->
-          <div
-            class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
-          >
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-green-500 to-green-600"
-            >
-              <span class="text-xs font-bold text-white">G</span>
-            </div>
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">GPT</span>
-            <span
-              class="rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
-              >{{ t('home.providers.supported') }}</span
-            >
-          </div>
-          <!-- Gemini - Supported -->
-          <div
-            class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
-          >
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-blue-600"
-            >
-              <span class="text-xs font-bold text-white">G</span>
-            </div>
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('home.providers.gemini') }}</span>
-            <span
-              class="rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
-              >{{ t('home.providers.supported') }}</span
-            >
-          </div>
-          <!-- Antigravity - Supported -->
-          <div
-            class="flex items-center gap-2 rounded-xl border border-primary-200 bg-white/60 px-5 py-3 ring-1 ring-primary-500/20 backdrop-blur-sm dark:border-primary-800 dark:bg-dark-800/60"
-          >
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-rose-500 to-pink-600"
-            >
-              <span class="text-xs font-bold text-white">A</span>
-            </div>
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('home.providers.antigravity') }}</span>
-            <span
-              class="rounded bg-primary-100 px-1.5 py-0.5 text-[10px] font-medium text-primary-600 dark:bg-primary-900/30 dark:text-primary-400"
-              >{{ t('home.providers.supported') }}</span
-            >
-          </div>
-          <!-- More - Coming Soon -->
-          <div
-            class="flex items-center gap-2 rounded-xl border border-gray-200/50 bg-white/40 px-5 py-3 opacity-60 backdrop-blur-sm dark:border-dark-700/50 dark:bg-dark-800/40"
-          >
-            <div
-              class="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-gray-500 to-gray-600"
-            >
-              <span class="text-xs font-bold text-white">+</span>
-            </div>
-            <span class="text-sm font-medium text-gray-700 dark:text-dark-200">{{ t('home.providers.more') }}</span>
-            <span
-              class="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-dark-700 dark:text-dark-400"
-              >{{ t('home.providers.soon') }}</span
-            >
-          </div>
-        </div>
-      </div>
+      </section>
     </main>
 
-    <!-- Footer -->
-    <footer class="relative z-10 border-t border-gray-200/50 px-6 py-8 dark:border-dark-800/50">
-      <div
-        class="mx-auto flex max-w-6xl flex-col items-center justify-center gap-4 text-center sm:flex-row sm:text-left"
-      >
-        <p class="text-sm text-gray-500 dark:text-dark-400">
-          &copy; {{ currentYear }} {{ siteName }}. {{ t('home.footer.allRightsReserved') }}
-        </p>
-        <div class="flex items-center gap-4">
-          <a
-            v-if="docUrl"
-            :href="docUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
-          >
+    <footer class="border-t border-rule">
+      <div class="mx-auto flex max-w-6xl flex-col gap-2 px-gutter py-4 text-xs text-ink-faint sm:flex-row sm:items-center sm:justify-between">
+        <p class="[overflow-wrap:anywhere]">&copy; {{ currentYear }} {{ siteName }}</p>
+        <div class="flex flex-wrap items-center gap-x-4">
+          <a v-if="docUrl" :href="docUrl" target="_blank" rel="noopener noreferrer" class="home-foot-link hover:text-ink">
             {{ t('home.docs') }}
           </a>
-          <a
-            :href="githubUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-dark-400 dark:hover:text-white"
-          >
-            GitHub
-          </a>
+          <a :href="githubUrl" target="_blank" rel="noopener noreferrer" class="home-foot-link hover:text-ink">GitHub</a>
         </div>
       </div>
     </footer>
@@ -494,20 +323,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore, useAppStore } from '@/stores'
 import LocaleSwitcher from '@/components/common/LocaleSwitcher.vue'
 import Icon from '@/components/icons/Icon.vue'
 import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, isFeatureFlagEnabled } from '@/utils/featureFlags'
+import { isDarkTheme, toggleTheme as toggleThemeState, initTheme } from '@/composables/useTheme'
 
 const { t } = useI18n()
 
 const authStore = useAuthStore()
 const appStore = useAppStore()
 
-// Site settings - directly from appStore (already initialized from injected config)
+// 站点设置直取 appStore（已由注入的 __APP_CONFIG__ 初始化）
 const siteName = computed(() => appStore.cachedPublicSettings?.site_name || appStore.siteName || 'Sub2API')
 const siteLogo = computed(() => sanitizeUrl(appStore.cachedPublicSettings?.site_logo || appStore.siteLogo || '', { allowRelative: true, allowDataUrl: true }))
 const siteSubtitle = computed(() => appStore.cachedPublicSettings?.site_subtitle || 'AI API Gateway Platform')
@@ -517,19 +347,22 @@ const hasHomeContent = computed(() => homeContent.value.trim().length > 0)
 const compactHomeEnabled = computed(() => appStore.cachedPublicSettings?.compact_home_enabled === true)
 const modelPlazaEnabled = computed(() => isFeatureFlagEnabled(FeatureFlags.modelPlaza))
 
-// Check if homeContent is a URL (for iframe display)
+// home_content 是 URL 时走 iframe
 const isHomeContentUrl = computed(() => {
   const content = homeContent.value.trim()
   return content.startsWith('http://') || content.startsWith('https://')
 })
 
-// Theme
-const isDark = ref(document.documentElement.classList.contains('dark'))
+// 主题：唯一入口是 useTheme，避免 theme-color 与 documentElement 不同步
+const isDark = isDarkTheme
+function toggleTheme() {
+  toggleThemeState()
+}
 
-// GitHub URL
+// GitHub 地址
 const githubUrl = 'https://github.com/Wei-Shaw/sub2api'
 
-// Auth state
+// 登录态
 const isAuthenticated = computed(() => authStore.isAuthenticated)
 const modelPlazaRequiresAuth = computed(
   () => appStore.cachedPublicSettings?.model_plaza_require_auth === true,
@@ -539,206 +372,569 @@ const showModelPlazaEntry = computed(
 )
 const isAdmin = computed(() => authStore.isAdmin)
 const dashboardPath = computed(() => isAdmin.value ? '/admin/dashboard' : '/dashboard')
-const userInitial = computed(() => {
-  const user = authStore.user
-  if (!user || !user.email) return ''
-  return user.email.charAt(0).toUpperCase()
+
+const dash = '—'
+
+/** 图纸状态：live = 通电（信号色）/ warn = 需要处理（赭石）/ broken = 断线（氧化红）/ idle = 未接线（灰） */
+type LineState = 'live' | 'warn' | 'broken' | 'idle'
+
+const apiBaseUrl = computed(
+  () => appStore.cachedPublicSettings?.api_base_url || appStore.apiBaseUrl || '',
+)
+const siteVersion = computed(
+  () => appStore.cachedPublicSettings?.version || appStore.siteVersion || '',
+)
+
+// 全部读数来自 authStore.user（后端 /user/me 与 /auth/login 的返回值），没有就地编造的数字
+const userBalance = computed(() => {
+  const value = authStore.user?.balance
+  return typeof value === 'number' ? value : null
+})
+const userConcurrency = computed(() => {
+  const value = authStore.user?.concurrency
+  return typeof value === 'number' && value > 0 ? value : null
+})
+const userRpmLimit = computed(() => {
+  const value = authStore.user?.rpm_limit
+  return typeof value === 'number' && value > 0 ? value : null
+})
+const userDisabled = computed(() => authStore.user?.status === 'disabled')
+
+/** 整条线路的状态：未登录 = 未接线；账号停用 = 断线 */
+const lineState = computed<LineState>(() => {
+  if (!isAuthenticated.value) return 'idle'
+  if (userDisabled.value) return 'broken'
+  return 'live'
 })
 
-// Current year for footer
+/** 判定节点：并发上限是真实读数；账号停用即断线 */
+const gateState = computed<LineState>(() => lineState.value)
+const gateReadout = computed(() =>
+  userConcurrency.value == null ? dash : '×' + userConcurrency.value,
+)
+
+/** 转发节点：用户级 RPM 上限是真实读数；未配置上限表示不额外限流 */
+const routeState = computed<LineState>(() => {
+  if (lineState.value === 'idle') return 'idle'
+  if (lineState.value === 'broken') return 'broken'
+  return userRpmLimit.value == null ? 'warn' : 'live'
+})
+const routeReadout = computed(() =>
+  userRpmLimit.value == null ? t('home.patch.noRpmCap') : 'RPM ' + userRpmLimit.value,
+)
+
+/** 落账节点：余额是真实读数；零余额意味着下一次调用会被拒 */
+const ledgerState = computed<LineState>(() => {
+  if (lineState.value === 'idle') return 'idle'
+  if (lineState.value === 'broken') return 'broken'
+  return userBalance.value != null && userBalance.value > 0 ? 'live' : 'warn'
+})
+const ledgerReadout = computed(() =>
+  userBalance.value == null ? dash : formatMoney(userBalance.value),
+)
+
+const failoverState = computed<LineState>(() =>
+  lineState.value === 'live' ? 'live' : lineState.value === 'idle' ? 'idle' : 'broken',
+)
+
+const stages = computed(() => [
+  { key: 'gate', label: 'home.patch.gate', hint: 'home.patch.gateHint', state: gateState.value, readout: gateReadout.value },
+  { key: 'route', label: 'home.patch.route', hint: 'home.patch.routeHint', state: routeState.value, readout: routeReadout.value },
+  { key: 'ledger', label: 'home.patch.ledger', hint: 'home.patch.ledgerHint', state: ledgerState.value, readout: ledgerReadout.value },
+])
+
+const statusText = computed(() => {
+  if (!isAuthenticated.value) return t('home.patch.statusSignedOut')
+  if (userDisabled.value) return t('home.patch.statusDisabled')
+  if (userBalance.value === 0) return t('home.patch.statusNoBalance')
+  return t('home.patch.statusLive')
+})
+
+// 请求行：图纸抬头标注这次调用长什么样
+const requestLine = computed(() => 'POST /v1/messages')
+
+// 上游端口：站点实际接入的四家（名称来自文案，读数在节点上）
+const upstreamPorts = [
+  { key: 'claude', label: 'home.providers.claude' },
+  { key: 'gpt', label: 'home.providers.gpt' },
+  { key: 'gemini', label: 'home.providers.gemini' },
+  { key: 'antigravity', label: 'home.providers.antigravity' },
+]
+
+const specRows = [
+  { key: 'gateway', name: 'home.features.unifiedGateway', desc: 'home.features.unifiedGatewayDesc' },
+  { key: 'accounts', name: 'home.features.multiAccount', desc: 'home.features.multiAccountDesc' },
+  { key: 'billing', name: 'home.features.balanceQuota', desc: 'home.features.balanceQuotaDesc' },
+]
+
+const providers = [
+  { key: 'claude', mark: 'C', label: 'home.providers.claude', supported: true },
+  { key: 'gpt', mark: 'G', label: 'home.providers.gpt', supported: true },
+  { key: 'gemini', mark: 'G', label: 'home.providers.gemini', supported: true },
+  { key: 'antigravity', mark: 'A', label: 'home.providers.antigravity', supported: true },
+  { key: 'more', mark: '+', label: 'home.providers.more', supported: false },
+]
+
 const currentYear = computed(() => new Date().getFullYear())
 
-// Toggle theme
-function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+/** 金额读数：等宽、两位小数；不引 locale 货币符号，避免图纸上出现两种排版 */
+function formatMoney(value: number): string {
+  return value.toFixed(2)
 }
 
-// Initialize theme
-function initTheme() {
-  const savedTheme = localStorage.getItem('theme')
-  if (
-    savedTheme === 'dark' ||
-    (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-  ) {
-    isDark.value = true
-    document.documentElement.classList.add('dark')
-  }
+/** 序号补零：读数册的列要个位对齐 */
+function padIndex(index: number): string {
+  return String(index + 1).padStart(2, '0')
 }
 
 onMounted(() => {
   initTheme()
 
-  // Check auth state
+  // 检查登录状态
   authStore.checkAuth()
 
-  // Ensure public settings are loaded (will use cache if already loaded from injected config)
+  // 保证公共设置已加载（注入配置已存在时直接用缓存）
   if (!appStore.publicSettingsLoaded) {
-    appStore.fetchPublicSettings()
+   appStore.fetchPublicSettings()
   }
 })
 </script>
 
 <style scoped>
-/* Terminal Container */
-.terminal-container {
+/* v2「暖纸上的编辑体」：结构不变，气质换暖。
+ * 衬线同屏最多两处 —— 品牌名 + 落账大读数。 */
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  line-height: 1.25;
+  letter-spacing: var(--track-display);
+  color: rgb(var(--ink));
+}
+
+/* ============================================================================
+ * 配线图：宽屏横排（端口列 → 竖总线 → 节点列），窄屏纵排。
+ * 同一张图纸只改编排；走线一律 1px 痕量线，通电换信号色，断线换氧化红。
+ * ========================================================================== */
+
+.patch-body {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.patch-col {
+  display: grid;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+.patch-col-ports {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.patch-port {
   position: relative;
-  display: inline-block;
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 1.75rem;
+  padding: 0 0.375rem;
+  border: 1px solid rgb(var(--rule));
+  border-radius: var(--radius-cut);
+  background-color: rgb(var(--paper-inset) / 0.5);
 }
 
-/* Terminal Window */
-.terminal-window {
-  width: 420px;
-  background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
-  border-radius: 14px;
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.4),
-    0 0 0 1px rgba(255, 255, 255, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+.patch-port-dot {
+  width: 5px;
+  height: 5px;
+  flex: none;
+  border-radius: 999px;
+  background-color: rgb(var(--ink-faint));
+}
+
+.patch-port-name {
+  min-width: 0;
   overflow: hidden;
-  transform: perspective(1000px) rotateX(2deg) rotateY(-2deg);
-  transition: transform 0.3s ease;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-read);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--ink-soft));
 }
 
-.terminal-window:hover {
-  transform: perspective(1000px) rotateX(0deg) rotateY(0deg) translateY(-4px);
+.patch-port.is-live {
+  border-color: rgb(var(--signal) / 0.45);
+}
+.patch-port.is-live .patch-port-dot {
+  background-color: rgb(var(--signal));
+}
+.patch-port.is-broken {
+  border-color: rgb(var(--c-oxide-400));
+}
+.patch-port.is-broken .patch-port-dot {
+  background-color: rgb(var(--c-oxide-500));
+}
+.patch-port.is-warn .patch-port-dot {
+  background-color: rgb(var(--c-ochre-500));
+}
+.patch-port.is-idle {
+  border-style: dashed;
+  border-color: rgb(var(--rule-strong));
+}
+.patch-port.is-idle .patch-port-name {
+  color: rgb(var(--ink-faint));
 }
 
-/* Terminal Header */
-.terminal-header {
+/* 节点列：左侧一根竖导轨把三段串起来，这就是走线 */
+.patch-col-nodes {
+  position: relative;
+  padding-left: 1.25rem;
+  gap: 0.5rem;
+}
+
+.patch-col-nodes::before {
+  content: '';
+  position: absolute;
+  left: 0.3125rem;
+  top: 0.75rem;
+  bottom: 0.75rem;
+  width: 1px;
+  background-color: rgb(var(--rule-strong));
+}
+
+.patch-col-nodes.is-live::before {
+  background-color: rgb(var(--signal) / 0.55);
+}
+.patch-col-nodes.is-warn::before {
+  background-color: rgb(var(--c-ochre-500));
+}
+.patch-col-nodes.is-broken::before {
+  background-color: rgb(var(--c-oxide-500));
+}
+
+/* 每个节点向左伸出一根短线接到导轨上 */
+.patch-node {
+  position: relative;
+  min-width: 0;
+  padding: 0.4375rem 0.5625rem;
+  border: 1px solid rgb(var(--rule));
+  border-left: 2px solid rgb(var(--rule-strong));
+  border-radius: var(--radius-cut);
+  background-color: rgb(var(--surface));
+}
+
+.patch-node::before {
+  content: '';
+  position: absolute;
+  left: -0.9375rem;
+  top: 0.9375rem;
+  width: 0.9375rem;
+  height: 1px;
+  background-color: rgb(var(--rule-strong));
+}
+
+.patch-node.is-live {
+  border-left-color: rgb(var(--signal));
+}
+.patch-node.is-live::before {
+  background-color: rgb(var(--signal) / 0.55);
+}
+.patch-node.is-warn {
+  border-left-color: rgb(var(--c-ochre-500));
+}
+.patch-node.is-warn::before {
+  background-color: rgb(var(--c-ochre-500));
+}
+.patch-node.is-broken {
+  border-color: rgb(var(--c-oxide-400) / 0.6);
+  border-left-color: rgb(var(--c-oxide-500));
+}
+.patch-node.is-broken::before {
+  background-color: rgb(var(--c-oxide-500));
+}
+.patch-node.is-idle {
+  border-style: dashed;
+  border-left-style: solid;
+  border-left-color: rgb(var(--rule-strong));
+  background-color: transparent;
+}
+
+.patch-node-head {
   display: flex;
-  align-items: center;
-  padding: 12px 16px;
-  background: rgba(30, 41, 59, 0.8);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-.terminal-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.terminal-buttons span {
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-}
-
-.btn-close {
-  background: #ef4444;
-}
-.btn-minimize {
-  background: #eab308;
-}
-.btn-maximize {
-  background: #22c55e;
-}
-
-.terminal-title {
-  flex: 1;
-  text-align: center;
-  font-size: 12px;
-  font-family: ui-monospace, monospace;
-  color: #64748b;
-  margin-right: 52px;
-}
-
-/* Terminal Body */
-.terminal-body {
-  padding: 20px 24px;
-  font-family: ui-monospace, 'Fira Code', monospace;
-  font-size: 14px;
-  line-height: 2;
-}
-
-.code-line {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  min-width: 0;
   flex-wrap: wrap;
-  opacity: 0;
-  animation: line-appear 0.5s ease forwards;
+  align-items: baseline;
+  gap: 0 0.5rem;
 }
 
-.line-1 {
-  animation-delay: 0.3s;
-}
-.line-2 {
-  animation-delay: 1s;
-}
-.line-3 {
-  animation-delay: 1.8s;
-}
-.line-4 {
-  animation-delay: 2.5s;
+.patch-node-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(var(--ink));
 }
 
-@keyframes line-appear {
-  from {
-    opacity: 0;
-    transform: translateY(5px);
+.patch-node-read-display {
+  font-size: clamp(1.25rem, 1.05rem + 0.8vw, 1.625rem);
+}
+
+.patch-node-read {
+  font-family: var(--font-read);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: rgb(var(--ink-faint));
+}
+
+.patch-node.is-live .patch-node-read {
+  color: rgb(var(--signal));
+}
+.patch-node.is-warn .patch-node-read {
+  color: rgb(var(--c-ochre-700));
+}
+.patch-node.is-broken .patch-node-read {
+  color: rgb(var(--c-oxide-600));
+}
+
+.patch-note {
+  margin-top: 0.125rem;
+  max-width: 46ch;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: rgb(var(--ink-faint));
+  overflow-wrap: anywhere;
+}
+
+.patch-note-inline {
+  margin-top: 0;
+}
+
+/* 备用线路：虚线，向导轨末端再接一路 */
+.patch-failover {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.375rem;
+  padding: 0.25rem 0 0.25rem 0.5625rem;
+  border-left: 2px dashed rgb(var(--rule-strong));
+}
+
+.patch-failover::before {
+  content: '';
+  position: absolute;
+  left: -0.9375rem;
+  top: 0.8125rem;
+  width: 0.9375rem;
+  height: 0;
+  border-top: 1px dashed rgb(var(--rule-strong));
+}
+
+.patch-failover.is-live {
+  border-left-color: rgb(var(--signal) / 0.55);
+}
+.patch-failover.is-live::before {
+  border-top-color: rgb(var(--signal) / 0.55);
+}
+.patch-failover.is-broken {
+  border-left-color: rgb(var(--c-oxide-500));
+}
+.patch-failover.is-broken::before {
+  border-top-color: rgb(var(--c-oxide-500));
+}
+
+.patch-failover-tag {
+  font-size: 0.6875rem;
+  color: rgb(var(--ink-soft));
+}
+
+/* 环节说明：窄屏纵向读数条目，宽屏同一组数据排成读数册（不靠横向溢出） */
+.spec-list {
+  border-top: 1px solid rgb(var(--rule));
+}
+
+.spec-item {
+  display: grid;
+  grid-template-columns: 2.25rem minmax(0, 1fr);
+  column-gap: 0.75rem;
+  row-gap: 0.125rem;
+  padding: 0.625rem 0;
+  border-bottom: 1px solid rgb(var(--rule));
+}
+
+.spec-index {
+  grid-row: 1 / span 2;
+  font-family: var(--font-read);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+  color: rgb(var(--ink-faint));
+}
+
+.spec-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(var(--ink));
+  overflow-wrap: anywhere;
+}
+
+.spec-desc {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: rgb(var(--ink-soft));
+  overflow-wrap: anywhere;
+}
+
+/* 宽屏：序号 · 环节 · 说明三列对齐，读起来像报表 */
+@media (min-width: 768px) {
+  .spec-item {
+   grid-template-columns: 2.25rem 11rem minmax(0, 1fr);
+   align-items: baseline;
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+
+  .spec-index {
+   grid-row: auto;
   }
 }
 
-.code-prompt {
-  color: #22c55e;
-  font-weight: bold;
-}
-.code-cmd {
-  color: #38bdf8;
-}
-.code-flag {
-  color: #a78bfa;
-}
-.code-url {
-  color: #14b8a6;
-}
-.code-comment {
-  color: #64748b;
-  font-style: italic;
-}
-.code-success {
-  color: #22c55e;
-  background: rgba(34, 197, 94, 0.15);
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 600;
-}
-.code-response {
-  color: #fbbf24;
+/* 上游说明：窄屏才显示（宽屏由端口列自己说明接法） */
+.patch-legend {
+  border-top: 1px solid rgb(var(--rule));
+  padding: 0.5rem 0.75rem;
+  font-size: 0.6875rem;
+  color: rgb(var(--ink-faint));
+  overflow-wrap: anywhere;
 }
 
-/* Blinking Cursor */
-.cursor {
-  display: inline-block;
-  width: 8px;
-  height: 16px;
-  background: #22c55e;
-  animation: blink 1s step-end infinite;
+/* 图注：状态读数 + 一句说明 */
+.patch-foot {
+  border-top: 1px solid rgb(var(--rule));
+  padding: 0.625rem 0.75rem;
+  font-family: var(--font-read);
+  font-size: 0.6875rem;
+  line-height: 1.5;
+  color: rgb(var(--ink-faint));
+  overflow-wrap: anywhere;
 }
 
-@keyframes blink {
-  0%,
-  50% {
-    opacity: 1;
+.patch-status {
+  margin-right: 0.375rem;
+  font-weight: 500;
+}
+.patch-status.is-live {
+  color: rgb(var(--signal));
+}
+.patch-status.is-warn {
+  color: rgb(var(--c-ochre-700));
+}
+.patch-status.is-broken {
+  color: rgb(var(--c-oxide-600));
+}
+.patch-status.is-idle {
+  color: rgb(var(--ink-soft));
+}
+
+/* 上游端口插口 */
+.port {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.25rem;
+  padding: 0 0.625rem;
+  border: 1px solid rgb(var(--rule-strong));
+  border-radius: var(--radius-cut);
+  background-color: rgb(var(--surface));
+}
+
+.port-idle {
+  border-style: dashed;
+  background-color: transparent;
+}
+
+.port-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  border: 1px solid rgb(var(--rule-strong));
+  border-radius: var(--radius-cut);
+  font-family: var(--font-read);
+  font-size: 0.6875rem;
+  color: rgb(var(--ink-soft));
+}
+
+.port-name {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(var(--ink));
+  overflow-wrap: anywhere;
+}
+
+/* 触控下限：移动端可点元素 ≥44px（令牌 --touch-min） */
+.home-brand {
+  min-height: var(--touch-min);
+}
+
+.home-foot-link {
+  display: inline-flex;
+  align-items: center;
+  /* 页脚链接的触控面：高度够 44 但「GitHub」本身只有 38px 宽，
+   * 补一点水平内边距把命中区撑到 44×44（桌面端在下面的 media query 里收回）。 */
+  min-height: var(--touch-min);
+  min-width: var(--touch-min);
+  padding-inline: 0.25rem;
+}
+
+@media (min-width: 1024px) {
+  .home-brand,
+  .home-foot-link {
+   min-height: 0;
   }
-  51%,
-  100% {
-    opacity: 0;
-  }
 }
 
-/* Dark mode adjustments */
-:deep(.dark) .terminal-window {
-  box-shadow:
-    0 25px 50px -12px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(20, 184, 166, 0.2),
-    0 0 40px rgba(20, 184, 166, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+/* 宽屏：端口列在左，节点列在右；端口各自伸出一根短线接到节点导轨 */
+@media (min-width: 640px) {
+  .patch-body {
+   grid-template-columns: minmax(0, 6.5rem) minmax(0, 1fr);
+   column-gap: 1.75rem;
+   align-items: start;
+  }
+
+  .patch-col-ports {
+   grid-template-columns: minmax(0, 1fr);
+   gap: 0.5rem;
+   padding-top: 0.25rem;
+  }
+
+  /* 端口右侧的短线要接到节点列的导轨上：列间距 1.75rem + 导轨内缩 0.3125rem */
+  .patch-port::after {
+   content: '';
+   position: absolute;
+   right: -2.0625rem;
+   top: 50%;
+   width: 2.0625rem;
+   height: 1px;
+   background-color: rgb(var(--rule-strong));
+  }
+
+  .patch-port.is-live::after {
+   background-color: rgb(var(--signal) / 0.45);
+  }
+  .patch-port.is-warn::after {
+   background-color: rgb(var(--c-ochre-500));
+  }
+  .patch-port.is-broken::after {
+   background-color: rgb(var(--c-oxide-500));
+  }
+
+  .patch-legend {
+   display: none;
+  }
+
+  .patch-foot {
+   padding-inline: 1.25rem;
+  }
 }
 </style>

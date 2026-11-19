@@ -2,19 +2,19 @@
   <div class="flex h-full min-h-0 flex-col gap-4">
     <!-- 说明 -->
     <div class="flex flex-col gap-1">
-      <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+      <h3 class="text-base font-semibold text-ink">
         {{ t('admin.pricing.missing.title') }}
       </h3>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t('admin.pricing.missing.description') }}
       </p>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t('admin.pricing.missing.wildcardNotice') }}
       </p>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t('admin.pricing.missing.priorityNotice') }}
       </p>
-      <p class="text-xs text-gray-500 dark:text-gray-400">
+      <p class="text-xs text-ink-faint">
         {{ t('admin.pricing.missing.probeNotice') }}
       </p>
     </div>
@@ -42,7 +42,7 @@
       </button>
       <span
         v-if="probeStarted"
-        class="text-xs text-gray-500 dark:text-gray-400"
+        class="text-xs text-ink-faint"
         data-testid="probe-progress"
       >
         {{ t('admin.pricing.missing.progress', { done: probe.state.completed, total: probe.state.total }) }}
@@ -50,7 +50,7 @@
       </span>
       <span
         v-if="probe.state.status === 'stopped'"
-        class="text-xs text-amber-600 dark:text-amber-400"
+        class="text-xs text-warning-600 dark:text-warning-400"
         data-testid="probe-stopped"
       >
         {{ t('admin.pricing.missing.stopped') }}
@@ -74,19 +74,19 @@
       <table v-else class="w-full text-sm" data-testid="missing-table">
         <thead>
           <tr>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.missing.columns.model') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.missing.columns.scope') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.missing.columns.missing') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.missing.columns.probe') }}
             </th>
-            <th class="px-3 py-2 text-left font-medium text-gray-600 dark:text-dark-300">
+            <th class="px-3 py-2 text-left font-medium text-ink-soft">
               {{ t('admin.pricing.missing.columns.action') }}
             </th>
           </tr>
@@ -98,11 +98,11 @@
             class="border-b border-gray-100 dark:border-dark-800"
             data-testid="missing-row"
           >
-            <td class="px-3 py-2 font-medium text-gray-900 dark:text-white">{{ row.model }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ scopeLabel(row) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ missingLabel(row) }}</td>
-            <td class="px-3 py-2 text-gray-700 dark:text-gray-300">
-              <span v-if="row.probeFailed" class="text-red-600 dark:text-red-400">
+            <td class="px-3 py-2 font-medium text-ink">{{ row.model }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ scopeLabel(row) }}</td>
+            <td class="px-3 py-2 text-ink-soft">{{ missingLabel(row) }}</td>
+            <td class="px-3 py-2 text-ink-soft">
+              <span v-if="row.probeFailed" class="text-danger-600 dark:text-danger-400">
                 {{ t('admin.pricing.missing.probeFailed') }}
               </span>
               <span v-else>—</span>

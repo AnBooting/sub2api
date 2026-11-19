@@ -4,30 +4,30 @@
       <div class="h-8 w-8 animate-spin rounded-full border-4 border-primary-500 border-t-transparent"></div>
     </div>
     <div v-else-if="initError" class="card p-6 text-center">
-      <p class="text-sm text-red-600 dark:text-red-400">{{ initError }}</p>
+      <p class="text-sm text-danger-600 dark:text-danger-400">{{ initError }}</p>
       <button class="btn btn-secondary mt-4" @click="$emit('back')">{{ t('payment.result.backToRecharge') }}</button>
     </div>
     <!-- Success -->
     <template v-else-if="success">
       <div class="card p-6">
         <div class="flex flex-col items-center space-y-4 py-4">
-          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 dark:bg-green-900/30">
-            <Icon name="check" size="lg" class="text-green-500" />
+          <div class="flex h-16 w-16 items-center justify-center rounded-full bg-success-100 dark:bg-success-900/30">
+            <Icon name="check" size="lg" class="text-success-500" />
           </div>
-          <p class="text-lg font-bold text-gray-900 dark:text-white">{{ t('payment.result.success') }}</p>
-          <div class="w-full rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+          <p class="text-lg font-bold text-gray-900 dark:text-on-signal">{{ t('payment.result.success') }}</p>
+          <div class="w-full border border-rule bg-paper-inset p-4">
             <div class="space-y-2 text-sm">
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.orderId') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">#{{ orderId }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.orderId') }}</span>
+                <span class="font-medium text-gray-900 dark:text-on-signal">#{{ orderId }}</span>
               </div>
               <div v-if="amount > 0" class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.amount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ creditedAmountSymbol }}{{ amount.toFixed(2) }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.amount') }}</span>
+                <span class="font-medium text-gray-900 dark:text-on-signal">{{ creditedAmountSymbol }}{{ amount.toFixed(2) }}</span>
               </div>
               <div class="flex justify-between">
-                <span class="text-gray-500 dark:text-gray-400">{{ t('payment.orders.payAmount') }}</span>
-                <span class="font-medium text-gray-900 dark:text-white">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</span>
+                <span class="text-gray-500 dark:text-ink-soft">{{ t('payment.orders.payAmount') }}</span>
+                <span class="font-medium text-gray-900 dark:text-on-signal">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</span>
               </div>
             </div>
           </div>
@@ -38,15 +38,15 @@
     <template v-else>
       <!-- Amount -->
       <div class="card overflow-hidden">
-        <div class="bg-gradient-to-br from-[#635bff] to-[#4f46e5] px-6 py-5 text-center">
-          <p class="text-sm font-medium text-indigo-200">{{ t('payment.actualPay') }}</p>
-          <p class="mt-1 text-3xl font-bold text-white">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</p>
+        <div class="px-6 py-5 text-center" :style="{ backgroundColor: PAYMENT_BRAND_COLOR.stripe }">
+          <p class="text-sm font-medium text-on-signal/80">{{ t('payment.actualPay') }}</p>
+          <p class="mt-1 text-3xl font-bold tabular-nums text-on-signal">{{ paymentAmountSymbol }}{{ payAmount.toFixed(2) }}</p>
         </div>
       </div>
       <!-- Stripe Payment Element -->
       <div class="card p-6">
         <div ref="stripeMount" class="min-h-[200px]"></div>
-        <p v-if="error" class="mt-4 text-sm text-red-600 dark:text-red-400">{{ error }}</p>
+        <p v-if="error" class="mt-4 text-sm text-danger-600 dark:text-danger-400">{{ error }}</p>
         <button class="btn btn-stripe mt-6 w-full py-3 text-base" :disabled="submitting || !ready" @click="handlePay">
           <span v-if="submitting" class="flex items-center justify-center gap-2">
             <span class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></span>
@@ -71,6 +71,7 @@ import { extractI18nErrorMessage } from '@/utils/apiError'
 import { paymentAPI } from '@/api/payment'
 import { useAppStore } from '@/stores'
 import { getPaymentPopupFeatures } from '@/components/payment/providerConfig'
+import { PAYMENT_BRAND_COLOR } from '@/components/payment/brandColors'
 import { currencySymbol } from '@/components/payment/currency'
 import type { Stripe, StripeElements } from '@stripe/stripe-js'
 import Icon from '@/components/icons/Icon.vue'

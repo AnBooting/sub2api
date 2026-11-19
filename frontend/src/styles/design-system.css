@@ -1,0 +1,331 @@
+/* ============================================================================
+ * design-system.css · 唯一令牌源（Single Source of Truth）
+ * 哲学：project-docs/design/00-philosophy.md（v2 · 暖纸上的编辑体）
+ * 契约：project-docs/design/01-token-contract.md
+ * 规则：颜色 / 圆角 / 阴影 / 动效时长只能从这里取值；
+ *       组件层（.vue）不得出现写死的十六进制色值。
+ * ========================================================================== */
+
+/* ---------- 字族 ---------- */
+/* 展示与标题：Newsreader —— 带光学尺寸轴的编辑体衬线。
+ * 用它而不是无衬线做标题，是这个界面「有审美」的主要来源：
+ * 衬线的粗细对比让大字号有呼吸，小字号仍然克制。 */
+@font-face {
+  font-family: 'Newsreader';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('/fonts/newsreader-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Newsreader';
+  font-style: italic;
+  font-weight: 300 600;
+  font-display: swap;
+  src: url('/fonts/newsreader-italic-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* 界面与读数：Archivo 可变字（宽度轴 62–125%）。
+ * 衬线负责气质，无衬线负责操作与数字的精确性 —— 两族分工明确。 */
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+2000-206F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Archivo';
+  font-style: normal;
+  font-weight: 400 700;
+  font-stretch: 62% 125%;
+  font-display: swap;
+  src: url('/fonts/archivo-latin-ext.woff2') format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1E00-1E9F,
+    U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113;
+}
+
+/* ---------- 色板 ----------
+ * 底色从「冷石墨纸」改成「暖石灰纸」：纸是阅读的容器，暖调让人愿意停留。
+ * 墨不是纯黑，是带一点暖的深褐 —— 和纸同源，所以压得住。 */
+:root {
+  /* 纸 / paper：暖石灰。名字保留 gray（内部色阶），语义由 --paper 承担。 */
+  --c-gray-50: 251 249 246;
+  --c-gray-100: 246 242 237;
+  --c-gray-200: 237 231 223;
+  --c-gray-300: 224 216 205;
+  /* 灰 400 是全仓最高频的占位/次要色（752 处 text-gray-400）。
+   * 原值压在暖纸上只有 1.99:1，低于 WCAG 对非文本/大字 3:1 的下限。
+   * 150 实测只有 3.08:1，仍不达 AA 的 4.5:1；这里收到 118 —— 实测 4.76:1。
+   * 它仍明显弱于正文（正文 5.3–14:1），只是不再「看不见」。 */
+  --c-gray-400: 118 110 99;
+  --c-gray-500: 112 104 93;
+  --c-gray-600: 92 85 77;
+  --c-gray-700: 86 79 71;
+  --c-gray-800: 58 53 47;
+  --c-gray-900: 35 32 28;
+  --c-gray-950: 22 20 18;
+
+  /* 石墨 / graphite：夜纸。不是冷蓝黑，是带暖的深褐墨夜。 */
+  --c-graphite-50: 247 244 240;
+  --c-graphite-100: 238 233 227;
+  --c-graphite-200: 216 209 200;
+  --c-graphite-300: 183 175 165;
+  --c-graphite-400: 145 137 127;
+  --c-graphite-500: 110 103 94;
+  --c-graphite-600: 82 76 69;
+  --c-graphite-700: 58 53 48;
+  --c-graphite-800: 40 36 32;
+  --c-graphite-900: 28 25 22;
+  --c-graphite-950: 18 16 14;
+
+  /* 信号 / signal：克莱因钴蓝偏冷，作为唯一「通电」色，压得住暖纸。 */
+  --c-cobalt-50: 240 243 252;
+  --c-cobalt-100: 224 230 249;
+  --c-cobalt-200: 196 208 243;
+  --c-cobalt-300: 158 177 233;
+  --c-cobalt-400: 115 140 219;
+  --c-cobalt-500: 74 100 195;
+  --c-cobalt-600: 56 78 168;
+  --c-cobalt-700: 44 61 135;
+  --c-cobalt-800: 36 49 106;
+  --c-cobalt-900: 28 38 78;
+  --c-cobalt-950: 17 23 49;
+
+  /* 断线 / oxide：铁锈红，暖调，和纸同族。 */
+  --c-oxide-50: 253 244 240;
+  --c-oxide-100: 251 230 221;
+  --c-oxide-200: 245 203 186;
+  --c-oxide-300: 236 165 141;
+  --c-oxide-400: 219 124 95;
+  --c-oxide-500: 191 88 61;
+  --c-oxide-600: 160 66 44;
+  --c-oxide-700: 128 52 36;
+  --c-oxide-800: 100 42 30;
+  --c-oxide-900: 75 32 24;
+  --c-oxide-950: 45 19 14;
+
+  /* 测量 / ochre：赭石金，提醒与阈值。 */
+  --c-ochre-50: 253 248 236;
+  --c-ochre-100: 251 238 210;
+  --c-ochre-200: 245 219 165;
+  --c-ochre-300: 236 194 111;
+  --c-ochre-400: 219 164 60;
+  --c-ochre-500: 189 134 31;
+  /* 赭石 600 原值 (155 107 25) 压在赭石 100 底上只有 4.05:1。
+   * 徽章文字用的就是它，收到 137 92 20 → 4.9:1。 */
+  --c-ochre-600: 137 92 20;
+  --c-ochre-700: 108 74 19;
+  --c-ochre-800: 92 64 19;
+  --c-ochre-900: 68 47 15;
+  --c-ochre-950: 41 28 9;
+
+  /* 通路 / moss：苔绿，成功与在线。 */
+  --c-moss-50: 245 248 241;
+  --c-moss-100: 232 240 222;
+  --c-moss-200: 209 226 192;
+  --c-moss-300: 176 205 152;
+  --c-moss-400: 140 176 113;
+  --c-moss-500: 108 145 82;
+  --c-moss-600: 85 116 64;
+  --c-moss-700: 68 93 52;
+  --c-moss-800: 55 74 43;
+  --c-moss-900: 45 60 36;
+  --c-moss-950: 25 34 20;
+
+  /* Solid controls have a separate, theme-stable role from status text.
+   * All three states support light labels at >= 4.5:1 in both themes. */
+  --c-oxide-solid: 160 66 44;
+  --c-oxide-solid-hover: 128 52 36;
+  --c-oxide-solid-active: 100 42 30;
+  --c-moss-solid: 85 116 64;
+  --c-moss-solid-hover: 68 93 52;
+  --c-moss-solid-active: 55 74 43;
+  --c-ochre-solid: 137 92 20;
+  --c-ochre-solid-hover: 108 74 19;
+  --c-ochre-solid-active: 92 64 19;
+
+  /* 图表第 6 序列 / lilac —— 永不用于界面。 */
+  --c-lilac-50: 247 244 251;
+  --c-lilac-100: 238 233 246;
+  --c-lilac-200: 216 205 236;
+  --c-lilac-300: 189 172 220;
+  --c-lilac-400: 160 140 200;
+  --c-lilac-500: 132 111 175;
+  --c-lilac-600: 105 87 141;
+  --c-lilac-700: 82 68 111;
+  --c-lilac-800: 64 53 86;
+  --c-lilac-900: 49 41 65;
+  --c-lilac-950: 28 23 37;
+
+  /* 分类色族 / taxonomy —— 归属与类型，不表状态。
+   * 为什么不止一个色相：审查指出，账号列表里把 14 个平台收敛成同一色后
+   * 「openai / anthropic / gemini 徽章看起来一样」，管理员必须读文字才能区分。
+   * 色相在分类场景是有信息价值的。这里给 4 个低饱和、同明度的分类色相 ——
+   * 它们彼此可辨，但都不抢状态色（moss/ochre/oxide）与信号色（cobalt）的位置。 */
+  --c-tax-blue-50: 240 245 251;
+  --c-tax-blue-100: 219 232 245;
+  --c-tax-blue-200: 187 212 235;
+  --c-tax-blue-300: 143 183 220;
+  --c-tax-blue-400: 99 149 200;
+  --c-tax-blue-500: 68 116 168;
+  --c-tax-blue-600: 53 94 138;
+  --c-tax-blue-700: 43 76 112;
+  --c-tax-blue-800: 36 62 92;
+  --c-tax-blue-900: 30 51 74;
+  --c-tax-blue-950: 18 30 44;
+
+  --c-tax-plum-50: 249 243 249;
+  --c-tax-plum-100: 241 226 241;
+  --c-tax-plum-200: 226 199 226;
+  --c-tax-plum-300: 203 164 204;
+  --c-tax-plum-400: 174 128 176;
+  --c-tax-plum-500: 143 100 145;
+  --c-tax-plum-600: 116 79 118;
+  --c-tax-plum-700: 94 64 96;
+  --c-tax-plum-800: 77 53 79;
+  --c-tax-plum-900: 63 44 65;
+  --c-tax-plum-950: 37 26 38;
+
+  --c-tax-sage-50: 245 249 246;
+  --c-tax-sage-100: 230 240 233;
+  --c-tax-sage-200: 205 226 211;
+  --c-tax-sage-300: 172 205 181;
+  --c-tax-sage-400: 134 175 146;
+  --c-tax-sage-500: 101 141 114;
+  --c-tax-sage-600: 81 114 92;
+  --c-tax-sage-700: 66 92 75;
+  --c-tax-sage-800: 54 75 61;
+  --c-tax-sage-900: 45 62 51;
+  --c-tax-sage-950: 26 36 30;
+
+  --c-tax-clay-50: 251 246 242;
+  --c-tax-clay-100: 246 234 225;
+  --c-tax-clay-200: 236 213 197;
+  --c-tax-clay-300: 219 182 157;
+  --c-tax-clay-400: 195 146 115;
+  --c-tax-clay-500: 165 116 86;
+  --c-tax-clay-600: 136 93 68;
+  --c-tax-clay-700: 111 76 56;
+  --c-tax-clay-800: 91 63 47;
+  --c-tax-clay-900: 75 53 40;
+  --c-tax-clay-950: 44 31 24;
+
+  /* 分类 / azure —— 归属与类型的默认色（与上面四族同一明度带）。 */
+  --c-azure-50: 243 247 250;
+  --c-azure-100: 226 236 244;
+  --c-azure-200: 197 216 231;
+  --c-azure-300: 157 189 214;
+  --c-azure-400: 112 158 192;
+  --c-azure-500: 78 124 158;
+  --c-azure-600: 60 100 130;
+  --c-azure-700: 47 80 105;
+  --c-azure-800: 39 65 85;
+  --c-azure-900: 32 53 69;
+  --c-azure-950: 19 30 40;
+
+  /* 语义表面（随明暗模式切换） */
+  --paper: 251 249 246;
+  --paper-inset: 246 242 237;
+  --surface: 255 253 250;
+  --surface-raised: 255 254 252;
+  --ink: 22 20 18;
+  /* 墨的深浅必须过 WCAG AA：浅墨压在暖纸上极易掉到 3:1（实测过 3.01）。
+   * ink-soft 用于正文次级，ink-faint 用于标签/表头 —— 后者是 4.9:1 的下限位置。 */
+  --ink-soft: 92 85 77;
+  --ink-faint: 112 104 93;
+  --rule: 237 231 223;
+  --rule-strong: 224 216 205;
+  --signal: 74 100 195;
+  --signal-ink: 255 253 250;
+  /* 「压在强色上的字」：信号色、危险色、成功色的底色都用它。
+   * 与 white 分开，是因为 bg-white 要跟随纸面（深色下是深纸），
+   * 而 text-white 需要永远亮 —— 一个令牌不能同时服务这两个意图。 */
+  --on-signal: 255 253 250;
+
+  /* 度量 */
+  --radius-cut: 3px;
+  --rule-width: 1px;
+  --row-h: 2.5rem;
+  --touch-min: 44px;
+  --gutter: clamp(0.75rem, 2.2vw, 2rem);
+  --measure: 68ch;
+
+  /* 动效 */
+  --motion-fast: 140ms;
+  --motion-base: 240ms;
+  --motion-trace: 620ms;
+  --ease-cut: cubic-bezier(0.22, 0.61, 0.24, 1);
+  /* 缓慢的呼吸曲线：用于唯一编排瞬间的收束 */
+  --ease-settle: cubic-bezier(0.16, 0.84, 0.24, 1);
+
+  /* 字族与字距 */
+  --font-ui: 'Archivo', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC',
+    system-ui, sans-serif;
+  /* 中文衬线回落：Newsreader 只有 latin 字形，中文必须显式给字体栈，
+   * 否则 Windows 会掉到 Georgia 与宋体的奇怪混排，甚至落成无衬线。
+   * 顺序：macOS 宋体 → 思源宋体 → 思源宋体(Noto) → Windows 宋体 → 通用衬线。
+   * 这些是系统字，刻意不自托管：中文字体动辄数 MB，收益远低于代价（见 01-token-contract §9）。 */
+  --font-display: 'Newsreader', 'Songti SC', 'STSong', 'Source Han Serif SC', 'Noto Serif SC', 'SimSun', Georgia, serif;
+  --font-read: 'Archivo', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --track-title: -0.018em;
+  --track-label: 0.045em;
+  --track-display: -0.028em;
+}
+
+.dark {
+  --paper: 18 16 14;
+  --paper-inset: 28 25 22;
+  --surface: 28 25 22;
+  --surface-raised: 40 36 32;
+  --ink: 238 233 227;
+  /* 深色纸面上显色比浅色难：同样的墨值压在 18 16 14 上会掉 1.3–1.5 个对比度点。
+   * 实测 ink-soft 183 175 165 → 8.8:1（够），ink-faint 145 137 127 → 4.3:1（不够 4.5）。
+   * 收到 156 148 138 → 5.1:1；它仍是三层里最淡的一层。 */
+  --ink-soft: 183 175 165;
+  --ink-faint: 163 155 145;
+  --rule: 58 53 48;
+  --rule-strong: 82 76 69;
+  --signal: 115 140 219;
+  --signal-ink: 18 16 14;
+  /* 深色纸面上强色底色更亮，压在上面的字仍然要亮，不能跟着纸翻黑 */
+  --on-signal: 255 253 250;
+
+  /* Adaptive gray supports legacy utilities without dark variants.
+   * Explicit dark text uses ink roles; explicit dark backgrounds and borders
+   * use the fixed graphite palette (dark-*), so they do not invert twice. */
+  --c-gray-50: 31 28 25;
+  --c-gray-100: 38 34 30;
+  --c-gray-200: 48 43 38;
+  --c-gray-300: 66 60 54;
+  --c-gray-400: 156 148 138;
+  --c-gray-500: 172 164 153;
+  --c-gray-600: 190 182 171;
+  --c-gray-700: 208 200 190;
+  --c-gray-800: 224 217 207;
+  --c-gray-900: 238 233 227;
+  --c-gray-950: 247 244 240;
+
+  /* 状态色的中段（500/600/700）作为前景在深色纸面上提亮。
+   * 实底控件改用独立的 *-solid 令牌，不能把这些亮前景色用作白字按钮底色。
+   * 理由同灰阶：全仓 400+ 处 `text-danger-600` 之类不写 dark: 变体，
+   * 深色下拿中深色压在深纸上只剩 3–3.5:1。50/100 这些「底色」保持深值不变
+   * （深色下它们本来就该是暗底），只翻转「前景档」。
+   * 色相不变，只是把同一族在深色纸面上换个明度台阶，语义仍然一望即知。 */
+  --c-moss-500: 138 178 132;
+  --c-moss-600: 158 195 151;
+  --c-moss-700: 180 212 173;
+  --c-ochre-500: 214 168 92;
+  --c-ochre-600: 226 186 120;
+  --c-ochre-700: 235 203 150;
+  --c-oxide-500: 226 130 110;
+  --c-oxide-600: 234 155 138;
+  --c-oxide-700: 241 180 166;
+}

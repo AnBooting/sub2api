@@ -1,6 +1,6 @@
 <template>
   <div>
-    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+    <label class="mb-2 block text-sm font-medium text-gray-700 dark:text-ink-soft">
       {{ t('payment.paymentMethod') }}
     </label>
     <div
@@ -16,11 +16,12 @@
         :class="[
           'relative flex h-[60px] min-w-0 flex-col items-center justify-center rounded-lg border px-3 transition-all',
           !method.available
-            ? 'cursor-not-allowed border-gray-200 bg-gray-50 opacity-50 dark:border-dark-700 dark:bg-dark-800/50'
+            ? 'cursor-not-allowed border-rule bg-paper-inset opacity-50'
             : selected === method.type
               ? methodSelectedClass(method.type)
-              : 'border-gray-300 bg-white text-gray-700 hover:border-gray-400 dark:border-dark-600 dark:bg-dark-800 dark:text-gray-200 dark:hover:border-dark-500',
+              : 'border-rule-strong bg-surface text-ink-soft hover:border-ink-faint',
         ]"
+        :style="selected === method.type ? methodSelectedStyle(method.type) : undefined"
         @click="method.available && emit('select', method.type)"
       >
         <span class="flex w-full min-w-0 items-center justify-center gap-2">
@@ -46,6 +47,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { METHOD_ORDER, isBuiltInAlipayMethod, isBuiltInWxpayMethod } from './providerConfig'
+import { PAYMENT_BRAND_COLOR } from './brandColors'
 import alipayIcon from '@/assets/icons/alipay.svg'
 import wxpayIcon from '@/assets/icons/wxpay.svg'
 import stripeIcon from '@/assets/icons/stripe.svg'
@@ -99,10 +101,20 @@ function methodLabel(method: PaymentMethodOption): string {
 }
 
 function methodSelectedClass(type: string): string {
-  if (isBuiltInAlipayMethod(type)) return 'border-[#02A9F1] bg-blue-50 text-gray-900 shadow-sm dark:bg-blue-950 dark:text-gray-100'
-  if (isBuiltInWxpayMethod(type)) return 'border-[#09BB07] bg-green-50 text-gray-900 shadow-sm dark:bg-green-950 dark:text-gray-100'
-  if (type === 'stripe') return 'border-[#676BE5] bg-indigo-50 text-gray-900 shadow-sm dark:bg-indigo-950 dark:text-gray-100'
-  if (type === 'airwallex') return 'border-[#FF6B3D] bg-orange-50 text-gray-900 shadow-sm dark:border-[#FF8E3C] dark:bg-orange-950 dark:text-gray-100'
-  return 'border-primary-500 bg-primary-50 text-gray-900 shadow-sm dark:bg-primary-950 dark:text-gray-100'
+  // 选中态 = 信号色边框；渠道品牌识别由图标承载，不再给整块卡片刷品牌底色。
+  if (isBuiltInAlipayMethod(type)) return 'bg-primary-50 text-ink dark:bg-primary-950'
+  if (isBuiltInWxpayMethod(type)) return 'bg-success-50 text-ink dark:bg-success-950'
+  if (type === 'stripe') return 'bg-primary-50 text-ink dark:bg-primary-950'
+  if (type === 'airwallex') return 'bg-warning-50 text-ink dark:bg-warning-950'
+  return 'border-signal bg-primary-50 text-ink dark:bg-primary-950'
+}
+
+/** 渠道品牌色只用于选中态的 1px 边框（见 brandColors.ts 的例外说明）。 */
+function methodSelectedStyle(type: string): Record<string, string> {
+  if (isBuiltInAlipayMethod(type)) return { borderColor: PAYMENT_BRAND_COLOR.alipay }
+  if (isBuiltInWxpayMethod(type)) return { borderColor: PAYMENT_BRAND_COLOR.wxpay }
+  if (type === 'stripe') return { borderColor: PAYMENT_BRAND_COLOR.stripe }
+  if (type === 'airwallex') return { borderColor: PAYMENT_BRAND_COLOR.airwallex }
+  return {}
 }
 </script>

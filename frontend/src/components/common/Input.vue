@@ -1,14 +1,14 @@
 <template>
   <div class="w-full">
-    <label v-if="label" :for="id" class="input-label mb-1.5 block">
+    <label v-if="label" :for="id" class="input-label">
       {{ label }}
-      <span v-if="required" class="text-red-500">*</span>
+      <span v-if="required" class="text-danger-600" aria-hidden="true">*</span>
     </label>
     <div class="relative">
-      <!-- Prefix Icon Slot -->
+      <!-- Prefix slot（图标/货币前缀）：不参与指针事件 -->
       <div
         v-if="$slots.prefix"
-        class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-gray-400 dark:text-dark-400"
+        class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-ink-faint"
       >
         <slot name="prefix"></slot>
       </div>
@@ -24,11 +24,10 @@
         :autocomplete="autocomplete"
         :readonly="readonly"
         :class="[
-          'input w-full transition-all duration-200',
-          $slots.prefix ? 'pl-11' : '',
-          $slots.suffix ? 'pr-11' : '',
-          error ? 'input-error ring-2 ring-red-500/20' : '',
-          disabled ? 'cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900' : ''
+          'input w-full',
+          $slots.prefix ? 'pl-10' : '',
+          $slots.suffix ? 'pr-10' : '',
+          error ? 'input-error' : ''
         ]"
         @input="onInput"
         @change="$emit('change', ($event.target as HTMLInputElement).value)"
@@ -37,19 +36,18 @@
         @keyup.enter="$emit('enter', $event)"
       />
 
-      <!-- Suffix Slot (e.g. Password Toggle or Clear Button) -->
+      <!-- Suffix slot（密码可见性 / 清除按钮）：调用方负责按钮自身触控尺寸 -->
       <div
         v-if="$slots.suffix"
-        class="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 dark:text-dark-400"
+        class="absolute inset-y-0 right-0 flex items-center pr-1 text-ink-faint"
       >
         <slot name="suffix"></slot>
       </div>
     </div>
-    <!-- Hint / Error Text -->
-    <p v-if="error" class="input-error-text mt-1.5">
+    <p v-if="error" class="input-error-text">
       {{ error }}
     </p>
-    <p v-else-if="hint" class="input-hint mt-1.5">
+    <p v-else-if="hint" class="input-hint">
       {{ hint }}
     </p>
   </div>

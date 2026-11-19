@@ -2,13 +2,13 @@
   <div class="space-y-1 text-left">
     <div class="flex flex-wrap items-center gap-1" :aria-label="t('keys.chain.title')">
       <template v-for="(id, index) in ids" :key="id">
-        <span v-if="index" class="text-gray-400" aria-hidden="true">→</span>
+   <span v-if="index" class="text-ink-faint" aria-hidden="true">→</span>
         <GroupBadge v-if="findGroup(id)" v-bind="badgeProps(findGroup(id)!)" />
-        <span v-else class="text-xs text-gray-500">{{ t('keys.chain.unavailable', { id }) }}</span>
+   <span v-else class="text-xs text-ink-soft">{{ t('keys.chain.unavailable', { id }) }}</span>
       </template>
-      <span v-if="!ids.length" class="text-sm text-gray-400">{{ t('keys.noGroup') }}</span>
+   <span v-if="!ids.length" class="text-sm text-ink-faint">{{ t('keys.noGroup') }}</span>
     </div>
-    <div v-if="ha.length" class="text-xs text-gray-500" data-test="ha-chain">
+   <div v-if="ha.length" class="text-xs text-ink-soft" data-test="ha-chain">
       {{ t('keys.chain.haAuthorized') }}: {{ ha.map((entry) => findGroup(entry.group_id)?.name ?? '#' + entry.group_id).join(' → ') }}
     </div>
   </div>

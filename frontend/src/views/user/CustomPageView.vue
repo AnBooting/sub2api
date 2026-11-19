@@ -1,136 +1,133 @@
 <template>
   <AppLayout>
-    <div class="custom-page-layout">
-      <div class="card flex-1 min-h-0 overflow-hidden">
-        <div v-if="loading" class="flex h-full items-center justify-center py-12">
-          <div
-            class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
-          ></div>
-        </div>
+   <div class="custom-page-layout">
+   <div class="card flex-1 min-h-0 overflow-hidden">
+   <div v-if="loading" class="flex h-full items-center justify-center py-12">
+   <div
+   class="h-8 w-8 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
+   ></div>
+   </div>
 
-        <div
-          v-else-if="!menuItem"
-          class="flex h-full items-center justify-center p-10 text-center"
-        >
-          <div class="max-w-md">
-            <div
-              class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700"
-            >
-              <Icon name="link" size="lg" class="text-gray-400" />
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-              {{ t('customPage.notFoundTitle') }}
-            </h3>
-            <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
-              {{ t('customPage.notFoundDesc') }}
-            </p>
-          </div>
-        </div>
+   <div
+   v-else-if="!menuItem"
+   class="flex h-full items-center justify-center p-10 text-center"
+   >
+   <div class="max-w-md">
+   <div
+   class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-paper-inset"
+   >
+   <Icon name="link" size="lg" class="text-ink-faint" />
+   </div>
+   <h3 class="text-lg font-semibold text-ink">
+   {{ t('customPage.notFoundTitle') }}
+   </h3>
+   <p class="mt-2 text-sm text-ink-soft">
+   {{ t('customPage.notFoundDesc') }}
+   </p>
+   </div>
+   </div>
 
-        <!-- Markdown mode with TOC -->
-        <div v-else-if="isMarkdownMode" class="flex h-full overflow-hidden">
-          <!-- TOC Sidebar -->
-          <aside
-            v-show="tocVisible"
-            class="toc-sidebar"
-          >
-            <div class="toc-header">
-              <span class="toc-title">{{ t('customPage.tableOfContents') }}</span>
-              <button class="toc-close-btn" @click="tocVisible = false">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
-              </button>
-            </div>
-            <nav class="toc-nav">
-              <a
-                v-for="item in tocItems"
-                :key="item.id"
-                :href="'#' + item.id"
-                class="toc-item"
-                :class="[
-                  `toc-level-${item.level}`,
-                  { 'toc-active': activeHeadingId === item.id }
-                ]"
-                @click.prevent="scrollToHeading(item.id)"
-              >
-                {{ item.text }}
-              </a>
-            </nav>
-          </aside>
+   <!-- Markdown mode with TOC -->
+   <div v-else-if="isMarkdownMode" class="flex h-full overflow-hidden">
+   <!-- TOC Sidebar -->
+   <aside
+   v-show="tocVisible"
+   class="toc-sidebar"
+   >
+   <div class="toc-header">
+   <span class="toc-title">{{ t('customPage.tableOfContents') }}</span>
+   <button class="toc-close-btn" @click="tocVisible = false">
+   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+   </button>
+   </div>
+   <nav class="toc-nav">
+   <a
+   v-for="item in tocItems"
+   :key="item.id"
+   :href="'#' + item.id"
+   class="toc-item"
+   :class="[ `toc-level-${item.level}`, { 'toc-active': activeHeadingId === item.id } ]"
+   @click.prevent="scrollToHeading(item.id)"
+   >
+   {{ item.text }}
+   </a>
+   </nav>
+   </aside>
 
-          <!-- TOC Toggle Button (when collapsed) -->
-          <button
-            v-show="!tocVisible && tocItems.length > 0"
-            class="toc-toggle-btn"
-            @click="tocVisible = true"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
-            <span class="ml-1 text-xs">{{ t('customPage.tableOfContents') }}</span>
-          </button>
+   <!-- TOC Toggle Button (when collapsed) -->
+   <button
+   v-show="!tocVisible && tocItems.length > 0"
+   class="toc-toggle-btn"
+   @click="tocVisible = true"
+   >
+   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+   <span class="ml-1 text-xs">{{ t('customPage.tableOfContents') }}</span>
+   </button>
 
-          <!-- Content -->
-          <div
-            ref="markdownContainer"
-            class="markdown-page-content flex-1 h-full overflow-auto p-6 md:p-10"
-            v-html="renderedHtml"
-            @scroll="onContentScroll"
-          ></div>
-        </div>
+   <!-- Content -->
+   <div
+   ref="markdownContainer"
+   class="markdown-page-content flex-1 h-full overflow-auto p-6 md:p-10"
+   v-html="renderedHtml"
+   @scroll="onContentScroll"
+   ></div>
+   </div>
 
-        <!-- URL not configured -->
-        <div v-else-if="!isValidUrl" class="flex h-full items-center justify-center p-10 text-center">
-          <div class="max-w-md">
-            <div
-              class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-700"
-            >
-              <Icon name="link" size="lg" class="text-gray-400" />
-            </div>
-            <h3 class="text-lg font-semibold text-gray-900 dark:text-white">
-              {{ t('customPage.notConfiguredTitle') }}
-            </h3>
-            <p class="mt-2 text-sm text-gray-500 dark:text-dark-400">
-              {{ t('customPage.notConfiguredDesc') }}
-            </p>
-          </div>
-        </div>
+   <!-- URL not configured -->
+   <div v-else-if="!isValidUrl" class="flex h-full items-center justify-center p-10 text-center">
+   <div class="max-w-md">
+   <div
+   class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-paper-inset"
+   >
+   <Icon name="link" size="lg" class="text-ink-faint" />
+   </div>
+   <h3 class="text-lg font-semibold text-ink">
+   {{ t('customPage.notConfiguredTitle') }}
+   </h3>
+   <p class="mt-2 text-sm text-ink-soft">
+   {{ t('customPage.notConfiguredDesc') }}
+   </p>
+   </div>
+   </div>
 
-        <!-- Iframe embed mode -->
-        <div v-else ref="embedShell" class="custom-embed-shell">
-          <a
-            v-if="!menuItem?.hide_open_button"
-            ref="openButton"
-            :href="embeddedUrl"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="btn btn-secondary btn-sm custom-open-fab"
-            :style="openButtonPosition ? { left: `${openButtonPosition.x}px`, top: `${openButtonPosition.y}px`, right: 'auto' } : undefined"
-            @pointerdown="startButtonDrag"
-            @pointermove="moveButtonDrag"
-            @pointerup="endButtonDrag"
-            @pointercancel="endButtonDrag"
-            @lostpointercapture="endButtonDrag"
-            @dragstart.prevent
-            @click="handleOpenButtonClick"
-          >
-            <Icon name="externalLink" size="sm" class="mr-1.5" :stroke-width="2" />
-            {{ t('customPage.openInNewTab') }}
-          </a>
-          <!--
-            sandbox 收紧嵌入页权限：允许脚本/表单/同源存储（多数第三方页需要），
-            但禁止 top-level 跳转、弹窗与下载，避免嵌入页劫持整站导航。
-            referrerpolicy 避免把带 query（含 user_id 等）的完整 URL 泄露给下游。
-          -->
-          <iframe
-            ref="embedFrame"
-            :src="embeddedUrl"
-            class="custom-embed-frame"
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups-to-escape-sandbox"
-            referrerpolicy="strict-origin-when-cross-origin"
-            allowfullscreen
-            @load="deliverEmbedToken"
-          ></iframe>
-        </div>
-      </div>
-    </div>
+   <!-- Iframe embed mode -->
+   <div v-else ref="embedShell" class="custom-embed-shell">
+   <a
+   v-if="!menuItem?.hide_open_button"
+   ref="openButton"
+   :href="embeddedUrl"
+   target="_blank"
+   rel="noopener noreferrer"
+   class="btn btn-secondary btn-sm custom-open-fab"
+   :style="openButtonPosition ? { left: `${openButtonPosition.x}px`, top: `${openButtonPosition.y}px`, right: 'auto' } : undefined"
+   @pointerdown="startButtonDrag"
+   @pointermove="moveButtonDrag"
+   @pointerup="endButtonDrag"
+   @pointercancel="endButtonDrag"
+   @lostpointercapture="endButtonDrag"
+   @dragstart.prevent
+   @click="handleOpenButtonClick"
+   >
+   <Icon name="externalLink" size="sm" class="mr-1.5" :stroke-width="2" />
+   {{ t('customPage.openInNewTab') }}
+   </a>
+   <!--
+   sandbox 收紧嵌入页权限：允许脚本/表单/同源存储（多数第三方页需要），
+   但禁止 top-level 跳转、弹窗与下载，避免嵌入页劫持整站导航。
+   referrerpolicy 避免把带 query（含 user_id 等）的完整 URL 泄露给下游。
+   -->
+   <iframe
+   ref="embedFrame"
+   :src="embeddedUrl"
+   class="custom-embed-frame"
+   sandbox="allow-scripts allow-same-origin allow-forms allow-popups-to-escape-sandbox"
+   referrerpolicy="strict-origin-when-cross-origin"
+   allowfullscreen
+   @load="deliverEmbedToken"
+   ></iframe>
+   </div>
+   </div>
+   </div>
   </AppLayout>
 </template>
 
@@ -183,8 +180,8 @@ function setOpenButtonPosition(x: number, y: number) {
   const button = openButton.value
   if (!shell || !button) return
   openButtonPosition.value = {
-    x: Math.max(0, Math.min(x, shell.clientWidth - button.offsetWidth)),
-    y: Math.max(0, Math.min(y, shell.clientHeight - button.offsetHeight)),
+   x: Math.max(0, Math.min(x, shell.clientWidth - button.offsetWidth)),
+   y: Math.max(0, Math.min(y, shell.clientHeight - button.offsetHeight)),
   }
 }
 
@@ -193,8 +190,8 @@ function startButtonDrag(event: PointerEvent) {
   const button = openButton.value
   suppressButtonClick = false
   buttonDrag = {
-    pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
-    x: button.offsetLeft, y: button.offsetTop,
+   pointerId: event.pointerId, startX: event.clientX, startY: event.clientY,
+   x: button.offsetLeft, y: button.offsetTop,
   }
   // Capture keeps receiving moves when the pointer crosses the embedded iframe.
   button.setPointerCapture(event.pointerId)
@@ -214,7 +211,7 @@ function endButtonDrag(event: PointerEvent) {
   if (!buttonDrag || event.pointerId !== buttonDrag.pointerId) return
   buttonDrag = null
   if (openButton.value?.hasPointerCapture(event.pointerId)) {
-    openButton.value.releasePointerCapture(event.pointerId)
+   openButton.value.releasePointerCapture(event.pointerId)
   }
 }
 
@@ -225,7 +222,7 @@ function handleOpenButtonClick(event: MouseEvent) {
 
 useResizeObserver([embedShell, openButton], () => {
   if (openButtonPosition.value) {
-    setOpenButtonPosition(openButtonPosition.value.x, openButtonPosition.value.y)
+   setOpenButtonPosition(openButtonPosition.value.x, openButtonPosition.value.y)
   }
 })
 
@@ -237,7 +234,7 @@ const menuItem = computed(() => {
   const found = publicItems.find((item) => item.id === id) ?? null
   if (found) return found
   if (authStore.isAdmin) {
-    return adminSettingsStore.customMenuItems.find((item) => item.id === id) ?? null
+   return adminSettingsStore.customMenuItems.find((item) => item.id === id) ?? null
   }
   return null
 })
@@ -256,10 +253,10 @@ const embeddedUrl = computed(() => {
   if (!menuItem.value || isMarkdownMode.value) return ''
   // 不传 token：令牌经 postMessage 定向交付，避免进入 URL/历史/Referer。
   return buildEmbeddedUrl(
-    menuItem.value.url,
-    authStore.user?.id,
-    pageTheme.value,
-    locale.value,
+   menuItem.value.url,
+   authStore.user?.id,
+   pageTheme.value,
+   locale.value,
   )
 })
 
@@ -276,14 +273,14 @@ function deliverEmbedToken() {
   if (!frame?.contentWindow || !targetUrl || !token) return
   let targetOrigin = ""
   try {
-    targetOrigin = new URL(targetUrl).origin
+   targetOrigin = new URL(targetUrl).origin
   } catch {
-    return
+   return
   }
   if (!targetOrigin || targetOrigin === "null") return
   frame.contentWindow.postMessage(
-    { type: EMBED_AUTH_TOKEN_MESSAGE_TYPE, token },
-    targetOrigin,
+   { type: EMBED_AUTH_TOKEN_MESSAGE_TYPE, token },
+   targetOrigin,
   )
 }
 
@@ -295,32 +292,32 @@ const isValidUrl = computed(() => {
 
 function generateHeadingId(text: string, index: number): string {
   const base = text
-    .toLowerCase()
-    .replace(/[^\w一-鿿]+/g, '-')
-    .replace(/^-+|-+$/g, '')
+   .toLowerCase()
+   .replace(/[^\w一-鿿]+/g, '-')
+   .replace(/^-+|-+$/g, '')
   return base ? `${base}-${index}` : `heading-${index}`
 }
 
 function isRelativeMarkdownAsset(src: string): boolean {
   const trimmed = src.trim()
   if (!trimmed || /^[a-z][a-z0-9+.-]*:/i.test(trimmed) || trimmed.startsWith('//') || trimmed.startsWith('/')) {
-    return false
+   return false
   }
   const [pathPart] = trimmed.split(/([?#].*)/, 2)
   return pathPart
-    .split('/')
-    .filter((part) => part && part !== '.')
-    .every((part) => part !== '..' && !part.includes('\\'))
+   .split('/')
+   .filter((part) => part && part !== '.')
+   .every((part) => part !== '..' && !part.includes('\\'))
 }
 
 function buildPageImageUrl(slug: string, src: string): string {
   const trimmed = src.trim()
   const [pathPart, suffix = ''] = trimmed.split(/([?#].*)/, 2)
   const encodedPath = pathPart
-    .split('/')
-    .filter((part) => part && part !== '.')
-    .map((part) => encodeURIComponent(part))
-    .join('/')
+   .split('/')
+   .filter((part) => part && part !== '.')
+   .map((part) => encodeURIComponent(part))
+   .join('/')
   return buildApiUrl(`/pages/${encodeURIComponent(slug)}/images/${encodedPath}${suffix}`)
 }
 
@@ -330,55 +327,55 @@ async function fetchAndRenderMarkdown(slug: string) {
   tocItems.value = []
   activeHeadingId.value = ''
   try {
-    const resp = await fetch(buildApiUrl(`/pages/${encodeURIComponent(slug)}`), {
-      headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
-    })
-    if (version !== markdownRequestVersion) return
-    if (!resp.ok) {
-      renderedHtml.value = `<p class="text-red-500">${t('common.pageNotFound')}</p>`
-      return
-    }
-    let raw = await resp.text()
-    if (version !== markdownRequestVersion) return
+   const resp = await fetch(buildApiUrl(`/pages/${encodeURIComponent(slug)}`), {
+   headers: authStore.token ? { Authorization: `Bearer ${authStore.token}` } : {},
+   })
+   if (version !== markdownRequestVersion) return
+   if (!resp.ok) {
+   renderedHtml.value = `<p class="text-danger-600">${t('common.pageNotFound')}</p>`
+   return
+   }
+   let raw = await resp.text()
+   if (version !== markdownRequestVersion) return
 
-    raw = raw.replace(
-      /!\[([^\]]*)\]\(([^)]+)\)/g,
-      (match, alt, src) => isRelativeMarkdownAsset(src) ? `![${alt}](${buildPageImageUrl(slug, src)})` : match
-    )
+   raw = raw.replace(
+   /!\[([^\]]*)\]\(([^)]+)\)/g,
+   (match, alt, src) => isRelativeMarkdownAsset(src) ? `![${alt}](${buildPageImageUrl(slug, src)})` : match
+   )
 
-    const html = marked.parse(raw) as string
-    const sanitized = DOMPurify.sanitize(html, {
-      ADD_TAGS: ['iframe'],
-      ADD_ATTR: ['allowfullscreen', 'frameborder', 'src'],
-    })
+   const html = marked.parse(raw) as string
+   const sanitized = DOMPurify.sanitize(html, {
+   ADD_TAGS: ['iframe'],
+   ADD_ATTR: ['allowfullscreen', 'frameborder', 'src'],
+   })
 
-    // Inject IDs into headings and build TOC
-    const toc: TocItem[] = []
-    let headingIndex = 0
-    const withIds = sanitized.replace(
-      /<(h[1-4])[^>]*>(.*?)<\/h[1-4]>/gi,
-      (_, tag: string, content: string) => {
-        const level = parseInt(tag[1])
-        const text = content.replace(/<[^>]+>/g, '').trim()
-        const id = generateHeadingId(text, headingIndex++)
-        toc.push({ id, text, level })
-        return `<${tag} id="${id}">${content}</${tag}>`
-      }
-    )
+   // Inject IDs into headings and build TOC
+   const toc: TocItem[] = []
+   let headingIndex = 0
+   const withIds = sanitized.replace(
+   /<(h[1-4])[^>]*>(.*?)<\/h[1-4]>/gi,
+   (_, tag: string, content: string) => {
+   const level = parseInt(tag[1])
+   const text = content.replace(/<[^>]+>/g, '').trim()
+   const id = generateHeadingId(text, headingIndex++)
+   toc.push({ id, text, level })
+   return `<${tag} id="${id}">${content}</${tag}>`
+   }
+   )
 
-    renderedHtml.value = withIds
-    tocItems.value = toc
+   renderedHtml.value = withIds
+   tocItems.value = toc
   } catch {
-    if (version === markdownRequestVersion) {
-      renderedHtml.value = '<p class="text-red-500">Failed to load page</p>'
-    }
+   if (version === markdownRequestVersion) {
+   renderedHtml.value = '<p class="text-danger-600">Failed to load page</p>'
+   }
   } finally {
-    if (version === markdownRequestVersion) {
-      loading.value = false
-      await nextTick()
-      await nextTick()
-      if (version === markdownRequestVersion) injectCopyButtons()
-    }
+   if (version === markdownRequestVersion) {
+   loading.value = false
+   await nextTick()
+   await nextTick()
+   if (version === markdownRequestVersion) injectCopyButtons()
+   }
   }
 }
 
@@ -387,11 +384,11 @@ function scrollToHeading(id: string) {
   if (!container) return
   const el = container.querySelector(`#${CSS.escape(id)}`)
   if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    activeHeadingId.value = id
-    if (window.innerWidth <= 640) {
-      tocVisible.value = false
-    }
+   el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+   activeHeadingId.value = id
+   if (window.innerWidth <= 640) {
+   tocVisible.value = false
+   }
   }
 }
 
@@ -399,23 +396,23 @@ let scrollRafId = 0
 function onContentScroll() {
   if (scrollRafId) return
   scrollRafId = requestAnimationFrame(() => {
-    scrollRafId = 0
-    const container = markdownContainer.value
-    if (!container || tocItems.value.length === 0) return
+   scrollRafId = 0
+   const container = markdownContainer.value
+   if (!container || tocItems.value.length === 0) return
 
-    const containerRect = container.getBoundingClientRect()
-    let current = ''
+   const containerRect = container.getBoundingClientRect()
+   let current = ''
 
-    for (const item of tocItems.value) {
-      const el = container.querySelector(`#${CSS.escape(item.id)}`) as HTMLElement | null
-      if (el) {
-        const elRect = el.getBoundingClientRect()
-        if (elRect.top - containerRect.top <= 100) {
-          current = item.id
-        }
-      }
-    }
-    activeHeadingId.value = current
+   for (const item of tocItems.value) {
+   const el = container.querySelector(`#${CSS.escape(item.id)}`) as HTMLElement | null
+   if (el) {
+   const elRect = el.getBoundingClientRect()
+   if (elRect.top - containerRect.top <= 100) {
+   current = item.id
+   }
+   }
+   }
+   activeHeadingId.value = current
   })
 }
 
@@ -424,34 +421,34 @@ function injectCopyButtons() {
   if (!container) return
 
   container.querySelectorAll('pre').forEach((pre) => {
-    if (pre.querySelector('.copy-btn')) return
-    const btn = document.createElement('button')
-    btn.className = 'copy-btn'
-    btn.textContent = t('customPage.copyCode')
-    btn.addEventListener('click', async () => {
-      const code = pre.querySelector('code')?.textContent ?? pre.textContent ?? ''
-      try {
-        await navigator.clipboard.writeText(code)
-        btn.textContent = t('customPage.copiedCode')
-        setTimeout(() => { btn.textContent = t('customPage.copyCode') }, 2000)
-      } catch {
-        btn.textContent = t('customPage.copyCodeFailed')
-        setTimeout(() => { btn.textContent = t('customPage.copyCode') }, 2000)
-      }
-    })
-    pre.style.position = 'relative'
-    pre.appendChild(btn)
+   if (pre.querySelector('.copy-btn')) return
+   const btn = document.createElement('button')
+   btn.className = 'copy-btn'
+   btn.textContent = t('customPage.copyCode')
+   btn.addEventListener('click', async () => {
+   const code = pre.querySelector('code')?.textContent ?? pre.textContent ?? ''
+   try {
+   await navigator.clipboard.writeText(code)
+   btn.textContent = t('customPage.copiedCode')
+   setTimeout(() => { btn.textContent = t('customPage.copyCode') }, 2000)
+   } catch {
+   btn.textContent = t('customPage.copyCodeFailed')
+   setTimeout(() => { btn.textContent = t('customPage.copyCode') }, 2000)
+   }
+   })
+   pre.style.position = 'relative'
+   pre.appendChild(btn)
   })
 }
 
 watch(markdownSlug, (slug) => {
   if (slug) {
-    fetchAndRenderMarkdown(slug)
+   fetchAndRenderMarkdown(slug)
   } else {
-    markdownRequestVersion++
-    loading.value = false
-    renderedHtml.value = ''
-    tocItems.value = []
+   markdownRequestVersion++
+   loading.value = false
+   renderedHtml.value = ''
+   tocItems.value = []
   }
 }, { immediate: true })
 
@@ -459,29 +456,29 @@ onMounted(async () => {
   pageTheme.value = detectTheme()
 
   if (typeof document !== 'undefined') {
-    themeObserver = new MutationObserver(() => {
-      pageTheme.value = detectTheme()
-    })
-    themeObserver.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    })
+   themeObserver = new MutationObserver(() => {
+   pageTheme.value = detectTheme()
+   })
+   themeObserver.observe(document.documentElement, {
+   attributes: true,
+   attributeFilter: ['class'],
+   })
   }
 
   if (appStore.publicSettingsLoaded) return
   loading.value = true
   try {
-    await appStore.fetchPublicSettings()
+   await appStore.fetchPublicSettings()
   } finally {
-    loading.value = false
+   loading.value = false
   }
 })
 
 onUnmounted(() => {
   markdownRequestVersion++
   if (themeObserver) {
-    themeObserver.disconnect()
-    themeObserver = null
+   themeObserver.disconnect()
+   themeObserver = null
   }
 })
 </script>
@@ -493,7 +490,7 @@ onUnmounted(() => {
 }
 
 .toc-sidebar {
-  @apply flex flex-col h-full border-r border-gray-200 dark:border-dark-600 bg-gray-50 dark:bg-dark-800;
+  @apply flex flex-col h-full border-r border-rule dark:border-dark-600 bg-paper-inset ;
   width: min(240px, 30%);
   min-width: 160px;
   max-width: 280px;
@@ -502,27 +499,27 @@ onUnmounted(() => {
 
 @media (max-width: 640px) {
   .toc-sidebar {
-    position: absolute;
-    left: 0;
-    top: 0;
-    z-index: 20;
-    width: 70%;
-    max-width: 240px;
-    height: 100%;
-    box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+   position: absolute;
+   left: 0;
+   top: 0;
+   z-index: 20;
+   width: 70%;
+   max-width: 240px;
+   height: 100%;
+   box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
   }
 }
 
 .toc-header {
-  @apply flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-dark-600;
+  @apply flex items-center justify-between px-4 py-3 border-b border-rule dark:border-dark-600;
 }
 
 .toc-title {
-  @apply text-sm font-semibold text-gray-700 dark:text-dark-200;
+  @apply text-sm font-semibold text-ink dark:text-dark-200;
 }
 
 .toc-close-btn {
-  @apply p-1 rounded text-gray-400 hover:text-gray-600 dark:hover:text-dark-200 hover:bg-gray-200 dark:hover:bg-dark-600 transition-colors;
+  @apply p-1 rounded text-ink-faint hover:text-ink-soft dark:hover:text-dark-200 hover:bg-rule dark:hover:bg-dark-600 transition-colors;
 }
 
 .toc-nav {
@@ -531,7 +528,7 @@ onUnmounted(() => {
 
 .toc-item {
   @apply block px-2 py-1.5 text-sm rounded transition-colors truncate;
-  @apply text-gray-600 dark:text-dark-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200 dark:hover:bg-dark-600;
+  @apply text-ink-soft  hover:text-ink dark:hover:text-on-signal hover:bg-rule dark:hover:bg-dark-600;
 }
 
 .toc-item.toc-active {
@@ -545,21 +542,21 @@ onUnmounted(() => {
 
 .toc-toggle-btn {
   @apply absolute left-2 top-2 z-10 flex items-center px-2 py-1.5 rounded-md text-sm;
-  @apply bg-white dark:bg-dark-700 border border-gray-200 dark:border-dark-500;
-  @apply text-gray-600 dark:text-dark-300 hover:bg-gray-100 dark:hover:bg-dark-600;
-  @apply shadow-sm transition-colors cursor-pointer;
+  @apply bg-white  border border-rule dark:border-dark-500;
+  @apply text-ink-soft  hover:bg-paper-inset dark:hover:bg-dark-600;
+  @apply transition-colors cursor-pointer;
 }
 
 .custom-embed-shell {
   @apply relative;
-  @apply h-full w-full overflow-hidden rounded-2xl;
-  @apply bg-gradient-to-b from-gray-50 to-white dark:from-dark-900 dark:to-dark-950;
+  @apply h-full w-full overflow-hidden ;
+  @apply bg-paper;
   @apply p-0;
 }
 
 .custom-open-fab {
   @apply absolute right-3 top-3 z-10 w-max max-w-full touch-none select-none transition-colors;
-  @apply shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80 dark:supports-[backdrop-filter]:bg-dark-800/80;
+  @apply bg-surface;
 }
 
 .custom-embed-frame {
@@ -579,7 +576,7 @@ onUnmounted(() => {
   line-height: 1.7;
   color: inherit;
 }
-.markdown-page-content h1 { @apply text-3xl font-bold mt-8 mb-4 pb-2 border-b border-gray-200 dark:border-dark-600; }
+.markdown-page-content h1 { @apply text-3xl font-bold mt-8 mb-4 pb-2 border-b border-rule dark:border-dark-600; }
 .markdown-page-content h2 { @apply text-2xl font-bold mt-6 mb-3; }
 .markdown-page-content h3 { @apply text-xl font-semibold mt-5 mb-2; }
 .markdown-page-content h4 { @apply text-lg font-semibold mt-4 mb-2; }
@@ -588,31 +585,31 @@ onUnmounted(() => {
 .markdown-page-content ol { @apply list-decimal pl-6 mb-4; }
 .markdown-page-content li { @apply mb-1; }
 .markdown-page-content a { @apply text-primary-500 hover:text-primary-600 underline; }
-.markdown-page-content blockquote { @apply border-l-4 border-gray-300 dark:border-dark-500 pl-4 italic text-gray-600 dark:text-dark-300 my-4; }
+.markdown-page-content blockquote { @apply border-l-4 border-rule-strong dark:border-dark-500 pl-4 italic text-ink-soft  my-4; }
 .markdown-page-content img { @apply max-w-full h-auto rounded-lg my-4; }
 .markdown-page-content table { @apply w-full border-collapse my-4; }
-.markdown-page-content th { @apply border border-gray-300 dark:border-dark-500 px-3 py-2 bg-gray-50 dark:bg-dark-700 font-semibold text-left; }
-.markdown-page-content td { @apply border border-gray-300 dark:border-dark-500 px-3 py-2; }
-.markdown-page-content code { @apply bg-gray-100 dark:bg-dark-700 px-1.5 py-0.5 rounded text-sm font-mono; }
-.markdown-page-content pre { @apply bg-gray-900 dark:bg-dark-900 text-gray-100 p-4 rounded-lg overflow-x-auto my-4 relative; }
+.markdown-page-content th { @apply border border-rule-strong dark:border-dark-500 px-3 py-2 bg-paper-inset  font-semibold text-left; }
+.markdown-page-content td { @apply border border-rule-strong dark:border-dark-500 px-3 py-2; }
+.markdown-page-content code { @apply bg-paper-inset  px-1.5 py-0.5 rounded text-sm font-mono; }
+.markdown-page-content pre { @apply bg-ink text-surface p-4 overflow-x-auto my-4 relative; }
 .markdown-page-content pre code { @apply bg-transparent p-0 text-inherit; }
-.markdown-page-content hr { @apply my-6 border-gray-200 dark:border-dark-600; }
+.markdown-page-content hr { @apply my-6 border-rule dark:border-dark-600; }
 
 .copy-btn {
   position: absolute;
   top: 8px;
   right: 8px;
   padding: 4px 10px;
-  font-size: 12px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.15);
-  color: #e2e8f0;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  font-family: var(--font-read);
+  font-size: 11px;
+  border-radius: var(--radius-cut);
+  background-color: rgb(var(--ink) / 0.55);
+  color: rgb(var(--surface));
+  border: 1px solid rgb(var(--surface) / 0.25);
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.2s, background 0.2s;
-  font-family: inherit;
+  transition: opacity var(--motion-fast) var(--ease-cut), background-color var(--motion-fast) var(--ease-cut);
 }
-.copy-btn:hover { background: rgba(255, 255, 255, 0.25); }
+.copy-btn:hover { background-color: rgb(var(--ink) / 0.8); }
 pre:hover .copy-btn { opacity: 1; }
 </style>

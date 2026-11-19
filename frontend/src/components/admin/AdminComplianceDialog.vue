@@ -10,7 +10,7 @@
     @close="noop"
   >
     <div class="space-y-5">
-      <div class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+      <div class="rounded-lg border border-warning-200 bg-warning-50 p-4 text-sm text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-100">
         <div class="flex gap-3">
           <Icon name="exclamationTriangle" size="md" class="mt-0.5 flex-shrink-0" />
           <div class="space-y-2">
@@ -27,10 +27,10 @@
 
         <aside class="space-y-3 rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm dark:border-dark-700 dark:bg-dark-900/60">
           <div>
-            <p class="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-dark-400">
+            <p class="text-xs font-medium tracking-wide text-ink-faint">
               {{ t('adminCompliance.version') }}
             </p>
-            <p class="mt-1 break-all font-mono text-gray-900 dark:text-white">
+            <p class="mt-1 break-all font-mono text-ink">
               {{ complianceStore.status?.version || 'v2026.06.10' }}
             </p>
           </div>
@@ -43,14 +43,14 @@
             <Icon name="externalLink" size="sm" />
             {{ t('adminCompliance.openDocument') }}
           </a>
-          <p class="leading-6 text-gray-600 dark:text-dark-300">
+          <p class="leading-6 text-ink-soft">
             {{ t('adminCompliance.documentSource') }}
           </p>
         </aside>
       </div>
 
       <div class="space-y-3">
-        <label for="admin-compliance-phrase" class="block text-sm font-semibold text-gray-900 dark:text-white">
+        <label for="admin-compliance-phrase" class="block text-sm font-semibold text-ink">
           {{ t('adminCompliance.inputLabel') }}
         </label>
         <div class="rounded-lg bg-gray-100 px-3 py-2 font-mono text-sm text-gray-900 dark:bg-dark-800 dark:text-dark-100">
@@ -67,7 +67,7 @@
         />
       </div>
 
-      <p class="text-xs leading-5 text-gray-500 dark:text-dark-400">
+      <p class="text-xs leading-5 text-ink-faint">
         {{ t('adminCompliance.legalNote') }}
       </p>
     </div>
@@ -191,20 +191,20 @@ async function logout(): Promise<void> {
 }
 
 .legal-document-content :deep(h1) {
-  @apply mb-4 text-2xl font-bold text-gray-950 dark:text-white;
+  @apply mb-4 text-2xl font-semibold text-ink;
 }
 
 .legal-document-content :deep(h2) {
-  @apply mb-3 mt-6 text-xl font-semibold text-gray-900 dark:text-white;
+  @apply mb-3 mt-6 text-xl font-semibold text-ink;
 }
 
 .legal-document-content :deep(p) {
-  @apply mb-4 text-sm text-gray-700 dark:text-dark-200;
+  @apply mb-4 text-sm text-ink-soft;
 }
 
 .legal-document-content :deep(ul),
 .legal-document-content :deep(ol) {
-  @apply mb-4 pl-6 text-sm text-gray-700 dark:text-dark-200;
+  @apply mb-4 pl-6 text-sm text-ink-soft;
 }
 
 .legal-document-content :deep(ul) {
@@ -220,6 +220,6 @@ async function logout(): Promise<void> {
 }
 
 .legal-document-content :deep(strong) {
-  @apply font-semibold text-gray-950 dark:text-white;
+  @apply font-semibold text-ink;
 }
 </style>

@@ -1159,6 +1159,11 @@ export default {
   errors: {
     somethingWentWrong: '出错了',
     pageNotFound: '页面未找到',
+    pageNotFoundDescription: '这个地址没有对应的页面，可能是链接写错了，或者它已经被搬走。',
+    goBack: '返回上一页',
+    goToDashboard: '回到仪表盘',
+    needHelp: '需要帮助？',
+    contactSupport: '联系支持',
     unauthorized: '未授权',
     forbidden: '禁止访问',
     serverError: '服务器错误',

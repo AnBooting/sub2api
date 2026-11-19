@@ -14,13 +14,13 @@
           data-test="withdraw-selected-user"
         >
           <div class="min-w-0 truncate text-sm">
-            <span class="font-mono text-gray-500 dark:text-dark-400">#{{ selectedUser.id }}</span>
-            <span class="ml-2 font-medium text-gray-900 dark:text-white">{{ selectedUser.email }}</span>
-            <span v-if="selectedUser.username" class="ml-1 text-xs text-gray-500 dark:text-dark-400">({{ selectedUser.username }})</span>
+            <span class="font-mono text-ink-faint">#{{ selectedUser.id }}</span>
+            <span class="ml-2 font-medium text-ink">{{ selectedUser.email }}</span>
+            <span v-if="selectedUser.username" class="ml-1 text-xs text-ink-faint">({{ selectedUser.username }})</span>
           </div>
           <button
             type="button"
-            class="text-lg leading-none text-gray-400 hover:text-red-600 disabled:opacity-50"
+            class="text-lg leading-none text-gray-400 hover:text-danger-600 disabled:opacity-50"
             :title="t('admin.affiliates.withdraw.changeUser')"
             :disabled="submitting || outcomeUncertain"
             data-test="withdraw-clear-user"
@@ -46,11 +46,11 @@
               v-for="user in userResults"
               :key="user.id"
               type="button"
-              class="w-full px-3 py-1.5 text-left text-sm text-gray-900 hover:bg-gray-100 dark:text-white dark:hover:bg-dark-800"
+              class="w-full px-3 py-1.5 text-left text-sm text-ink hover:bg-paper-inset"
               data-test="withdraw-user-option"
               @click="selectUser(user)"
             >
-              {{ user.email }} <span class="text-xs text-gray-500 dark:text-dark-400">({{ user.username }})</span>
+              {{ user.email }} <span class="text-xs text-ink-faint">({{ user.username }})</span>
             </button>
           </div>
           <p v-else-if="searched" class="input-hint">{{ t('admin.affiliates.withdraw.noUserFound') }}</p>
@@ -62,16 +62,16 @@
         class="rounded-lg border border-gray-100 bg-gray-50 p-3 dark:border-dark-700 dark:bg-dark-800"
       >
         <div class="flex items-center justify-between text-sm">
-          <span class="text-gray-500 dark:text-dark-400">{{ t('admin.affiliates.withdraw.availableQuota') }}</span>
+          <span class="text-ink-faint">{{ t('admin.affiliates.withdraw.availableQuota') }}</span>
           <span
             v-if="overviewLoading"
             class="h-4 w-4 animate-spin rounded-full border-2 border-primary-500 border-t-transparent"
           ></span>
-          <span v-else class="font-semibold text-gray-900 dark:text-white" data-test="withdraw-available-quota">
+          <span v-else class="font-semibold text-ink" data-test="withdraw-available-quota">
             ${{ formatPreciseAmount(availableQuota) }}
           </span>
         </div>
-        <p class="mt-1 text-xs text-gray-500 dark:text-dark-400">{{ t('admin.affiliates.withdraw.frozenHint') }}</p>
+        <p class="mt-1 text-xs text-ink-faint">{{ t('admin.affiliates.withdraw.frozenHint') }}</p>
       </div>
 
       <div>
@@ -103,13 +103,13 @@
 
       <div
         v-if="outcomeUncertain"
-        class="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800 dark:border-blue-700/50 dark:bg-blue-900/20 dark:text-blue-300"
+        class="rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-primary-800 dark:border-primary-700/50 dark:bg-primary-900/20 dark:text-primary-300"
         data-test="withdraw-uncertain-hint"
       >
         {{ t('admin.affiliates.withdraw.uncertainHint') }}
       </div>
 
-      <div class="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700/50 dark:bg-amber-900/20 dark:text-amber-300">
+      <div class="rounded-lg border border-warning-200 bg-warning-50 p-3 text-sm text-warning-800 dark:border-warning-700/50 dark:bg-warning-900/20 dark:text-warning-300">
         {{ t('admin.affiliates.withdraw.warning') }}
       </div>
     </form>

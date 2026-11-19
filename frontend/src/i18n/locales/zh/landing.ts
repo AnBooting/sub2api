@@ -94,14 +94,44 @@ export default {
       }
     },
     providers: {
-      title: '已支持的 AI 模型',
-      description: '一个 API，多种选择',
-      supported: '已支持',
-      soon: '即将推出',
+      title: '上游端口',
+      description: '已接上线的四个方向',
+      supported: '已接入',
+      soon: '未接入',
       claude: 'Claude',
+      gpt: 'GPT',
       gemini: 'Gemini',
       antigravity: 'Antigravity',
       more: '更多'
+    },
+    // 配线图 hero：把一次请求在图上的走向画出来
+    patch: {
+      title: '一次请求在图上的走向',
+      baseUrl: '接口地址',
+      version: '版本',
+      upstreamHint: '四路上游账号池，任一可用即接通',
+      gate: '判定',
+      gateHint: '读密钥与分组，按模型定价决定放不放行；缺价直接拒绝，不按零价兜底',
+      route: '转发',
+      routeHint: '选一条可用线路发出；失败换下一条，会话保持不打断上下文',
+      ledger: '落账',
+      ledgerHint: '按实际用量结算，写进余额与用量明细，每次调用都能对账',
+      failover: '断线换路',
+      failoverHint: '主线路失败时自动接通备用账号，请求不中断',
+      noRpmCap: '未设上限',
+      statusLive: '线路通电',
+      statusSignedOut: '未接线',
+      statusDisabled: '账号已停用',
+      statusNoBalance: '余额为零',
+      footnote: '图上每个节点的读数取你自己账户的实时值；未登录时画一道横线，不编造数字。'
+    },
+    // 环节说明：读数册
+    spec: {
+      title: '这张图纸承担的三件事',
+      meta: '按调用顺序排列',
+      columnIndex: '序号',
+      columnStage: '环节',
+      columnWhat: '做什么'
     },
     // CTA 区块
     cta: {
@@ -188,6 +218,11 @@ export default {
     queryFailed: '查询失败',
     queryFailedRetry: '查询失败，请稍后重试',
     noDailyUsage: '暂无按日用量数据',
+    // 空态：写成邀请，不是"没有数据"
+    emptyTitle: '把 Key 贴进上面的输入框',
+    emptyDescription: '查询后这里会画出这一把 Key 的额度环、余额、今日与累计用量，以及按日、按模型的明细账。Key 只在浏览器里发出请求，服务端不留。',
+    showKey: '显示 Key',
+    hideKey: '隐藏 Key',
   },
 
   // Setup Wizard

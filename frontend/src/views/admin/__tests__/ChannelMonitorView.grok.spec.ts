@@ -109,7 +109,8 @@ describe('channel monitor Grok provider', () => {
     expect(grokButton.find('svg').exists()).toBe(true)
     expect(grokButton.text()).toContain('monitorCommon.providers.grok')
     await grokButton.trigger('click')
-    expect(grokButton.classes().join(' ')).toContain('zinc')
+    // Grok 选中态用中性灰族（旧 zinc 已并入 gray）；只断言色族，不锁死具体色阶。
+    expect(grokButton.classes().join(' ')).toContain('bg-gray')
 
     const endpoint = wrapper.get('[data-testid="monitor-endpoint"]')
     const model = wrapper.get('[data-testid="monitor-primary-model"]')

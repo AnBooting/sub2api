@@ -59,11 +59,11 @@ describe('MonitorQuotaView', () => {
     expect(text).toContain('95%')
 
     const html = wrapper.html()
-    // 阈值配色（三处共用的 UsageProgressBar 统一）：≥90 红 / ≥75 黄 / 其余绿
-    // 42.4 → 绿、80 → 黄、95 → 红
-    expect(html).toContain('bg-green-500')
-    expect(html).toContain('bg-amber-500')
-    expect(html).toContain('bg-red-500')
+    // 阈值配色（三处共用的 UsageProgressBar 统一）：≥90 断线（danger） / ≥75 预警（warning） / 其余通路（success）
+    // 42.4 → 通路、80 → 预警、95 → 断线
+    expect(html).toContain('bg-success-500')
+    expect(html).toContain('bg-warning-500')
+    expect(html).toContain('bg-danger-500')
   })
 
   it('clamps the tier bar width into 0-100', () => {
@@ -91,8 +91,8 @@ describe('MonitorQuotaView', () => {
     expect(wrapper.text()).toContain('Max20')
     expect(wrapper.text()).toContain('12.50 CNY')
     expect(wrapper.text()).toContain('0.00 USD')
-    // 余额为 0 用红色警示
-    expect(wrapper.html()).toContain('text-red-600')
+    // 余额为 0 用断线色（danger = 氧化红）警示
+    expect(wrapper.html()).toContain('text-danger-600')
   })
 
   it('falls back to the single balance + currency pair', () => {

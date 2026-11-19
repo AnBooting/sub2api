@@ -10,7 +10,7 @@
           :class="
             activeLocale
               ? 'bg-primary-50 text-primary-600 dark:bg-primary-900/20 dark:text-primary-400'
-              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-gray-200'
+              : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-dark-400 dark:hover:bg-dark-700 dark:hover:text-ink'
           "
           :aria-expanded="menuOpen"
           @click="menuOpen = !menuOpen"

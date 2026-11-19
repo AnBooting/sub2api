@@ -138,16 +138,18 @@ describe('OpenCodeGoUsageCell', () => {
     })
     const badge = wrapper.get('[data-testid="opencode-go-status-badge"]')
     expect(badge.text()).toBe('unauthorized')
-    expect(badge.classes()).toEqual(expect.arrayContaining(['bg-amber-100', 'text-amber-700']))
+    // 未授权 = 可重试的预警态：warning（赭石），不是断线红。
+    expect(badge.classes()).toEqual(expect.arrayContaining(['bg-warning-100', 'text-warning-700']))
   })
 
-  it('shows a red badge for failed snapshots', () => {
+  it('shows a danger badge for failed snapshots', () => {
     const wrapper = mount(OpenCodeGoUsageCell, {
       props: { account: account(usageState({ snapshot: { status: 'failed', last_attempt_at: '2026-07-22T12:00:00Z', next_refresh_at: '2026-07-22T13:00:00Z', last_error: 'http_error' } })) }
     })
     const badge = wrapper.get('[data-testid="opencode-go-status-badge"]')
     expect(badge.text()).toBe('failed')
-    expect(badge.classes()).toEqual(expect.arrayContaining(['bg-red-100', 'text-red-700']))
+    // 失败 = 断线态：danger（氧化红）。
+    expect(badge.classes()).toEqual(expect.arrayContaining(['bg-danger-100', 'text-danger-700']))
   })
 
   it('renders a dash when the account is not eligible or has no state', () => {

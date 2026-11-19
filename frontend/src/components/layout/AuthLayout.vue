@@ -1,64 +1,43 @@
 <template>
-  <div class="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
-    <!-- Background -->
-    <div
-      class="absolute inset-0 bg-gradient-to-br from-gray-50 via-primary-50/30 to-gray-100 dark:from-dark-950 dark:via-dark-900 dark:to-dark-950"
-    ></div>
-
-    <!-- Decorative Elements -->
-    <div class="pointer-events-none absolute inset-0 overflow-hidden">
-      <!-- Gradient Orbs -->
-      <div
-        class="absolute -right-40 -top-40 h-80 w-80 rounded-full bg-primary-400/20 blur-3xl"
-      ></div>
-      <div
-        class="absolute -bottom-40 -left-40 h-80 w-80 rounded-full bg-primary-500/15 blur-3xl"
-      ></div>
-      <div
-        class="absolute left-1/2 top-1/2 h-96 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-300/10 blur-3xl"
-      ></div>
-
-      <!-- Grid Pattern -->
-      <div
-        class="absolute inset-0 bg-[linear-gradient(rgba(20,184,166,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(20,184,166,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"
-      ></div>
-    </div>
-
-    <!-- Content Container -->
-    <div class="relative z-10 w-full max-w-md">
-      <!-- Logo/Brand -->
-      <div class="mb-8 text-center">
-        <!-- Custom Logo or Default Logo -->
-        <template v-if="settingsLoaded">
-          <div
-            class="mb-4 inline-flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl shadow-lg shadow-primary-500/30"
-          >
-            <img :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+  <div class="flex min-h-screen flex-col bg-paper text-ink">
+    <main class="flex min-w-0 flex-1 items-start justify-center px-gutter py-[clamp(1.5rem,6vh,4.5rem)]">
+      <div class="w-full min-w-0 max-w-[26rem]">
+        <!-- 品牌区：图签式排版。品牌名用编辑体衬线，这是全页唯一一处衬线 -->
+        <div v-if="settingsLoaded" class="mb-5 min-w-0">
+          <div class="flex min-w-0 items-center gap-2.5">
+            <img
+              :src="siteLogo || '/logo.svg'"
+              alt=""
+              class="h-7 w-7 shrink-0 object-contain"
+            />
+            <h1 class="brand-name min-w-0 truncate">
+              {{ siteName }}
+            </h1>
           </div>
-          <h1 class="text-gradient mb-2 text-3xl font-bold">
-            {{ siteName }}
-          </h1>
-          <p class="text-sm text-gray-500 dark:text-dark-400">
+          <p
+            v-if="siteSubtitle"
+            class="mt-1.5 text-[0.8125rem] leading-relaxed text-ink-soft [overflow-wrap:anywhere]"
+          >
             {{ siteSubtitle }}
           </p>
-        </template>
-      </div>
+        </div>
 
-      <!-- Card Container -->
-      <div class="card-glass rounded-2xl p-8 shadow-glass">
-        <slot />
-      </div>
+        <!-- 单一面板：1px 痕量线围出，切角 -->
+        <div class="panel min-w-0 p-[clamp(1.125rem,4.5vw,1.75rem)]">
+          <slot />
+        </div>
 
-      <!-- Footer Links -->
-      <div class="mt-6 text-center text-sm">
-        <slot name="footer" />
-      </div>
+        <!-- 页脚链接 -->
+        <div class="mt-4 min-w-0 text-center text-[0.8125rem] text-ink-soft">
+          <slot name="footer" />
+        </div>
 
-      <!-- Copyright -->
-      <div class="mt-8 text-center text-xs text-gray-400 dark:text-dark-500">
-        &copy; {{ currentYear }} {{ siteName }}. All rights reserved.
+        <!-- 版权：可换行 -->
+        <p class="mt-6 text-center text-[0.6875rem] leading-relaxed text-ink-faint [overflow-wrap:anywhere]">
+          &copy; {{ currentYear }} {{ siteName }}
+        </p>
       </div>
-    </div>
+    </main>
   </div>
 </template>
 
@@ -82,7 +61,12 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.text-gradient {
-  @apply bg-gradient-to-r from-primary-600 to-primary-500 bg-clip-text text-transparent;
+/* 品牌名：编辑体衬线，不带字重覆盖（衬线由样式层给 500） */
+.brand-name {
+  font-family: var(--font-display);
+  font-size: 1.125rem;
+  line-height: 1.2;
+  letter-spacing: var(--track-display);
+  color: rgb(var(--ink));
 }
 </style>

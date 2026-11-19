@@ -164,6 +164,8 @@ export default {
 
   // Navigation
   nav: {
+    navigation: 'Main navigation',
+    more: 'More',
     dashboard: 'Dashboard',
     help: 'Help',
     announcements: 'Announcements',

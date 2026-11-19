@@ -40,35 +40,23 @@ export const durationSeverity = (ms: number): LatencySeverity =>
   classify(ms, DURATION_THRESHOLDS_MS)
 
 export const LATENCY_TEXT_CLASSES: Record<LatencySeverity, string> = {
-  good: 'text-emerald-600 dark:text-emerald-400',
-  warn: 'text-amber-600 dark:text-amber-400',
-  slow: 'text-orange-600 dark:text-orange-400',
-  critical: 'text-red-600 dark:text-red-400',
+  good: 'text-success-600 dark:text-success-400',
+  warn: 'text-warning-600 dark:text-warning-400',
+  slow: 'text-warning-600 dark:text-warning-400',
+  critical: 'text-danger-600 dark:text-danger-400',
 }
 
 /** 无首字数据时的纯色色条（仅按总耗时档着色）。 */
 export const LATENCY_BAR_CLASSES: Record<LatencySeverity, string> = {
-  good: 'bg-emerald-500',
-  warn: 'bg-amber-400',
-  slow: 'bg-orange-500',
-  critical: 'bg-red-500',
+  good: 'bg-success-500',
+  warn: 'bg-warning-400',
+  slow: 'bg-warning-500',
+  critical: 'bg-danger-500',
 }
 
-/** 渐变色条上端（首字档）；与 LATENCY_BAR_TO_CLASSES 组合成上下渐变，避免两段硬切割裂感。 */
-export const LATENCY_BAR_FROM_CLASSES: Record<LatencySeverity, string> = {
-  good: 'from-emerald-500',
-  warn: 'from-amber-400',
-  slow: 'from-orange-500',
-  critical: 'from-red-500',
-}
-
-/** 渐变色条下端（总耗时档）。 */
-export const LATENCY_BAR_TO_CLASSES: Record<LatencySeverity, string> = {
-  good: 'to-emerald-500',
-  warn: 'to-amber-400',
-  slow: 'to-orange-500',
-  critical: 'to-red-500',
-}
+// 历史上这里还有 LATENCY_BAR_FROM_CLASSES / LATENCY_BAR_TO_CLASSES 两张渐变端点表。
+// 渐变在新设计里被禁用（令牌契约第 2 条），色条改为单色平面 + 1px 痕量线，
+// 两张表已无消费者，随渐变一起删除。
 
 // 与运维 Token 请求统计一致：使用完整耗时，输出可能包含推理 Token。
 export const formatUsageOutputRate = (row: Pick<UsageLog,

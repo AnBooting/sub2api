@@ -1,6 +1,6 @@
 <template>
   <div class="mt-3 flex items-end justify-between">
-    <div class="text-[11px] uppercase tracking-widest text-gray-400">
+   <div class="text-[11px] text-ink-faint">
       {{ windowLabel }}
     </div>
     <div class="flex items-baseline gap-0.5">
@@ -18,7 +18,7 @@
   </div>
   <div
     v-if="samplesLabel"
-    class="mt-1 text-[11px] text-gray-400 text-right"
+   class="mt-1 text-[11px] text-ink-faint text-right"
   >
     {{ samplesLabel }}
   </div>
@@ -44,6 +44,7 @@ const displayValue = computed(() => {
 
 const colorStyle = computed(() => {
   const colour = hslForPct(props.value)
-  return colour ? { color: colour } : { color: 'rgb(156 163 175)' }
+  // 空值/未知：用语义淡墨令牌，不再写死 Tailwind 灰 400
+  return colour ? { color: colour } : { color: 'rgb(var(--ink-faint))' }
 })
 </script>

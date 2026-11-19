@@ -25,7 +25,8 @@ const deferred = () => {
   return { promise, resolve }
 }
 
-const pendingRows = (wrapper: VueWrapper) => wrapper.findAll('.bg-yellow-50')
+// 待验证邮箱行用 warning（赭石）铺底，不再是旧调色板的 yellow。
+const pendingRows = (wrapper: VueWrapper) => wrapper.findAll('.bg-warning-50')
 const pendingEmails = (wrapper: VueWrapper) => pendingRows(wrapper).map(row => row.get('span').text())
 
 const button = (wrapper: VueWrapper, text: string) =>

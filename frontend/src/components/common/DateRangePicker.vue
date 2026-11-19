@@ -49,7 +49,7 @@
             />
           </div>
           <div class="date-picker-separator">
-            <Icon name="arrowRight" size="sm" class="text-gray-400" />
+            <Icon name="arrowRight" size="sm" class="text-ink-faint" />
           </div>
           <div class="date-picker-field">
             <label class="date-picker-label">{{ t('dates.endDate') }}</label>
@@ -66,7 +66,7 @@
 
         <!-- Apply button -->
         <div class="date-picker-actions">
-          <button @click="apply" class="date-picker-apply">
+          <button @click="apply" class="btn btn-primary btn-sm date-picker-apply">
             {{ t('dates.apply') }}
           </button>
         </div>
@@ -324,22 +324,27 @@ onUnmounted(() => {
 <style scoped>
 .date-picker-trigger {
   @apply flex items-center gap-2;
-  @apply rounded-lg px-3 py-2 text-sm;
-  @apply bg-white dark:bg-dark-800;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-700 dark:text-gray-300;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-  @apply hover:border-gray-300 dark:hover:border-dark-500;
+  @apply rounded-sm border border-rule-strong bg-surface px-3 py-2 text-sm text-ink;
+  @apply transition-colors duration-150;
+  @apply focus:border-signal focus:outline-none;
+  @apply hover:border-ink-faint;
   @apply cursor-pointer;
+  /* 它是个按钮，触屏上必须到 44px；桌面 38px 够用 */
+  min-height: var(--touch-min);
+}
+
+@media (min-width: 768px) {
+  .date-picker-trigger {
+    min-height: 0;
+  }
 }
 
 .date-picker-trigger-open {
-  @apply border-primary-500 ring-2 ring-primary-500/30;
+  @apply border-signal;
 }
 
 .date-picker-icon {
-  @apply text-gray-400 dark:text-dark-400;
+  @apply text-ink-faint;
 }
 
 .date-picker-value {
@@ -347,17 +352,15 @@ onUnmounted(() => {
 }
 
 .date-picker-chevron {
-  @apply text-gray-400 dark:text-dark-400;
+  @apply text-ink-faint;
 }
 
 .date-picker-dropdown {
   @apply absolute left-0 z-[100] mt-2;
-  @apply bg-white dark:bg-dark-800;
-  @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply rounded-sm border border-rule-strong bg-surface;
   @apply overflow-hidden;
   @apply min-w-[320px];
+  box-shadow: 0 18px 44px -26px rgb(58 53 48 / 0.42);
 }
 
 .date-picker-presets {
@@ -365,19 +368,25 @@ onUnmounted(() => {
 }
 
 .date-picker-preset {
-  @apply rounded-md px-3 py-1.5 text-xs font-medium;
-  @apply text-gray-600 dark:text-gray-400;
-  @apply hover:bg-gray-100 dark:hover:bg-dark-700;
+  /* 快捷区间是常用操作，触屏上要够 44px；桌面可收紧到 36px */
+  @apply rounded-sm px-3 py-1.5 text-xs font-medium text-ink-soft;
+  @apply hover:bg-paper-inset hover:text-ink;
   @apply transition-colors duration-150;
+  min-height: var(--touch-min);
+}
+
+@media (min-width: 768px) {
+  .date-picker-preset {
+    min-height: 2.25rem;
+  }
 }
 
 .date-picker-preset-active {
-  @apply bg-primary-100 dark:bg-primary-900/30;
-  @apply text-primary-700 dark:text-primary-300;
+  @apply bg-signal/10 text-ink;
 }
 
 .date-picker-divider {
-  @apply border-t border-gray-100 dark:border-dark-700;
+  @apply border-t border-rule;
 }
 
 .date-picker-custom {
@@ -389,15 +398,13 @@ onUnmounted(() => {
 }
 
 .date-picker-label {
-  @apply mb-1 block text-xs font-medium text-gray-500 dark:text-gray-400;
+  @apply mb-1 block text-xs font-medium text-ink-faint;
 }
 
 .date-picker-input {
-  @apply w-full rounded-md px-2 py-1.5 text-sm;
-  @apply bg-gray-50 dark:bg-dark-700;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
+  @apply w-full rounded-sm border border-rule-strong bg-surface px-2 py-1.5 text-ink;
+  @apply focus:border-signal focus:outline-none;
+  font-size: 16px;
 }
 
 .date-picker-input::-webkit-calendar-picker-indicator {
@@ -417,17 +424,10 @@ onUnmounted(() => {
   @apply flex justify-end p-2 pt-0;
 }
 
-.date-picker-apply {
-  @apply rounded-lg px-4 py-1.5 text-sm font-medium;
-  @apply bg-primary-600 text-white;
-  @apply hover:bg-primary-700;
-  @apply transition-colors duration-150;
-}
-
 /* Dropdown animation */
 .date-picker-dropdown-enter-active,
 .date-picker-dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-cut), transform var(--motion-base) var(--ease-cut);
 }
 
 .date-picker-dropdown-enter-from,

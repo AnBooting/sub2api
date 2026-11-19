@@ -48,7 +48,7 @@ const badge = computed<Badge | null>(() => {
   if (state.state === 'peak') {
     return {
       text: label || t('admin.groups.peakState.peak'),
-      className: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300',
+      className: 'bg-warning-100 text-warning-800 dark:bg-warning-900/30 dark:text-warning-300',
       title: hint,
       showMultiplier: multiplier !== null && multiplier !== 1
     }
@@ -56,7 +56,7 @@ const badge = computed<Badge | null>(() => {
   if (state.state === 'valley') {
     return {
       text: label || t('admin.groups.peakState.valley'),
-      className: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+      className: 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400',
       title: hint,
       showMultiplier: multiplier !== null && multiplier !== 1
     }
@@ -64,7 +64,7 @@ const badge = computed<Badge | null>(() => {
   // "none" 以及后端将来新增的未知取值都按「未启用」处理，不把未知状态当错误。
   return {
     text: label || t('admin.groups.peakState.none'),
-    className: 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300',
+    className: 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-ink-soft',
     title: hint,
     showMultiplier: false
   }

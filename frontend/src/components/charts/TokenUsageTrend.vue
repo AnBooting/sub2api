@@ -1,6 +1,6 @@
 <template>
   <div class="card p-4">
-    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+    <h3 class="mb-4 text-sm font-semibold text-gray-900 dark:text-on-signal">
       {{ t('admin.dashboard.tokenUsageTrend') }}
     </h3>
     <div v-if="loading" class="flex h-48 items-center justify-center">
@@ -11,7 +11,7 @@
     </div>
     <div
       v-else
-      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-gray-400"
+      class="flex h-48 items-center justify-center text-sm text-gray-500 dark:text-ink-soft"
     >
       {{ t('admin.dashboard.noDataAvailable') }}
     </div>
@@ -35,6 +35,8 @@ import {
 } from 'chart.js'
 import { Line } from 'vue-chartjs'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
+import { withAlpha } from '@/styles/chartPalette'
+import { useChartTheme } from '@/features/chart-theme/useChartTheme'
 import type { TrendDataPoint } from '@/types'
 
 ChartJS.register(
@@ -55,19 +57,21 @@ const props = defineProps<{
   loading?: boolean
 }>()
 
-const isDarkMode = computed(() => {
-  return document.documentElement.classList.contains('dark')
-})
+// 图表配色一律来自 chartPalette（唯一来源），主题切换时自动重取
+const { palette } = useChartTheme()
 
-const chartColors = computed(() => ({
-  text: isDarkMode.value ? '#e5e7eb' : '#374151',
-  grid: isDarkMode.value ? '#374151' : '#e5e7eb',
-  input: '#3b82f6',
-  output: '#10b981',
-  cacheCreation: '#f59e0b',
-  cacheRead: '#06b6d4',
-  cacheHitRate: '#8b5cf6'
-}))
+const chartColors = computed(() => {
+  const series = palette.value.series
+  return {
+    text: palette.value.ink,
+    grid: palette.value.grid,
+    input: series[0],
+    output: series[2],
+    cacheCreation: series[1],
+    cacheRead: series[5],
+    cacheHitRate: series[4],
+  }
+})
 
 const chartData = computed(() => {
   if (!props.trendData?.length) return null
@@ -79,7 +83,7 @@ const chartData = computed(() => {
         label: 'Input',
         data: props.trendData.map((d) => d.input_tokens),
         borderColor: chartColors.value.input,
-        backgroundColor: `${chartColors.value.input}20`,
+        backgroundColor: withAlpha(chartColors.value.input, 0.12),
         fill: true,
         tension: 0.3
       },
@@ -87,7 +91,7 @@ const chartData = computed(() => {
         label: 'Output',
         data: props.trendData.map((d) => d.output_tokens),
         borderColor: chartColors.value.output,
-        backgroundColor: `${chartColors.value.output}20`,
+        backgroundColor: withAlpha(chartColors.value.output, 0.12),
         fill: true,
         tension: 0.3
       },
@@ -95,7 +99,7 @@ const chartData = computed(() => {
         label: 'Cache Creation',
         data: props.trendData.map((d) => d.cache_creation_tokens),
         borderColor: chartColors.value.cacheCreation,
-        backgroundColor: `${chartColors.value.cacheCreation}20`,
+        backgroundColor: withAlpha(chartColors.value.cacheCreation, 0.12),
         fill: true,
         tension: 0.3
       },
@@ -103,7 +107,7 @@ const chartData = computed(() => {
         label: 'Cache Read',
         data: props.trendData.map((d) => d.cache_read_tokens),
         borderColor: chartColors.value.cacheRead,
-        backgroundColor: `${chartColors.value.cacheRead}20`,
+        backgroundColor: withAlpha(chartColors.value.cacheRead, 0.12),
         fill: true,
         tension: 0.3
       },
@@ -114,7 +118,7 @@ const chartData = computed(() => {
           return totalPromptTokens > 0 ? (d.cache_read_tokens / totalPromptTokens) * 100 : 0
         }),
         borderColor: chartColors.value.cacheHitRate,
-        backgroundColor: `${chartColors.value.cacheHitRate}20`,
+        backgroundColor: withAlpha(chartColors.value.cacheHitRate, 0.12),
         borderDash: [5, 5],
         fill: false,
         tension: 0.3,

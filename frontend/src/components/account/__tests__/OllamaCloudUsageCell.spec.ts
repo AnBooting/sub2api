@@ -101,7 +101,8 @@ describe('OllamaCloudUsageCell', () => {
 
     expect(wrapper.find('[data-testid="ollama-cloud-usage-details"]').exists()).toBe(false)
     const query = wrapper.get('[data-testid="ollama-cloud-usage-query"]')
-    expect(query.classes()).toEqual(expect.arrayContaining(['text-blue-600', 'hover:bg-blue-50']))
+    // 查询动作 = 主操作 / 实时读数：唯一信号色 primary（钴蓝）。
+    expect(query.classes()).toEqual(expect.arrayContaining(['text-primary-600', 'hover:bg-primary-50']))
     expect(query.text()).toContain('admin.accounts.usageWindow.activeQuery')
     expect(wrapper.text()).not.toContain('max')
     expect(wrapper.text()).not.toContain('$0')

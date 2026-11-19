@@ -1,11 +1,11 @@
 <template>
   <div class="stat-card">
     <div :class="['stat-icon', iconClass]">
-      <component v-if="icon" :is="icon" class="h-6 w-6" aria-hidden="true" />
+      <component v-if="icon" :is="icon" class="h-4 w-4" aria-hidden="true" />
     </div>
     <div class="min-w-0 flex-1">
       <p class="stat-label truncate">{{ title }}</p>
-      <div class="mt-1 flex items-baseline gap-2">
+      <div class="mt-0.5 flex items-baseline gap-2">
         <p class="stat-value" :title="String(formattedValue)">{{ formattedValue }}</p>
         <span v-if="change !== undefined" :class="['stat-trend', trendClass]">
           <Icon
@@ -74,7 +74,7 @@ const trendClass = computed(() => {
   const classes: Record<ChangeType, string> = {
     up: 'stat-trend-up',
     down: 'stat-trend-down',
-    neutral: 'text-gray-500 dark:text-dark-400'
+    neutral: 'text-ink-faint'
   }
   return classes[props.changeType]
 })

@@ -1,20 +1,20 @@
 <template>
   <div class="mx-auto w-full max-w-3xl px-4 py-8">
-    <h1 class="text-2xl font-bold text-gray-900 dark:text-white">{{ t('help.title') }}</h1>
-    <p class="mt-2 text-sm text-gray-600 dark:text-gray-400">{{ t('help.subtitle') }}</p>
+    <h1 class="title-block-display">{{ t('help.title') }}</h1>
+    <p class="lead mt-3">{{ t('help.subtitle') }}</p>
 
-    <h2 class="mt-8 text-lg font-semibold text-gray-900 dark:text-white">
+    <h2 class="title-block-title mt-8">
       {{ t('help.userTitle') }}
     </h2>
     <section v-for="section in userSections" :key="section" class="mt-6">
-      <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+   <h3 class="text-base font-semibold text-ink">
         {{ t(`help.user.${section}.title`) }}
       </h3>
-      <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+   <p class="mt-1 text-sm text-ink-soft">
         {{ t(`help.user.${section}.intro`) }}
       </p>
 
-      <ul v-if="bulletsOf(section).length" class="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300">
+   <ul v-if="bulletsOf(section).length" class="mt-2 list-disc space-y-1 pl-5 text-sm text-ink">
         <li v-for="(line, key) in bulletsOf(section)" :key="key">{{ line }}</li>
       </ul>
 
@@ -23,7 +23,7 @@
         class="mt-3 w-full border-collapse text-left text-sm"
       >
         <thead>
-          <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
+   <tr class="border-b border-rule text-ink-soft">
             <th class="py-1.5 pr-3 font-medium">{{ headOf(section).t }}</th>
             <th class="py-1.5 font-medium">{{ headOf(section).d }}</th>
           </tr>
@@ -32,36 +32,36 @@
           <tr
             v-for="(row, key) in rowsOf(section)"
             :key="key"
-            class="border-b border-gray-100 dark:border-dark-800"
+   class="border-b border-rule"
           >
-            <td class="py-1.5 pr-3 align-top text-gray-700 dark:text-gray-300">{{ row.t }}</td>
-            <td class="py-1.5 align-top text-gray-600 dark:text-gray-400">{{ row.d }}</td>
+   <td class="py-1.5 pr-3 align-top text-ink">{{ row.t }}</td>
+   <td class="py-1.5 align-top text-ink-soft">{{ row.d }}</td>
           </tr>
         </tbody>
       </table>
 
       <dl v-if="itemsOf(section).length" class="mt-3 space-y-2 text-sm">
         <div v-for="(item, key) in itemsOf(section)" :key="key">
-          <dt class="font-medium text-gray-900 dark:text-white">{{ item.q }}</dt>
-          <dd class="text-gray-600 dark:text-gray-400">{{ item.a }}</dd>
+   <dt class="font-medium text-ink">{{ item.q }}</dt>
+   <dd class="text-ink-soft">{{ item.a }}</dd>
         </div>
       </dl>
 
       <p
         v-if="noteOf(section)"
-        class="mt-2 text-sm text-gray-500 dark:text-gray-500"
+   class="mt-2 text-sm text-ink-soft"
       >
         {{ noteOf(section) }}
       </p>
     </section>
 
-    <h2 class="mt-8 text-lg font-semibold text-gray-900 dark:text-white">
+    <h2 class="title-block-title mt-8">
       {{ t('help.paths.title') }}
     </h2>
-    <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">{{ t('help.paths.intro') }}</p>
+   <p class="mt-1 text-sm text-ink-soft">{{ t('help.paths.intro') }}</p>
     <table class="mt-3 w-full border-collapse text-left text-sm">
       <thead>
-        <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
+   <tr class="border-b border-rule text-ink-soft">
           <th class="py-1.5 pr-3 font-medium">{{ t('help.paths.tableHead.t') }}</th>
           <th class="py-1.5 font-medium">{{ t('help.paths.tableHead.d') }}</th>
         </tr>
@@ -70,30 +70,30 @@
         <tr
           v-for="(row, key) in pathsRows()"
           :key="key"
-          class="border-b border-gray-100 dark:border-dark-800"
+   class="border-b border-rule"
         >
-          <td class="py-1.5 pr-3 align-top text-gray-700 dark:text-gray-300">{{ row.t }}</td>
-          <td class="py-1.5 align-top font-mono text-gray-600 dark:text-gray-400">{{ row.d }}</td>
+   <td class="py-1.5 pr-3 align-top text-ink">{{ row.t }}</td>
+   <td class="py-1.5 align-top font-mono text-ink-soft">{{ row.d }}</td>
         </tr>
       </tbody>
     </table>
 
-    <details class="mt-8 rounded-lg border border-gray-200 dark:border-dark-700">
-      <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-gray-900 dark:text-white">
+   <details class="mt-8 rounded-lg border border-rule">
+   <summary class="cursor-pointer px-4 py-3 text-sm font-semibold text-ink">
         {{ t('help.adminTitle') }}
       </summary>
-      <div class="border-t border-gray-200 px-4 py-3 dark:border-dark-700">
-        <p class="text-sm text-gray-600 dark:text-gray-400">{{ t('help.adminIntro') }}</p>
+   <div class="border-t border-rule px-4 py-3">
+   <p class="text-sm text-ink-soft">{{ t('help.adminIntro') }}</p>
         <section v-for="section in adminSections" :key="section" class="mt-5">
-          <h3 class="text-base font-semibold text-gray-900 dark:text-white">
+   <h3 class="text-base font-semibold text-ink">
             {{ t(`help.admin.${section}.title`) }}
           </h3>
-          <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">
+   <p class="mt-1 text-sm text-ink-soft">
             {{ t(`help.admin.${section}.intro`) }}
           </p>
           <ul
             v-if="adminBulletsOf(section).length"
-            class="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700 dark:text-gray-300"
+   class="mt-2 list-disc space-y-1 pl-5 text-sm text-ink"
           >
             <li v-for="(line, key) in adminBulletsOf(section)" :key="key">{{ line }}</li>
           </ul>
@@ -102,7 +102,7 @@
             class="mt-3 w-full border-collapse text-left text-sm"
           >
             <thead>
-              <tr class="border-b border-gray-200 text-gray-500 dark:border-dark-700">
+   <tr class="border-b border-rule text-ink-soft">
                 <th class="py-1.5 pr-3 font-medium">{{ adminHeadOf(section).t }}</th>
                 <th class="py-1.5 font-medium">{{ adminHeadOf(section).d }}</th>
               </tr>
@@ -111,16 +111,16 @@
               <tr
                 v-for="(row, key) in adminRowsOf(section)"
                 :key="key"
-                class="border-b border-gray-100 dark:border-dark-800"
+   class="border-b border-rule"
               >
-                <td class="py-1.5 pr-3 align-top text-gray-700 dark:text-gray-300">{{ row.t }}</td>
-                <td class="py-1.5 align-top text-gray-600 dark:text-gray-400">{{ row.d }}</td>
+   <td class="py-1.5 pr-3 align-top text-ink">{{ row.t }}</td>
+   <td class="py-1.5 align-top text-ink-soft">{{ row.d }}</td>
               </tr>
             </tbody>
           </table>
           <p
             v-if="adminNoteOf(section)"
-            class="mt-2 text-sm text-gray-500 dark:text-gray-500"
+   class="mt-2 text-sm text-ink-soft"
           >
             {{ adminNoteOf(section) }}
           </p>

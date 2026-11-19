@@ -29,7 +29,7 @@ const testId = computed(() => 'gateway-failure-' + props.kind.replace(/_/g, '-')
  */
 const badgeClass = computed(() =>
   props.kind === 'pricing_unavailable'
-    ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-    : 'bg-gray-100 text-gray-700 dark:bg-dark-700 dark:text-gray-300',
+   ? 'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200'
+   : 'bg-paper-inset text-ink  dark:text-ink-soft',
 )
 </script>

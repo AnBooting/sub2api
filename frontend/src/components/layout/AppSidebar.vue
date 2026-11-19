@@ -2,53 +2,65 @@
   <aside
     class="sidebar"
     :class="[
-      sidebarCollapsed ? 'w-[72px]' : 'w-64',
-      { '-translate-x-full lg:translate-x-0': !mobileOpen }
+      sidebarCollapsed ? 'lg:w-[76px]' : 'lg:w-60',
+      mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
     ]"
+    :aria-hidden="sidebarVisibleToAssistiveTech ? undefined : true"
+    :inert="sidebarVisibleToAssistiveTech ? undefined : true"
   >
-    <!-- Logo/Brand -->
+    <!-- 图签：品牌 + 版本 -->
     <div class="sidebar-header" :class="{ 'sidebar-header-collapsed': sidebarCollapsed }">
-      <!-- Custom Logo or Default Logo -->
       <router-link
         :to="homePath"
-        class="sidebar-logo flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl shadow-glow transition-opacity hover:opacity-80"
+        class="sidebar-logo"
+        :aria-label="siteName"
         @click="handleMenuItemClick(homePath)"
       >
-        <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="Logo" class="h-full w-full object-contain" />
+        <img v-if="settingsLoaded" :src="siteLogo || '/logo.svg'" alt="" class="h-full w-full object-contain" />
       </router-link>
-      <div class="sidebar-brand" :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
+      <div
+        class="sidebar-brand"
+        :class="{ 'sidebar-brand-collapsed': sidebarCollapsed }"
+        :aria-hidden="sidebarCollapsed ? 'true' : 'false'"
+      >
         <router-link
           :to="homePath"
-          class="sidebar-brand-title text-lg font-bold text-gray-900 transition-colors hover:text-primary-600 dark:text-white dark:hover:text-primary-400"
+          class="sidebar-brand-title text-[0.9375rem] font-semibold text-ink"
           @click="handleMenuItemClick(homePath)"
         >
           {{ siteName }}
         </router-link>
-        <!-- Version Badge -->
         <VersionBadge :version="siteVersion" />
       </div>
+      <!-- 移动端抽屉关闭 -->
+      <button
+        type="button"
+        class="btn btn-ghost btn-icon ml-auto lg:hidden"
+        :aria-label="t('common.close')"
+        @click="closeMobile"
+      >
+        <Icon name="x" size="md" />
+      </button>
     </div>
 
-    <!-- Navigation -->
-    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide">
-      <!-- Admin View: Admin menu first, then personal menu -->
+    <!-- 导航：端口清单 -->
+    <nav ref="sidebarNavRef" class="sidebar-nav scrollbar-hide" :aria-label="t('nav.navigation')">
       <template v-if="isAdmin">
-        <!-- Admin Section -->
         <div class="sidebar-section">
           <template v-for="item in adminNavItems" :key="item.path">
-            <!-- Collapsible group (has children) -->
             <template v-if="item.children?.length">
               <button
                 type="button"
-                class="sidebar-link mb-1 w-full"
+                class="sidebar-link mb-0.5 w-full"
                 :class="{
                   'sidebar-link-active': isGroupActive(item) && !isGroupExpanded(item),
                   'sidebar-link-collapsed': sidebarCollapsed
                 }"
                 :title="sidebarCollapsed ? item.label : undefined"
+                :aria-expanded="isGroupExpanded(item)"
                 @click="handleGroupClick(item)"
               >
-                <component :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+                <component :is="item.icon" class="h-[18px] w-[18px] flex-shrink-0" />
                 <span
                   class="sidebar-label sidebar-label-flex"
                   :class="{ 'sidebar-label-collapsed': sidebarCollapsed }"
@@ -56,31 +68,32 @@
                 >
                   <span class="min-w-0 truncate">{{ item.label }}</span>
                   <ChevronDownIcon
-                    class="h-4 w-4 flex-shrink-0 transition-transform duration-200"
+                    class="h-3.5 w-3.5 flex-shrink-0 transition-transform duration-150"
                     :class="isGroupExpanded(item) ? 'rotate-180' : ''"
                   />
                 </span>
               </button>
-              <!-- Children -->
-              <div v-if="!sidebarCollapsed && isGroupExpanded(item)" class="mb-1 ml-4 border-l border-gray-200 pl-2 dark:border-dark-600">
+              <div
+                v-if="!sidebarCollapsed && isGroupExpanded(item)"
+                class="mb-0.5 ml-3 border-l border-rule pl-2"
+              >
                 <router-link
                   v-for="child in item.children"
                   :key="child.path"
                   :to="child.path"
-                  class="sidebar-link mb-0.5 py-1.5 text-sm"
+                  class="sidebar-link mb-0.5 py-1.5 text-[0.8125rem]"
                   :class="{ 'sidebar-link-active': route.path === child.path }"
                   @click="handleMenuItemClick(child.path)"
                 >
-                  <component :is="child.icon" class="h-4 w-4 flex-shrink-0" />
-                  <span>{{ child.label }}</span>
+                  <component :is="child.icon" class="h-3.5 w-3.5 flex-shrink-0" />
+                  <span class="truncate">{{ child.label }}</span>
                 </router-link>
               </div>
             </template>
-            <!-- Normal item (no children) -->
             <router-link
               v-else
               :to="item.path"
-              class="sidebar-link mb-1"
+              class="sidebar-link mb-0.5"
               :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
               :title="sidebarCollapsed ? item.label : undefined"
               :id="
@@ -94,14 +107,13 @@
               "
               @click="handleMenuItemClick(item.path)"
             >
-              <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-              <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+              <span v-if="item.iconSvg" class="sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+              <component :is="item.icon" v-else class="h-[18px] w-[18px] flex-shrink-0" />
               <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
             </router-link>
           </template>
         </div>
 
-        <!-- Personal Section for Admin (hidden in simple mode) -->
         <div v-if="!authStore.isSimpleMode" class="sidebar-section">
           <div class="sidebar-section-title" :class="{ 'sidebar-section-title-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">
             <span class="sidebar-section-title-text" :class="{ 'sidebar-section-title-text-collapsed': sidebarCollapsed }">
@@ -113,78 +125,101 @@
             v-for="item in personalNavItems"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
+            class="sidebar-link mb-0.5"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+            <span v-if="item.iconSvg" class="sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <component :is="item.icon" v-else class="h-[18px] w-[18px] flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
           </router-link>
         </div>
       </template>
 
-      <!-- Regular User View -->
       <template v-else-if="!appStore.backendModeEnabled">
         <div class="sidebar-section">
           <router-link
             v-for="item in userNavItems"
             :key="item.path"
             :to="item.path"
-            class="sidebar-link mb-1"
+            class="sidebar-link mb-0.5"
             :class="{ 'sidebar-link-active': isActive(item.path), 'sidebar-link-collapsed': sidebarCollapsed }"
             :title="sidebarCollapsed ? item.label : undefined"
             :data-tour="item.path === '/keys' ? 'sidebar-my-keys' : undefined"
             @click="handleMenuItemClick(item.path)"
           >
-            <span v-if="item.iconSvg" class="h-5 w-5 flex-shrink-0 sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
-            <component v-else :is="item.icon" class="h-5 w-5 flex-shrink-0" />
+            <span v-if="item.iconSvg" class="sidebar-svg-icon" v-html="sanitizeSvg(item.iconSvg)"></span>
+            <component :is="item.icon" v-else class="h-[18px] w-[18px] flex-shrink-0" />
             <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ item.label }}</span>
           </router-link>
         </div>
       </template>
     </nav>
 
-    <!-- Bottom Section -->
-    <div class="mt-auto border-t border-gray-100 p-3 dark:border-dark-800">
-      <!-- Theme Toggle -->
+    <!-- 底部：图纸工具 -->
+    <div class="mt-auto border-t border-rule p-2">
       <button
-        @click="toggleTheme"
-        class="sidebar-link mb-2 w-full"
+        type="button"
+        class="sidebar-link mb-0.5 w-full"
         :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
         :title="sidebarCollapsed ? (isDark ? t('nav.lightMode') : t('nav.darkMode')) : undefined"
+        @click="toggleTheme"
       >
-        <SunIcon v-if="isDark" class="h-5 w-5 flex-shrink-0 text-amber-500" />
-        <MoonIcon v-else class="h-5 w-5 flex-shrink-0" />
+        <SunIcon v-if="isDark" class="h-[18px] w-[18px] flex-shrink-0 text-warning-500" />
+        <MoonIcon v-else class="h-[18px] w-[18px] flex-shrink-0" />
         <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{
           isDark ? t('nav.lightMode') : t('nav.darkMode')
         }}</span>
       </button>
 
-      <!-- Collapse Button -->
       <button
-        @click="toggleSidebar"
-        class="sidebar-link w-full"
+        type="button"
+        class="sidebar-link hidden w-full lg:flex"
         :class="{ 'sidebar-link-collapsed': sidebarCollapsed }"
         :title="sidebarCollapsed ? t('nav.expand') : t('nav.collapse')"
+        @click="toggleSidebar"
       >
-        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-5 w-5 flex-shrink-0" />
-        <ChevronDoubleRightIcon v-else class="h-5 w-5 flex-shrink-0" />
+        <ChevronDoubleLeftIcon v-if="!sidebarCollapsed" class="h-[18px] w-[18px] flex-shrink-0" />
+        <ChevronDoubleRightIcon v-else class="h-[18px] w-[18px] flex-shrink-0" />
         <span class="sidebar-label" :class="{ 'sidebar-label-collapsed': sidebarCollapsed }" :aria-hidden="sidebarCollapsed ? 'true' : 'false'">{{ t('nav.collapse') }}</span>
       </button>
     </div>
   </aside>
 
-  <!-- Mobile Overlay -->
-  <transition name="fade">
+  <!-- 移动端遮罩 -->
+  <transition name="dock-fade">
     <div
       v-if="mobileOpen"
       class="fixed inset-0 z-30 bg-black/50 lg:hidden"
       @click="closeMobile"
     ></div>
   </transition>
+
+  <!-- 移动端底部工具坞：桌面侧栏的同一组端口，只是换成横向编排 -->
+  <nav class="mobile-dock lg:hidden" :aria-label="t('nav.navigation')">
+    <router-link
+      v-for="entry in dockItems"
+      :key="entry.path"
+      :to="entry.path"
+      class="mobile-dock-item"
+      :class="{ 'mobile-dock-item-active': isActive(entry.path) }"
+      @click="handleMenuItemClick(entry.path)"
+    >
+      <component :is="entry.icon" class="h-5 w-5" />
+      <span class="max-w-[4.5rem] truncate">{{ entry.label }}</span>
+    </router-link>
+    <button
+      type="button"
+      class="mobile-dock-item"
+      :aria-label="t('common.toggleMenu')"
+      @click="openMobileDrawer"
+    >
+      <Icon name="menu" size="md" class="h-5 w-5" />
+      <span class="max-w-[4.5rem] truncate">{{ t('nav.more') }}</span>
+    </button>
+  </nav>
 </template>
 
 <script setup lang="ts">
@@ -199,6 +234,7 @@ import { sanitizeUrl } from '@/utils/url'
 import { FeatureFlags, makeSidebarFlag } from '@/utils/featureFlags'
 import { resolveSiteBillingMode } from '@/utils/siteBillingMode'
 import { useBatchImageAccess } from '@/composables/useBatchImageAccess'
+import { isDarkTheme, toggleTheme as toggleThemeState } from '@/composables/useTheme'
 
 interface NavItem {
   path: string
@@ -248,9 +284,22 @@ const { canUseBatchImage, refreshBatchImageAccess } = useBatchImageAccess()
 
 const sidebarCollapsed = computed(() => appStore.sidebarCollapsed)
 const mobileOpen = computed(() => appStore.mobileOpen)
+
+/**
+ * 桌面端侧栏常驻可见，移动端是抽屉。
+ * 对辅助技术要按「此刻是否真的可见」暴露，否则读屏会把抽屉内容当成可聚焦的正文。
+ */
+const isDesktopViewport = ref(false)
+let desktopQuery: MediaQueryList | null = null
+const syncDesktopViewport = (event?: MediaQueryListEvent) => {
+  isDesktopViewport.value = event ? event.matches : Boolean(desktopQuery?.matches)
+}
+
+const sidebarVisibleToAssistiveTech = computed(() => isDesktopViewport.value || mobileOpen.value)
 const isAdmin = computed(() => authStore.isAdmin)
 const sidebarNavRef = ref<HTMLElement | null>(null)
-const isDark = ref(document.documentElement.classList.contains('dark'))
+// 主题状态的唯一来源（documentElement class / meta theme-color / localStorage 三处对齐）
+const isDark = isDarkTheme
 
 const homePath = computed(() => (isAdmin.value ? '/admin/dashboard' : '/dashboard'))
 
@@ -899,10 +948,40 @@ function toggleSidebar() {
   appStore.toggleSidebar()
 }
 
+function openMobileDrawer() {
+  appStore.setMobileOpen(true)
+}
+
+/**
+ * 移动端底部工具坞：桌面侧栏那组端口的横向编排。
+ * 取「最常用的 4 个入口」，其余一律走"更多"打开抽屉 ——
+ * 手机上不是把侧栏压扁，而是换一种编排方式呈现同一张图。
+ */
+const DOCK_PATHS: Array<{ path: string; labelKey: string; icon: unknown }> = [
+  { path: '/dashboard', labelKey: 'nav.dashboard', icon: DashboardIcon },
+  { path: '/keys', labelKey: 'nav.apiKeys', icon: KeyIcon },
+  { path: '/usage', labelKey: 'nav.usage', icon: ChartIcon },
+  { path: '/profile', labelKey: 'nav.profile', icon: UserIcon }
+]
+
+const ADMIN_DOCK_PATHS: Array<{ path: string; labelKey: string; icon: unknown }> = [
+  { path: '/admin/dashboard', labelKey: 'nav.dashboard', icon: DashboardIcon },
+  { path: '/admin/accounts', labelKey: 'nav.accounts', icon: GlobeIcon },
+  { path: '/admin/groups', labelKey: 'nav.groups', icon: FolderIcon },
+  { path: '/admin/users', labelKey: 'nav.users', icon: UsersIcon }
+]
+
+const dockItems = computed(() => {
+  const source = isAdmin.value ? ADMIN_DOCK_PATHS : DOCK_PATHS
+  return source.map((entry) => ({
+    path: entry.path,
+    label: t(entry.labelKey),
+    icon: entry.icon
+  }))
+})
+
 function toggleTheme() {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
+  isDark.value = toggleThemeState()
 }
 
 function closeMobile() {
@@ -968,15 +1047,7 @@ function handleGroupClick(item: NavItem) {
   groupExpandOverrides.value.set(item.path, true)
 }
 
-// Initialize theme
-const savedTheme = localStorage.getItem('theme')
-if (
-  savedTheme === 'dark' ||
-  (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)
-) {
-  isDark.value = true
-  document.documentElement.classList.add('dark')
-}
+// 主题由 main.ts 的 initTheme() 在挂载前定好；这里不再重复读存储，避免两处判断打架。
 
 // Fetch admin settings (for feature-gated nav items like Ops).
 watch(
@@ -990,6 +1061,12 @@ watch(
 )
 
 onMounted(() => {
+  if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+    desktopQuery = window.matchMedia('(min-width: 1024px)')
+    syncDesktopViewport()
+    desktopQuery.addEventListener('change', syncDesktopViewport)
+  }
+
   void refreshBatchImageAccess()
   if (isAdmin.value) {
     adminSettingsStore.fetch()
@@ -1008,13 +1085,28 @@ onBeforeUnmount(() => {
   if (sidebarNavRef.value) {
     appStore.sidebarScrollTop = sidebarNavRef.value.scrollTop
   }
+  desktopQuery?.removeEventListener('change', syncDesktopViewport)
+  desktopQuery = null
 })
 </script>
 
 <style scoped>
 .sidebar-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 2.25rem;
   min-width: 2.25rem;
+}
+
+/* 移动端：品牌 logo 是触控入口，撑到 44×44 */
+@media (max-width: 1023px) {
+  .sidebar-logo {
+    flex-basis: var(--touch-min);
+    min-width: var(--touch-min);
+    width: var(--touch-min);
+    height: var(--touch-min);
+  }
 }
 
 .sidebar-header-collapsed {
@@ -1081,14 +1173,14 @@ onBeforeUnmount(() => {
   right: 0.75rem;
   top: 50%;
   height: 1px;
-  background: rgb(229 231 235);
+  background: rgb(var(--rule-strong));
   opacity: 0;
   transform: translateY(-50%);
   transition: opacity 0.18s ease;
 }
 
 .dark .sidebar-section-title::after {
-  background: rgb(55 65 81);
+  background: rgb(var(--rule-strong));
 }
 
 .sidebar-section-title-text-collapsed {

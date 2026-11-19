@@ -50,17 +50,17 @@
             </button>
           </span>
         </label>
-        <p v-if="intervalError" role="alert" class="text-sm text-red-600" data-testid="sync-interval-error">{{ intervalError }}</p>
+        <p v-if="intervalError" role="alert" class="text-sm text-danger-600" data-testid="sync-interval-error">{{ intervalError }}</p>
         <p v-if="!status.remote_enabled" class="rounded bg-gray-100 p-3 text-sm dark:bg-dark-700">{{ t('admin.settings.pricing.offline') }}</p>
         <div class="grid gap-3 text-sm sm:grid-cols-2">
           <div>USD: {{ status.usd_model_count }} · {{ timestamp(status.usd_last_updated) }}</div>
           <div>CNY: {{ status.cny_model_count }} · {{ timestamp(status.cny_last_updated) }}</div>
         </div>
-        <p v-if="status.native_cny_enabled && !status.cny_model_count" class="text-sm text-amber-600">{{ t('admin.settings.pricing.noCNY') }}</p>
-        <p v-if="status.cny_error" class="break-words text-sm text-amber-600">{{ status.cny_error }}</p>
-        <p v-if="status.usd_error" class="break-words text-sm text-amber-600">{{ status.usd_error }}</p>
+        <p v-if="status.native_cny_enabled && !status.cny_model_count" class="text-sm text-warning-600">{{ t('admin.settings.pricing.noCNY') }}</p>
+        <p v-if="status.cny_error" class="break-words text-sm text-warning-600">{{ status.cny_error }}</p>
+        <p v-if="status.usd_error" class="break-words text-sm text-warning-600">{{ status.usd_error }}</p>
         <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.calendarYears') }}: {{ (status.deepseek_calendar_years || []).join(', ') }}</p>
-        <p v-if="status.deepseek_calendar_error" class="text-sm text-amber-600" role="alert">{{ status.deepseek_calendar_error }}</p>
+        <p v-if="status.deepseek_calendar_error" class="text-sm text-warning-600" role="alert">{{ status.deepseek_calendar_error }}</p>
         <p class="text-xs text-gray-500">{{ t('admin.settings.pricing.sources') }} <a href="https://github.com/basellm/llm-metadata" target="_blank" rel="noopener noreferrer" class="underline">basellm</a> · <a href="https://llmabacus.com" target="_blank" rel="noopener noreferrer" class="underline">LLM Abacus</a></p>
         <button type="button" class="btn btn-secondary" :disabled="saving || refreshing || !status.remote_enabled" data-testid="refresh-pricing" @click="refresh">{{ t('admin.settings.pricing.refresh') }}</button>
         <section
@@ -85,7 +85,7 @@
           </p>
           <p
             v-if="deepSeekPeriod && deepSeekPeriod.calendarYearMissing"
-            class="text-sm text-amber-600"
+            class="text-sm text-warning-600"
             data-testid="deepseek-period-year-missing"
           >
             {{ t('admin.settings.pricing.deepseekPeriod.yearMissing') }}
@@ -96,13 +96,13 @@
           <p class="text-sm text-gray-500">{{ t('admin.settings.pricing.calendar.rules') }}</p>
           <p v-if="!calendarSupported" class="rounded-lg bg-gray-50 p-3 text-sm text-gray-500 dark:bg-dark-700" data-testid="calendar-unsupported">{{ t('admin.settings.pricing.calendar.unsupported') }}</p>
           <template v-else>
-            <p v-if="status.deepseek_calendar_year_missing === true" role="status" class="rounded-lg bg-amber-50 p-3 text-sm text-amber-700 dark:bg-amber-900/20 dark:text-amber-300" data-testid="calendar-year-missing">{{ t('admin.settings.pricing.calendar.yearMissing') }}</p>
-            <p v-else class="text-sm text-green-600 dark:text-green-400" data-testid="calendar-year-maintained">{{ t('admin.settings.pricing.calendar.yearMaintained') }}</p>
+            <p v-if="status.deepseek_calendar_year_missing === true" role="status" class="rounded-lg bg-warning-50 p-3 text-sm text-warning-700 dark:bg-warning-900/20 dark:text-warning-300" data-testid="calendar-year-missing">{{ t('admin.settings.pricing.calendar.yearMissing') }}</p>
+            <p v-else class="text-sm text-success-600 dark:text-success-400" data-testid="calendar-year-maintained">{{ t('admin.settings.pricing.calendar.yearMaintained') }}</p>
             <label for="deepseek-calendar-json" class="input-label">{{ t('admin.settings.pricing.calendar.editorLabel') }}</label>
             <textarea id="deepseek-calendar-json" v-model="calendarDraft" rows="8" spellcheck="false" class="input font-mono text-xs" :disabled="saving" :aria-invalid="Boolean(calendarError)" aria-describedby="deepseek-calendar-help" data-testid="calendar-draft" @input="calendarError = ''"></textarea>
             <p id="deepseek-calendar-help" class="input-hint">{{ t('admin.settings.pricing.calendar.editorHelp') }}</p>
-            <p v-if="calendarDirty" class="text-sm text-amber-600 dark:text-amber-400" data-testid="calendar-unsaved">{{ t('admin.settings.pricing.calendar.unsaved') }}</p>
-            <p v-if="calendarError" role="alert" class="text-sm text-red-600" data-testid="calendar-error">{{ calendarError }}</p>
+            <p v-if="calendarDirty" class="text-sm text-warning-600 dark:text-warning-400" data-testid="calendar-unsaved">{{ t('admin.settings.pricing.calendar.unsaved') }}</p>
+            <p v-if="calendarError" role="alert" class="text-sm text-danger-600" data-testid="calendar-error">{{ calendarError }}</p>
             <div class="flex flex-wrap gap-2">
               <button type="button" class="btn btn-primary" :disabled="saving || !calendarDirty" data-testid="calendar-save" @click="saveCalendar">{{ t('admin.settings.pricing.calendar.save') }}</button>
               <button type="button" class="btn btn-secondary" :disabled="saving || !calendarDirty" data-testid="calendar-reset" @click="resetCalendarDraft">{{ t('admin.settings.pricing.calendar.resetDraft') }}</button>
@@ -114,7 +114,7 @@
           </template>
         </section>
       </template>
-      <p v-if="error" role="alert" class="text-sm text-red-600">{{ error }}</p>
+      <p v-if="error" role="alert" class="text-sm text-danger-600">{{ error }}</p>
       <button v-if="!status && !loading" type="button" class="btn btn-secondary" @click="load()">{{ t('admin.settings.pricing.retry') }}</button>
       <TotpStepUpDialog :controller="holidayStepUp" />
     </div>

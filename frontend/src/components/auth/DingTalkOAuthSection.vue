@@ -10,7 +10,8 @@
         aria-hidden="true"
         style="flex-shrink: 0"
       >
-        <circle cx="12" cy="12" r="12" fill="#1677FF" />
+        <!-- 第三方商标色（DingTalk 官方蓝）：见 oauthBrandColors.ts 的例外说明 -->
+        <circle cx="12" cy="12" r="12" :fill="OAUTH_BRAND_COLOR.dingtalkBlue" />
         <text
           x="12"
           y="17"
@@ -39,6 +40,7 @@ import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import type { OAuthLoginStart } from '@/api/auth'
 import { resolveAffiliateReferralCode, storeOAuthAffiliateCode } from '@/utils/oauthAffiliate'
+import { OAUTH_BRAND_COLOR } from './oauthBrandColors'
 
 const props = withDefaults(defineProps<{
   disabled?: boolean

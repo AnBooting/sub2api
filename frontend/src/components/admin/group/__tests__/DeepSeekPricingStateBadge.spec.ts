@@ -38,7 +38,8 @@ describe("DeepSeekPricingStateBadge", () => {
     const badge = wrapper.get('[data-testid="deepseek-pricing-state-badge"]');
     expect(badge.text()).toContain("峰价时段 09:00-12:00 / 14:00-18:00");
     expect(badge.text()).toContain("1.5x");
-    expect(badge.classes().join(" ")).toContain("amber");
+    // 峰价 = warning（赭石）。
+    expect(badge.classes().join(" ")).toContain("warning");
   });
 
   it("renders the valley badge in the normal (non-warning) color", () => {
@@ -53,7 +54,8 @@ describe("DeepSeekPricingStateBadge", () => {
     expect(badge.text()).toContain("谷价时段");
     // 倍率为 1 时不重复显示，避免噪音。
     expect(badge.text()).not.toContain("1x");
-    expect(badge.classes().join(" ")).toContain("emerald");
+    // 谷价 = success（苔绿）。
+    expect(badge.classes().join(" ")).toContain("success");
   });
 
   it("falls back to the built-in label when the backend label is empty", () => {

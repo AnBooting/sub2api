@@ -32,8 +32,8 @@
       v-if="snapshot && snapshot.status !== 'ok'"
       class="inline-block rounded px-1.5 py-0.5 text-[10px] font-medium"
       :class="snapshot.status === 'unauthorized'
-        ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300'
-        : 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'"
+        ? 'bg-warning-100 text-warning-700 dark:bg-warning-900/40 dark:text-warning-300'
+        : 'bg-danger-100 text-danger-700 dark:bg-danger-900/40 dark:text-danger-300'"
       data-testid="opencode-go-status-badge"
     >
       {{ statusLabel }}
@@ -41,7 +41,7 @@
     <div class="flex items-center pt-0.5">
       <button
         type="button"
-        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-blue-600 transition-colors hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+        class="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-medium text-primary-600 transition-colors hover:bg-primary-50 disabled:cursor-not-allowed disabled:opacity-50 dark:text-primary-400 dark:hover:bg-primary-900/30"
         :disabled="refreshing"
         data-testid="opencode-go-usage-query"
         @click="refreshUsage"
@@ -64,7 +64,7 @@
       </button>
     </div>
   </div>
-  <span v-else class="text-sm text-gray-400 dark:text-dark-500">-</span>
+  <span v-else class="text-sm text-ink-faint">-</span>
 </template>
 
 <script setup lang="ts">

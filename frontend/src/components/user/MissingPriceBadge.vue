@@ -18,6 +18,6 @@ const { t } = useI18n()
 /** 缺价是「请求会被拒绝」而不是普通错误 → 用警示色。 */
 const badgeClass = computed(
   () =>
-    'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+   'bg-warning-100 text-warning-800 dark:bg-warning-900/40 dark:text-warning-200',
 )
 </script>

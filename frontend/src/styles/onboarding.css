@@ -1,16 +1,23 @@
-/* Sub2API Interactive Tour Styles - DOM Restructured Version */
+/* 引导浮层（driver.js） —— v2「暖纸编辑体」
+ *
+ * driver.js 靠高特异性 + !important 生效，所以这里保留 !important 覆盖方式，
+ * 但颜色、圆角、字体、阴影全部走 design-system.css 的语义令牌。
+ * 早期版本在这里留了一整套「青绿 + 冷灰 + 纯黑影 + 12px 圆角」的旧皮肤，
+ * 与本项目 v2 的唯一信号色（钴蓝）、暖影规则、6px 圆角上限直接冲突，
+ * 且用户在首次登录时第一眼看到的就是它 —— 已整块重写。
+ */
 
-/* 1. Overlay & Highlight */
+/* ── 1. 遮罩与高亮 ─────────────────────────────────────────────── */
 .driver-overlay {
   position: fixed !important;
   inset: 0 !important;
   z-index: 99999998 !important;
   background-color: transparent !important;
   /*
-   * 关键修复：让 overlay 不拦截点击事件
-   * 因为已设置 allowClose: false，用户不能通过点击遮罩关闭引导
-   * 这样 Select 下拉菜单等脱离高亮区域的元素才能正常交互
-   * 视觉遮罩效果保持不变（SVG 仍然渲染，pointer-events 只影响交互不影响渲染）
+   * 关键：overlay 不拦截点击。
+   * 已设 allowClose: false，用户不能靠点遮罩关闭引导；
+   * 这样 Select 下拉等脱离高亮区的元素才能正常交互。
+   * 视觉遮罩仍由 SVG 渲染，pointer-events 只影响交互不影响绘制。
    */
   pointer-events: none !important;
 }
@@ -22,208 +29,243 @@
 .driver-active-element {
   position: relative !important;
   z-index: 99999999 !important;
-  outline: 4px solid rgba(20, 184, 166, 0.2) !important;
-  border-radius: 4px !important;
+  outline: 2px solid rgb(var(--signal) / 0.55) !important;
+  outline-offset: 2px !important;
+  border-radius: var(--radius-cut) !important;
 }
 
-/* 2. Popover Container */
+/* ── 2. 气泡容器 ───────────────────────────────────────────────── */
 .driver-popover.theme-tour-popover {
   position: fixed !important;
   z-index: 100000000 !important;
-  background-color: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
-  border-radius: 12px !important;
+  background-color: rgb(var(--surface)) !important;
+  border: 1px solid rgb(var(--rule-strong)) !important;
+  border-radius: var(--radius-cut) !important;
   padding: 0 !important;
-  max-width: min(440px, 90vw) !important; /* Responsive on small screens */
-  color: #1f2937 !important;
-  font-family: ui-sans-serif, system-ui, sans-serif !important;
+  max-width: min(26rem, calc(100vw - 1.5rem)) !important;
+  max-height: calc(100dvh - 2rem) !important;
+  color: rgb(var(--ink)) !important;
+  font-family: var(--font-ui) !important;
+  box-shadow: 0 18px 40px -24px rgb(58 53 48 / 0.42) !important;
   overflow: hidden !important;
 }
 
-.dark .driver-popover.theme-tour-popover {
-  background-color: #1e293b !important;
-  border-color: #334155 !important;
-  color: #f3f4f6 !important;
-}
-
-/* 3. Header Area */
+/* ── 3. 标题区 ─────────────────────────────────────────────────── */
 .theme-tour-popover .driver-popover-title {
   display: flex !important;
-  align-items: center !important;
-  padding: 20px 24px 12px 24px !important; 
+  align-items: flex-start !important;
+  padding: 1.25rem 1.5rem 0.75rem !important;
   margin: 0 !important;
   background-color: transparent !important;
   position: relative !important;
 }
 
+/* 标题用衬线 —— 引导气泡只有一块标题，是本组件的审美落点，不超同屏上限 */
 .driver-popover-title-text {
-  font-size: 18px !important;
-  font-weight: 700 !important;
-  color: #111827 !important;
+  font-family: var(--font-display) !important;
+  font-size: 1.25rem !important;
+  font-weight: 500 !important;
+  letter-spacing: var(--track-title) !important;
+  color: rgb(var(--ink)) !important;
   line-height: 1.3 !important;
-  padding-right: 100px !important; /* Ensure title doesn't overlap Skip/Close */
+  /* 给右上角的关闭钮留位，避免长标题压到它 */
+  padding-right: 2.75rem !important;
 }
-.dark .driver-popover-title-text { color: #ffffff !important; }
 
-/* Close Button */
+/* 关闭钮：视觉 28px，触控面撑到 44px（用负边距抵消视觉留白） */
 .theme-tour-popover .driver-popover-close-btn {
   position: absolute !important;
-  top: 18px !important;
-  right: 20px !important;
-  width: 28px !important;
-  height: 28px !important;
+  top: 0.75rem !important;
+  right: 0.75rem !important;
+  width: 2.75rem !important;
+  height: 2.75rem !important;
   padding: 0 !important;
-  color: #9ca3af !important;
+  color: rgb(var(--ink-faint)) !important;
   background-color: transparent !important;
   border: none !important;
   z-index: 20 !important;
-  border-radius: 4px !important;
+  border-radius: var(--radius-cut) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: center !important;
+  transition: color var(--motion-fast) !important;
 }
-.theme-tour-popover .driver-popover-close-btn:hover { background-color: #f3f4f6 !important; color: #4b5563 !important; }
-.dark .theme-tour-popover .driver-popover-close-btn:hover { background-color: #334155 !important; }
+.theme-tour-popover .driver-popover-close-btn:hover {
+  background-color: rgb(var(--paper-inset)) !important;
+  color: rgb(var(--ink)) !important;
+}
 
-/* 4. Body Content */
+/* ── 4. 正文 ───────────────────────────────────────────────────── */
 .theme-tour-popover .driver-popover-description {
   display: block !important;
-  font-size: 14px !important;
+  font-size: 0.875rem !important;
   font-weight: 400 !important;
-  color: #4b5563 !important;
-  padding: 0 24px 24px 24px !important;
+  color: rgb(var(--ink-soft)) !important;
+  padding: 0 1.5rem 1.5rem !important;
   margin: 0 !important;
-  line-height: 1.6 !important;
+  line-height: 1.65 !important;
   background-color: transparent !important;
 }
-.dark .theme-tour-popover .driver-popover-description { color: #cbd5e1 !important; }
 
-/* 5. Footer Area - Flex Row with Left/Right Containers */
+/* ── 5. 底部：单行时左右分置，窄屏自动换行（关键修复） ───────────
+ * 早期版本把 flex-wrap 挂在内层 .driver-popover-navigation-btns 上，
+ * 而实际布局是外层 .driver-popover-footer 用 space-between 排单行，
+ * 于是 375px 下「开始配置」按钮被推出右边界裁掉半截。
+ * 现在换行规则挂在工作层 .driver-popover-footer。 */
 .theme-tour-popover .driver-popover-footer {
   display: flex !important;
   align-items: center !important;
-  justify-content: space-between !important; /* Push Left and Right apart */
-  padding: 16px 24px !important;
-  background-color: #f9fafb !important;
-  border-top: 1px solid #f3f4f6 !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap !important;
+  gap: 0.75rem !important;
+  padding: 1rem 1.5rem !important;
+  background-color: rgb(var(--paper-inset)) !important;
+  border-top: 1px solid rgb(var(--rule)) !important;
   margin: 0 !important;
 }
-.dark .theme-tour-popover .driver-popover-footer {
-  background-color: #0f172a !important;
-  border-top-color: #1e293b !important;
-}
 
-/* Left Container: Progress + Shortcuts */
 .footer-left {
   display: flex !important;
   align-items: center !important;
-  gap: 16px !important;
+  gap: 1rem !important;
+  min-width: 0 !important;
 }
 
-/* Right Container: Buttons */
 .footer-right {
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 0.5rem !important;
+  flex-wrap: wrap !important;
+  margin-left: auto !important;
 }
 
-/* Progress */
+/* 进度读数：等宽数字 + 淡墨 */
 .theme-tour-popover .driver-popover-progress-text {
-  font-size: 13px !important;
-  color: #6b7280 !important;
+  font-size: 0.75rem !important;
+  font-family: var(--font-read) !important;
+  font-variant-numeric: tabular-nums !important;
+  color: rgb(var(--ink-faint)) !important;
   margin: 0 !important;
   font-weight: 500 !important;
   white-space: nowrap !important;
 }
-.dark .theme-tour-popover .driver-popover-progress-text { color: #9ca3af !important; }
 
-/* Shortcuts (Divider + Keys) */
+/* 快捷键提示：窄屏隐藏，避免和按钮争宽度 */
 .footer-shortcuts {
   display: flex !important;
   align-items: center !important;
-  gap: 12px !important;
-  padding-left: 16px !important;
-  border-left: 1px solid #e5e7eb !important;
-  height: 20px !important;
+  gap: 0.75rem !important;
+  padding-left: 1rem !important;
+  border-left: 1px solid rgb(var(--rule)) !important;
+  height: 1.25rem !important;
 }
-.dark .footer-shortcuts { border-left-color: #334155 !important; }
 
 .shortcut-item {
   display: flex !important;
   align-items: center !important;
-  gap: 4px !important;
-  font-size: 12px !important;
-  color: #6b7280 !important;
+  gap: 0.25rem !important;
+  font-size: 0.75rem !important;
+  color: rgb(var(--ink-faint)) !important;
   white-space: nowrap !important;
 }
-.dark .shortcut-item { color: #94a3b8 !important; }
 
 .shortcut-item kbd {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, monospace !important;
-  background-color: #ffffff !important;
-  border: 1px solid #e5e7eb !important;
-  border-radius: 4px !important;
+  background-color: rgb(var(--surface)) !important;
+  border: 1px solid rgb(var(--rule-strong)) !important;
+  border-radius: 2px !important;
   padding: 1px 6px !important;
-  font-size: 11px !important;
+  font-size: 0.6875rem !important;
   font-weight: 600 !important;
-  color: #4b5563 !important;
-  box-shadow: 0 1px 0 rgba(0,0,0,0.05) !important;
-  min-width: 20px !important;
+  color: rgb(var(--ink-soft)) !important;
+  box-shadow: none !important;
+  min-width: 1.25rem !important;
   text-align: center !important;
   display: inline-block !important;
 }
-.dark .shortcut-item kbd {
-  background-color: #1e293b !important;
-  border-color: #475569 !important;
-  color: #cbd5e1 !important;
-}
 
-/* Nav Buttons */
+/* ── 6. 导航按钮 ───────────────────────────────────────────────── */
 .theme-tour-popover button {
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 8px 16px !important;
-  font-size: 13px !important;
+  padding: 0.5rem 1rem !important;
+  min-height: 2.25rem !important;
+  font-family: var(--font-ui) !important;
+  font-size: 0.8125rem !important;
   font-weight: 500 !important;
   text-shadow: none !important;
-  border-radius: 6px !important;
+  border-radius: var(--radius-cut) !important;
   cursor: pointer !important;
-  transition: all 0.2s !important;
+  transition: background-color var(--motion-fast), color var(--motion-fast) !important;
   border: 1px solid transparent !important;
   line-height: 1.2 !important;
-  white-space: nowrap !important; /* Force no wrap */
+  white-space: nowrap !important;
 }
 
+/* 主按钮 = 唯一信号色（钴蓝），压在它上面的字永远亮 */
 .theme-tour-popover .driver-popover-next-btn {
-  background-color: #14b8a6 !important;
-  color: #ffffff !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  background-color: rgb(var(--signal)) !important;
+  color: rgb(var(--on-signal)) !important;
+  border-color: transparent !important;
+  box-shadow: 0 1px 2px rgb(56 78 168 / 0.28) !important;
 }
-.theme-tour-popover .driver-popover-next-btn:hover { background-color: #0d9488 !important; }
+.theme-tour-popover .driver-popover-next-btn:hover {
+  background-color: rgb(var(--c-cobalt-600)) !important;
+  color: rgb(var(--on-signal)) !important;
+}
 
+/* 次按钮 = 纸面上的一格 */
 .theme-tour-popover .driver-popover-prev-btn {
-  background-color: white !important;
-  color: #6b7280 !important;
-  border: 1px solid #e5e7eb !important;
-  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  background-color: rgb(var(--surface)) !important;
+  color: rgb(var(--ink-soft)) !important;
+  border: 1px solid rgb(var(--rule-strong)) !important;
+  box-shadow: none !important;
 }
-.theme-tour-popover .driver-popover-prev-btn:hover { background-color: #f9fafb !important; color: #374151 !important; }
-.dark .theme-tour-popover .driver-popover-prev-btn { 
-  background-color: #1e293b !important; 
-  border-color: #475569 !important; 
-  color: #9ca3af !important; 
+.theme-tour-popover .driver-popover-prev-btn:hover {
+  background-color: rgb(var(--paper-inset)) !important;
+  color: rgb(var(--ink)) !important;
 }
 
-/* Arrows */
+/* ── 7. 箭头：跟着气泡底色走 ───────────────────────────────────── */
 .driver-popover-arrow { z-index: 100000001 !important; }
-.driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: #ffffff !important; }
-.driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #ffffff !important; }
-.driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #ffffff !important; }
-.driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #ffffff !important; }
+.driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: rgb(var(--surface)) !important; }
+.driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: rgb(var(--surface)) !important; }
+.driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: rgb(var(--surface)) !important; }
+.driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: rgb(var(--surface)) !important; }
 
-.dark .driver-popover-arrow-side-left.driver-popover-arrow { border-left-color: #1e293b !important; }
-.dark .driver-popover-arrow-side-right.driver-popover-arrow { border-right-color: #1e293b !important; }
-.dark .driver-popover-arrow-side-top.driver-popover-arrow { border-top-color: #1e293b !important; }
-.dark .driver-popover-arrow-side-bottom.driver-popover-arrow { border-bottom-color: #1e293b !important; }
+/* ── 8. 移动端：气泡占满可用宽度，按钮整行铺开且过 44px ─────────── */
+@media (max-width: 639px) {
+  .driver-popover.theme-tour-popover {
+    max-width: calc(100vw - 1rem) !important;
+  }
+  .theme-tour-popover .driver-popover-title {
+    padding: 1rem 1rem 0.5rem !important;
+  }
+  .driver-popover-title-text {
+    font-size: 1.125rem !important;
+  }
+  .theme-tour-popover .driver-popover-description {
+    padding: 0 1rem 1rem !important;
+    font-size: 0.875rem !important;
+  }
+  .theme-tour-popover .driver-popover-footer {
+    padding: 0.75rem 1rem !important;
+  }
+  /* 快捷键在窄屏是纯噪音，让位给按钮 */
+  .footer-shortcuts {
+    display: none !important;
+  }
+  .theme-tour-popover .driver-popover-navigation-btns {
+    width: 100% !important;
+  }
+  .theme-tour-popover .driver-popover-footer button {
+    min-height: var(--touch-min) !important;
+    flex: 1 1 0 !important;
+    min-width: 0 !important;
+  }
+  .footer-right {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+}

@@ -2,6 +2,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import WechatPaymentCallbackView from '@/views/auth/WechatPaymentCallbackView.vue'
 
+// 内联错误块 = danger 三族（底色/描边/文字）；本页错误应落在中性纸面块里。
+const DANGER_CALLOUT = /bg-danger-(?:50|100)|border-danger-|text-danger-(?:600|700)/
+
 const { replaceMock, routeState, locationState, showErrorMock } = vi.hoisted(() => ({
   replaceMock: vi.fn(),
   routeState: {
@@ -111,6 +114,8 @@ describe('WechatPaymentCallbackView', () => {
     expect(replaceMock).not.toHaveBeenCalled()
     expect(showErrorMock).toHaveBeenCalledWith('微信支付回调缺少恢复令牌。')
     expect(wrapper.text()).toContain('微信支付回调缺少恢复令牌。')
-    expect(wrapper.find('.bg-red-50').exists()).toBe(false)
+    // 范围限定在卡片内的错误块：漏令牌是可重试的业务提示，不得画成断线红。
+    // 旧断言盯 '.bg-red-50' —— 该类已从调色板删除、永不渲染，属恒真断言（见 task-2 报告）。
+    expect(wrapper.get('.card').html()).not.toMatch(DANGER_CALLOUT)
   })
 })

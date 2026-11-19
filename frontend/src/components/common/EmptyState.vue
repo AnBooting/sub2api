@@ -1,18 +1,17 @@
 <template>
   <div class="empty-state">
-    <!-- Icon -->
-    <div
-      class="mb-5 flex h-20 w-20 items-center justify-center rounded-2xl bg-gray-100 dark:bg-dark-800"
-    >
+    <!-- 图标不是装饰：一个 1px 边线的方形端口，里面是主题符号 -->
+    <div class="mb-4 flex h-11 w-11 items-center justify-center border border-rule bg-paper-inset">
       <slot name="icon">
-        <component v-if="icon" :is="icon" class="empty-state-icon h-10 w-10" aria-hidden="true" />
+        <component v-if="icon" :is="icon" class="h-5 w-5 text-ink-faint" aria-hidden="true" />
         <svg
           v-else
-          class="empty-state-icon h-10 w-10"
+          class="h-5 w-5 text-ink-faint"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
           stroke-width="1.5"
+          aria-hidden="true"
         >
           <path
             stroke-linecap="round"
@@ -23,27 +22,25 @@
       </slot>
     </div>
 
-    <!-- Title -->
     <h3 class="empty-state-title">
       {{ displayTitle }}
     </h3>
 
-    <!-- Description -->
     <p class="empty-state-description">
       {{ description }}
     </p>
 
-    <!-- Action -->
-    <div v-if="actionText || $slots.action" class="mt-6">
+    <div v-if="actionText || $slots.action" class="mt-5">
       <slot name="action">
         <component
           :is="actionTo ? 'RouterLink' : 'button'"
           v-if="actionText"
           :to="actionTo"
-          @click="!actionTo && $emit('action')"
+          :type="actionTo ? undefined : 'button'"
           class="btn btn-primary"
+          @click="!actionTo && $emit('action')"
         >
-          <Icon v-if="actionIcon" name="plus" size="md" class="mr-2" />
+          <Icon v-if="actionIcon" name="plus" size="md" />
           {{ actionText }}
         </component>
       </slot>

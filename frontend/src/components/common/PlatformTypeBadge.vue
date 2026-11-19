@@ -58,7 +58,7 @@
       </span>
     </div>
     <!-- Row 3: Subscription expiration (non-free paid accounts only) -->
-    <div v-if="expiresLabel" class="text-[10px] leading-tight text-gray-400 dark:text-gray-500 pl-0.5" :title="subscriptionExpiresAt">
+    <div v-if="expiresLabel" class="pl-0.5 font-read text-[0.6875rem] leading-tight text-ink-faint" :title="subscriptionExpiresAt">
       {{ expiresLabel }}
     </div>
   </div>
@@ -177,63 +177,63 @@ const planIconName = computed<'bolt' | null>(() => {
 
 const platformClass = computed(() => {
   if (props.platform === 'anthropic') {
-    return 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400'
+    return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-400'
   }
   if (props.platform === 'openai') {
-    return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400'
+    return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400'
   }
   if (props.platform === 'antigravity') {
-    return 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400'
+    return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
   }
   if (props.platform === 'grok') {
-    return 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300'
+    return 'border border-rule bg-gray-100 text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300'
   }
   if (props.platform === 'kimi') {
-    return 'bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400'
+    return 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-400'
   }
   if (props.platform === 'zhipu') {
-    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400'
+    return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
   }
   if (props.platform === 'deepseek') {
-    return 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400'
+    return 'bg-success-100 text-success-700 dark:bg-success-900/30 dark:text-success-400'
   }
   if (props.platform === 'minimax') {
-    return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400'
+    return 'bg-danger-100 text-danger-700 dark:bg-danger-900/30 dark:text-danger-400'
   }
-  return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+  return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-400'
 })
 
 const typeClass = computed(() => {
   if (props.platform === 'anthropic') {
-    return 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+    return 'bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400'
   }
   if (props.platform === 'openai') {
-    return 'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400'
+    return 'bg-success-100 text-success-600 dark:bg-success-900/30 dark:text-success-400'
   }
   if (props.platform === 'antigravity') {
-    return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400'
+    return 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
   }
   if (props.platform === 'grok') {
-    return 'bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300'
+    return 'border border-rule bg-gray-100 text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300'
   }
   if (props.platform === 'kimi') {
-    return 'bg-pink-100 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400'
+    return 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400'
   }
   if (props.platform === 'zhipu') {
-    return 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-400'
+    return 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
   }
   if (props.platform === 'deepseek') {
-    return 'bg-teal-100 text-teal-600 dark:bg-teal-900/30 dark:text-teal-400'
+    return 'bg-success-100 text-success-600 dark:bg-success-900/30 dark:text-success-400'
   }
   if (props.platform === 'minimax') {
-    return 'bg-rose-100 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400'
+    return 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400'
   }
-  return 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400'
+  return 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-400'
 })
 
 const planBadgeClass = computed(() => {
   if (normalizedPlanType.value === 'abnormal') {
-    return 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400'
+    return 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400'
   }
   // Free stays muted gray; paid Grok tiers get distinct colors.
   if (
@@ -241,27 +241,27 @@ const planBadgeClass = computed(() => {
     normalizedPlanType.value === 'basic' ||
     normalizedPlanType.value === 'xbasic'
   ) {
-    return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+    return 'border border-rule bg-gray-100 text-gray-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-300'
   }
   if (props.platform === 'grok' && normalizedPlanType.value) {
     // Heavy / SuperGrok Heavy → purple
     if (normalizedPlanType.value.includes('heavy')) {
-      return 'bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-300'
+      return 'bg-primary-100 text-primary-600 dark:bg-primary-900/30 dark:text-primary-300'
     }
     // SuperGrok → cyan
     if (normalizedPlanType.value.includes('supergrok')) {
-      return 'bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300'
+      return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
     }
     // Any other non-free Grok plan (future tiers) → amber so it still stands out
-    return 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300'
+    return 'bg-warning-100 text-warning-700 dark:bg-warning-900/30 dark:text-warning-300'
   }
   // OpenAI / other paid plan labels: keep readable distinction from free gray
   if (normalizedPlanType.value === 'plus') {
-    return 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+    return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
   }
   if (normalizedPlanType.value === 'team' || normalizedPlanType.value === 'selfservebusinessprolite' ||
     (props.platform === 'openai' && ['selfservebusinessusagebased', 'business', 'enterprise', 'ent26', 'enterprisecbpautomation', 'enterprisecbpusagebased', 'edu', 'eduplus', 'edupro'].includes(normalizedPlanType.value))) {
-    return 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+    return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
   }
   if (
     normalizedPlanType.value === 'pro' ||
@@ -269,7 +269,7 @@ const planBadgeClass = computed(() => {
     normalizedPlanType.value === 'prolite' ||
     (props.platform === 'openai' && normalizedPlanType.value === 'promax')
   ) {
-    return 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300'
+    return 'bg-primary-100 text-primary-700 dark:bg-primary-900/30 dark:text-primary-300'
   }
   return typeClass.value
 })
@@ -305,16 +305,16 @@ const privacyBadge = computed(() => {
   switch (props.privacyMode) {
     // OpenAI states
     case 'training_off':
-      return { label: 'Private', icon: shieldCheck, title: t('admin.accounts.privacyTrainingOff'), class: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' }
+      return { label: 'Private', icon: shieldCheck, title: t('admin.accounts.privacyTrainingOff'), class: 'bg-success-100 text-success-600 dark:bg-success-900/30 dark:text-success-400' }
     case 'training_set_cf_blocked':
-      return { label: 'CF', icon: shieldX, title: t('admin.accounts.privacyCfBlocked'), class: 'bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400' }
+      return { label: 'CF', icon: shieldX, title: t('admin.accounts.privacyCfBlocked'), class: 'bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400' }
     case 'training_set_failed':
-      return { label: 'Fail', icon: shieldX, title: t('admin.accounts.privacyFailed'), class: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' }
+      return { label: 'Fail', icon: shieldX, title: t('admin.accounts.privacyFailed'), class: 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400' }
     // Antigravity states
     case 'privacy_set':
-      return { label: 'Private', icon: shieldCheck, title: t('admin.accounts.privacyAntigravitySet'), class: 'bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400' }
+      return { label: 'Private', icon: shieldCheck, title: t('admin.accounts.privacyAntigravitySet'), class: 'bg-success-100 text-success-600 dark:bg-success-900/30 dark:text-success-400' }
     case 'privacy_set_failed':
-      return { label: 'Fail', icon: shieldX, title: t('admin.accounts.privacyAntigravityFailed'), class: 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' }
+      return { label: 'Fail', icon: shieldX, title: t('admin.accounts.privacyAntigravityFailed'), class: 'bg-danger-100 text-danger-600 dark:bg-danger-900/30 dark:text-danger-400' }
     default:
       return null
   }

@@ -123,7 +123,9 @@ test('the real user API-key group portal belongs to the dialog Tab cycle', async
   await page.keyboard.press('Tab')
   await expect(groupOption).toBeFocused()
   await page.keyboard.press('Tab')
-  await expect(dialog.getByRole('button', { name: 'Close modal' })).toBeFocused()
+  // PR #23 把关闭按钮的 aria-label 从 "Close modal" 改为 "Close dialog"，
+  // 断言必须跟随，否则会变成一条永远找不到元素的假红。
+  await expect(dialog.getByRole('button', { name: 'Close dialog' })).toBeFocused()
   await page.keyboard.press('Shift+Tab')
   await expect(groupOption).toBeFocused()
   await page.keyboard.press('Shift+Tab')

@@ -1,0 +1,20 @@
+== 仓库：F:\sub2\.agents\worktrees\dsh-47f1877f-3135
+== HEAD：8b5bfc8d7 fix(frontend): repair dark contrast and tablet dock spacing
+[PASS] frontend: vue-tsc -b (exit 0)
+[PASS] frontend: check:i18n (exit 0)
+[PASS] frontend: vitest run (exit 0)
+[PASS] frontend: vite build (exit 0)
+[FAIL] frontend: e2e (exit 1)
+> sub2api-frontend@1.0.0 test:e2e F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend
+> playwright test
+
+error: unknown command 'test'
+ ELIFECYCLE  Command failed with exit code 1.
+
+== 汇总
+[PASS] frontend: vue-tsc -b
+[PASS] frontend: check:i18n
+[PASS] frontend: vitest run
+[PASS] frontend: vite build
+[FAIL] frontend: e2e
+失败 1 项 / 共 5 项

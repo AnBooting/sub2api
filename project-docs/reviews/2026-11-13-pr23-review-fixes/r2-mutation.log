@@ -1,0 +1,72 @@
+
+ RUN  v2.1.9 F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend
+
+ ❯ src/utils/__tests__/signalContrast.spec.ts (7 tests | 4 failed) 22ms
+   × platformButtonClass dark interaction states > does not put on-signal text on the bright dark-mode signal background 9ms
+     → expected 'bg-signal text-on-signal hover:bg-pri…' not to match /^.*\bdark:hover:bg-primary-(400|300)…/m
+   × platformButtonClass dark interaction states > keeps hover/active on cobalt levels that carry light text 3ms
+     → expected [ '500', '600', '700', '800', '900' ] to include '400'
+   × inline bg-signal text-on-signal is not reintroduced > src/views/admin/RiskControlView.vue does not pair bg-signal with text-on-signal 3ms
+     → expected [ Array(1) ] to deeply equal []
+   × inline bg-signal text-on-signal is not reintroduced > src/views/admin/ops/components/OpsDashboardHeader.vue does not pair bg-signal with text-on-signal 1ms
+     → expected [ Array(1) ] to deeply equal []
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/utils/__tests__/signalContrast.spec.ts > platformButtonClass dark interaction states > does not put on-signal text on the bright dark-mode signal background
+AssertionError: expected 'bg-signal text-on-signal hover:bg-pri…' not to match /^.*\bdark:hover:bg-primary-(400|300)…/m
+
+- Expected:
+/^.*\bdark:hover:bg-primary-(400|300)\b/m
+
++ Received:
+"bg-signal text-on-signal hover:bg-primary-600 active:bg-primary-700 dark:hover:bg-primary-400 dark:active:bg-primary-300"
+
+ ❯ src/utils/__tests__/signalContrast.spec.ts:72:21
+     70|     const cls = platformButtonClass('openai')
+     71|     // 深色下 bg-signal = cobalt-400；亮字压在上面只有 3.18:1
+     72|     expect(cls).not.toMatch(/^.*\bdark:hover:bg-primary-(400|300)\b/m)
+       |                     ^
+     73|     expect(cls).not.toMatch(/\bdark:active:bg-primary-(400|300)\b/)
+     74|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  src/utils/__tests__/signalContrast.spec.ts > platformButtonClass dark interaction states > keeps hover/active on cobalt levels that carry light text
+AssertionError: expected [ '500', '600', '700', '800', '900' ] to include '400'
+ ❯ src/utils/__tests__/signalContrast.spec.ts:81:51
+     79|       const match = new RegExp('\\b' + state + ':bg-(primary|cobalt)-(…
+     80|       expect(match, state + ' must pin an explicit dark background').n…
+     81|       expect(['500', '600', '700', '800', '900']).toContain(match![2])
+       |                                                   ^
+     82|     }
+     83|   })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  src/utils/__tests__/signalContrast.spec.ts > inline bg-signal text-on-signal is not reintroduced > src/views/admin/RiskControlView.vue does not pair bg-signal with text-on-signal
+ FAIL  src/utils/__tests__/signalContrast.spec.ts > inline bg-signal text-on-signal is not reintroduced > src/views/admin/ops/components/OpsDashboardHeader.vue does not pair bg-signal with text-on-signal
+AssertionError: expected [ Array(1) ] to deeply equal []
+
+- Expected
++ Received
+
+- Array []
++ Array [
++   "                        :class=\"configForm.api_keys_mode === 'append' ? 'bg-signal text-on-signal' : 'text-ink-soft hover:bg-paper-inset hover:text-ink'\"",
++ ]
+
+ ❯ src/utils/__tests__/signalContrast.spec.ts:103:23
+    101|       .split('\n')
+    102|       .filter(line => /bg-signal\b/.test(line) && /text-on-signal\b/.t…
+    103|     expect(offenders).toEqual(allowed.filter(() => false).concat([]))
+       |                       ^
+    104|   })
+    105| })
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 3 passed (7)
+   Start at  02:47:23
+   Duration  2.18s (transform 93ms, setup 144ms, collect 187ms, tests 22ms, environment 748ms, prepare 178ms)

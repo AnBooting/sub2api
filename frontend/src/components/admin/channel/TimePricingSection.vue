@@ -2,7 +2,7 @@
   <section class="mt-3 border-t border-gray-200 pt-3 dark:border-dark-600">
     <div class="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
       <div class="min-w-0 flex-1 sm:max-w-2xl">
-        <label class="block text-xs font-medium text-gray-500 dark:text-gray-400">
+        <label class="block text-xs font-medium text-ink-faint">
           {{ t('admin.channels.form.timePricing') }}
         </label>
         <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -103,7 +103,7 @@
         </div>
         <button
           type="button"
-          class="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:text-red-500"
+          class="flex h-8 w-8 items-center justify-center rounded text-gray-400 hover:text-danger-500"
           :title="t('admin.channels.form.removeTimePeriod')"
           :aria-label="t('admin.channels.form.removeTimePeriod')"
           :data-testid="`remove-time-period-${index}`"

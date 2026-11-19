@@ -108,7 +108,8 @@ describe('HomeView compact mode', () => {
     const wrapper = mountHome(settings)
 
     expect(wrapper.find('[data-testid="compact-home"]').exists()).toBe(false)
-    expect(wrapper.find('.terminal-container').exists()).toBe(true)
+    // 主视觉是配线图（请求在图上的走向），不再是模板化的终端动画
+    expect(wrapper.find('[data-testid="patch-diagram"]').exists()).toBe(true)
   })
 
   it('links unauthenticated visitors to login', () => {

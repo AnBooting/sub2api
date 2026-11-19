@@ -27,7 +27,7 @@
         <!-- Search and Batch Test Header -->
         <div class="select-header">
           <div class="select-search">
-            <Icon name="search" size="sm" class="text-gray-400" />
+            <Icon name="search" size="sm" class="shrink-0 text-ink-faint" />
             <input
               ref="searchInputRef"
               v-model="searchQuery"
@@ -88,7 +88,7 @@
                 <!-- Account count badge -->
                 <span
                   v-if="proxy.account_count !== undefined"
-                  class="inline-flex flex-shrink-0 items-center rounded bg-gray-100 px-1.5 py-0.5 text-xs text-gray-600 dark:bg-dark-600 dark:text-gray-400"
+                  class="inline-flex shrink-0 items-center border border-rule bg-paper-inset px-1.5 py-0.5 font-read text-[0.6875rem] text-ink-soft"
                 >
                   {{ proxy.account_count }}
                 </span>
@@ -96,7 +96,7 @@
                 <template v-if="testResults[proxy.id]">
                   <span
                     v-if="testResults[proxy.id].success"
-                    class="inline-flex flex-shrink-0 items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-xs text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                    class="inline-flex flex-shrink-0 items-center gap-1 rounded bg-success-100 px-1.5 py-0.5 text-xs text-success-700 dark:bg-success-900/30 dark:text-success-400"
                   >
                     <span v-if="testResults[proxy.id].country">{{
                       testResults[proxy.id].country
@@ -107,13 +107,13 @@
                   </span>
                   <span
                     v-else
-                    class="inline-flex flex-shrink-0 items-center rounded bg-red-100 px-1.5 py-0.5 text-xs text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                    class="inline-flex flex-shrink-0 items-center rounded bg-danger-100 px-1.5 py-0.5 text-xs text-danger-700 dark:bg-danger-900/30 dark:text-danger-400"
                   >
                     {{ t('admin.proxies.testFailed') }}
                   </span>
                 </template>
               </div>
-              <div class="truncate text-xs text-gray-500 dark:text-gray-400">
+              <div class="truncate font-read text-[0.6875rem] text-ink-faint">
                 {{ proxy.protocol }}://{{ proxy.host }}:{{ proxy.port }}
               </div>
             </div>
@@ -315,22 +315,21 @@ onUnmounted(() => {
 <style scoped>
 .select-trigger {
   @apply flex w-full items-center justify-between gap-2;
-  @apply rounded-xl px-4 py-2.5 text-sm;
-  @apply bg-white dark:bg-dark-800;
-  @apply border border-gray-200 dark:border-dark-600;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply transition-all duration-200;
-  @apply focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/30;
-  @apply hover:border-gray-300 dark:hover:border-dark-500;
+  @apply rounded-sm border border-rule-strong bg-surface px-3 py-2 text-ink;
+  @apply transition-colors duration-150;
+  @apply focus:border-signal focus:outline-none;
+  @apply hover:border-ink-faint;
   @apply cursor-pointer;
+  min-height: 2.25rem;
+  font-size: 16px;
 }
 
 .select-trigger-open {
-  @apply border-primary-500 ring-2 ring-primary-500/30;
+  @apply border-signal;
 }
 
 .select-trigger-disabled {
-  @apply cursor-not-allowed bg-gray-100 opacity-60 dark:bg-dark-900;
+  @apply cursor-not-allowed bg-paper-inset text-ink-faint;
 }
 
 .select-value {
@@ -338,21 +337,19 @@ onUnmounted(() => {
 }
 
 .select-icon {
-  @apply flex-shrink-0 text-gray-400 dark:text-dark-400;
+  @apply shrink-0 text-ink-faint;
 }
 
 .select-dropdown {
   @apply absolute z-[100] mt-2 w-full;
-  @apply bg-white dark:bg-dark-800;
-  @apply rounded-xl;
-  @apply border border-gray-200 dark:border-dark-700;
-  @apply shadow-lg shadow-black/10 dark:shadow-black/30;
+  @apply rounded-sm border border-rule-strong bg-surface;
   @apply overflow-hidden;
+  box-shadow: 0 18px 44px -26px rgb(58 53 48 / 0.42);
 }
 
 .select-header {
   @apply flex items-center gap-2 px-3 py-2;
-  @apply border-b border-gray-100 dark:border-dark-700;
+  @apply border-b border-rule;
 }
 
 .select-search {
@@ -360,16 +357,16 @@ onUnmounted(() => {
 }
 
 .select-search-input {
-  @apply flex-1 bg-transparent text-sm;
-  @apply text-gray-900 dark:text-gray-100;
-  @apply placeholder:text-gray-400 dark:placeholder:text-dark-400;
+  @apply min-w-0 flex-1 bg-transparent text-ink;
+  @apply placeholder:text-ink-faint;
   @apply focus:outline-none;
+  font-size: 16px;
 }
 
 .batch-test-btn {
-  @apply flex-shrink-0 rounded-lg p-1.5;
-  @apply text-gray-500 hover:text-emerald-600 dark:hover:text-emerald-400;
-  @apply hover:bg-emerald-50 dark:hover:bg-emerald-900/20;
+  @apply flex h-11 w-11 shrink-0 items-center justify-center;
+  @apply text-ink-faint hover:text-success-700 dark:hover:text-success-300;
+  @apply hover:bg-success-50 dark:hover:bg-success-950/40;
   @apply transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
 
@@ -379,15 +376,14 @@ onUnmounted(() => {
 
 .select-option {
   @apply flex items-center justify-between gap-2;
-  @apply px-4 py-2.5 text-sm;
-  @apply text-gray-700 dark:text-gray-300;
-  @apply cursor-pointer transition-colors duration-150;
-  @apply hover:bg-gray-50 dark:hover:bg-dark-700;
+  @apply px-3 py-2.5 text-sm text-ink-soft;
+  @apply cursor-pointer transition-colors duration-100;
+  @apply hover:bg-paper-inset hover:text-ink;
+  min-height: var(--touch-min);
 }
 
 .select-option-selected {
-  @apply bg-primary-50 dark:bg-primary-900/20;
-  @apply text-primary-700 dark:text-primary-300;
+  @apply bg-signal/10 text-ink;
 }
 
 .select-option-label {
@@ -395,21 +391,20 @@ onUnmounted(() => {
 }
 
 .select-empty {
-  @apply px-4 py-8 text-center text-sm;
-  @apply text-gray-500 dark:text-dark-400;
+  @apply px-4 py-8 text-center text-sm text-ink-faint;
 }
 
 .test-btn {
-  @apply flex-shrink-0 rounded p-1;
-  @apply text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400;
-  @apply hover:bg-emerald-50 dark:hover:bg-emerald-900/20;
+  @apply flex h-11 w-11 shrink-0 items-center justify-center;
+  @apply text-ink-faint hover:text-success-700 dark:hover:text-success-300;
+  @apply hover:bg-success-50 dark:hover:bg-success-950/40;
   @apply transition-colors disabled:cursor-not-allowed disabled:opacity-50;
 }
 
 /* Dropdown animation */
 .select-dropdown-enter-active,
 .select-dropdown-leave-active {
-  transition: all 0.2s ease;
+  transition: opacity var(--motion-base) var(--ease-cut), transform var(--motion-base) var(--ease-cut);
 }
 
 .select-dropdown-enter-from,

@@ -1155,6 +1155,11 @@ export default {
   errors: {
     somethingWentWrong: 'Something went wrong',
     pageNotFound: 'Page not found',
+    pageNotFoundDescription: 'Nothing lives at this address. The link may be mistyped, or the page has moved.',
+    goBack: 'Go back',
+    goToDashboard: 'Go to dashboard',
+    needHelp: 'Need help?',
+    contactSupport: 'Contact support',
     unauthorized: 'Unauthorized',
     forbidden: 'Forbidden',
     serverError: 'Server error',

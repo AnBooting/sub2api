@@ -3,7 +3,7 @@
     <legend class="input-label mb-0">{{ t('keys.ha.title') }}</legend>
     <p class="input-hint">{{ t('keys.ha.createHint') }}</p>
 
-    <p v-if="!candidates.length" class="text-xs text-gray-500" data-test="ha-picker-empty">
+   <p v-if="!candidates.length" class="text-xs text-ink-soft" data-test="ha-picker-empty">
       {{ t('keys.ha.empty') }}
     </p>
 
@@ -11,7 +11,7 @@
       <li
         v-for="candidate in candidates"
         :key="candidate.id"
-        class="flex items-center justify-between rounded border border-gray-200 px-3 py-2 dark:border-dark-600"
+   class="flex items-center justify-between rounded border border-rule px-3 py-2 dark:border-dark-600"
       >
         <label class="flex min-w-0 items-center gap-2 text-sm">
           <input
@@ -21,8 +21,8 @@
             :data-test="'ha-picker-' + candidate.id"
             @change="toggle(candidate.id)"
           />
-          <span class="truncate text-gray-700 dark:text-gray-200">{{ candidate.name }}</span>
-          <span class="text-xs text-gray-500">{{ candidate.rate_multiplier }}x</span>
+   <span class="truncate text-ink">{{ candidate.name }}</span>
+   <span class="text-xs text-ink-soft">{{ candidate.rate_multiplier }}x</span>
         </label>
       </li>
     </ul>

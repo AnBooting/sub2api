@@ -1,0 +1,17 @@
+[WebServer] (node:17816) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] Browserslist: browsers data (caniuse-lite) is 11 months old. Please run:
+[WebServer]   npx update-browserslist-db@latest
+[WebServer]   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Running 5 tests using 1 worker
+
+(node:33596) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 e2e\specs\date-range.spec.ts:12:1 › click opens the picker (1.2s)
+  ok 2 e2e\specs\date-range.spec.ts:18:1 › clicking the trigger again closes the picker (664ms)
+  ok 3 e2e\specs\date-range.spec.ts:26:1 › Escape closes the picker (663ms)
+  ok 4 e2e\specs\date-range.spec.ts:34:1 › clicking outside closes the picker (705ms)
+  ok 5 e2e\specs\date-range.spec.ts:42:1 › choosing a preset and applying updates the range (727ms)
+
+  5 passed (7.8s)

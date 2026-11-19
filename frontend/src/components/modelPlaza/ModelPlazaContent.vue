@@ -2,20 +2,20 @@
   <div class="space-y-5">
     <!-- 页头(独立形态下展示标题;后台形态 AppHeader 已有页面标题) -->
     <div v-if="!embedded">
-      <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">{{ t('modelPlaza.title') }}</h1>
+      <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-on-signal sm:text-3xl">{{ t('modelPlaza.title') }}</h1>
       <p class="mt-1.5 text-sm text-gray-500 dark:text-dark-400">{{ t('modelPlaza.description') }}</p>
     </div>
 
     <!-- 全局价格说明(管理员配置,Markdown) -->
     <div
       v-if="descriptionHtml"
-      class="plaza-description rounded-2xl border border-gray-100 bg-white px-5 py-4 text-sm shadow-card dark:border-dark-700/50 dark:bg-dark-800/50"
+      class="plaza-description panel px-5 py-4 text-sm"
       v-html="descriptionHtml"
     ></div>
 
     <!-- 价格口径说明:这里展示的是源币种价目,不是账户余额的 Credit -->
     <p
-      class="rounded-xl border border-gray-100 bg-gray-50 px-4 py-2.5 text-xs leading-relaxed text-gray-600 dark:border-dark-700/60 dark:bg-dark-800/50 dark:text-gray-300"
+      class="border border-rule bg-paper-inset px-4 py-2.5 text-xs leading-relaxed text-ink-soft"
       data-testid="model-plaza-source-price-note"
     >
       {{ t('modelPlaza.sourcePriceNote') }}
@@ -36,7 +36,7 @@
     </div>
     <div
       v-else-if="error"
-      class="rounded-2xl border border-red-200 bg-red-50 px-5 py-8 text-center text-sm text-red-600 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+      class="border border-danger-300 bg-danger-50 px-5 py-8 text-center text-sm text-danger-700 dark:border-danger-800 dark:bg-danger-950/60 dark:text-danger-300"
     >
       {{ t('modelPlaza.loadFailed') }}
     </div>
@@ -62,7 +62,7 @@
       </div>
       <div
         v-else
-        class="rounded-2xl border border-dashed border-gray-300 px-5 py-12 text-center text-sm text-gray-500 dark:border-dark-600 dark:text-dark-400"
+        class="border border-dashed border-rule-strong px-5 py-12 text-center text-sm text-ink-soft"
       >
         {{ searchActive ? t('modelPlaza.noSearchResult') : t('modelPlaza.empty') }}
       </div>
@@ -170,7 +170,7 @@ const filteredGroups = computed(() => {
 .plaza-description :deep(h1),
 .plaza-description :deep(h2),
 .plaza-description :deep(h3) {
-  @apply mb-2 mt-3 font-semibold text-gray-900 first:mt-0 dark:text-white;
+  @apply mb-2 mt-3 font-semibold text-gray-900 first:mt-0 dark:text-on-signal;
 }
 
 .plaza-description :deep(p) {

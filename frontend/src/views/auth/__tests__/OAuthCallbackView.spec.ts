@@ -113,7 +113,7 @@ describe('OAuthCallbackView', () => {
     expect(wrapper.find('input[value="oauth-state"]').exists()).toBe(true)
   })
 
-  it('sends callback errors to toast instead of rendering inline red text', () => {
+  it('sends callback errors to toast instead of rendering an inline danger callout', () => {
     routeState.query = {
       error: 'oauth failed',
     }
@@ -122,7 +122,10 @@ describe('OAuthCallbackView', () => {
 
     expect(showErrorMock).toHaveBeenCalledWith('oauth failed')
     expect(wrapper.text()).not.toContain('oauth failed')
-    expect(wrapper.find('.bg-red-50').exists()).toBe(false)
+    // 范围限定在回调卡片：本页只把 registrationError 有意内联（OAuthCallbackView.vue:68），
+    // 但那是 registrationError 分支；query.error 分支必须只走 toast。
+    // 旧断言盯 '.bg-red-50' —— 该类已从调色板删除、永不渲染，属恒真断言（见 task-2 报告）。
+    expect(wrapper.get('.card').html()).not.toMatch(/bg-danger-(?:50|100)|border-danger-|text-danger-(?:600|700)/)
   })
 
   it('does not render manual copy fields for direct email oauth callback visits', async () => {

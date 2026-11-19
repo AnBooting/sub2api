@@ -34,7 +34,8 @@ describe('GroupPricingStateBadge', () => {
     const badge = wrapper.get('[data-testid="group-pricing-state-badge"]')
     expect(badge.text()).toContain('峰价时段 09:00-12:00')
     expect(badge.text()).toContain('×2')
-    expect(badge.classes()).toContain('bg-amber-100')
+    // 峰价 = 测量/提醒色 warning（赭石）。
+    expect(badge.classes()).toContain('bg-warning-100')
     expect(badge.attributes('title')).toContain('Asia/Shanghai')
     wrapper.unmount()
   })
@@ -44,14 +45,20 @@ describe('GroupPricingStateBadge', () => {
 
     const badge = wrapper.get('[data-testid="group-pricing-state-badge"]')
     expect(badge.text()).toContain('谷价时段')
-    expect(badge.classes()).toContain('bg-emerald-100')
+    // 谷价 = 通路色 success（苔绿）。
+    expect(badge.classes()).toContain('bg-success-100')
     wrapper.unmount()
   })
 
   it('shows the disabled state in gray', () => {
     const wrapper = mountBadge({ state: 'none', label: '未启用' })
 
-    expect(wrapper.get('[data-testid="group-pricing-state-badge"]').classes()).toContain('bg-gray-100')
+    // 未启用 = 中性：用纸面内嵌底 + 弱墨表达，不借用峰/谷的状态色。
+    // 不再死盯 bg-gray-100 这个色阶：中性表达已迁到 surface（paper-inset）/ gray 两族之一。
+    const classes = wrapper.get('[data-testid="group-pricing-state-badge"]').classes().join(' ')
+    expect(classes).toMatch(/bg-paper-inset|bg-gray-/)
+    expect(classes).not.toContain('bg-warning')
+    expect(classes).not.toContain('bg-success')
     wrapper.unmount()
   })
 

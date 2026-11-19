@@ -1,0 +1,328 @@
+== 仓库：F:\sub2\.agents\worktrees\dsh-47f1877f-3135
+== HEAD：8b5bfc8d7 fix(frontend): repair dark contrast and tablet dock spacing
+[PASS] frontend: vue-tsc -b (exit 0)
+[PASS] frontend: check:i18n (exit 0)
+[PASS] frontend: vitest run (exit 0)
+[PASS] frontend: vite build (exit 0)
+[FAIL] frontend: e2e (exit 1)
+> sub2api-frontend@1.0.0 test:e2e F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend
+> playwright test
+
+[WebServer] (node:5468) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 22 tests using 1 worker
+
+(node:36424) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 01:40:23 [vite] Pre-transform error: [postcss] F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:105:3: The `btn` class does not exist. If `btn` is a custom class, make sure it is defined within a `@layer` directive.
+[WebServer] 01:40:23 [vite] Internal server error: [postcss] F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:105:3: The `btn` class does not exist. If `btn` is a custom class, make sure it is defined within a `@layer` directive.
+[WebServer]   Plugin: vite:css
+[WebServer]   File: F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:428:2
+[WebServer]   103|
+[WebServer]   104|  .date-picker-apply {
+[WebServer]   105|    @apply btn btn-primary btn-sm;
+[WebServer]      |    ^
+[WebServer]   106|  }
+[WebServer]   107|
+[WebServer]       at Input.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\input.js:135:16)
+[WebServer]       at AtRule.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\node.js:166:32)
+[WebServer]       at processApply (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:380:29)
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:551:9
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\processTailwindFeatures.js:55:50
+[WebServer]       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[WebServer]       at async plugins (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\plugin.js:38:17)
+[WebServer]       at async LazyResult.runAsync (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\lazy-result.js:299:11)
+[WebServer]       at async compileCSS (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+[WebServer]       at async TransformPluginContext.transform (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+  x   1 e2e\specs\date-range.spec.ts:12:1 › click opens the picker (15.2s)
+(node:31828) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 01:40:39 [vite] Internal server error: [postcss] F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:105:3: The `btn` class does not exist. If `btn` is a custom class, make sure it is defined within a `@layer` directive.
+[WebServer]   Plugin: vite:css
+[WebServer]   File: F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:428:2
+[WebServer]   103|
+[WebServer]   104|  .date-picker-apply {
+[WebServer]   105|    @apply btn btn-primary btn-sm;
+[WebServer]      |    ^
+[WebServer]   106|  }
+[WebServer]   107|
+[WebServer]       at Input.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\input.js:135:16)
+[WebServer]       at AtRule.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\node.js:166:32)
+[WebServer]       at processApply (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:380:29)
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:551:9
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\processTailwindFeatures.js:55:50
+[WebServer]       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[WebServer]       at async plugins (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\plugin.js:38:17)
+[WebServer]       at async LazyResult.runAsync (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\lazy-result.js:299:11)
+[WebServer]       at async compileCSS (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+[WebServer]       at async TransformPluginContext.transform (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+  x   2 e2e\specs\date-range.spec.ts:18:1 › clicking the trigger again closes the picker (15.3s)
+(node:27396) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 01:40:56 [vite] Internal server error: [postcss] F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:105:3: The `btn` class does not exist. If `btn` is a custom class, make sure it is defined within a `@layer` directive.
+[WebServer]   Plugin: vite:css
+[WebServer]   File: F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:428:2
+[WebServer]   103|
+[WebServer]   104|  .date-picker-apply {
+[WebServer]   105|    @apply btn btn-primary btn-sm;
+[WebServer]      |    ^
+[WebServer]   106|  }
+[WebServer]   107|
+[WebServer]       at Input.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\input.js:135:16)
+[WebServer]       at AtRule.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\node.js:166:32)
+[WebServer]       at processApply (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:380:29)
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:551:9
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\processTailwindFeatures.js:55:50
+[WebServer]       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[WebServer]       at async plugins (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\plugin.js:38:17)
+[WebServer]       at async LazyResult.runAsync (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\lazy-result.js:299:11)
+[WebServer]       at async compileCSS (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+[WebServer]       at async TransformPluginContext.transform (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+  x   3 e2e\specs\date-range.spec.ts:26:1 › Escape closes the picker (15.3s)
+(node:30572) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 01:41:12 [vite] Internal server error: [postcss] F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:105:3: The `btn` class does not exist. If `btn` is a custom class, make sure it is defined within a `@layer` directive.
+[WebServer]   Plugin: vite:css
+[WebServer]   File: F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:428:2
+[WebServer]   103|
+[WebServer]   104|  .date-picker-apply {
+[WebServer]   105|    @apply btn btn-primary btn-sm;
+[WebServer]      |    ^
+[WebServer]   106|  }
+[WebServer]   107|
+[WebServer]       at Input.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\input.js:135:16)
+[WebServer]       at AtRule.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\node.js:166:32)
+[WebServer]       at processApply (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:380:29)
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:551:9
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\processTailwindFeatures.js:55:50
+[WebServer]       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[WebServer]       at async plugins (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\plugin.js:38:17)
+[WebServer]       at async LazyResult.runAsync (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\lazy-result.js:299:11)
+[WebServer]       at async compileCSS (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+[WebServer]       at async TransformPluginContext.transform (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+  x   4 e2e\specs\date-range.spec.ts:34:1 › clicking outside closes the picker (15.3s)
+(node:33956) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] 01:41:29 [vite] Internal server error: [postcss] F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:105:3: The `btn` class does not exist. If `btn` is a custom class, make sure it is defined within a `@layer` directive.
+[WebServer]   Plugin: vite:css
+[WebServer]   File: F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/src/components/common/DateRangePicker.vue?vue&type=style&index=0&scoped=52b13b36&lang.css:428:2
+[WebServer]   103|
+[WebServer]   104|  .date-picker-apply {
+[WebServer]   105|    @apply btn btn-primary btn-sm;
+[WebServer]      |    ^
+[WebServer]   106|  }
+[WebServer]   107|
+[WebServer]       at Input.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\input.js:135:16)
+[WebServer]       at AtRule.error (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\node.js:166:32)
+[WebServer]       at processApply (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:380:29)
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\lib\expandApplyAtRules.js:551:9
+[WebServer]       at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\processTailwindFeatures.js:55:50
+[WebServer]       at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+[WebServer]       at async plugins (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\tailwindcss@3.4.19\node_modules\tailwindcss\lib\plugin.js:38:17)
+[WebServer]       at async LazyResult.runAsync (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\node_modules\.pnpm\postcss@8.5.23\node_modules\postcss\lib\lazy-result.js:299:11)
+[WebServer]       at async compileCSS (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36898:21)
+[WebServer]       at async TransformPluginContext.transform (file:///F:/sub2/.agents/worktrees/dsh-47f1877f-3135/frontend/node_modules/.pnpm/vite@5.4.21_@types+node@20.19.27/node_modules/vite/dist/node/chunks/dep-BK3b2jBa.js:36171:11)
+  x   5 e2e\specs\date-range.spec.ts:42:1 › choosing a preset and applying updates the range (15.2s)
+(node:36252) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  6 e2e\specs\dialog.spec.ts:11:1 › initial focus lands on the first enabled control (1.1s)
+  ok  7 e2e\specs\dialog.spec.ts:16:1 › Tab from the last control wraps to the first (673ms)
+  ok  8 e2e\specs\dialog.spec.ts:26:1 › Shift+Tab from the first control wraps to the last (613ms)
+  ok  9 e2e\specs\dialog.spec.ts:34:1 › focus cannot escape to the page behind the dialog (793ms)
+  ok 10 e2e\specs\dialog.spec.ts:46:1 › closing the dialog returns focus to the trigger (775ms)
+  ok 11 e2e\specs\dialog.spec.ts:54:1 › Escape closes only the topmost nested dialog (931ms)
+  ok 12 e2e\specs\dialog.spec.ts:69:1 › backdrop click closes the dialog when enabled (730ms)
+  ok 13 e2e\specs\dialog.spec.ts:76:1 › backdrop click does not close the dialog by default (738ms)
+  ok 14 e2e\specs\dialog.spec.ts:83:1 › hidden ancestors and non-tabbable controls do not corrupt either boundary (810ms)
+  ok 15 e2e\specs\dialog.spec.ts:92:1 › an empty dialog holds focus on its panel (793ms)
+  ok 16 e2e\specs\dialog.spec.ts:102:1 › the real user API-key group portal belongs to the dialog Tab cycle (1.4s)
+  ok 17 e2e\specs\select.spec.ts:11:1 › click opens the dropdown and focuses the first enabled option (925ms)
+  ok 18 e2e\specs\select.spec.ts:17:1 › ArrowDown opens the dropdown from a focused trigger (612ms)
+  ok 19 e2e\specs\select.spec.ts:27:1 › arrow keys move the focused option, skip disabled ones and wrap around (724ms)
+  ok 20 e2e\specs\select.spec.ts:43:1 › Enter selects the focused option and returns focus to the trigger (718ms)
+  ok 21 e2e\specs\select.spec.ts:54:1 › Escape closes without changing the value and returns focus to the trigger (656ms)
+  ok 22 e2e\specs\select.spec.ts:65:1 › Tab closes the dropdown (747ms)
+
+
+  1) e2e\specs\date-range.spec.ts:12:1 › click opens the picker ────────────────────────────────────
+
+    Test timeout of 15000ms exceeded.
+
+    Error: locator.click: Test timeout of 15000ms exceeded.
+    Call log:
+      - waiting for locator('.date-picker-trigger')
+
+
+       6 | async function openPicker(page: Page) {
+       7 |   await page.goto(HARNESS)
+    >  8 |   await page.locator('.date-picker-trigger').click()
+         |                                              ^
+       9 |   await expect(page.locator('.date-picker-dropdown')).toBeVisible()
+      10 | }
+      11 |
+        at openPicker (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:8:46)
+        at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:13:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\date-range-click-opens-the-picker\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\date-range-click-opens-the-picker\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\date-range-click-opens-the-picker\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\date-range-click-opens-the-picker\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) e2e\specs\date-range.spec.ts:18:1 › clicking the trigger again closes the picker ──────────────
+
+    Test timeout of 15000ms exceeded.
+
+    Error: locator.click: Test timeout of 15000ms exceeded.
+    Call log:
+      - waiting for locator('.date-picker-trigger')
+
+
+       6 | async function openPicker(page: Page) {
+       7 |   await page.goto(HARNESS)
+    >  8 |   await page.locator('.date-picker-trigger').click()
+         |                                              ^
+       9 |   await expect(page.locator('.date-picker-dropdown')).toBeVisible()
+      10 | }
+      11 |
+        at openPicker (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:8:46)
+        at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:19:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\date-range-clicking-the-trigger-again-closes-the-picker\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\date-range-clicking-the-trigger-again-closes-the-picker\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\date-range-clicking-the-trigger-again-closes-the-picker\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\date-range-clicking-the-trigger-again-closes-the-picker\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) e2e\specs\date-range.spec.ts:26:1 › Escape closes the picker ──────────────────────────────────
+
+    Test timeout of 15000ms exceeded.
+
+    Error: locator.click: Test timeout of 15000ms exceeded.
+    Call log:
+      - waiting for locator('.date-picker-trigger')
+
+
+       6 | async function openPicker(page: Page) {
+       7 |   await page.goto(HARNESS)
+    >  8 |   await page.locator('.date-picker-trigger').click()
+         |                                              ^
+       9 |   await expect(page.locator('.date-picker-dropdown')).toBeVisible()
+      10 | }
+      11 |
+        at openPicker (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:8:46)
+        at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:27:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\date-range-Escape-closes-the-picker\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\date-range-Escape-closes-the-picker\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\date-range-Escape-closes-the-picker\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\date-range-Escape-closes-the-picker\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) e2e\specs\date-range.spec.ts:34:1 › clicking outside closes the picker ────────────────────────
+
+    Test timeout of 15000ms exceeded.
+
+    Error: locator.click: Test timeout of 15000ms exceeded.
+    Call log:
+      - waiting for locator('.date-picker-trigger')
+
+
+       6 | async function openPicker(page: Page) {
+       7 |   await page.goto(HARNESS)
+    >  8 |   await page.locator('.date-picker-trigger').click()
+         |                                              ^
+       9 |   await expect(page.locator('.date-picker-dropdown')).toBeVisible()
+      10 | }
+      11 |
+        at openPicker (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:8:46)
+        at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:35:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\date-range-clicking-outside-closes-the-picker\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\date-range-clicking-outside-closes-the-picker\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\date-range-clicking-outside-closes-the-picker\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\date-range-clicking-outside-closes-the-picker\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) e2e\specs\date-range.spec.ts:42:1 › choosing a preset and applying updates the range ──────────
+
+    Test timeout of 15000ms exceeded.
+
+    Error: locator.click: Test timeout of 15000ms exceeded.
+    Call log:
+      - waiting for locator('.date-picker-trigger')
+
+
+       6 | async function openPicker(page: Page) {
+       7 |   await page.goto(HARNESS)
+    >  8 |   await page.locator('.date-picker-trigger').click()
+         |                                              ^
+       9 |   await expect(page.locator('.date-picker-dropdown')).toBeVisible()
+      10 | }
+      11 |
+        at openPicker (F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:8:46)
+        at F:\sub2\.agents\worktrees\dsh-47f1877f-3135\frontend\e2e\specs\date-range.spec.ts:43:3
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\date-range-choosing-a-preset-and-applying-updates-the-range\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\date-range-choosing-a-preset-and-applying-updates-the-range\error-context.md
+
+    attachment #3: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\date-range-choosing-a-preset-and-applying-updates-the-range\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\date-range-choosing-a-preset-and-applying-updates-the-range\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5 failed
+    e2e\specs\date-range.spec.ts:12:1 › click opens the picker ─────────────────────────────────────
+    e2e\specs\date-range.spec.ts:18:1 › clicking the trigger again closes the picker ───────────────
+    e2e\specs\date-range.spec.ts:26:1 › Escape closes the picker ───────────────────────────────────
+    e2e\specs\date-range.spec.ts:34:1 › clicking outside closes the picker ─────────────────────────
+    e2e\specs\date-range.spec.ts:42:1 › choosing a preset and applying updates the range ───────────
+  17 passed (1.7m)
+ ELIFECYCLE  Command failed with exit code 1.
+
+== 汇总
+[PASS] frontend: vue-tsc -b
+[PASS] frontend: check:i18n
+[PASS] frontend: vitest run
+[PASS] frontend: vite build
+[FAIL] frontend: e2e
+失败 1 项 / 共 5 项

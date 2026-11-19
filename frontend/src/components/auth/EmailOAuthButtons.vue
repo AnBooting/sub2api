@@ -17,7 +17,7 @@
         class="btn btn-secondary h-12 w-full justify-center gap-2"
         @click="startLogin(provider)"
       >
-        <GitHubMark v-if="provider === 'github'" class="h-5 w-5 text-gray-800 dark:text-gray-100" />
+        <GitHubMark v-if="provider === 'github'" class="h-5 w-5 text-gray-800 dark:text-ink" />
         <GoogleMark v-else class="h-5 w-5" />
         <span class="font-medium">{{ providerLabel(provider) }}</span>
       </button>

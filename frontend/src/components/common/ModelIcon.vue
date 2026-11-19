@@ -265,13 +265,16 @@ const iconInfo = computed(() => iconKey.value ? iconData[iconKey.value] : null)
 .model-icon {
   flex-shrink: 0;
 }
+/* 未识别模型：不猜品牌色，用纸面 + 痕量线画一个中性端口 */
 .model-icon-fallback {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  background: linear-gradient(135deg, #6366f1, #8b5cf6);
-  color: white;
+  border: 1px solid rgb(var(--rule-strong));
+  border-radius: 2px;
+  background: rgb(var(--paper-inset));
+  color: rgb(var(--ink-soft));
+  font-family: var(--font-read);
   font-weight: 600;
   flex-shrink: 0;
 }
